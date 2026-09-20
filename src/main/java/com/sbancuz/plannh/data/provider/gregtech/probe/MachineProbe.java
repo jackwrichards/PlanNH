@@ -1,7 +1,5 @@
 package com.sbancuz.plannh.data.provider.gregtech.probe;
 
-import java.math.BigDecimal;
-import java.math.MathContext;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
@@ -113,7 +111,9 @@ public final class MachineProbe {
             return;
         }
         final StructureState state = reference();
-        PlanNH.LOG.info(
+        // Warn, not info: this runs once per machine class, so the volume is bounded, and an
+        // unexplained disagreement means a chart is planning with numbers nothing stands behind.
+        PlanNH.LOG.warn(
             "PlanNH probe: {} table {} vs probe {}",
             machineClass.getName(),
             headline(table, state),
@@ -156,19 +156,20 @@ public final class MachineProbe {
      * than returned as fields so the machine table can carry it as one cell and a GregTech update
      * shows up as a diff on the machines whose numbers moved. All ten always, in a fixed order: a
      * snapshot that omits defaults cannot tell a value leaving its default from a value never set.
+     * Plain doubles: this cell exists to diff, and a diff does not need fractions.
      */
     @Nonnull
     public static String numbersText(@Nonnull final GTMachinePreset preset) {
         final Headline h = headline(preset, reference());
         return "par=" + h.parallel()
             + " dur="
-            + num(h.duration())
+            + h.duration()
             + " eu="
-            + num(h.eu())
+            + h.eu()
             + " ocD="
-            + num(h.ocDuration())
+            + h.ocDuration()
             + " ocE="
-            + num(h.ocEut())
+            + h.ocEut()
             + " heat="
             + h.machineHeat()
             + " hOC="
@@ -179,31 +180,6 @@ public final class MachineProbe {
             + h.recipeHeat()
             + " skips="
             + h.tierSkips();
-    }
-
-    /** Denominators a GregTech modifier is plausibly built from; 1/3 and 9/4 both fall inside this. */
-    private static final int MAX_DENOMINATOR = 64;
-
-    /**
-     * Two significant digits where that is exact, and the fraction where it is not - GregTech writes
-     * these as ratios, so 1/3 says what 0.33 hides. Locale-independent, because the file is read on
-     * whatever machine generated it.
-     */
-    @Nonnull
-    private static String num(final double value) {
-        if (value == Math.rint(value) && Math.abs(value) < 1e15) return Long.toString((long) value);
-
-        final BigDecimal rounded = BigDecimal.valueOf(value)
-            .round(new MathContext(2));
-        if (rounded.doubleValue() == value) return rounded.stripTrailingZeros()
-            .toPlainString();
-
-        for (int d = 2; d <= MAX_DENOMINATOR; d++) {
-            final double scaled = value * d;
-            if (Math.abs(scaled - Math.rint(scaled)) < 1e-9) return (long) Math.rint(scaled) + "/" + d;
-        }
-        return rounded.stripTrailingZeros()
-            .toPlainString();
     }
 
     @Nonnull

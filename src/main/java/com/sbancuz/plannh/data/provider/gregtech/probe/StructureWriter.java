@@ -163,6 +163,22 @@ public final class StructureWriter {
     }
 
     /**
+     * Every setting the probe can ever offer a row for: the setting of each {@link Coding}, plus
+     * the sawblade, which is recognised by method declaration rather than by field and so has no
+     * {@code Coding}. (The mode needs none of this: it is a {@code Coding} like the rest.) The
+     * canary test asserts its rows cover all of these, so a {@code Coding} added without a canary
+     * fails the build instead of going unguarded.
+     */
+    @Nonnull
+    public static EnumSet<Settings> recognizedSettings() {
+        final EnumSet<Settings> all = EnumSet.of(GT_SAWBLADE);
+        for (final Coding coding : Coding.values()) {
+            all.add(coding.setting);
+        }
+        return all;
+    }
+
+    /**
      * Writes the state onto the machine. A field that refuses the write is skipped rather than
      * abandoning the rest: a machine reading four settings should still answer for the three that took.
      */
@@ -240,15 +256,6 @@ public final class StructureWriter {
         } else if (type == Integer.class) {
             field.set(machine, value);
         }
-    }
-
-    /**
-     * Whether this field is one the probe knows how to set. A field it does not know is a structure
-     * the probe silently cannot vary, so {@code GTStructureCoverageTest} asks this of every GregTech
-     * multiblock rather than letting a new casing tier go unnoticed.
-     */
-    public static boolean covers(@Nonnull final Field field) {
-        return codingOf(field) != null;
     }
 
     @Nullable

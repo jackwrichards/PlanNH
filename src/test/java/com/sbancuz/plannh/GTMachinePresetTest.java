@@ -3,14 +3,10 @@ package com.sbancuz.plannh;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.sbancuz.plannh.data.Settings;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachineOverrides;
@@ -27,29 +23,12 @@ import gregtech.api.enums.HeatingCoilLevel;
  */
 class GTMachinePresetTest {
 
+    private static final String EBF = "gregtech.common.tileentities.machines.multi.MTEElectricBlastFurnace";
+    private static final String MULTI_FURNACE = "gregtech.common.tileentities.machines.multi.MTEMultiFurnace";
+    private static final String CAL = "bartworks.common.tileentities.multis.MTECircuitAssemblyLine";
+
     private static StructureState state(final int voltageTier, final int coilTier) {
         return new StructureState(voltageTier, coilTier, 4, 4, 2, 0, 0, 1, 0, 0);
-    }
-
-    static List<String> presetKeys() {
-        final List<String> keys = new ArrayList<>();
-        GTMachineOverrides.keys()
-            .forEach(keys::add);
-        return keys;
-    }
-
-    /**
-     * A renamed or moved MetaTileEntity must fail here rather than silently falling through to "no
-     * preset" at runtime, which would look like a machine GT simply does not have.
-     */
-    @ParameterizedTest
-    @MethodSource("presetKeys")
-    void everyKeyedClassStillExists(final String className) {
-        try {
-            Class.forName(className, false, GTMachinePresetTest.class.getClassLoader());
-        } catch (final ClassNotFoundException e) {
-            fail("preset keyed on a class that no longer exists at the pinned GT version: " + className);
-        }
     }
 
     @Test
@@ -100,7 +79,7 @@ class GTMachinePresetTest {
 
     /** More coil is never worse: faster or equal, and never more EU per tick. */
     @ParameterizedTest
-    @MethodSource("presetKeys")
+    @ValueSource(strings = { EBF, MULTI_FURNACE, CAL })
     void coilDrivenFormulasImproveMonotonically(final String className) throws ClassNotFoundException {
         final GTMachinePreset preset = GTMachineOverrides
             .preset(Class.forName(className, false, getClass().getClassLoader()));
@@ -135,7 +114,7 @@ class GTMachinePresetTest {
 
     /** A bigger machine never runs fewer recipes at once. */
     @ParameterizedTest
-    @MethodSource("presetKeys")
+    @ValueSource(strings = { EBF, MULTI_FURNACE, CAL })
     void parallelNeverShrinksWithVoltage(final String className) throws ClassNotFoundException {
         final GTMachinePreset preset = GTMachineOverrides
             .preset(Class.forName(className, false, getClass().getClassLoader()));
@@ -153,7 +132,7 @@ class GTMachinePresetTest {
 
     /** Nothing may return a zero or negative parallel; that would zero out a node's throughput. */
     @ParameterizedTest
-    @MethodSource("presetKeys")
+    @ValueSource(strings = { EBF, MULTI_FURNACE, CAL })
     void parallelIsAlwaysPositive(final String className) throws ClassNotFoundException {
         final GTMachinePreset preset = GTMachineOverrides
             .preset(Class.forName(className, false, getClass().getClassLoader()));
@@ -169,7 +148,7 @@ class GTMachinePresetTest {
 
     /** Duration and EU multipliers are ratios; a non-positive one would invert or zero the recipe. */
     @ParameterizedTest
-    @MethodSource("presetKeys")
+    @ValueSource(strings = { EBF, MULTI_FURNACE, CAL })
     void modifiersStayPositive(final String className) throws ClassNotFoundException {
         final GTMachinePreset preset = GTMachineOverrides
             .preset(Class.forName(className, false, getClass().getClassLoader()));

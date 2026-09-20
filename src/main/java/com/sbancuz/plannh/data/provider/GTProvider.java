@@ -216,7 +216,6 @@ public class GTProvider implements PropertyProvider {
                                     v -> (int) Math.pow(
                                         2,
                                         (int) Math.floor(Math.log(8.0 * Math.min(v, 8637)) / Math.log(1.7))))))))
-        .onLoad(GTSettings::migrateLegacyNode)
         .build();
 
     @Override

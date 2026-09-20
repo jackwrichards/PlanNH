@@ -39,6 +39,17 @@ We are currently in the middle of a big rewrite of the UI, master brach has a lo
 ./gradlew build
 ```
 
+## Contributing
+
+On a GregTech update (`gt5uVersion` in `dependencies.gradle`): the hand-written rows in
+`GTMachineOverrides` were read against the pinned GT tag in that file's header and will not notice
+when GregTech changes — everything else the probe re-reads automatically. Re-verify by running a
+client, executing `/plannh_machines`, diffing the generated table against the previous one,
+eyeballing the override rows (plus any `disagrees` cells), then bumping the tag in the header.
+That diff is the whole review; there is deliberately no digest file to bless and no hashes to copy.
+Mapping-level regressions (a structure field GT renamed) are caught by `GTProbeCanariesTest`;
+number-level ones need the client table above.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

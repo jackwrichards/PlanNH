@@ -15,20 +15,7 @@ import com.sbancuz.plannh.nei.NEIPlanConfig;
 
 import codechicken.nei.NEIClientConfig;
 
-/**
- * @param onLoad runs once on a chart loaded from disk, before anything reads it. A profile whose
- *               meaning has changed uses this to bring old settings forward; charts saved by an
- *               older PlanNH otherwise keep their keys but get the new interpretation, which
- *               silently changes their numbers. The settings map it receives is exactly what the
- *               save carried, since nothing seeds defaults into it.
- */
-public record MachineProfile(String id, String displayName, List<SettingDef<?>> settings, EffectComputer effectComputer,
-    Consumer<Map<String, Object>> onLoad) {
-
-    public MachineProfile(final String id, final String displayName, final List<SettingDef<?>> settings,
-        final EffectComputer effectComputer) {
-        this(id, displayName, settings, effectComputer, s -> {});
-    }
+public record MachineProfile(String id, String displayName, List<SettingDef<?>> settings, EffectComputer effectComputer) {
 
     @Nonnull
     public static Builder builder(final String id, final String displayName) {
@@ -43,8 +30,6 @@ public record MachineProfile(String id, String displayName, List<SettingDef<?>> 
         private EffectComputer effectComputer=(s,ctx)->{final Object dur=ctx.properties().get(RecipePropertyAPI.DURATION_TICKS);return new EffectResult(dur instanceof
         final Number n?n.intValue():0,0,1);
     };
-
-    private Consumer<Map<String, Object>> onLoad = s -> {};
 
     private Builder(final String id, final String displayName) {
             this.id = id;
@@ -74,14 +59,9 @@ public record MachineProfile(String id, String displayName, List<SettingDef<?>> 
         return this;
     }
 
-    public Builder onLoad(final Consumer<Map<String, Object>> hook) {
-        this.onLoad = hook;
-        return this;
-    }
-
     @Nonnull
     public MachineProfile build() {
-        return new MachineProfile(id, displayName, List.copyOf(settings), effectComputer, onLoad);
+        return new MachineProfile(id, displayName, List.copyOf(settings), effectComputer);
     }
 
     }

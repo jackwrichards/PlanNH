@@ -513,10 +513,6 @@ public final class Serializer {
         if (obj.has("outMul")) {
             jsonToMultiplierArray(obj.getAsJsonArray("outMul"), cfg.outputProductivity);
         }
-
-        cfg.getProfile()
-            .onLoad()
-            .accept(cfg.settings);
     }
 
     // ── Multiplier helpers ──

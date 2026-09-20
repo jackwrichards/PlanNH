@@ -99,13 +99,12 @@ public class MachineTableCommand extends CommandBase {
 
     /** Separate from the command so the table can also be produced without a loaded world. */
     public static int writeTo(final File out) throws IOException {
-        final ReviewTicks carried = ReviewTicks.from(out);
         try (PrintWriter writer = new PrintWriter(out, StandardCharsets.UTF_8.name())) {
-            return write(writer, carried);
+            return write(writer);
         }
     }
 
-    private static int write(final PrintWriter writer, final ReviewTicks carried) {
+    private static int write(final PrintWriter writer) {
         final Map<Source, List<Row>> bySource = new LinkedHashMap<>();
         for (final Source source : Source.values()) {
             bySource.put(source, new ArrayList<>());
@@ -123,7 +122,7 @@ public class MachineTableCommand extends CommandBase {
         writeSections(writer);
         writeLegend(writer);
         for (final Map.Entry<Source, List<Row>> section : bySource.entrySet()) {
-            writeSection(writer, section.getKey(), section.getValue(), carried);
+            writeSection(writer, section.getKey(), section.getValue());
         }
         return total;
     }
@@ -141,11 +140,6 @@ public class MachineTableCommand extends CommandBase {
     private static void writeLegend(final PrintWriter writer) {
         writer.println("## Columns");
         writer.println();
-        writer.println("- **" + ReviewTicks.COLUMN + "** - review state, not data. Regenerating carries a tick");
-        writer.println(
-            "  forward only while this machine's numbers are unchanged; anything that moved returns to "
-                + ReviewTicks.UNCHECKED
-                + ".");
         writer.println("- **numbers** - what a chart plans this machine with, at the structure an untouched node");
         writer.println("  shows: parallel, duration and EU modifiers, the two overclock factors, machine heat,");
         writer.println("  heat overclock and discount flags, recipe heat, tier skips.");
@@ -162,8 +156,7 @@ public class MachineTableCommand extends CommandBase {
         writer.println();
     }
 
-    private static void writeSection(final PrintWriter writer, final Source source, final List<Row> rows,
-        final ReviewTicks carried) {
+    private static void writeSection(final PrintWriter writer, final Source source, final List<Row> rows) {
         writer.println(
             "## " + source.name()
                 .toLowerCase(Locale.ROOT)
@@ -174,15 +167,11 @@ public class MachineTableCommand extends CommandBase {
         if (rows.isEmpty()) return;
 
         rows.sort(Comparator.comparing(Row::machine));
-        writer.println(
-            "| " + ReviewTicks.COLUMN
-                + " | machine | numbers | probe | rows | override | settings | modes | class | recipemaps |");
-        writer.println("|---|---|---|---|---|---|---|---|---|---|");
+        writer.println("| machine | numbers | probe | rows | override | settings | modes | class | recipemaps |");
+        writer.println("|---|---|---|---|---|---|---|---|---|");
         for (final Row row : rows) {
             writer.println(
-                "| " + carried.forMachine(row.machine(), row.numbers())
-                    + " | "
-                    + row.machine()
+                "| " + row.machine()
                     + " | "
                     + row.numbers()
                     + " | "

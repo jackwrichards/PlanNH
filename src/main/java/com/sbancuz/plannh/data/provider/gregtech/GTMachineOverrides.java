@@ -114,9 +114,4 @@ public final class GTMachineOverrides {
         final Override found = find(mteClass);
         return found == null ? null : found.reason();
     }
-
-    @Nonnull
-    public static Iterable<String> keys() {
-        return BY_CLASS.keySet();
-    }
 }

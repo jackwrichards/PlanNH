@@ -179,11 +179,6 @@ public class MachineConfig {
         return settings.containsKey(Settings.MACHINES.key());
     }
 
-    public void clearMachineCount() {
-        settings.remove(Settings.MACHINES.key());
-        parentRef.refresh();
-    }
-
     public void setMachineCount(final int count) {
         settings.put(Settings.MACHINES.key(), count);
     }

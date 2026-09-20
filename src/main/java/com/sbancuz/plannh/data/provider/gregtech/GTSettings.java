@@ -633,40 +633,4 @@ public final class GTSettings {
         return isAdvanced(settings) || MULTIBLOCK_DEF.effectiveBool(ctx, settings);
     }
 
-    /**
-     * Settings the machine now derives. A chart saved before the picker existed has these tuned by
-     * hand, and honouring the preset instead would silently change its numbers, so such a chart
-     * opens in advanced mode. Voltage and machine count are deliberately absent: they stay
-     * user-owned in both modes, so a chart whose only change was "IV, x4" gets the compact UI.
-     */
-    private static final List<String> DERIVED_KEYS = List.of(
-        Settings.AMP.key(),
-        Settings.SPEED.key(),
-        Settings.PARALLELS.key(),
-        Settings.PERFECT_OC.key(),
-        Settings.LASER_OC.key(),
-        Settings.NO_OVERCLOCK.key(),
-        Settings.UNLIMITED_SKIPS.key(),
-        Settings.EUT_DISCOUNT.key(),
-        Settings.EUT_INCREASE_PER_OC.key(),
-        Settings.DURATION_DECREASE_PER_OC.key(),
-        Settings.MAX_OVERCLOCKS.key(),
-        Settings.MAX_REGULAR_OC.key(),
-        Settings.MAX_TIER_SKIPS.key(),
-        Settings.MACHINE_HEAT.key(),
-        Settings.RECIPE_HEAT.key(),
-        Settings.HEAT_OC.key(),
-        Settings.HEAT_DISCOUNT.key(),
-        Settings.HEAT_DISCOUNT_MULT.key());
-
-    public static void migrateLegacyNode(final Map<String, Object> settings) {
-        if (settings.containsKey(ADVANCED) || settings.containsKey(MACHINE)) return;
-        for (final String key : DERIVED_KEYS) {
-            if (settings.containsKey(key)) {
-                settings.put(ADVANCED, true);
-                return;
-            }
-        }
-    }
-
 }
