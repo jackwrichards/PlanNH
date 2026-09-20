@@ -11,6 +11,8 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.sbancuz.plannh.PlanNH;
+
 /**
  * <h2>Read this file skeptically.</h2>
  *
@@ -48,10 +50,16 @@ public final class GTMachineOverrides {
     /** Why a row is here, printed beside any disagreement the probe reports. */
     private record Override(GTMachinePreset preset, String reason) {}
 
-    private static final Map<String, Override> BY_CLASS = new HashMap<>();
+    private static final Map<Class<?>, Override> BY_CLASS = new HashMap<>();
 
     private static void put(final String className, final String reason, final GTMachinePreset.Builder preset) {
-        BY_CLASS.put(className, new Override(preset.build(), reason));
+        try {
+            BY_CLASS.put(
+                Class.forName(className, false, GTMachineOverrides.class.getClassLoader()),
+                new Override(preset.build(), reason));
+        } catch (final ClassNotFoundException | LinkageError absent) {
+            PlanNH.LOG.warn("PlanNH: override for {} skipped, its class is not on the classpath", className);
+        }
     }
 
     static {
@@ -95,7 +103,7 @@ public final class GTMachineOverrides {
     @Nullable
     private static Override find(@Nonnull final Class<?> mteClass) {
         for (Class<?> c = mteClass; c != null; c = c.getSuperclass()) {
-            final Override found = BY_CLASS.get(c.getName());
+            final Override found = BY_CLASS.get(c);
             if (found != null) return found;
         }
         return null;
@@ -103,14 +111,14 @@ public final class GTMachineOverrides {
 
     /** The row that stands in for this machine, or null when GregTech's own answer is used. */
     @Nullable
-    public static GTMachinePreset preset(@Nonnull final Class<?> mteClass) {
+    public static GTMachinePreset preset(final Class<?> mteClass) {
         final Override found = find(mteClass);
         return found == null ? null : found.preset();
     }
 
     /** Why this machine is not read from GregTech, or null when it is. */
     @Nullable
-    public static String reason(@Nonnull final Class<?> mteClass) {
+    public static String reason(final Class<?> mteClass) {
         final Override found = find(mteClass);
         return found == null ? null : found.reason();
     }
