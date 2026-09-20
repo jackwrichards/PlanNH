@@ -2,6 +2,7 @@ package com.sbancuz.plannh.data.provider.gregtech;
 
 import static com.sbancuz.plannh.data.Settings.GT_COIL;
 import static com.sbancuz.plannh.data.Settings.GT_MODE;
+import static com.sbancuz.plannh.data.Settings.VOLTAGE;
 import static com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers.clampCoil;
 import static com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers.coilHeat;
 
@@ -69,7 +70,7 @@ public final class GTMachineOverrides {
             "gregtech.common.tileentities.machines.multi.MTEMultiFurnace",
             "no ProcessingLogic at all - the machine computes its own recipes, so there is nothing to read",
             GTMachinePreset.builder()
-                .parallel(s -> 4 << (clampCoil(s.coilTier()) + 1))
+                .parallel(s -> 4 << (clampCoil(s.get(GT_COIL)) + 1))
                 .recipeOverride(4, 128)
                 .settings(GT_COIL));
 
@@ -90,7 +91,7 @@ public final class GTMachineOverrides {
             "gregtech.common.tileentities.machines.multi.MTEElectricBlastFurnace",
             "the probe reads 100K per voltage tier low: checkMachine adds a voltage term it cannot run",
             GTMachinePreset.builder()
-                .heatOC(s -> coilHeat(s.coilTier()) + 100 * (s.voltageTier() - 2))
+                .heatOC(s -> coilHeat(s.get(GT_COIL)) + 100 * (s.get(VOLTAGE) - 2))
                 .heatDiscount()
                 .settings(GT_COIL));
     }

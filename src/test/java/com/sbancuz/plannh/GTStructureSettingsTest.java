@@ -9,6 +9,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import com.sbancuz.plannh.data.RecipeContext;
+import com.sbancuz.plannh.data.Settings;
 import com.sbancuz.plannh.data.properties.RecipeProperty;
 import com.sbancuz.plannh.data.provider.gregtech.GTSettings;
 import com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers;
@@ -49,8 +50,17 @@ class GTStructureSettingsTest {
         assertEquals(
             2,
             GTSettings.resolve(EMPTY, settings, 5)
-                .coilTier());
+                .get(Settings.GT_COIL));
         assertEquals(3601, HeatingCoilLevel.HV.getHeat());
+    }
+
+    /** A stored width is honored, not reset to the widest structure on every resolve. */
+    @Test
+    void aStoredWidthResolvesToThatWidth() {
+        final Map<String, Object> settings = Map.of(GTSettings.WIDTH, 7);
+
+        assertEquals(7, GTSettings.resolve(EMPTY, settings, 5)
+            .get(Settings.GT_WIDTH));
     }
 
     /** Unset settings open on the best structure; a planner should show the endgame number. */
@@ -58,12 +68,12 @@ class GTStructureSettingsTest {
     void unsetSettingsDefaultToTheBestStructure() {
         final StructureState state = GTSettings.resolve(EMPTY, Map.of(), 5);
 
-        assertEquals(GTStructureTiers.MAX_COIL_TIER, state.coilTier());
-        assertEquals(GTStructureTiers.MAX_SOLENOID_TIER, state.solenoidTier());
-        assertEquals(GTStructureTiers.MAX_ITEM_PIPE_TIER, state.itemPipeTier());
-        assertEquals(GTStructureTiers.MAX_PIPE_CASING_TIER, state.pipeCasingTier());
-        assertEquals(GTStructureTiers.MAX_WIDTH, state.width());
-        assertEquals(5, state.voltageTier());
+        assertEquals(GTStructureTiers.MAX_COIL_TIER, state.get(Settings.GT_COIL));
+        assertEquals(GTStructureTiers.MAX_SOLENOID_TIER, state.get(Settings.GT_SOLENOID));
+        assertEquals(GTStructureTiers.MAX_ITEM_PIPE_TIER, state.get(Settings.GT_ITEM_PIPE));
+        assertEquals(GTStructureTiers.MAX_PIPE_CASING_TIER, state.get(Settings.GT_PIPE_CASING));
+        assertEquals(GTStructureTiers.MAX_WIDTH, state.get(Settings.GT_WIDTH));
+        assertEquals(5, state.get(Settings.VOLTAGE));
     }
 
     /** The row shows the block a player places, not GregTech's tier name for it. */
@@ -101,7 +111,7 @@ class GTStructureSettingsTest {
     void anUnknownCoilNameDoesNotMasqueradeAsTierZero() {
         final StructureState state = GTSettings.resolve(EMPTY, Map.of(GTSettings.COIL, "NOT_A_COIL"), 5);
 
-        assertNotEquals(0, state.coilTier());
-        assertEquals(-1, state.coilTier());
+        assertNotEquals(0, state.get(Settings.GT_COIL));
+        assertEquals(-1, state.get(Settings.GT_COIL));
     }
 }

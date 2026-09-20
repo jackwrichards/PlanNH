@@ -92,7 +92,7 @@ public record GTMachinePreset(ToDoubleFunction<StructureState> durationModifier,
         }
 
         public Builder parallelPerVoltageTier(final int perTier) {
-            this.maxParallel = s -> perTier * s.voltageTier();
+            this.maxParallel = s -> perTier * s.get(Settings.VOLTAGE);
             return this;
         }
 

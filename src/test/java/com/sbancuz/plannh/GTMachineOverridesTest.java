@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import com.sbancuz.plannh.data.Settings;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachineOverrides;
 import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 
@@ -54,8 +55,22 @@ class GTMachineOverridesTest {
         assertNotNull(ebf);
 
         // The voltage term is the reason the EBF is overridden at all, so it is what proves the win.
-        final StructureState mv = new StructureState(2, 0, 4, 4, 2, 0, 0, 1, 0, 0);
-        final StructureState hv = new StructureState(3, 0, 4, 4, 2, 0, 0, 1, 0, 0);
+        final StructureState mv = StructureState.untouched(2)
+            .with(Settings.GT_COIL, 0)
+            .with(Settings.GT_SOLENOID, 4)
+            .with(Settings.GT_ITEM_PIPE, 4)
+            .with(Settings.GT_PIPE_CASING, 2)
+            .with(Settings.GT_SAWBLADE, 0)
+            .with(Settings.GT_STRUCTURE_TIER, 1)
+            .with(Settings.GT_WIDTH, 0);
+        final StructureState hv = StructureState.untouched(3)
+            .with(Settings.GT_COIL, 0)
+            .with(Settings.GT_SOLENOID, 4)
+            .with(Settings.GT_ITEM_PIPE, 4)
+            .with(Settings.GT_PIPE_CASING, 2)
+            .with(Settings.GT_SAWBLADE, 0)
+            .with(Settings.GT_STRUCTURE_TIER, 1)
+            .with(Settings.GT_WIDTH, 0);
         assertEquals(
             100,
             ebf.machineHeat()

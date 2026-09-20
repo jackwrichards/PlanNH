@@ -22,7 +22,14 @@ import com.sbancuz.plannh.data.provider.gregtech.probe.SensitivityScan;
  */
 class GTSensitivityScanTest {
 
-    private static final StructureState REFERENCE = new StructureState(1, 5, 6, 4, 2, 1, 0, 1, 4, 0);
+    private static final StructureState REFERENCE = StructureState.untouched(1)
+        .with(Settings.GT_COIL, 5)
+        .with(Settings.GT_SOLENOID, 6)
+        .with(Settings.GT_ITEM_PIPE, 4)
+        .with(Settings.GT_PIPE_CASING, 2)
+        .with(Settings.GT_SAWBLADE, 1)
+        .with(Settings.GT_STRUCTURE_TIER, 1)
+        .with(Settings.GT_WIDTH, 4);
 
     /** Everything at the calculator's defaults. Individual tests vary one number from this. */
     private static ProbeReading flat() {
@@ -37,8 +44,8 @@ class GTSensitivityScanTest {
     @Test
     void everyModeTheMachineHasIsScanned() {
         // Only readable in mode 2, which a two-mode sweep would never visit.
-        final Function<StructureState, ProbeReading> readings = state -> state.mode() == 2
-            ? withParallel(1 + state.coilTier())
+        final Function<StructureState, ProbeReading> readings = state -> state.get(Settings.GT_MODE) == 2
+            ? withParallel(1 + state.get(Settings.GT_COIL))
             : flat();
 
         assertFalse(
@@ -57,7 +64,9 @@ class GTSensitivityScanTest {
      */
     @Test
     void aThirdModeThatDiffersEarnsTheModeRow() {
-        final Function<StructureState, ProbeReading> readings = state -> state.mode() == 2 ? withParallel(9) : flat();
+        final Function<StructureState, ProbeReading> readings = state -> state.get(Settings.GT_MODE) == 2
+            ? withParallel(9)
+            : flat();
 
         assertTrue(
             SensitivityScan.scan(REFERENCE, EnumSet.of(Settings.GT_MODE), 3, readings)

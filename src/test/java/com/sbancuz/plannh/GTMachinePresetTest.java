@@ -28,7 +28,14 @@ class GTMachinePresetTest {
     private static final String CAL = "bartworks.common.tileentities.multis.MTECircuitAssemblyLine";
 
     private static StructureState state(final int voltageTier, final int coilTier) {
-        return new StructureState(voltageTier, coilTier, 4, 4, 2, 0, 0, 1, 0, 0);
+        return StructureState.untouched(voltageTier)
+            .with(Settings.GT_COIL, coilTier)
+            .with(Settings.GT_SOLENOID, 4)
+            .with(Settings.GT_ITEM_PIPE, 4)
+            .with(Settings.GT_PIPE_CASING, 2)
+            .with(Settings.GT_SAWBLADE, 0)
+            .with(Settings.GT_STRUCTURE_TIER, 1)
+            .with(Settings.GT_WIDTH, 0);
     }
 
     @Test

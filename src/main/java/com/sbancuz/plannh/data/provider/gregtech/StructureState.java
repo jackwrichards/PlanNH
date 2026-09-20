@@ -1,7 +1,9 @@
 package com.sbancuz.plannh.data.provider.gregtech;
 
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -9,26 +11,12 @@ import javax.annotation.Nonnull;
 import com.sbancuz.plannh.data.Settings;
 
 /**
- * The structure a player built around a machine, as far as the overclock math cares. A prototype
- * MetaTileEntity cannot report any of this - it only exists once blocks are placed - so it is user
- * input, and each machine preset declares which fields it actually reads via
- * {@link GTMachinePreset#settings()}.
- *
- * <p>
- * Tier numbering follows GregTech's own, not the block list: {@code coilTier} is
- * {@link gregtech.api.enums.HeatingCoilLevel#getTier()}, i.e. {@code ordinal - 2}, so 0 is
- * Cupronickel. How far each field goes is {@link GTStructureTiers}.
+ * A machine's effective structure tiers, fully resolved. Built by {@code GTSettings.resolve}, which
+ * owns every default; preset functions only read.
  */
-public record StructureState(int voltageTier, int coilTier, int solenoidTier, int itemPipeTier, int pipeCasingTier,
-    int sawbladeTier, int electrodeTier, int structureTier, int width, int mode) {
+public final class StructureState {
 
-    /**
-     * The settings a GregTech machine reads as structure, in the order this record stores them. One
-     * authority: the probe's sensitivity scan sweeps these, {@link #slotOf} maps them to components,
-     * and a machine table lists them. {@link Settings} holds many more settings than these, so the
-     * switch below can no longer be exhaustive by construction - {@code StructureStateWithTest} is
-     * what now catches a setting added here without a slot.
-     */
+    /** The settings read as structure, for the profile loop. */
     public static final Set<Settings> STRUCTURE_SETTINGS = Collections.unmodifiableSet(
         EnumSet.of(
             Settings.GT_COIL,
@@ -41,48 +29,59 @@ public record StructureState(int voltageTier, int coilTier, int solenoidTier, in
             Settings.GT_WIDTH,
             Settings.GT_MODE));
 
-    /**
-     * The same structure with one setting moved, which is how the probe finds out whether a setting matters.
-     *
-     * <p>
-     * The array literal is in record-component order, and {@link #slotOf} says which slot each setting
-     * writes. Both are stated rather than derived from {@code Settings.ordinal()}: an enum reordered
-     * for display would otherwise silently move every setting onto its neighbour's field.
-     */
-    @Nonnull
-    public StructureState with(@Nonnull final Settings setting, final int tier) {
-        final int[] tiers = { voltageTier, coilTier, solenoidTier, itemPipeTier, pipeCasingTier, sawbladeTier,
-            electrodeTier, structureTier, width, mode };
-        tiers[slotOf(setting)] = tier;
-        return new StructureState(
-            tiers[0],
-            tiers[1],
-            tiers[2],
-            tiers[3],
-            tiers[4],
-            tiers[5],
-            tiers[6],
-            tiers[7],
-            tiers[8],
-            tiers[9]);
+    private final EnumMap<Settings, Integer> tiers;
+
+    private StructureState(final EnumMap<Settings, Integer> tiers) {
+        this.tiers = tiers;
     }
 
-    /**
-     * Which component a setting writes. Voltage is slot 0 and is not a structure setting - it is the
-     * energy hatch, not a block of the structure - so no case yields it.
-     */
-    private static int slotOf(@Nonnull final Settings setting) {
-        return switch (setting) {
-            case GT_COIL -> 1;
-            case GT_SOLENOID -> 2;
-            case GT_ITEM_PIPE -> 3;
-            case GT_PIPE_CASING -> 4;
-            case GT_SAWBLADE -> 5;
-            case GT_ELECTRODE -> 6;
-            case GT_STRUCTURE_TIER -> 7;
-            case GT_WIDTH -> 8;
-            case GT_MODE -> 9;
-            default -> throw new IllegalArgumentException(setting + " is not a structure setting");
-        };
+    /** A resolved state. Dense by contract: a missing key fails fast here, not as a silent zero. */
+    @Nonnull
+    public static StructureState copyOf(final Map<Settings, Integer> tiers) {
+        final EnumMap<Settings, Integer> filled = new EnumMap<>(Settings.class);
+        filled.putAll(tiers);
+        return new StructureState(filled);
+    }
+
+    /** An untouched node outside a game: best available, electrode 0, structureTier 2, mode 0. */
+    @Nonnull
+    public static StructureState untouched(final int voltageTier) {
+        final EnumMap<Settings, Integer> tiers = new EnumMap<>(Settings.class);
+        tiers.put(Settings.VOLTAGE, voltageTier);
+        tiers.put(Settings.GT_COIL, GTStructureTiers.MAX_COIL_TIER);
+        tiers.put(Settings.GT_SOLENOID, GTStructureTiers.MAX_SOLENOID_TIER);
+        tiers.put(Settings.GT_ITEM_PIPE, GTStructureTiers.MAX_ITEM_PIPE_TIER);
+        tiers.put(Settings.GT_PIPE_CASING, GTStructureTiers.MAX_PIPE_CASING_TIER);
+        tiers.put(Settings.GT_SAWBLADE, GTStructureTiers.MAX_SAWBLADE_TIER);
+        tiers.put(Settings.GT_ELECTRODE, 0);
+        tiers.put(Settings.GT_STRUCTURE_TIER, 2);
+        tiers.put(Settings.GT_WIDTH, GTStructureTiers.MAX_WIDTH);
+        tiers.put(Settings.GT_MODE, 0);
+        return new StructureState(tiers);
+    }
+
+    /** The effective tier. Never absent: resolve pre-fills every key. */
+    public int get(final Settings setting) {
+        final Integer tier = tiers.get(setting);
+        if (tier == null) throw new IllegalStateException("no tier resolved for " + setting);
+        return tier;
+    }
+
+    /** The same structure with one setting moved; how the probe tests whether a setting matters. */
+    @Nonnull
+    public StructureState with(final Settings setting, final int tier) {
+        final EnumMap<Settings, Integer> next = new EnumMap<>(tiers);
+        next.put(setting, tier);
+        return new StructureState(next);
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+        return o instanceof final StructureState other && tiers.equals(other.tiers);
+    }
+
+    @Override
+    public int hashCode() {
+        return tiers.hashCode();
     }
 }

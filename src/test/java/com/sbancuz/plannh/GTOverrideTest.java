@@ -32,7 +32,14 @@ class GTOverrideTest {
     }
 
     private static StructureState state() {
-        return new StructureState(5, 5, 4, 4, 2, 0, 0, 1, 0, 0);
+        return StructureState.untouched(5)
+            .with(Settings.GT_COIL, 5)
+            .with(Settings.GT_SOLENOID, 4)
+            .with(Settings.GT_ITEM_PIPE, 4)
+            .with(Settings.GT_PIPE_CASING, 2)
+            .with(Settings.GT_SAWBLADE, 0)
+            .with(Settings.GT_STRUCTURE_TIER, 1)
+            .with(Settings.GT_WIDTH, 0);
     }
 
     private static OverclockCalculator build(final Map<String, Object> settings) {

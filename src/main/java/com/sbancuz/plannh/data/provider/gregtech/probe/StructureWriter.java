@@ -3,7 +3,6 @@ package com.sbancuz.plannh.data.provider.gregtech.probe;
 import static com.sbancuz.plannh.data.Settings.GT_COIL;
 import static com.sbancuz.plannh.data.Settings.GT_ELECTRODE;
 import static com.sbancuz.plannh.data.Settings.GT_ITEM_PIPE;
-import static com.sbancuz.plannh.data.Settings.GT_MODE;
 import static com.sbancuz.plannh.data.Settings.GT_PIPE_CASING;
 import static com.sbancuz.plannh.data.Settings.GT_SAWBLADE;
 import static com.sbancuz.plannh.data.Settings.GT_SOLENOID;
@@ -18,8 +17,6 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import net.minecraft.item.ItemStack;
 
 import com.sbancuz.plannh.data.Reflect;
 import com.sbancuz.plannh.data.Settings;
@@ -72,8 +69,7 @@ public final class StructureWriter {
         SOLENOID_TIER(GT_SOLENOID),
         PIPE_CASING_TIER(GT_PIPE_CASING),
         CASING_TIER(GT_STRUCTURE_TIER),
-        SLICES(GT_WIDTH),
-        MACHINE_MODE(GT_MODE);
+        SLICES(GT_WIDTH);
 
         private final Settings setting;
 
@@ -104,19 +100,16 @@ public final class StructureWriter {
         Map.entry("tierMachineCasing", Coding.CASING_TIER),
         Map.entry("width", Coding.SLICES),
         Map.entry("height", Coding.SLICES),
-        Map.entry("mHeight", Coding.SLICES),
-        Map.entry("machineMode", Coding.MACHINE_MODE));
+        Map.entry("mHeight", Coding.SLICES));
 
     private final List<Write> writes;
     private final EnumSet<Settings> settings;
-    private final boolean takesSawblade;
 
     private record Write(Field field, Coding coding) {}
 
-    private StructureWriter(final List<Write> writes, final EnumSet<Settings> settings, final boolean takesSawblade) {
+    private StructureWriter(final List<Write> writes, final EnumSet<Settings> settings) {
         this.writes = writes;
         this.settings = settings;
-        this.takesSawblade = takesSawblade;
     }
 
     @Nonnull
@@ -131,29 +124,10 @@ public final class StructureWriter {
                 reachable.add(coding.setting);
             }
         }
-        final boolean sawblade = declaresSawbladeCheck(machineClass);
-        if (sawblade) reachable.add(GT_SAWBLADE);
-        // Every multiblock inherits the machineMode field, so the field alone would put a mode row on
-        // all of them. A machine that really has modes overrides GregTech's own answer to the question.
-        if (!declaresModeSwitch(machineClass)) reachable.remove(GT_MODE);
-        return new StructureWriter(List.copyOf(found), reachable, sawblade);
-    }
-
-    /**
-     * True when a subclass of MTEMultiBlockBase answers {@code supportsMachineModeSwitch} for itself.
-     * The walk stops at the base class, which declares it for every machine and so says nothing.
-     */
-    private static boolean declaresModeSwitch(final Class<?> machineClass) {
-        return Reflect.declaredMethod(machineClass, MTEMultiBlockBase.class, "supportsMachineModeSwitch") != null;
-    }
-
-    /**
-     * The one setting a machine holds as an item rather than as a number: the Industrial Cutting Machine
-     * reads its sawblade straight out of the controller slot. Recognised by the machine declaring
-     * GregTech's own {@code isValidSawblade} rather than by naming the class.
-     */
-    private static boolean declaresSawbladeCheck(final Class<?> machineClass) {
-        return Reflect.declaredMethod(machineClass, null, "isValidSawblade", ItemStack.class) != null;
+        // The sawblade lives in the controller slot rather than a field, so discovery cannot see
+        // it. Every machine is swept and the scan drops it where it moves nothing.
+        reachable.add(GT_SAWBLADE);
+        return new StructureWriter(List.copyOf(found), reachable);
     }
 
     /** The settings this machine could possibly read. The sensitivity scan narrows it to those it does. */
@@ -164,10 +138,10 @@ public final class StructureWriter {
 
     /**
      * Every setting the probe can ever offer a row for: the setting of each {@link Coding}, plus
-     * the sawblade, which is recognised by method declaration rather than by field and so has no
-     * {@code Coding}. (The mode needs none of this: it is a {@code Coding} like the rest.) The
-     * canary test asserts its rows cover all of these, so a {@code Coding} added without a canary
-     * fails the build instead of going unguarded.
+     * the sawblade, which lives in the controller slot rather than a field and so has no
+     * {@code Coding}. The mode has neither: it is written straight to GregTech's public field and
+     * offered from the public mode count. The canary test asserts its rows cover all of these, so
+     * a {@code Coding} added without a canary fails the build instead of going unguarded.
      */
     @Nonnull
     public static EnumSet<Settings> recognizedSettings() {
@@ -179,10 +153,13 @@ public final class StructureWriter {
     }
 
     /**
-     * Writes the state onto the machine. A field that refuses the write is skipped rather than
-     * abandoning the rest: a machine reading four settings should still answer for the three that took.
+     * Writes the state onto the machine. The mode goes straight to GregTech's public field and the
+     * sawblade straight to the controller slot, so neither needs field discovery. A field that
+     * refuses the write is skipped rather than abandoning the rest: a machine reading four settings
+     * should still answer for the three that took.
      */
     void apply(@Nonnull final MTEMultiBlockBase machine, @Nonnull final StructureState state) {
+        machine.machineMode = state.get(Settings.GT_MODE);
         for (final Write write : writes) {
             try {
                 set(write, machine, state);
@@ -190,7 +167,7 @@ public final class StructureWriter {
                 // Left as the machine's own default, which is what an unprobed setting already means.
             }
         }
-        if (takesSawblade) putSawblade(machine, state.sawbladeTier());
+        putSawblade(machine, state.get(Settings.GT_SAWBLADE));
     }
 
     private static void putSawblade(final MTEMultiBlockBase machine, final int tier) {
@@ -210,13 +187,13 @@ public final class StructureWriter {
         throws ReflectiveOperationException {
         if (write.coding() == Coding.COIL_LEVEL) {
             write.field()
-                .set(machine, HeatingCoilLevel.getFromTier((byte) GTStructureTiers.clampCoil(state.coilTier())));
+                .set(machine, HeatingCoilLevel.getFromTier((byte) GTStructureTiers.clampCoil(state.get(Settings.GT_COIL))));
             return;
         }
         if (write.coding() == Coding.ELECTRODE_ITEM) {
             // Left alone rather than nulled when kubatech has no electrode to give: the machine's own
             // default is a state it can survive, and null is one it was never written to expect.
-            final Object electrode = GTStructureTiers.electrode(state.electrodeTier());
+            final Object electrode = GTStructureTiers.electrode(state.get(Settings.GT_ELECTRODE));
             if (electrode != null) {
                 write.field()
                     .set(machine, electrode);
@@ -228,18 +205,11 @@ public final class StructureWriter {
 
     private static int number(final Coding coding, final StructureState state) {
         return switch (coding) {
-            case COIL_TIER -> state.coilTier();
-            case COIL_TIER_FROM_ONE -> state.coilTier() + 1;
+            case COIL_TIER_FROM_ONE -> state.get(coding.setting) + 1;
             // What the coil alone supplies. A machine that adds a voltage term to this in checkMachine
             // then reads low, which the disagreement log reports as a heat difference against the row.
-            case COIL_HEAT -> GTStructureTiers.coilHeat(state.coilTier());
-            case ITEM_PIPE_TIER -> state.itemPipeTier();
-            case SOLENOID_TIER -> state.solenoidTier();
-            case PIPE_CASING_TIER -> state.pipeCasingTier();
-            case CASING_TIER -> state.structureTier();
-            case SLICES -> state.width();
-            case MACHINE_MODE -> state.mode();
-            default -> 0;
+            case COIL_HEAT -> GTStructureTiers.coilHeat(state.get(coding.setting));
+            default -> state.get(coding.setting);
         };
     }
 

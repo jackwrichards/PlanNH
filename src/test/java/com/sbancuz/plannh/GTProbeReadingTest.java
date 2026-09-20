@@ -26,7 +26,14 @@ import com.sbancuz.plannh.data.provider.gregtech.probe.ProbeReading;
  */
 class GTProbeReadingTest {
 
-    private static final StructureState ANY = new StructureState(1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    private static final StructureState ANY = StructureState.untouched(1)
+        .with(Settings.GT_COIL, 0)
+        .with(Settings.GT_SOLENOID, 0)
+        .with(Settings.GT_ITEM_PIPE, 0)
+        .with(Settings.GT_PIPE_CASING, 0)
+        .with(Settings.GT_SAWBLADE, 0)
+        .with(Settings.GT_STRUCTURE_TIER, 0)
+        .with(Settings.GT_WIDTH, 0);
 
     private static final EnumSet<Settings> NO_SETTINGS = EnumSet.noneOf(Settings.class);
 

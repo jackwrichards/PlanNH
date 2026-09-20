@@ -1,6 +1,7 @@
 package com.sbancuz.plannh.data.provider.gregtech;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiPredicate;
@@ -524,17 +525,22 @@ public final class GTSettings {
     @Nonnull
     public static StructureState resolve(final RecipeContext ctx, final Map<String, Object> settings,
         final int voltageTier, final int mode) {
-        return new StructureState(
-            voltageTier,
-            COIL_NAMES.indexOf(MachineProfile.getString(settings, COIL, COIL_NAMES.get(defaultCoilTier(ctx)))),
-            MachineProfile.getInt(settings, SOLENOID, GTStructureTiers.MAX_SOLENOID_TIER),
-            MachineProfile.getInt(settings, ITEM_PIPE, GTStructureTiers.MAX_ITEM_PIPE_TIER),
-            MachineProfile.getInt(settings, PIPE_CASING, defaultPipeCasingTier()),
-            MachineProfile.getInt(settings, SAWBLADE, GTStructureTiers.MAX_SAWBLADE_TIER),
-            MachineProfile.getInt(settings, ELECTRODE, 0),
-            MachineProfile.getInt(settings, STRUCTURE_TIER, 2),
-            MachineProfile.getInt(settings, WIDTH, GTStructureTiers.MAX_WIDTH),
-            mode);
+        final EnumMap<Settings, Integer> tiers = new EnumMap<>(Settings.class);
+        tiers.put(Settings.VOLTAGE, voltageTier);
+        tiers.put(
+            Settings.GT_COIL,
+            COIL_NAMES.indexOf(MachineProfile.getString(settings, COIL, COIL_NAMES.get(defaultCoilTier(ctx)))));
+        tiers.put(Settings.GT_SOLENOID,
+            MachineProfile.getInt(settings, SOLENOID, GTStructureTiers.MAX_SOLENOID_TIER));
+        tiers.put(Settings.GT_ITEM_PIPE,
+            MachineProfile.getInt(settings, ITEM_PIPE, GTStructureTiers.MAX_ITEM_PIPE_TIER));
+        tiers.put(Settings.GT_PIPE_CASING, MachineProfile.getInt(settings, PIPE_CASING, defaultPipeCasingTier()));
+        tiers.put(Settings.GT_SAWBLADE, MachineProfile.getInt(settings, SAWBLADE, GTStructureTiers.MAX_SAWBLADE_TIER));
+        tiers.put(Settings.GT_ELECTRODE, MachineProfile.getInt(settings, ELECTRODE, 0));
+        tiers.put(Settings.GT_STRUCTURE_TIER, MachineProfile.getInt(settings, STRUCTURE_TIER, 2));
+        tiers.put(Settings.GT_WIDTH, MachineProfile.getInt(settings, WIDTH, GTStructureTiers.MAX_WIDTH));
+        tiers.put(Settings.GT_MODE, mode);
+        return StructureState.copyOf(tiers);
     }
 
     /**

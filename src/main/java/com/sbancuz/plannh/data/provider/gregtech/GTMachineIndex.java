@@ -266,7 +266,14 @@ public final class GTMachineIndex {
      * matters, because only the order of the answers is used - so this is a middling one rather than
      * a claim about how anybody builds.
      */
-    private static final StructureState RANKING_REFERENCE = new StructureState(5, 5, 4, 4, 2, 0, 0, 1, 0, 0);
+    private static final StructureState RANKING_REFERENCE = StructureState.untouched(5)
+        .with(Settings.GT_COIL, 5)
+        .with(Settings.GT_SOLENOID, 4)
+        .with(Settings.GT_ITEM_PIPE, 4)
+        .with(Settings.GT_PIPE_CASING, 2)
+        .with(Settings.GT_SAWBLADE, 0)
+        .with(Settings.GT_STRUCTURE_TIER, 1)
+        .with(Settings.GT_WIDTH, 0);
 
     /**
      * How far a machine scales, used only to order the picker. That order is also the default, since

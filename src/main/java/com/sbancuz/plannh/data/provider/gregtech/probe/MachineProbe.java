@@ -12,7 +12,6 @@ import com.sbancuz.plannh.PlanNH;
 import com.sbancuz.plannh.data.Settings;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachineOverrides;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachinePreset;
-import com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers;
 import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
@@ -220,17 +219,7 @@ public final class MachineProbe {
      */
     @Nonnull
     private static StructureState reference() {
-        return new StructureState(
-            1,
-            GTStructureTiers.MAX_COIL_TIER,
-            GTStructureTiers.MAX_SOLENOID_TIER,
-            GTStructureTiers.MAX_ITEM_PIPE_TIER,
-            GTStructureTiers.MAX_PIPE_CASING_TIER,
-            GTStructureTiers.MAX_SAWBLADE_TIER,
-            0,
-            2,
-            GTStructureTiers.MAX_WIDTH,
-            0);
+        return StructureState.untouched(1);
     }
 
     @Nullable
@@ -250,8 +239,12 @@ public final class MachineProbe {
             final ProbeReading at = subject.read(state, recipe);
             return at != null && at.isRunnable() ? at : reference;
         };
-        final EnumSet<Settings> settings = SensitivityScan
-            .scan(reference(), subject.reachableSettings(), subject.modeCount(), readings);
+        // Every multiblock inherits the mode field, so the writer cannot tell which machines really
+        // have modes. The public mode count can, and it is also what bounds the scan's sweep.
+        final int modes = subject.modeCount();
+        final EnumSet<Settings> candidates = subject.reachableSettings();
+        if (modes >= 2) candidates.add(Settings.GT_MODE);
+        final EnumSet<Settings> settings = SensitivityScan.scan(reference(), candidates, modes, readings);
         return toPreset(reference, readings, settings);
     }
 

@@ -123,7 +123,7 @@ final class ProbeSubject {
             structure.apply(machine, state);
             // Voltage is not a field the machine holds; it counts it off its energy hatches, so a
             // machine that scales per tier answers for tier zero until it has one.
-            if (!FakeEnergyHatch.attach(machine, state.voltageTier())) {
+            if (!FakeEnergyHatch.attach(machine, state.get(Settings.VOLTAGE))) {
                 PlanNH.LOG.debug("PlanNH: {} would not take a probe energy hatch", machine.getClass());
                 return null;
             }

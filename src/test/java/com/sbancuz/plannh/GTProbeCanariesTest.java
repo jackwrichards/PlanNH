@@ -96,10 +96,7 @@ class GTProbeCanariesTest {
             // Sawblade: no numeric field, recognised by isValidSawblade declaring itself.
             new Canary(GT_MULTI + "MTEIndustrialCuttingMachine", EnumSet.of(Settings.GT_SAWBLADE)),
             // ELECTRODE_ITEM: recognised by field type, kubatech's own enum.
-            new Canary(KUBATECH + "MTEIndustrialArcFurnace", EnumSet.of(Settings.GT_ELECTRODE)),
-            // MACHINE_MODE: the machine overrides supportsMachineModeSwitch for itself. The
-            // negative half (no declaration, no row) lives in the mode test below.
-            new Canary(GT_MULTI + "MTEOreWashingPlant", EnumSet.of(Settings.GT_MODE)));
+            new Canary(KUBATECH + "MTEIndustrialArcFurnace", EnumSet.of(Settings.GT_ELECTRODE)));
     }
 
     @ParameterizedTest
@@ -130,22 +127,20 @@ class GTProbeCanariesTest {
     }
 
     /**
-     * Every multiblock inherits {@code machineMode}, so the field alone would put a mode row on all
-     * of them. A machine that really has modes answers {@code supportsMachineModeSwitch} for
-     * itself, and that is what the probe goes on.
+     * The writer never offers a mode row: every multiblock inherits the mode field, so field
+     * discovery alone would put the row on all of them. Offering it is ProbeSubject's call, from
+     * the public mode count - which is also what bounds the scan, so the two cannot disagree.
      */
     @Test
-    void onlyMachinesThatDeclareModesExposeTheModeSetting() {
-        assertTrue(
-            StructureWriter.forClass(uninitialised(GT_MULTI + "MTEOreWashingPlant"))
-                .reachableSettings()
-                .contains(Settings.GT_MODE),
-            "MTEOreWashingPlant no longer declares supportsMachineModeSwitch");
-        assertFalse(
-            StructureWriter.forClass(uninitialised(GT_MULTI + "MTEIndustrialSifter"))
-                .reachableSettings()
-                .contains(Settings.GT_MODE),
-            "the Industrial Sifter has no modes, so it must not offer the row");
+    void theWriterNeverOffersAModeRow() {
+        for (final String className : new String[] { GT_MULTI + "MTEOreWashingPlant",
+            GT_MULTI + "MTEIndustrialSifter" }) {
+            assertFalse(
+                StructureWriter.forClass(uninitialised(className))
+                    .reachableSettings()
+                    .contains(Settings.GT_MODE),
+                className + " must not offer a mode row from field discovery alone");
+        }
     }
 
     private static Class<?> uninitialised(final String className) {
