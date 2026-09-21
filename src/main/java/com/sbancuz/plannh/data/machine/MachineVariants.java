@@ -87,6 +87,13 @@ public final class MachineVariants {
         return null;
     }
 
+    /** The selected machine's values for the keys it owns, or empty. Merged under the stored settings by the step. */
+    @Nonnull
+    public static Map<String, Object> defaults(final RecipeContext ctx, final Map<String, Object> settings) {
+        final MachineVariant selected = selected(ctx, settings);
+        return selected == null ? Map.of() : selected.defaults(ctx, settings);
+    }
+
     /**
      * The last answer {@link #selected} gave, memoized on the identity of the candidate list rather
      * than its contents - a source returns the same instance until its answer changes.

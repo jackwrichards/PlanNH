@@ -9,9 +9,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import com.sbancuz.plannh.data.Settings;
-import com.sbancuz.plannh.data.provider.gregtech.GTMachinePreset;
 import com.sbancuz.plannh.data.provider.gregtech.GTPresetApplier;
-import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 
 import gregtech.api.enums.GTValues;
 import gregtech.api.util.OverclockCalculator;
@@ -24,27 +22,17 @@ import gregtech.api.util.OverclockCalculator;
  */
 class GTOverrideTest {
 
-    /** A perfect-overclocking machine, which is the case where a stray override shows up loudest. */
-    private static GTMachinePreset preset() {
-        return GTMachinePreset.builder()
-            .perfectOC()
-            .build();
-    }
-
-    private static StructureState state() {
-        return StructureState.untouched(5)
-            .with(Settings.GT_COIL, 5)
-            .with(Settings.GT_SOLENOID, 4)
-            .with(Settings.GT_ITEM_PIPE, 4)
-            .with(Settings.GT_PIPE_CASING, 2)
-            .with(Settings.GT_SAWBLADE, 0)
-            .with(Settings.GT_STRUCTURE_TIER, 1)
-            .with(Settings.GT_WIDTH, 0);
-    }
-
+    /** What a perfect-OC preset lowers to once it reaches a calculator. */
     private static OverclockCalculator build(final Map<String, Object> settings) {
-        final OverclockCalculator calc = GTPresetApplier
-            .buildFromPreset(preset(), state(), GTValues.VP[1], 1024, GTValues.V[5], 1, 0);
+        return build(settings, GTValues.VP[1]);
+    }
+
+    private static OverclockCalculator build(final Map<String, Object> settings, final long recipeEUt) {
+        final OverclockCalculator calc = new OverclockCalculator().setRecipeEUt(recipeEUt)
+            .setEUt(GTValues.V[5])
+            .setDuration(1024)
+            .setEUtIncreasePerOC(4.0)
+            .setDurationDecreasePerOC(4.0);
         GTPresetApplier.applyOverrides(calc, settings);
         return calc.setParallel(1)
             .setAmperageOC(true)
@@ -82,9 +70,8 @@ class GTOverrideTest {
      */
     @Test
     void zeroTierSkipsIsExpressible() {
-        final OverclockCalculator noSkips = GTPresetApplier
-            .buildFromPreset(preset(), state(), GTValues.V[6], 1024, GTValues.V[5], 1, 0);
-        GTPresetApplier.applyOverrides(noSkips, Map.of(Settings.MAX_TIER_SKIPS.key(), 0));
+        // One tier over the machine: refused with skipping disabled.
+        final OverclockCalculator noSkips = build(Map.of(Settings.MAX_TIER_SKIPS.key(), 0), GTValues.V[6]);
 
         assertTrue(!noSkips.getAllowedTierSkip(), "a stored 0 must mean no skipping, not 'unset'");
     }

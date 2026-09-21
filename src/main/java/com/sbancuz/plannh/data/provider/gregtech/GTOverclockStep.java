@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.IntUnaryOperator;
 import java.util.function.Predicate;
@@ -43,6 +44,9 @@ public class GTOverclockStep implements EffectStep, EffectComputer {
     private final Map<String, Consumer<GTOverclockStep>> routeModifiers = new HashMap<>();
     private SettingDef<Integer> catalystSetting;
     private IntUnaryOperator catalystComputer;
+    /** Machine-owned values, merged under the stored settings before anything reads them. */
+    private BiFunction<RecipeContext, Map<String, Object>, Map<String, Object>> defaultsProvider = (ctx,
+        s) -> Map.of();
 
     public GTOverclockStep withCatalyst(final SettingDef<Integer> setting, final IntUnaryOperator computer) {
         this.catalystSetting = setting;
@@ -52,6 +56,12 @@ public class GTOverclockStep implements EffectStep, EffectComputer {
 
     public GTOverclockStep route(final String recipeMapId, final Consumer<GTOverclockStep> modifier) {
         routeModifiers.put(recipeMapId, modifier);
+        return this;
+    }
+
+    public GTOverclockStep withDefaults(
+        final BiFunction<RecipeContext, Map<String, Object>, Map<String, Object>> provider) {
+        this.defaultsProvider = provider;
         return this;
     }
 
@@ -102,21 +112,53 @@ public class GTOverclockStep implements EffectStep, EffectComputer {
             }
         }
 
+        // Machine-owned values merged under the stored settings; every read below uses the merged map.
+        final Map<String, Object> eff = new HashMap<>(defaultsProvider.apply(ctx, s));
+        eff.putAll(s);
+
         // PARALLELS_DEF's default is 0, meaning "ask the machine", so reading it raw yields a
         // throughput factor of 0 on every path that does not go through the preset - which zeroes
         // every port on the node and makes it silently produce and consume nothing.
-        final int settingParallels = Math.max(1, GTSettings.PARALLELS_DEF.effectiveInt(ctx, s));
-        final int parallels;
-        if (catalystSetting != null) {
-            final int cat = MachineProfile.getInt(s, catalystSetting.key, 0);
-            parallels = cat > 0 ? catalystComputer.applyAsInt(cat) : settingParallels;
-        } else {
-            parallels = settingParallels;
-        }
-        final int machines = MachineProfile.getInt(s, Settings.MACHINES.key(), 1);
+        final int settingParallels = Math.max(1, GTSettings.PARALLELS_DEF.effectiveInt(ctx, eff));
 
-        final long eut = recipeEUt(ctx, current);
-        final int recipeDuration = current.durationTicks();
+        long eut = recipeEUt(ctx, current);
+        int recipeDuration = current.durationTicks();
+
+        // Some machines ignore the recipe's own cost (Multi Smelter's fixed 4 EU/t over 128t).
+        final GTMachineIndex.MachineEntry selected = GTMachineIndex.selected(ctx, s);
+        final GTMachinePreset preset = selected == null ? null : selected.preset();
+        if (preset != null && preset.recipeOverride() != null) {
+            eut = preset.recipeOverride()
+                .eut();
+            recipeDuration = preset.recipeOverride()
+                .duration();
+        }
+
+        final int machines = MachineProfile.getInt(eff, Settings.MACHINES.key(), 1);
+
+        final int parallels;
+        final OverclockCalculator calc;
+        // Force blocks stay manual-only, as before.
+        final boolean manual;
+        if (catalystSetting != null) {
+            // A route claimed this recipe: the catalyst count drives parallels, the machine is not asked.
+            final int cat = MachineProfile.getInt(eff, catalystSetting.key, 0);
+            parallels = cat > 0 ? catalystComputer.applyAsInt(cat) : settingParallels;
+            calc = buildGtCalc(eff, eut, recipeDuration, parallels);
+            manual = true;
+        } else {
+            final GTPresetApplier.Configured described =
+                GTPresetApplier.describe(selected, s, ctx, eut, recipeDuration);
+            if (described != null) {
+                parallels = described.parallels();
+                calc = described.calculator();
+                manual = false;
+            } else {
+                parallels = settingParallels;
+                calc = buildGtCalc(eff, eut, recipeDuration, parallels);
+                manual = true;
+            }
+        }
 
         // The recipe as written, which is the answer on every path that does not overclock. Set once
         // here so each of those paths is a bare return rather than a copy of these three lines.
@@ -126,23 +168,24 @@ public class GTOverclockStep implements EffectStep, EffectComputer {
 
         if (eut <= 0 || recipeDuration <= 0) return current;
 
-        if (MachineProfile.getString(s, Settings.VOLTAGE.key(), "OFF")
+        // Describer machines run at their own tier; only manual calculators need the voltage row.
+        if (manual && MachineProfile.getString(eff, Settings.VOLTAGE.key(), "OFF")
             .equals("OFF")) return current;
 
-        final OverclockCalculator calc = buildGtCalc(s, eut, recipeDuration, parallels);
+        if (manual) {
+            if (forcePerfectOC) calc.enablePerfectOC();
 
-        if (forcePerfectOC) calc.enablePerfectOC();
-
-        if (forceHeat) {
-            final int machineHeat = MachineProfile.getInt(s, Settings.MACHINE_HEAT.key(), 0);
-            if (MachineProfile.getBool(s, Settings.HEAT_OC.key(), true) && machineHeat > 0) {
-                final int recipeHeat = MachineProfile.getInt(s, Settings.RECIPE_HEAT.key(), 0);
-                calc.setHeatOC(true)
-                    .setRecipeHeat(recipeHeat > 0 ? recipeHeat : machineHeat)
-                    .setMachineHeat(machineHeat);
-                if (MachineProfile.getBool(s, Settings.HEAT_DISCOUNT.key(), false)) calc.setHeatDiscount(true);
-                final int hdMult = MachineProfile.getInt(s, Settings.HEAT_DISCOUNT_MULT.key(), 100);
-                if (hdMult != 100) calc.setHeatDiscountMultiplier(hdMult / 100.0);
+            if (forceHeat) {
+                final int machineHeat = MachineProfile.getInt(eff, Settings.MACHINE_HEAT.key(), 0);
+                if (MachineProfile.getBool(eff, Settings.HEAT_OC.key(), true) && machineHeat > 0) {
+                    final int recipeHeat = MachineProfile.getInt(eff, Settings.RECIPE_HEAT.key(), 0);
+                    calc.setHeatOC(true)
+                        .setRecipeHeat(recipeHeat > 0 ? recipeHeat : machineHeat)
+                        .setMachineHeat(machineHeat);
+                    if (MachineProfile.getBool(eff, Settings.HEAT_DISCOUNT.key(), false)) calc.setHeatDiscount(true);
+                    final int hdMult = MachineProfile.getInt(eff, Settings.HEAT_DISCOUNT_MULT.key(), 100);
+                    if (hdMult != 100) calc.setHeatDiscountMultiplier(hdMult / 100.0);
+                }
             }
         }
 

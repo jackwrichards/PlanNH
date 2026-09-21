@@ -18,13 +18,13 @@ import com.sbancuz.plannh.Compat;
 import com.sbancuz.plannh.PlanNH;
 import com.sbancuz.plannh.data.RecipeContext;
 import com.sbancuz.plannh.data.Settings;
-import com.sbancuz.plannh.data.effect.EffectResult;
 import com.sbancuz.plannh.data.machine.MachineVariant;
 import com.sbancuz.plannh.data.machine.MachineVariants;
 import com.sbancuz.plannh.data.provider.GTProvider;
 import com.sbancuz.plannh.data.provider.gregtech.probe.MachineProbe;
 
 import gregtech.api.GregTechAPI;
+import gregtech.api.enums.GTValues;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IOverclockDescriptionProvider;
 import gregtech.api.interfaces.tileentity.RecipeMapWorkable;
@@ -115,10 +115,35 @@ public final class GTMachineIndex {
         }
 
         @Override
-        @Nullable
-        public EffectResult run(final RecipeContext ctx, final Map<String, Object> settings,
-            final EffectResult recipe) {
-            return GTPresetApplier.run(this, ctx, settings, recipe);
+        @Nonnull
+        public Map<String, Object> defaults(final RecipeContext ctx, final Map<String, Object> settings) {
+            if (preset == null) return Map.of();
+            // Same defs the rows display, so display and maths agree; stored wins at the merge site.
+            final int tier = GTSettings.voltageTier(ctx, settings);
+            final StructureState state = GTSettings.resolve(ctx, settings, tier, GTSettings.mode(ctx, this, settings));
+            final Map<String, Object> owned = new HashMap<>();
+            owned.put(Settings.VOLTAGE.key(), GTValues.VN[tier]);
+            owned.put(Settings.PARALLELS.key(), GTPresetApplier.resolveParallels(settings, preset, state));
+            owned.put(Settings.AMP.key(), GTSettings.AMP_DEF.effectiveInt(ctx, settings));
+            owned.put(Settings.SPEED.key(), GTSettings.SPEED_DEF.effectiveInt(ctx, settings));
+            owned.put(Settings.EUT_DISCOUNT.key(), GTSettings.EUT_DISCOUNT_DEF.effectiveInt(ctx, settings));
+            owned.put(
+                Settings.EUT_INCREASE_PER_OC.key(),
+                GTSettings.EUT_PER_OC_DEF.effectiveInt(ctx, settings));
+            owned.put(
+                Settings.DURATION_DECREASE_PER_OC.key(),
+                GTSettings.DURATION_PER_OC_DEF.effectiveInt(ctx, settings));
+            owned.put(Settings.MACHINE_HEAT.key(), GTSettings.MACHINE_HEAT_DEF.effectiveInt(ctx, settings));
+            owned.put(Settings.RECIPE_HEAT.key(), GTSettings.RECIPE_HEAT_DEF.effectiveInt(ctx, settings));
+            owned.put(
+                Settings.HEAT_DISCOUNT_MULT.key(),
+                GTSettings.HEAT_DISCOUNT_MULT_DEF.effectiveInt(ctx, settings));
+            owned.put(Settings.MAX_TIER_SKIPS.key(), GTSettings.MAX_TIER_SKIPS_DEF.effectiveInt(ctx, settings));
+            owned.put(Settings.PERFECT_OC.key(), GTSettings.PERFECT_OC_DEF.effectiveBool(ctx, settings));
+            owned.put(Settings.HEAT_OC.key(), GTSettings.HEAT_OC_DEF.effectiveBool(ctx, settings));
+            owned.put(Settings.HEAT_DISCOUNT.key(), GTSettings.HEAT_DISCOUNT_DEF.effectiveBool(ctx, settings));
+            owned.put(Settings.UNLIMITED_SKIPS.key(), GTSettings.UNLIMITED_SKIPS_DEF.effectiveBool(ctx, settings));
+            return owned;
         }
     }
 

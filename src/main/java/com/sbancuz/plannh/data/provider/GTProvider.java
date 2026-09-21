@@ -195,27 +195,23 @@ public class GTProvider implements PropertyProvider {
     private static final MachineProfile PROFILE = MachineProfile.builder("gregtech:unified", "GT Unified")
         .settings(GTProvider::machineDriven)
         .settings(GTProvider::manual)
-        // Per-recipemap overclock defaults are not listed here: the machine probe derives them from
-        // the machine class, so a second table keyed on the recipemap would be a rival authority.
-        // What stays is the genuinely recipe-driven cases, which no machine can report.
         .effect(
             Effects.durationFromHandler()
                 .andThen(
-                    Effects.machineDriven(
-                        GTProvider::isEoH,
-                        GTOverclockStep.create()
-                            .applyIf(GTProvider::hasHeat, GTOverclockStep::withHeat)
-                            .applyIf(
-                                ctx -> ctx.properties()
-                                    .containsKey(FUSION_THRESHOLD),
-                                GTOverclockStep::withPerfectOC)
-                            .route(
-                                CATALYST_RECIPE_MAP,
-                                step -> step.withCatalyst(
-                                    (SettingDef<Integer>) Settings.CATALYST_ASTRAL_ARRAYS.def(),
-                                    v -> (int) Math.pow(
-                                        2,
-                                        (int) Math.floor(Math.log(8.0 * Math.min(v, 8637)) / Math.log(1.7))))))))
+                    GTOverclockStep.create()
+                        .applyIf(GTProvider::hasHeat, GTOverclockStep::withHeat)
+                        .applyIf(
+                            ctx -> ctx.properties()
+                                .containsKey(FUSION_THRESHOLD),
+                            GTOverclockStep::withPerfectOC)
+                        .route(
+                            CATALYST_RECIPE_MAP,
+                            step -> step.withCatalyst(
+                                (SettingDef<Integer>) Settings.CATALYST_ASTRAL_ARRAYS.def(),
+                                v -> (int) Math.pow(
+                                    2,
+                                    (int) Math.floor(Math.log(8.0 * Math.min(v, 8637)) / Math.log(1.7)))))
+                        .withDefaults(MachineVariants::defaults)))
         .build();
 
     @Override
