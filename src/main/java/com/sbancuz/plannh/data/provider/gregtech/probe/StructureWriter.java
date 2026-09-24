@@ -18,14 +18,18 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import net.minecraft.util.MathHelper;
+
 import com.sbancuz.plannh.data.Reflect;
 import com.sbancuz.plannh.data.Settings;
-import com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers;
+import com.sbancuz.plannh.data.provider.gregtech.GTSettings;
 import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 
 import gregtech.api.enums.HeatingCoilLevel;
 import gregtech.api.enums.ItemList;
 import gregtech.api.metatileentity.implementations.MTEMultiBlockBase;
+
+import kubatech.loaders.ArcFurnaceElectrode;
 
 /**
  * Writes the structure a player would have built into the instance fields the machine reads. The
@@ -170,12 +174,22 @@ public final class StructureWriter {
         putSawblade(machine, state.get(Settings.GT_SAWBLADE));
     }
 
+    /**
+     * One electrode, for the probe, which hands the machine a constant rather than a tier. Null when
+     * the electrodes are not registered yet; ids are the stable identity, so the lookup goes by id
+     * rather than ordinal.
+     */
+    @Nullable
+    private static ArcFurnaceElectrode electrode(final int tier) {
+        return ArcFurnaceElectrode.getById(MathHelper.clamp_int(tier, 0, GTSettings.MAX_ELECTRODE_TIER));
+    }
+
     private static void putSawblade(final MTEMultiBlockBase machine, final int tier) {
         try {
             final int slot = machine.getControllerSlotIndex();
             if (slot < machine.mInventory.length) {
                 machine.mInventory[slot] = ItemList
-                    .valueOf("T" + (GTStructureTiers.clamp(tier, GTStructureTiers.MAX_SAWBLADE_TIER) + 1) + "Sawblade")
+                    .valueOf("T" + (MathHelper.clamp_int(tier, 0, GTSettings.MAX_SAWBLADE_TIER) + 1) + "Sawblade")
                     .get(1);
             }
         } catch (final RuntimeException skip) {
@@ -187,13 +201,14 @@ public final class StructureWriter {
         throws ReflectiveOperationException {
         if (write.coding() == Coding.COIL_LEVEL) {
             write.field()
-                .set(machine, HeatingCoilLevel.getFromTier((byte) GTStructureTiers.clampCoil(state.get(Settings.GT_COIL))));
+                .set(machine, HeatingCoilLevel.getFromTier((byte) MathHelper.clamp_int(state.get(Settings.GT_COIL), 0, GTSettings.MAX_COIL_TIER)));
             return;
         }
         if (write.coding() == Coding.ELECTRODE_ITEM) {
-            // Left alone rather than nulled when kubatech has no electrode to give: the machine's own
-            // default is a state it can survive, and null is one it was never written to expect.
-            final Object electrode = GTStructureTiers.electrode(state.get(Settings.GT_ELECTRODE));
+            // Left alone rather than nulled when the electrodes are not registered yet: the
+            // machine's own default is a state it can survive, and null is one it was never
+            // written to expect.
+            final ArcFurnaceElectrode electrode = electrode(state.get(Settings.GT_ELECTRODE));
             if (electrode != null) {
                 write.field()
                     .set(machine, electrode);
@@ -208,7 +223,7 @@ public final class StructureWriter {
             case COIL_TIER_FROM_ONE -> state.get(coding.setting) + 1;
             // What the coil alone supplies. A machine that adds a voltage term to this in checkMachine
             // then reads low, which the disagreement log reports as a heat difference against the row.
-            case COIL_HEAT -> GTStructureTiers.coilHeat(state.get(coding.setting));
+            case COIL_HEAT -> GTSettings.coilHeat(state.get(coding.setting));
             default -> state.get(coding.setting);
         };
     }
@@ -232,7 +247,7 @@ public final class StructureWriter {
     private static Coding codingOf(final Field field) {
         final Class<?> type = field.getType();
         if (type == HeatingCoilLevel.class) return Coding.COIL_LEVEL;
-        if (GTStructureTiers.ELECTRODE_CLASS.equals(type.getName())) return Coding.ELECTRODE_ITEM;
+        if (type == ArcFurnaceElectrode.class) return Coding.ELECTRODE_ITEM;
         if (type != int.class && type != byte.class && type != Byte.class && type != Integer.class) return null;
         return BY_NAME.get(field.getName());
     }

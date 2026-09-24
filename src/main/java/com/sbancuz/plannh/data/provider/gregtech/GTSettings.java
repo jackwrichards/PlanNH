@@ -4,25 +4,35 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
-import java.util.function.Supplier;
+import java.util.function.Predicate;
+import java.util.function.ToDoubleBiFunction;
 import java.util.function.ToIntBiFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.MathHelper;
+
 import com.sbancuz.plannh.data.ChartMinimums;
+import com.sbancuz.plannh.data.MachineConfig;
 import com.sbancuz.plannh.data.MachineProfile;
 import com.sbancuz.plannh.data.RecipeContext;
 import com.sbancuz.plannh.data.SettingDef;
 import com.sbancuz.plannh.data.Settings;
+import com.sbancuz.plannh.data.TierSetting;
 import com.sbancuz.plannh.data.machine.MachineVariant;
 import com.sbancuz.plannh.data.machine.MachineVariants;
 import com.sbancuz.plannh.data.provider.GTProvider;
 
 import gregtech.api.enums.GTValues;
 import gregtech.api.enums.HeatingCoilLevel;
+import gregtech.api.enums.ItemList;
 import gregtech.api.util.GTUtility;
+import gregtech.common.tileentities.machines.multi.MTEIndustrialCuttingMachine.SawbladeTiers;
+import kubatech.loaders.ArcFurnaceElectrode;
 
 /**
  * Settings that only exist for GregTech nodes, kept out of {@link com.sbancuz.plannh.data.Settings}
@@ -38,49 +48,11 @@ public final class GTSettings {
 
     private GTSettings() {}
 
-    /** Shared: any mod's machines are picked through the same row, so a node has one machine key. */
-    public static final String MACHINE = Settings.MACHINE.key();
     /** Still GregTech's own: it reveals the raw overclock rows, which no other provider has. */
     public static final String ADVANCED = "gt_advanced";
 
-    // Read off the shared vocabulary rather than repeated as literals, so the key a preset names and
-    // the key a node stores cannot drift apart. Sourcing them from a method call also keeps them out
-    // of the constant pool, which is what makes a single edit here reach every call site.
-    public static final String COIL = Settings.GT_COIL.key();
-    public static final String SOLENOID = Settings.GT_SOLENOID.key();
-    public static final String ITEM_PIPE = Settings.GT_ITEM_PIPE.key();
-    public static final String PIPE_CASING = Settings.GT_PIPE_CASING.key();
-    public static final String SAWBLADE = Settings.GT_SAWBLADE.key();
-    public static final String ELECTRODE = Settings.GT_ELECTRODE.key();
-    public static final String STRUCTURE_TIER = Settings.GT_STRUCTURE_TIER.key();
-    public static final String WIDTH = Settings.GT_WIDTH.key();
-    public static final String MODE = Settings.GT_MODE.key();
-
-    /** Sixteen 4A hatches is past anything GregTech builds, and the row is a plan rather than a limit. */
+    /** Rows are plans, not limits. */
     private static final int MAX_AMPERAGE = 64;
-
-    /**
-     * Coil names in GT's tier order, so index 0 is Cupronickel. {@code HeatingCoilLevel} counts None
-     * and ULV below that, which is why its {@code getTier()} subtracts two.
-     */
-    public static final List<String> COIL_NAMES = coilNames();
-
-    @Nonnull
-    private static List<String> coilNames() {
-        final List<String> names = new ArrayList<>();
-        for (int tier = 0; tier <= GTStructureTiers.MAX_COIL_TIER; tier++) {
-            names.add(
-                HeatingCoilLevel.getFromTier((byte) tier)
-                    .name());
-        }
-        return List.copyOf(names);
-    }
-
-    /**
-     * The machine picker, which is no longer GregTech's own: {@link MachineVariants} builds it from
-     * whichever providers offer machines for the node's recipe.
-     */
-    public static final SettingDef<String> MACHINE_DEF = MachineVariants.pickerDef();
 
     /**
      * Voltage offered from the lowest tier that can actually run this recipe upward. A machine below
@@ -127,16 +99,7 @@ public final class GTSettings {
      * recipe too expensive for that still gets a hatch that works.
      */
     public static int defaultVoltageTier(final long recipeEUt) {
-        return Math.max(minimumVoltageTier(recipeEUt), chartMinimum(Settings.VOLTAGE, 0));
-    }
-
-    /**
-     * What a chart says it can build, or the best the game offers when it has not said. Read from the
-     * chart on screen rather than handed in: a {@link SettingDef} is given the recipe and the node's
-     * own settings, never the node or the graph holding it, and only the active chart draws rows.
-     */
-    private static int chartMinimum(final Settings setting, final int best) {
-        return ChartMinimums.floor(setting, best);
+        return Math.max(minimumVoltageTier(recipeEUt), ChartMinimums.floor(Settings.VOLTAGE, 0));
     }
 
     /**
@@ -144,40 +107,18 @@ public final class GTSettings {
      * draws them, so that panel names no mod and keeps working on a pack without GregTech.
      */
     public static void registerChartMinimums() {
-        ChartMinimums.register(
-            ChartMinimums.Minimum.strongest(
-                Settings.GT_COIL,
-                "Coil",
-                0,
-                GTStructureTiers.MAX_COIL_TIER,
-                tier -> COIL_DEF.display(COIL_NAMES.get(tier))));
-        ChartMinimums.register(
-            ChartMinimums.Minimum.strongest(
-                Settings.GT_PIPE_CASING,
-                "Pipe",
-                1,
-                GTStructureTiers.MAX_PIPE_CASING_TIER,
-                GTStructureTiers::pipeCasingName));
+        floorStrongest(Settings.GT_COIL, "Coil", COIL_DEF);
+        floorStrongest(Settings.GT_PIPE_CASING, "Pipe", PIPE_CASING_DEF);
         // One below the top of GregTech's own list, matching the tiers the voltage row offers.
         ChartMinimums.register(
             ChartMinimums.Minimum
                 .weakest(Settings.VOLTAGE, "Volt", 0, GTValues.VN.length - 2, tier -> GTValues.VN[tier]));
     }
 
-    /**
-     * Something that only answers inside a running game, and its answer when there is none. Resolving
-     * a structure reaches the open plan and the recipe's own properties, and both of those reach
-     * Minecraft: the plan through the save directory, the properties through the provider that
-     * declares them. A test and the probe's warmup sweep resolve structures with neither loaded, and
-     * that is not a failure - it means nothing has been chosen yet.
-     */
-    @Nullable
-    private static <T> T insideAGame(final Supplier<T> value, @Nullable final T otherwise) {
-        try {
-            return value.get();
-        } catch (final RuntimeException | LinkageError outsideAGame) {
-            return otherwise;
-        }
+    /** A row that both bounds its floor and names its tiers, so the two cannot come from different rows. */
+    private static void floorStrongest(final Settings setting, final String label, final TierSetting row) {
+        ChartMinimums.register(
+            ChartMinimums.Minimum.strongest(setting, label, row.minInt, row.maxInt, row::name));
     }
 
     /** The tiers offered for a recipe of this cost, lowest usable first. */
@@ -227,64 +168,75 @@ public final class GTSettings {
         final GTMachineIndex.MachineEntry entry = GTMachineIndex.selected(ctx, settings);
         if (entry == null || entry.preset() == null) return fallback;
         return reader
-            .applyAsInt(entry.preset(), resolve(ctx, settings, voltageTier(ctx, settings), mode(ctx, entry, settings)));
+            .applyAsInt(entry.preset(), StructureState.resolve(ctx, settings, voltageTier(ctx, settings), GTMachineIndex.mode(ctx, entry, settings)));
+    }
+
+    /** A row showing one of the machine's own factors as the percentage it is named for; the preset keeps the exact double. */
+    @Nonnull
+    private static SettingDef<Integer> presetPercent(final String key, final int min, final int max, final int fallback,
+        final ToDoubleBiFunction<GTMachinePreset, StructureState> reader,
+        @Nullable final BiFunction<Integer, MachineConfig, String> badgeFn) {
+        return SettingDef
+            .autoIntDef(
+                key,
+                min,
+                max,
+                (ctx, s) -> fromPreset(
+                    ctx,
+                    s,
+                    fallback,
+                    (p, st) -> (int) Math.round(
+                        100.0 * reader.applyAsDouble(p, st))),
+                badgeFn);
+    }
+
+    /** A row showing whether the machine does the thing, for the flags a preset carries rather than computes. */
+    @Nonnull
+    private static SettingDef<Boolean> presetFlag(final String key,
+        final Predicate<GTMachinePreset> reader,
+        @Nullable final BiFunction<Boolean, MachineConfig, String> badgeFn) {
+        return SettingDef
+            .autoBoolDef(
+                key,
+                (ctx, s) -> fromPreset(ctx, s, 0, (p, st) -> reader.test(p) ? 1 : 0),
+                badgeFn);
     }
 
     /** Percentages the rows show; the maths uses the preset's exact doubles, never these. */
-    public static final SettingDef<Integer> SPEED_DEF = SettingDef.autoIntDef(
+    public static final SettingDef<Integer> SPEED_DEF = presetPercent(
         Settings.SPEED.key(),
         10,
         10000,
         100,
-        (ctx, s) -> fromPreset(
-            ctx,
-            s,
-            100,
-            (p, st) -> (int) Math.round(
-                100.0 / p.durationModifier()
-                    .applyAsDouble(st))),
+        (p, st) -> 1.0 / p.durationModifier()
+            .applyAsDouble(st),
         (v, c) -> "⏱" + v + "%");
 
-    public static final SettingDef<Integer> EUT_DISCOUNT_DEF = SettingDef.autoIntDef(
+    public static final SettingDef<Integer> EUT_DISCOUNT_DEF = presetPercent(
         Settings.EUT_DISCOUNT.key(),
         0,
         100,
         100,
-        (ctx, s) -> fromPreset(
-            ctx,
-            s,
-            100,
-            (p, st) -> (int) Math.round(
-                100.0 * p.euModifier()
-                    .applyAsDouble(st))),
+        (p, st) -> p.euModifier()
+            .applyAsDouble(st),
         (v, c) -> "D" + v + "%");
 
-    public static final SettingDef<Integer> EUT_PER_OC_DEF = SettingDef.autoIntDef(
+    public static final SettingDef<Integer> EUT_PER_OC_DEF = presetPercent(
         Settings.EUT_INCREASE_PER_OC.key(),
         100,
         1000,
         400,
-        (ctx, s) -> fromPreset(
-            ctx,
-            s,
-            400,
-            (p, st) -> (int) Math.round(
-                100.0 * p.eutIncreasePerOC()
-                    .applyAsDouble(st))),
+        (p, st) -> p.eutIncreasePerOC()
+            .applyAsDouble(st),
         (v, c) -> "EU×" + (v / 100));
 
-    public static final SettingDef<Integer> DURATION_PER_OC_DEF = SettingDef.autoIntDef(
+    public static final SettingDef<Integer> DURATION_PER_OC_DEF = presetPercent(
         Settings.DURATION_DECREASE_PER_OC.key(),
         100,
         1000,
         200,
-        (ctx, s) -> fromPreset(
-            ctx,
-            s,
-            200,
-            (p, st) -> (int) Math.round(
-                100.0 * p.durationDecreasePerOC()
-                    .applyAsDouble(st))),
+        (p, st) -> p.durationDecreasePerOC()
+            .applyAsDouble(st),
         (v, c) -> "Spd×" + (v / 100));
 
     public static final SettingDef<Integer> MACHINE_HEAT_DEF = SettingDef.autoIntDef(
@@ -344,19 +296,19 @@ public final class GTSettings {
                 .applyAsDouble(st) >= 4.0 ? 1 : 0),
         (v, c) -> v ? "P" : null);
 
-    public static final SettingDef<Boolean> HEAT_OC_DEF = SettingDef.autoBoolDef(
+    public static final SettingDef<Boolean> HEAT_OC_DEF = presetFlag(
         Settings.HEAT_OC.key(),
-        (ctx, s) -> fromPreset(ctx, s, 0, (p, st) -> p.heatOC() ? 1 : 0),
+        GTMachinePreset::heatOC,
         (v, c) -> v ? "H" : null);
 
-    public static final SettingDef<Boolean> HEAT_DISCOUNT_DEF = SettingDef.autoBoolDef(
+    public static final SettingDef<Boolean> HEAT_DISCOUNT_DEF = presetFlag(
         Settings.HEAT_DISCOUNT.key(),
-        (ctx, s) -> fromPreset(ctx, s, 0, (p, st) -> p.heatDiscount() ? 1 : 0),
+        GTMachinePreset::heatDiscount,
         (v, c) -> v ? "D" : null);
 
-    public static final SettingDef<Boolean> UNLIMITED_SKIPS_DEF = SettingDef.autoBoolDef(
+    public static final SettingDef<Boolean> UNLIMITED_SKIPS_DEF = presetFlag(
         Settings.UNLIMITED_SKIPS.key(),
-        (ctx, s) -> fromPreset(ctx, s, 0, (p, st) -> p.unlimitedTierSkips() ? 1 : 0),
+        GTMachinePreset::unlimitedTierSkips,
         (v, c) -> v ? "∞T" : null);
 
     /**
@@ -371,8 +323,56 @@ public final class GTSettings {
         }, (v, c) -> "A" + v);
 
     /**
-     * Stores GregTech's tier name and shows GregTech's material name, because the tier name is what a
-     * save can keep - it is locale-independent and stable - while "Cupronickel" is what a player built.
+     * The machine-owned values the step merges under stored settings. Same defs the rows display,
+     * so display and maths agree by construction instead of by discipline; VOLTAGE (a name, not a
+     * number) and PARALLELS (a resolved cap, not an effective value) stay bespoke at the call site.
+     */
+    static final List<SettingDef<?>> OWNED_DEFS = List.of(
+        AMP_DEF,
+        SPEED_DEF,
+        EUT_DISCOUNT_DEF,
+        EUT_PER_OC_DEF,
+        DURATION_PER_OC_DEF,
+        MACHINE_HEAT_DEF,
+        RECIPE_HEAT_DEF,
+        HEAT_DISCOUNT_MULT_DEF,
+        MAX_TIER_SKIPS_DEF,
+        PERFECT_OC_DEF,
+        HEAT_OC_DEF,
+        HEAT_DISCOUNT_DEF,
+        UNLIMITED_SKIPS_DEF);
+
+    /** GT counts None and ULV below Cupronickel, which is why its {@code getTier()} subtracts two. */
+    public static final int MAX_COIL_TIER = HeatingCoilLevel.getMaxTier();
+
+    /** How hot a coil of this tier runs, in Kelvin. Tiers outside the range clamp to it. */
+    public static int coilHeat(final int coilTier) {
+        return (int) HeatingCoilLevel.getFromTier((byte) MathHelper.clamp_int(coilTier, 0, MAX_COIL_TIER))
+            .getHeat();
+    }
+
+    /**
+     * The weakest coil that reaches a heat, or the hottest coil when none does. One tier too low and
+     * a node opens on a structure that cannot run its recipe.
+     */
+    public static int coilTierForHeat(final int heat) {
+        if (heat <= 0) return 0;
+        for (int tier = 0; tier < MAX_COIL_TIER; tier++) {
+            if (coilHeat(tier) >= heat) return tier;
+        }
+        return MAX_COIL_TIER;
+    }
+
+    /** GregTech's own translated name for a coil tier, so a row reads as the block a player places. */
+    @Nonnull
+    public static String coilDisplayName(final int tier) {
+        return HeatingCoilLevel.getFromTier((byte) MathHelper.clamp_int(tier, 0, MAX_COIL_TIER))
+            .getName();
+    }
+
+    /**
+     * Stores the coil tier and shows GregTech's material name, because the tier is what maths and
+     * saves keep - locale-independent and stable - while "Cupronickel" is what a player built.
      *
      * <p>
      * An untouched row opens on the chart's own coil rather than on the best one, because a coil sets
@@ -380,9 +380,13 @@ public final class GTSettings {
      * numbers is wrong everywhere at once. The whole list stays offered, so one node can still model a
      * hotter build than the rest of the chart.
      */
-    public static final SettingDef<String> COIL_DEF = SettingDef
-        .dynamicEnumDef(COIL, "", ctx -> COIL_NAMES, GTSettings::coilDisplayName, (v, c) -> null)
-        .withDefault(ctx -> COIL_NAMES.get(defaultCoilTier(ctx)));
+    public static final TierSetting COIL_DEF = new TierSetting(
+        Settings.GT_COIL.key(),
+        0,
+        MAX_COIL_TIER,
+        (ctx, s) -> defaultCoilTier(ctx),
+        GTSettings::coilDisplayName,
+        null);
 
     /**
      * The coil a node opens on: the chart's own minimum, raised to whatever the recipe needs to reach
@@ -391,167 +395,170 @@ public final class GTSettings {
      * coil's 1801K, so reading it here raises nothing.
      */
     public static int defaultCoilTier(final RecipeContext ctx) {
-        return Math.max(chartMinimum(Settings.GT_COIL, GTStructureTiers.MAX_COIL_TIER), coilTierForRecipe(ctx));
+        return Math.max(ChartMinimums.floor(Settings.GT_COIL, MAX_COIL_TIER), coilTierForRecipe(ctx));
     }
 
     private static int coilTierForRecipe(final RecipeContext ctx) {
-        final Integer heat = insideAGame(() -> ctx.getOrDefault(GTProvider.SPECIAL_VALUE, null), null);
+        // Reading the key touches GTProvider, whose eager profile build needs NEI/LWJGL and fails
+        // headless (LinkageError); a warmup/test resolve with neither loaded means "nothing chosen yet".
+        // TODO: lazy-init GTProvider.PROFILE so keys stay usable headless, then drop this guard.
+        final Integer heat;
+        try {
+            heat = ctx.getOrDefault(GTProvider.SPECIAL_VALUE, null);
+        } catch (final RuntimeException | LinkageError outsideAGame) {
+            return 0;
+        }
         return heat == null ? 0 : coilTierForHeat(heat);
     }
 
+    /** Solenoid tiers are the block meta + 2, so MV is the weakest that exists. */
+    public static final int MIN_SOLENOID_TIER = 2;
+    /** Read off a registered Block instance by {@code BlockCyclotronCoils.getVoltageTier(meta)}. */
+    public static final int MAX_SOLENOID_TIER = 12;
+    /** GT computes meta + 1 inside the private {@code GTStructureUtility.getItemPipeCasingTier}. */
+    public static final int MAX_ITEM_PIPE_TIER = 8;
+    /** Extra Coke Oven slices; also the Dangote tower's height term. Structure shape, not a tier. */
+    public static final int MAX_WIDTH = 15;
     /**
-     * The weakest coil that reaches a heat, or the hottest coil when none does. Public because it is
-     * the rule the recipe-driven part of a coil default is, and it is worth pinning on its own: one
-     * tier too low and a node opens on a structure that cannot run its recipe.
+     * How many tiers an enum table has. Ordinals are the tiers and per-tier values are never read -
+     * the probe asks the machine for those - so the enums are read for their length, by type.
      */
-    public static int coilTierForHeat(final int heat) {
-        if (heat <= 0) return 0;
-        for (int tier = 0; tier < GTStructureTiers.MAX_COIL_TIER; tier++) {
-            if (GTStructureTiers.coilHeat(tier) >= heat) return tier;
-        }
-        return GTStructureTiers.MAX_COIL_TIER;
-    }
+    public static final int MAX_ELECTRODE_TIER = ArcFurnaceElectrode.values().length - 1;
+    public static final int MAX_SAWBLADE_TIER = SawbladeTiers.values().length - 1;
+
+    public static final SettingDef<Integer> SOLENOID_DEF = SettingDef.intDef(
+        Settings.GT_SOLENOID.key(),
+        MAX_SOLENOID_TIER,
+        MIN_SOLENOID_TIER,
+        MAX_SOLENOID_TIER);
+    public static final SettingDef<Integer> ITEM_PIPE_DEF = SettingDef
+        .intDef(Settings.GT_ITEM_PIPE.key(), MAX_ITEM_PIPE_TIER, 1, MAX_ITEM_PIPE_TIER);
+    /**
+     * The pipe casings, weakest first, so tier 1 is Bronze. Both machines that read the setting agree on
+     * this order: GT++'s Chemical Plant takes block meta 12 to 15 as tier 1 to 4, and GregTech's steam
+     * multiblocks take the same two lowest metas as their tier 1 and 2.
+     */
+    private static final ItemList[] PIPE_CASINGS = { ItemList.Casing_Pipe_Bronze, ItemList.Casing_Pipe_Steel,
+        ItemList.Casing_Pipe_Titanium, ItemList.Casing_Pipe_TungstenSteel };
+
+    public static final int MAX_PIPE_CASING_TIER = PIPE_CASINGS.length;
+
+    /** Filled on first use, because item display names need a registry that is empty at class load. */
+    private static final String[] PIPE_CASING_NAMES = new String[PIPE_CASINGS.length];
 
     /** The pipe casing a node opens on. GregTech attaches no casing requirement to a recipe. */
     public static int defaultPipeCasingTier() {
-        return chartMinimum(Settings.GT_PIPE_CASING, GTStructureTiers.MAX_PIPE_CASING_TIER);
+        return ChartMinimums.floor(Settings.GT_PIPE_CASING, MAX_PIPE_CASING_TIER);
     }
 
-    /** GregTech's own translated name for a coil tier, so the row reads as the block a player places. */
+    /**
+     * GregTech's own name for the casing at a pipe casing tier, so the row names the block a player
+     * places rather than a number only the code uses. Falls back to the tier when the item registry
+     * has nothing, which is what a headless run sees.
+     */
     @Nonnull
-    private static String coilDisplayName(final String tierName) {
-        for (final HeatingCoilLevel level : HeatingCoilLevel.values()) {
-            if (level.name()
-                .equals(tierName)) return level.getName();
+    public static String pipeCasingName(final int tier) {
+        final int index = MathHelper.clamp_int(tier, 1, MAX_PIPE_CASING_TIER) - 1;
+        if (PIPE_CASING_NAMES[index] == null) {
+            PIPE_CASING_NAMES[index] = readItemName(PIPE_CASINGS[index], String.valueOf(index + 1));
         }
-        return tierName;
+        return PIPE_CASING_NAMES[index];
     }
 
-    public static final SettingDef<Integer> SOLENOID_DEF = SettingDef.intDef(
-        SOLENOID,
-        GTStructureTiers.MAX_SOLENOID_TIER,
-        GTStructureTiers.MIN_SOLENOID_TIER,
-        GTStructureTiers.MAX_SOLENOID_TIER);
-    public static final SettingDef<Integer> ITEM_PIPE_DEF = SettingDef
-        .intDef(ITEM_PIPE, GTStructureTiers.MAX_ITEM_PIPE_TIER, 1, GTStructureTiers.MAX_ITEM_PIPE_TIER);
+    /** The casing kind, which every row that shows one of these has already said in its own label. */
+    private static final String PIPE_CASING_SUFFIX = " Pipe Casing";
+
+    /**
+     * The material rather than the whole item name, so a row reads "Pipe Casing Tungstensteel" the way
+     * a coil row reads "Coil HSS-S" - GregTech names a coil by its material already, and names a
+     * casing by material and kind together. A locale that words it differently keeps the full name,
+     * which is long but never wrong.
+     */
+    @Nonnull
+    private static String readItemName(final ItemList item, final String fallback) {
+        try {
+            final ItemStack stack = item.get(1);
+            if (stack == null) return fallback;
+            final String name = stack.getDisplayName();
+            return name.endsWith(PIPE_CASING_SUFFIX) ? name.substring(0, name.length() - PIPE_CASING_SUFFIX.length())
+                : name;
+        } catch (final RuntimeException | LinkageError e) {
+            return fallback;
+        }
+    }
+
     /**
      * Stores GregTech's tier number, which is what the machines read, and shows the casing it means.
      * An untouched row follows the chart, so it is an automatic row rather than one with a fixed
      * default.
      */
-    public static final SettingDef<Integer> PIPE_CASING_DEF = SettingDef
-        .autoIntDef(
-            PIPE_CASING,
-            1,
-            GTStructureTiers.MAX_PIPE_CASING_TIER,
-            null,
-            (ctx, s) -> defaultPipeCasingTier(),
-            null)
-        .withDisplay(tier -> GTStructureTiers.pipeCasingName(Integer.parseInt(tier)));
+    public static final TierSetting PIPE_CASING_DEF = new TierSetting(
+        Settings.GT_PIPE_CASING.key(),
+        1,
+        MAX_PIPE_CASING_TIER,
+        (ctx, s) -> defaultPipeCasingTier(),
+        GTSettings::pipeCasingName,
+        null);
     public static final SettingDef<Integer> SAWBLADE_DEF = SettingDef
-        .intDef(SAWBLADE, GTStructureTiers.MAX_SAWBLADE_TIER, 0, GTStructureTiers.MAX_SAWBLADE_TIER);
+        .intDef(Settings.GT_SAWBLADE.key(), MAX_SAWBLADE_TIER, 0, MAX_SAWBLADE_TIER);
     public static final SettingDef<Integer> ELECTRODE_DEF = SettingDef
-        .intDef(ELECTRODE, 0, 0, GTStructureTiers.MAX_ELECTRODE_TIER);
-    public static final SettingDef<Integer> STRUCTURE_TIER_DEF = SettingDef.intDef(STRUCTURE_TIER, 2, 0, 2);
+        .intDef(Settings.GT_ELECTRODE.key(), 0, 0, MAX_ELECTRODE_TIER);
+    public static final SettingDef<Integer> STRUCTURE_TIER_DEF = SettingDef.intDef(Settings.GT_STRUCTURE_TIER.key(), 2, 0, 2);
     public static final SettingDef<Integer> WIDTH_DEF = SettingDef
-        .intDef(WIDTH, GTStructureTiers.MAX_WIDTH, 0, GTStructureTiers.MAX_WIDTH);
-    /**
-     * How many modes a machine has is the machine's business, not a constant: GregTech ships three-mode
-     * multiblocks, and a fixed ceiling of one would leave the third unreachable.
-     */
-    public static final SettingDef<Integer> MODE_DEF = SettingDef.intDef(MODE, 0, 0, GTSettings::modeCeiling);
-
-    private static int modeCeiling(final RecipeContext ctx, final Map<String, Object> settings) {
-        final GTMachineIndex.MachineEntry entry = GTMachineIndex.selected(ctx, settings);
-        return entry == null ? 1
-            : entry.modes()
-                .count() - 1;
-    }
-
-    /** What a structure setting can be set to, both ends included. */
-    public record TierRange(int min, int max) {}
+        .intDef(Settings.GT_WIDTH.key(), MAX_WIDTH, 0, MAX_WIDTH);
+    public static final SettingDef<Integer> MODE_DEF = SettingDef.intDef(Settings.GT_MODE.key(), 0, 0, GTMachineIndex::modeCeiling);
 
     /**
-     * The row a structure setting is edited through. The single place that says which def belongs to
-     * which setting, so a profile listing the rows and a scan sweeping their ranges cannot disagree
-     * about what a setting is.
+     * Every structure row, by the setting it edits. The profile builds its rows from this and the
+     * probe sweeps its ranges from it, so the two cannot disagree about what a setting is - and
+     * {@link StructureState} resolves every key here, so nothing can be a row without a value.
      */
-    @Nonnull
-    public static SettingDef<?> settingDef(final Settings setting) {
-        return switch (setting) {
-            case GT_COIL -> COIL_DEF;
-            case GT_SOLENOID -> SOLENOID_DEF;
-            case GT_ITEM_PIPE -> ITEM_PIPE_DEF;
-            case GT_PIPE_CASING -> PIPE_CASING_DEF;
-            case GT_SAWBLADE -> SAWBLADE_DEF;
-            case GT_ELECTRODE -> ELECTRODE_DEF;
-            case GT_STRUCTURE_TIER -> STRUCTURE_TIER_DEF;
-            case GT_WIDTH -> WIDTH_DEF;
-            case GT_MODE -> MODE_DEF;
-            default -> throw new IllegalArgumentException(setting + " is not a structure setting");
-        };
+    private static final Map<Settings, SettingDef<?>> STRUCTURE_ROWS = new EnumMap<>(Settings.class);
+
+    static {
+        STRUCTURE_ROWS.put(Settings.GT_COIL, COIL_DEF);
+        STRUCTURE_ROWS.put(Settings.GT_SOLENOID, SOLENOID_DEF);
+        STRUCTURE_ROWS.put(Settings.GT_ITEM_PIPE, ITEM_PIPE_DEF);
+        STRUCTURE_ROWS.put(Settings.GT_PIPE_CASING, PIPE_CASING_DEF);
+        STRUCTURE_ROWS.put(Settings.GT_SAWBLADE, SAWBLADE_DEF);
+        STRUCTURE_ROWS.put(Settings.GT_ELECTRODE, ELECTRODE_DEF);
+        STRUCTURE_ROWS.put(Settings.GT_STRUCTURE_TIER, STRUCTURE_TIER_DEF);
+        STRUCTURE_ROWS.put(Settings.GT_WIDTH, WIDTH_DEF);
+        STRUCTURE_ROWS.put(Settings.GT_MODE, MODE_DEF);
     }
 
     /**
-     * The range a setting offers, read off the row that offers it. Anything that varies a setting - the
-     * probe's sensitivity scan - then covers exactly what the player can reach, and one edit to a row
-     * moves both.
+     * The structure rows in {@link Settings} order, which is the order a node draws them in. An
+     * {@link EnumMap} iterates in ordinal order, so the map and the panel agree without a sort.
      */
     @Nonnull
-    public static TierRange settingRange(final Settings setting) {
-        // The coil row stores a name rather than a number, so its range is the name list.
-        if (setting == Settings.GT_COIL) return new TierRange(0, COIL_NAMES.size() - 1);
+    public static Map<Settings, SettingDef<?>> structureRows() {
+        return STRUCTURE_ROWS;
+    }
+
+    /**
+     * The row a structure setting is edited through. Throws rather than answering null: every
+     * structure setting has a row, so a caller arriving with one that does not is the bug.
+     */
+    @Nonnull
+    public static SettingDef<?> structureDef(final Settings setting) {
+        final SettingDef<?> def = STRUCTURE_ROWS.get(setting);
+        if (def == null) throw new IllegalArgumentException(setting + " is not a structure setting");
+        return def;
+    }
+
+    /**
+     * Both ends a setting offers, read off the row that offers it. Anything that varies a setting -
+     * the probe's sensitivity scan - then covers exactly what the player can reach, and one edit to a
+     * row moves both.
+     */
+    @Nonnull
+    public static int[] structureRange(final Settings setting) {
         // A sweep over modes takes its count from the machine, not from a range; the mode row's own
         // ceiling is a function of the selected machine and so cannot answer without one.
-        if (setting == Settings.GT_MODE) return new TierRange(0, 1);
-        final SettingDef<?> def = settingDef(setting);
-        return new TierRange(def.minInt, def.maxInt);
-    }
-
-    /**
-     * Structure settings open on what the chart says it can build, and on the best the game offers where
-     * the chart has said nothing. The row is right there to move one node off that.
-     */
-    @Nonnull
-    public static StructureState resolve(final RecipeContext ctx, final Map<String, Object> settings,
-        final int voltageTier) {
-        return resolve(ctx, settings, voltageTier, MachineProfile.getInt(settings, MODE, 0));
-    }
-
-    /**
-     * As above, with the mode supplied by a caller that already knows the machine. Kept separate so
-     * that resolving a structure never reaches the machine index, which a chart does per frame.
-     */
-    @Nonnull
-    public static StructureState resolve(final RecipeContext ctx, final Map<String, Object> settings,
-        final int voltageTier, final int mode) {
-        final EnumMap<Settings, Integer> tiers = new EnumMap<>(Settings.class);
-        tiers.put(Settings.VOLTAGE, voltageTier);
-        tiers.put(
-            Settings.GT_COIL,
-            COIL_NAMES.indexOf(MachineProfile.getString(settings, COIL, COIL_NAMES.get(defaultCoilTier(ctx)))));
-        tiers.put(Settings.GT_SOLENOID,
-            MachineProfile.getInt(settings, SOLENOID, GTStructureTiers.MAX_SOLENOID_TIER));
-        tiers.put(Settings.GT_ITEM_PIPE,
-            MachineProfile.getInt(settings, ITEM_PIPE, GTStructureTiers.MAX_ITEM_PIPE_TIER));
-        tiers.put(Settings.GT_PIPE_CASING, MachineProfile.getInt(settings, PIPE_CASING, defaultPipeCasingTier()));
-        tiers.put(Settings.GT_SAWBLADE, MachineProfile.getInt(settings, SAWBLADE, GTStructureTiers.MAX_SAWBLADE_TIER));
-        tiers.put(Settings.GT_ELECTRODE, MachineProfile.getInt(settings, ELECTRODE, 0));
-        tiers.put(Settings.GT_STRUCTURE_TIER, MachineProfile.getInt(settings, STRUCTURE_TIER, 2));
-        tiers.put(Settings.GT_WIDTH, MachineProfile.getInt(settings, WIDTH, GTStructureTiers.MAX_WIDTH));
-        tiers.put(Settings.GT_MODE, mode);
-        return StructureState.copyOf(tiers);
-    }
-
-    /**
-     * The machine mode this node runs in. A machine that is two machines behind one controller picks
-     * between them by recipemap, and the node's recipe already came from one of them, so the answer is
-     * read rather than asked for. Everything else falls back to the row.
-     */
-    public static int mode(final RecipeContext ctx, @Nullable final GTMachineIndex.MachineEntry entry,
-        final Map<String, Object> settings) {
-        final int implied = entry == null ? -1 : entry.modeFor(ctx.getOrDefault(GTProvider.RECIPE_MAP, null));
-        return implied >= 0 ? implied : MachineProfile.getInt(settings, MODE, 0);
+        if (setting == Settings.GT_MODE) return new int[] { 0, 1 };
+        final SettingDef<?> def = structureDef(setting);
+        return new int[] { def.minInt, def.maxInt };
     }
 
     public static boolean isAdvanced(final Map<String, Object> settings) {
@@ -561,17 +568,17 @@ public final class GTSettings {
     /** Shows a setting only when the machine the node selected actually reads it. */
     @Nonnull
     public static BiPredicate<RecipeContext, Map<String, Object>> usesSetting(final Settings setting) {
-        final BiPredicate<RecipeContext, Map<String, Object>> machineReadsIt = MachineVariants.usesSetting(setting);
         return (ctx, settings) -> {
             // Two conditions the shared predicate cannot know about: advanced mode replaces these rows
             // with the raw overclock ones, and a recipe that already implies its machine's mode has
             // answered the question the mode row would ask.
             if (isAdvanced(settings)) return false;
-            if (setting == Settings.GT_MODE) {
-                final GTMachineIndex.MachineEntry entry = GTMachineIndex.selected(ctx, settings);
-                if (entry != null && entry.modeFor(ctx.getOrDefault(GTProvider.RECIPE_MAP, null)) >= 0) return false;
+            final MachineVariant machine = MachineVariants.selected(ctx, settings);
+            if (setting == Settings.GT_MODE && machine instanceof final GTMachineIndex.MachineEntry entry) {
+                if (entry.modeFor(ctx.getOrDefault(GTProvider.RECIPE_MAP, null)) >= 0) return false;
             }
-            return machineReadsIt.test(ctx, settings);
+            return machine != null && machine.settings()
+                .contains(setting);
         };
     }
 
@@ -579,34 +586,6 @@ public final class GTSettings {
     @Nonnull
     public static BiPredicate<RecipeContext, Map<String, Object>> advancedOnly() {
         return (ctx, settings) -> isAdvanced(settings);
-    }
-
-    /**
-     * The machine is chosen from the node's title bar, not from a settings row - it names what the
-     * node is, rather than tuning it. The def still belongs to the profile so the choice serializes;
-     * it just never draws.
-     */
-    @Nonnull
-    public static BiPredicate<RecipeContext, Map<String, Object>> neverAsARow() {
-        return (ctx, settings) -> false;
-    }
-
-    /**
-     * A singleblock's tier is the block you placed, so only a multiblock's energy hatch is a choice.
-     * Also shown when nothing resolved, so a node PlanNH cannot identify keeps a usable control.
-     */
-    @Nonnull
-    public static BiPredicate<RecipeContext, Map<String, Object>> voltageEditable() {
-        return (ctx, settings) -> multiblockOrUnknown(ctx, settings);
-    }
-
-    /**
-     * Amperage is the energy hatches a multiblock was built with, so it is a choice wherever the
-     * machine is one. A singleblock draws the amperage its block draws and has nothing to say.
-     */
-    @Nonnull
-    public static BiPredicate<RecipeContext, Map<String, Object>> ampEditable() {
-        return (ctx, settings) -> multiblockOrUnknown(ctx, settings);
     }
 
     /**
@@ -635,7 +614,11 @@ public final class GTSettings {
             return machine == null || machine.tieredByBuild() ? 1 : 0;
         }, (v, c) -> v ? "M" : null);
 
-    private static boolean multiblockOrUnknown(final RecipeContext ctx, final Map<String, Object> settings) {
+    /**
+     * Voltage and amperage are choices only on a multiblock - a singleblock's tier is the block
+     * placed. Shown when nothing resolved, so a node PlanNH cannot identify keeps a usable control.
+     */
+    public static boolean multiblockOrUnknown(final RecipeContext ctx, final Map<String, Object> settings) {
         return isAdvanced(settings) || MULTIBLOCK_DEF.effectiveBool(ctx, settings);
     }
 

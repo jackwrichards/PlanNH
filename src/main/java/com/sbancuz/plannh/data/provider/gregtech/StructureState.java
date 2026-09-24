@@ -1,33 +1,21 @@
 package com.sbancuz.plannh.data.provider.gregtech;
 
-import java.util.Collections;
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.Map;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import net.minecraft.util.MathHelper;
+
+import com.sbancuz.plannh.data.MachineProfile;
+import com.sbancuz.plannh.data.RecipeContext;
 import com.sbancuz.plannh.data.Settings;
 
 /**
- * A machine's effective structure tiers, fully resolved. Built by {@code GTSettings.resolve}, which
- * owns every default; preset functions only read.
+ * A machine's effective structure tiers, fully resolved. Built by {@link #resolve}, which owns every
+ * default; preset functions only read.
  */
 public final class StructureState {
-
-    /** The settings read as structure, for the profile loop. */
-    public static final Set<Settings> STRUCTURE_SETTINGS = Collections.unmodifiableSet(
-        EnumSet.of(
-            Settings.GT_COIL,
-            Settings.GT_SOLENOID,
-            Settings.GT_ITEM_PIPE,
-            Settings.GT_PIPE_CASING,
-            Settings.GT_SAWBLADE,
-            Settings.GT_ELECTRODE,
-            Settings.GT_STRUCTURE_TIER,
-            Settings.GT_WIDTH,
-            Settings.GT_MODE));
 
     private final EnumMap<Settings, Integer> tiers;
 
@@ -48,14 +36,14 @@ public final class StructureState {
     public static StructureState untouched(final int voltageTier) {
         final EnumMap<Settings, Integer> tiers = new EnumMap<>(Settings.class);
         tiers.put(Settings.VOLTAGE, voltageTier);
-        tiers.put(Settings.GT_COIL, GTStructureTiers.MAX_COIL_TIER);
-        tiers.put(Settings.GT_SOLENOID, GTStructureTiers.MAX_SOLENOID_TIER);
-        tiers.put(Settings.GT_ITEM_PIPE, GTStructureTiers.MAX_ITEM_PIPE_TIER);
-        tiers.put(Settings.GT_PIPE_CASING, GTStructureTiers.MAX_PIPE_CASING_TIER);
-        tiers.put(Settings.GT_SAWBLADE, GTStructureTiers.MAX_SAWBLADE_TIER);
+        tiers.put(Settings.GT_COIL, GTSettings.MAX_COIL_TIER);
+        tiers.put(Settings.GT_SOLENOID, GTSettings.MAX_SOLENOID_TIER);
+        tiers.put(Settings.GT_ITEM_PIPE, GTSettings.MAX_ITEM_PIPE_TIER);
+        tiers.put(Settings.GT_PIPE_CASING, GTSettings.MAX_PIPE_CASING_TIER);
+        tiers.put(Settings.GT_SAWBLADE, GTSettings.MAX_SAWBLADE_TIER);
         tiers.put(Settings.GT_ELECTRODE, 0);
         tiers.put(Settings.GT_STRUCTURE_TIER, 2);
-        tiers.put(Settings.GT_WIDTH, GTStructureTiers.MAX_WIDTH);
+        tiers.put(Settings.GT_WIDTH, GTSettings.MAX_WIDTH);
         tiers.put(Settings.GT_MODE, 0);
         return new StructureState(tiers);
     }
@@ -73,6 +61,49 @@ public final class StructureState {
         final EnumMap<Settings, Integer> next = new EnumMap<>(tiers);
         next.put(setting, tier);
         return new StructureState(next);
+    }
+
+    /**
+     * Structure settings open on what the chart says it can build, and on the best the game offers
+     * where the chart has said nothing. The row is right there to move one node off that.
+     */
+    @Nonnull
+    public static StructureState resolve(final RecipeContext ctx, final Map<String, Object> settings,
+        final int voltageTier) {
+        return resolve(ctx, settings, voltageTier, MachineProfile.getInt(settings, Settings.GT_MODE.key(), 0));
+    }
+
+    /**
+     * As above, with the mode supplied by a caller that already knows the machine. Kept separate so
+     * that resolving a structure never reaches the machine index, which a chart does per frame.
+     */
+    @Nonnull
+    public static StructureState resolve(final RecipeContext ctx, final Map<String, Object> settings,
+        final int voltageTier, final int mode) {
+        final EnumMap<Settings, Integer> tiers = new EnumMap<>(Settings.class);
+        tiers.put(Settings.VOLTAGE, voltageTier);
+        tiers.put(
+            Settings.GT_COIL,
+            MathHelper.clamp_int(
+                MachineProfile.getInt(settings, Settings.GT_COIL.key(), GTSettings.defaultCoilTier(ctx)),
+                0,
+                GTSettings.MAX_COIL_TIER));
+        tiers.put(Settings.GT_SOLENOID,
+            MachineProfile.getInt(settings, Settings.GT_SOLENOID.key(), GTSettings.MAX_SOLENOID_TIER));
+        tiers.put(Settings.GT_ITEM_PIPE,
+            MachineProfile.getInt(settings, Settings.GT_ITEM_PIPE.key(), GTSettings.MAX_ITEM_PIPE_TIER));
+        tiers.put(
+            Settings.GT_PIPE_CASING,
+            MachineProfile.getInt(
+                settings, Settings.GT_PIPE_CASING.key(), GTSettings.defaultPipeCasingTier()));
+        tiers.put(
+            Settings.GT_SAWBLADE,
+            MachineProfile.getInt(settings, Settings.GT_SAWBLADE.key(), GTSettings.MAX_SAWBLADE_TIER));
+        tiers.put(Settings.GT_ELECTRODE, MachineProfile.getInt(settings, Settings.GT_ELECTRODE.key(), 0));
+        tiers.put(Settings.GT_STRUCTURE_TIER, MachineProfile.getInt(settings, Settings.GT_STRUCTURE_TIER.key(), 2));
+        tiers.put(Settings.GT_WIDTH, MachineProfile.getInt(settings, Settings.GT_WIDTH.key(), GTSettings.MAX_WIDTH));
+        tiers.put(Settings.GT_MODE, mode);
+        return copyOf(tiers);
     }
 
     @Override

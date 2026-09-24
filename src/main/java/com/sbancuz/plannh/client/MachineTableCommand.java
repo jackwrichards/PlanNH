@@ -244,7 +244,7 @@ public class MachineTableCommand extends CommandBase {
 
         final RecipeContext ctx = new RecipeContext(Map.<RecipeProperty<?>, Object>of(GTProvider.RECIPE_MAP, map));
         final MachineProfile profile = MachineProfileRegistry.get("gregtech:unified");
-        final Map<String, Object> settings = Map.of(GTSettings.MACHINE, entry.id());
+        final Map<String, Object> settings = Map.of(Settings.MACHINE.key(), entry.id());
 
         final List<String> labels = new ArrayList<>();
         for (final SettingDef<?> def : profile.visibleSettings(ctx, settings)) {

@@ -28,7 +28,6 @@ import com.sbancuz.plannh.data.properties.SummaryProperty;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachineIndex;
 import com.sbancuz.plannh.data.provider.gregtech.GTOverclockStep;
 import com.sbancuz.plannh.data.provider.gregtech.GTSettings;
-import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 
 import codechicken.nei.PositionedStack;
 import codechicken.nei.recipe.FurnaceRecipeHandler;
@@ -142,22 +141,24 @@ public class GTProvider implements PropertyProvider {
      * only once the user ticks Advanced.
      */
     private static void machineDriven(final MachineProfile.Builder b) {
-        b.setting(GTSettings.MACHINE_DEF.withVisibility(GTSettings.neverAsARow()));
-        b.setting(GTSettings.VOLTAGE_DEF.withVisibility(GTSettings.voltageEditable()));
+        // The machine names the node rather than tuning it; the def stays in the profile so the
+        // choice serializes, it just never draws.
+        b.setting(MachineVariants.pickerDef().withVisibility((ctx, s) -> false));
+        b.setting(GTSettings.VOLTAGE_DEF.withVisibility(GTSettings::multiblockOrUnknown));
         b.setting(Settings.MACHINES.def());
         // Nearly every multiblock takes more than one energy hatch, so how many amps reach it is a
         // build decision rather than an advanced override.
-        b.setting(GTSettings.AMP_DEF.withVisibility(GTSettings.ampEditable()));
+        b.setting(GTSettings.AMP_DEF.withVisibility(GTSettings::multiblockOrUnknown));
         b.setting(
             GTSettings.PARALLELS_DEF.withVisibility(
                 GTSettings.parallelsEditable()
                     .and((ctx, s) -> !isEoH(ctx))));
         // Every structure setting is the same row with a different def: offered when the selected machine
-        // reads it, absent otherwise. Listing them one by one only invited the two lists to diverge.
-        for (final Settings setting : StructureState.STRUCTURE_SETTINGS) {
-            b.setting(
-                GTSettings.settingDef(setting)
-                    .withVisibility(GTSettings.usesSetting(setting)));
+        // reads it, absent otherwise. The def and the setting come from one map, so a row cannot be
+        // listed without the setting that gates it, or the two lists cannot drift apart.
+        for (final Map.Entry<Settings, SettingDef<?>> row : GTSettings.structureRows().entrySet()) {
+            b.setting(row.getValue()
+                .withVisibility(GTSettings.usesSetting(row.getKey())));
         }
         b.setting(
             Settings.CATALYST_ASTRAL_ARRAYS.def()

@@ -1,8 +1,11 @@
 package com.sbancuz.plannh;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.stream.Stream;
@@ -12,6 +15,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import com.sbancuz.plannh.data.Settings;
+import com.sbancuz.plannh.data.provider.gregtech.GTSettings;
 import com.sbancuz.plannh.data.provider.gregtech.probe.StructureWriter;
 
 /**
@@ -141,6 +145,36 @@ class GTProbeCanariesTest {
                     .contains(Settings.GT_MODE),
                 className + " must not offer a mode row from field discovery alone");
         }
+    }
+
+    /**
+     * Every setting the probe can put a row on has one to put it on, and every structure row is
+     * something the probe can reach. The mode is the one row with no field behind it, offered from
+     * the public mode count instead, so it is the one setting expected on only one side.
+     */
+    @Test
+    void everyStructureRowIsSomethingTheProbeCanReach() {
+        final EnumSet<Settings> probeSide = StructureWriter.recognizedSettings();
+        probeSide.add(Settings.GT_MODE);
+
+        final EnumSet<Settings> rowSide = EnumSet.noneOf(Settings.class);
+        rowSide.addAll(GTSettings.structureRows()
+            .keySet());
+
+        assertEquals(probeSide, rowSide, "a structure row the probe cannot reach, or a setting it can reach with no row");
+    }
+
+    /**
+     * Rows are drawn in the map's order, and the map is an EnumMap, so this pins the order a node
+     * shows them in rather than leaving it to whichever list happened to be built first.
+     */
+    @Test
+    void structureRowsComeOutInSettingsOrder() {
+        final List<Settings> drawn = new ArrayList<>(GTSettings.structureRows()
+            .keySet());
+        final List<Settings> sorted = new ArrayList<>(drawn);
+        Collections.sort(sorted);
+        assertEquals(sorted, drawn, "structure rows must iterate in Settings ordinal order");
     }
 
     private static Class<?> uninitialised(final String className) {

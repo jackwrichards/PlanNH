@@ -59,9 +59,6 @@ public final class MachineVariants {
 
     public static void reset() {
         sources.clear();
-        lastCandidates = null;
-        lastStored = null;
-        lastSelected = null;
     }
 
     /**
@@ -95,17 +92,6 @@ public final class MachineVariants {
     }
 
     /**
-     * The last answer {@link #selected} gave, memoized on the identity of the candidate list rather
-     * than its contents - a source returns the same instance until its answer changes.
-     */
-    @Nullable
-    private static List<? extends MachineVariant> lastCandidates;
-    @Nullable
-    private static String lastStored;
-    @Nullable
-    private static MachineVariant lastSelected;
-
-    /**
      * The machine a node is using: what it stored, or the best candidate when it stored nothing, so a
      * node that accepts the obvious answer persists nothing at all. A stored id the installed pack no
      * longer has resolves to null rather than quietly becoming a different machine.
@@ -116,12 +102,7 @@ public final class MachineVariants {
         if (candidates.isEmpty()) return null;
 
         final String stored = MachineProfile.getString(settings, Settings.MACHINE.key(), "");
-        if (candidates == lastCandidates && stored.equals(lastStored)) return lastSelected;
-
-        lastCandidates = candidates;
-        lastStored = stored;
-        lastSelected = resolve(candidates, stored);
-        return lastSelected;
+        return resolve(candidates, stored);
     }
 
     @Nullable

@@ -1001,7 +1001,7 @@ public class RecipeNodeWidget extends Widget<RecipeNodeWidget>
     }
 
     private int drawSettingRow(final int x, final int y, final SettingDef<?> def, final MachineConfig c) {
-        if (def.type == Integer.class) {
+        if (def.type == Integer.class && !def.hasOptions()) {
             // An auto setting shows what the machine actually does rather than the 0 that means
             // "ask the machine", and cannot be stepped past what that machine allows.
             final double shown = machineCountRow(def) ? solvedMachineCount(c)
@@ -1039,7 +1039,7 @@ public class RecipeNodeWidget extends Widget<RecipeNodeWidget>
                 onConfigChanged();
             }));
             return y + LINE_H;
-        } else if (def.type == String.class && def.hasOptions()) {
+        } else if (def.hasOptions()) {
             final List<String> options = def.options(recipeContext());
             if (options.isEmpty()) return y;
 
@@ -1048,11 +1048,16 @@ public class RecipeNodeWidget extends Widget<RecipeNodeWidget>
             // Nothing stored resolves to what the setting says an unset row means, so a node that
             // accepts the obvious choice serializes nothing. A stored value the list no longer offers
             // is a machine the pack removed: show it flagged rather than rewriting the user's chart.
+            // Integer rows store the tier itself; unset ones display the automatic value like every
+            // other auto int row rather than an enum default.
             final boolean chosen = c.settings.containsKey(def.key);
-            final String stored = chosen ? c.getString(def.key) : "";
+            final String stored = !chosen ? ""
+                : def.type == Integer.class ? String.valueOf(c.getInt(def.key)) : c.getString(def.key);
             final int cur = options.indexOf(stored);
             final boolean missing = chosen && cur < 0;
-            final String shown = chosen ? stored : def.defaultOption(recipeContext());
+            final String shown = chosen ? stored
+                : def.type == Integer.class ? String.valueOf(def.effectiveInt(recipeContext(), c.settings))
+                    : def.defaultOption(recipeContext());
             final int color = missing ? PlannhColors.ACCENT_RED_X.getColor()
                 : chosen ? PlannhColors.SETTING_ON.getColor() : PlannhColors.TEXT_MUTED.getColor();
             // Machine names run far longer than a tier abbreviation, and the steppers sit at a fixed
@@ -1079,16 +1084,21 @@ public class RecipeNodeWidget extends Widget<RecipeNodeWidget>
         return y + LINE_H;
     }
 
-    /** Steps an enum row. An unset or unknown value lands on the first option, never off the end. */
+    /** Steps an options row. An unset or unknown value lands on the first option, never off the end. */
     private void cycleOption(final SettingDef<?> def, final MachineConfig c, final int step) {
         final List<String> options = def.options(recipeContext());
         if (options.isEmpty()) return;
         // Stepping starts from whatever the row displays. Treating unset as "no index" instead made
-        // the first click rewrite the value already on screen.
-        final String current = c.settings.containsKey(def.key) ? c.getString(def.key)
-            : def.defaultOption(recipeContext());
+        // the first click rewrite the value already on screen. Integer rows store the tier itself
+        // and display the automatic value when unset, like every other auto int row.
+        final String current = !c.settings.containsKey(def.key)
+            ? (def.type == Integer.class ? String.valueOf(def.effectiveInt(recipeContext(), c.settings))
+                : def.defaultOption(recipeContext()))
+            : (def.type == Integer.class ? String.valueOf(c.getInt(def.key)) : c.getString(def.key));
         final int shown = Math.max(0, options.indexOf(current));
-        c.setString(def.key, options.get(Math.min(options.size() - 1, Math.max(0, shown + step))));
+        final String next = options.get(Math.min(options.size() - 1, Math.max(0, shown + step)));
+        if (def.type == Integer.class) c.setInt(def.key, Integer.parseInt(next));
+        else c.setString(def.key, next);
         onConfigChanged();
     }
 

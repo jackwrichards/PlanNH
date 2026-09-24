@@ -14,7 +14,6 @@ import com.sbancuz.plannh.data.flowchart.Graph;
 import com.sbancuz.plannh.data.flowchart.Serializer;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceResult;
 import com.sbancuz.plannh.data.provider.gregtech.GTSettings;
-import com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers;
 
 import gregtech.api.enums.GTValues;
 
@@ -93,8 +92,8 @@ class ChartMinimumsTest {
     @Test
     void aRecipeHotterThanEveryCoilLandsOnTheHottest() {
         assertEquals(
-            GTStructureTiers.MAX_COIL_TIER,
-            GTSettings.coilTierForHeat(GTStructureTiers.coilHeat(GTStructureTiers.MAX_COIL_TIER) + 1));
+            GTSettings.MAX_COIL_TIER,
+            GTSettings.coilTierForHeat(GTSettings.coilHeat(GTSettings.MAX_COIL_TIER) + 1));
     }
 
     /**
@@ -104,16 +103,16 @@ class ChartMinimumsTest {
      */
     @Test
     void everyHeatLandsOnTheWeakestCoilThatReachesIt() {
-        for (int tier = 0; tier <= GTStructureTiers.MAX_COIL_TIER; tier++) {
-            for (final int heat : new int[] { GTStructureTiers.coilHeat(tier) - 1, GTStructureTiers.coilHeat(tier) }) {
+        for (int tier = 0; tier <= GTSettings.MAX_COIL_TIER; tier++) {
+            for (final int heat : new int[] { GTSettings.coilHeat(tier) - 1, GTSettings.coilHeat(tier) }) {
                 if (heat <= 0) continue;
                 final int picked = GTSettings.coilTierForHeat(heat);
 
                 assertTrue(
-                    GTStructureTiers.coilHeat(picked) >= heat,
-                    "coil " + picked + " runs at " + GTStructureTiers.coilHeat(picked) + " for " + heat);
+                    GTSettings.coilHeat(picked) >= heat,
+                    "coil " + picked + " runs at " + GTSettings.coilHeat(picked) + " for " + heat);
                 assertTrue(
-                    picked == 0 || GTStructureTiers.coilHeat(picked - 1) < heat,
+                    picked == 0 || GTSettings.coilHeat(picked - 1) < heat,
                     "coil " + (picked - 1) + " already reached " + heat);
             }
         }

@@ -16,7 +16,9 @@ import net.minecraft.util.StatCollector;
 
 import com.sbancuz.plannh.Compat;
 import com.sbancuz.plannh.PlanNH;
+import com.sbancuz.plannh.data.MachineProfile;
 import com.sbancuz.plannh.data.RecipeContext;
+import com.sbancuz.plannh.data.SettingDef;
 import com.sbancuz.plannh.data.Settings;
 import com.sbancuz.plannh.data.machine.MachineVariant;
 import com.sbancuz.plannh.data.machine.MachineVariants;
@@ -118,31 +120,15 @@ public final class GTMachineIndex {
         @Nonnull
         public Map<String, Object> defaults(final RecipeContext ctx, final Map<String, Object> settings) {
             if (preset == null) return Map.of();
-            // Same defs the rows display, so display and maths agree; stored wins at the merge site.
             final int tier = GTSettings.voltageTier(ctx, settings);
-            final StructureState state = GTSettings.resolve(ctx, settings, tier, GTSettings.mode(ctx, this, settings));
+            final StructureState state = StructureState.resolve(ctx, settings, tier, mode(ctx, this, settings));
             final Map<String, Object> owned = new HashMap<>();
             owned.put(Settings.VOLTAGE.key(), GTValues.VN[tier]);
             owned.put(Settings.PARALLELS.key(), GTPresetApplier.resolveParallels(settings, preset, state));
-            owned.put(Settings.AMP.key(), GTSettings.AMP_DEF.effectiveInt(ctx, settings));
-            owned.put(Settings.SPEED.key(), GTSettings.SPEED_DEF.effectiveInt(ctx, settings));
-            owned.put(Settings.EUT_DISCOUNT.key(), GTSettings.EUT_DISCOUNT_DEF.effectiveInt(ctx, settings));
-            owned.put(
-                Settings.EUT_INCREASE_PER_OC.key(),
-                GTSettings.EUT_PER_OC_DEF.effectiveInt(ctx, settings));
-            owned.put(
-                Settings.DURATION_DECREASE_PER_OC.key(),
-                GTSettings.DURATION_PER_OC_DEF.effectiveInt(ctx, settings));
-            owned.put(Settings.MACHINE_HEAT.key(), GTSettings.MACHINE_HEAT_DEF.effectiveInt(ctx, settings));
-            owned.put(Settings.RECIPE_HEAT.key(), GTSettings.RECIPE_HEAT_DEF.effectiveInt(ctx, settings));
-            owned.put(
-                Settings.HEAT_DISCOUNT_MULT.key(),
-                GTSettings.HEAT_DISCOUNT_MULT_DEF.effectiveInt(ctx, settings));
-            owned.put(Settings.MAX_TIER_SKIPS.key(), GTSettings.MAX_TIER_SKIPS_DEF.effectiveInt(ctx, settings));
-            owned.put(Settings.PERFECT_OC.key(), GTSettings.PERFECT_OC_DEF.effectiveBool(ctx, settings));
-            owned.put(Settings.HEAT_OC.key(), GTSettings.HEAT_OC_DEF.effectiveBool(ctx, settings));
-            owned.put(Settings.HEAT_DISCOUNT.key(), GTSettings.HEAT_DISCOUNT_DEF.effectiveBool(ctx, settings));
-            owned.put(Settings.UNLIMITED_SKIPS.key(), GTSettings.UNLIMITED_SKIPS_DEF.effectiveBool(ctx, settings));
+            for (final SettingDef<?> def : GTSettings.OWNED_DEFS) {
+                if (def.type == Integer.class) owned.put(def.key, def.effectiveInt(ctx, settings));
+                else if (def.type == Boolean.class) owned.put(def.key, def.effectiveBool(ctx, settings));
+            }
             return owned;
         }
     }
@@ -172,16 +158,6 @@ public final class GTMachineIndex {
     /** Reordered candidate lists, keyed by recipemap and NEI title. Derived, so it is safe to keep. */
     private static final Map<String, List<MachineEntry>> byNeiTitle = new HashMap<>();
 
-    /**
-     * The last answer {@link #candidates} gave. One slot, because the visibility predicates ask this
-     * a dozen times per frame with the same arguments and the panel finishes one node before the next.
-     */
-    @Nullable
-    private static RecipeMap<?> lastMap;
-    private static String lastTitle = "";
-    @Nullable
-    private static List<MachineEntry> lastCandidates;
-
     private GTMachineIndex() {}
 
     /** Drops the index and everything derived from it, so a reload rebuilds against the new pack. */
@@ -189,9 +165,6 @@ public final class GTMachineIndex {
         byRecipeMap = null;
         byId = Map.of();
         byNeiTitle.clear();
-        lastMap = null;
-        lastTitle = "";
-        lastCandidates = null;
     }
 
     /**
@@ -204,25 +177,21 @@ public final class GTMachineIndex {
         return byId.get(id);
     }
 
-    /** Machines that can run this node's recipe, best-first. Empty when the recipemap has none. */
+    /**
+     * Machines that can run this node's recipe, best-first. Empty when the recipemap has none. The
+     * list is whatever the index holds rather than a copy, so a caller can compare it by identity -
+     * which is what lets the visibility predicates ask this every frame without a cache.
+     */
     @Nonnull
     public static List<MachineEntry> candidates(final RecipeContext ctx) {
         final RecipeMap<?> recipeMap = ctx.getOrDefault(GTProvider.RECIPE_MAP, null);
         if (recipeMap == null) return List.of();
         final String title = ctx.getOrDefault(GTProvider.NEI_TITLE, "");
 
-        // Checked before anything is built or concatenated, because the miss path allocates a key.
-        if (recipeMap == lastMap && title.equals(lastTitle) && lastCandidates != null) return lastCandidates;
-
         final List<MachineEntry> ordered = ensureBuilt().getOrDefault(recipeMap.unlocalizedName, List.of());
-        final List<MachineEntry> answer = title.isEmpty() || ordered.size() < 2 ? ordered
+        return title.isEmpty() || ordered.size() < 2 ? ordered
             : byNeiTitle
                 .computeIfAbsent(recipeMap.unlocalizedName + '\u0000' + title, key -> preferNeiTitle(ordered, title));
-
-        lastMap = recipeMap;
-        lastTitle = title;
-        lastCandidates = answer;
-        return answer;
     }
 
     /**
@@ -255,6 +224,27 @@ public final class GTMachineIndex {
     @Nullable
     public static MachineEntry selected(final RecipeContext ctx, final Map<String, Object> settings) {
         return MachineVariants.selected(ctx, settings) instanceof final MachineEntry entry ? entry : null;
+    }
+
+    /**
+     * The machine mode this node runs in. A machine that is two machines behind one controller picks
+     * between them by recipemap, and the node's recipe already came from one of them, so the answer is
+     * read rather than asked for. Everything else falls back to the row.
+     */
+    public static int mode(final RecipeContext ctx, @Nullable final MachineEntry entry,
+        final Map<String, Object> settings) {
+        final int implied = entry == null ? -1 : entry.modeFor(ctx.getOrDefault(GTProvider.RECIPE_MAP, null));
+        return implied >= 0 ? implied : MachineProfile.getInt(settings, Settings.GT_MODE.key(), 0);
+    }
+
+    /**
+     * How many modes a machine has is the machine's business, not a constant: GregTech ships
+     * three-mode multiblocks, and a fixed ceiling of one would leave the third unreachable.
+     */
+    public static int modeCeiling(final RecipeContext ctx, final Map<String, Object> settings) {
+        final MachineEntry entry = selected(ctx, settings);
+        return entry == null ? 1 : entry.modes()
+            .count() - 1;
     }
 
     /**

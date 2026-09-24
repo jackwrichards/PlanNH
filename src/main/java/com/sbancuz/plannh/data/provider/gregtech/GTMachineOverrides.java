@@ -3,14 +3,15 @@ package com.sbancuz.plannh.data.provider.gregtech;
 import static com.sbancuz.plannh.data.Settings.GT_COIL;
 import static com.sbancuz.plannh.data.Settings.GT_MODE;
 import static com.sbancuz.plannh.data.Settings.VOLTAGE;
-import static com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers.clampCoil;
-import static com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers.coilHeat;
+import static com.sbancuz.plannh.data.provider.gregtech.GTSettings.coilHeat;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import net.minecraft.util.MathHelper;
 
 import com.sbancuz.plannh.PlanNH;
 
@@ -70,7 +71,7 @@ public final class GTMachineOverrides {
             "gregtech.common.tileentities.machines.multi.MTEMultiFurnace",
             "no ProcessingLogic at all - the machine computes its own recipes, so there is nothing to read",
             GTMachinePreset.builder()
-                .parallel(s -> 4 << (clampCoil(s.get(GT_COIL)) + 1))
+                .parallel(s -> 4 << (MathHelper.clamp_int(s.get(GT_COIL), 0, GTSettings.MAX_COIL_TIER) + 1))
                 .recipeOverride(4, 128)
                 .settings(GT_COIL));
 

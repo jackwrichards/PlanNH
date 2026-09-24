@@ -46,7 +46,7 @@ public class SettingDef<T> {
     @Nullable
     private final Integer neutral;
 
-    private SettingDef(final String key, final Class<T> type, final T defaultValue, final int minInt, final int maxInt,
+    SettingDef(final String key, final Class<T> type, final T defaultValue, final int minInt, final int maxInt,
         @Nullable final Function<RecipeContext, List<String>> optionsFn,
         @Nullable final Function<RecipeContext, String> defaultFn, @Nullable final UnaryOperator<String> displayFn,
         @Nullable final BiFunction<T, MachineConfig, String> badgeFn,

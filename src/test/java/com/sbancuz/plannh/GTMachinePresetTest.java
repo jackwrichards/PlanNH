@@ -11,7 +11,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import com.sbancuz.plannh.data.Settings;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachineOverrides;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachinePreset;
-import com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers;
+import com.sbancuz.plannh.data.provider.gregtech.GTSettings;
 import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 
 import gregtech.api.enums.HeatingCoilLevel;
@@ -94,7 +94,7 @@ class GTMachinePresetTest {
         if (!preset.settings()
             .contains(Settings.GT_COIL)) return;
 
-        for (int coil = 0; coil < GTStructureTiers.MAX_COIL_TIER; coil++) {
+        for (int coil = 0; coil < GTSettings.MAX_COIL_TIER; coil++) {
             final StructureState low = state(5, coil);
             final StructureState high = state(5, coil + 1);
 
@@ -161,7 +161,7 @@ class GTMachinePresetTest {
             .preset(Class.forName(className, false, getClass().getClassLoader()));
         assertNotNull(preset);
 
-        for (int coil = 0; coil <= GTStructureTiers.MAX_COIL_TIER; coil++) {
+        for (int coil = 0; coil <= GTSettings.MAX_COIL_TIER; coil++) {
             final StructureState s = state(5, coil);
             assertTrue(
                 preset.durationModifier()

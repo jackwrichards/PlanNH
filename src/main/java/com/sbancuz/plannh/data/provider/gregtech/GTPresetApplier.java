@@ -34,8 +34,8 @@ public final class GTPresetApplier {
         // choice, so only there does the voltage row mean anything.
         final int voltageTier = entry.tieredByBuild() ? GTSettings.voltageTier(ctx, settings) : entry.voltageTier();
 
-        final StructureState state = GTSettings
-            .resolve(ctx, settings, voltageTier, GTSettings.mode(ctx, entry, settings));
+        final StructureState state = StructureState
+            .resolve(ctx, settings, voltageTier, GTMachineIndex.mode(ctx, entry, settings));
 
         final OverclockCalculator calculator = fromDescriber(ctx, entry, recipeEUt, duration);
 
