@@ -492,8 +492,8 @@ public class RecipeNodeWidget extends Widget<RecipeNodeWidget>
          * final int x = LEFT_CONTENT_X;
          * int y = CONTENT_TOP + neiWidget.h + THROUGHPUT_GAP;
          * final Balancer.NodeBalance nb = getNodeBalance();
-         * final float sec = nb != null && nb.totalDurationTicks() > 0
-         * ? (float) nb.totalDurationTicks() / GuiHelper.TICKS_PER_SECOND
+         * final float sec = nb != null && nb.durationPerOp() > 0
+         * ? (float) nb.durationPerOp() / GuiHelper.TICKS_PER_SECOND
          * : node.getRecipeDuration() > 0 ? (float) node.getRecipeDuration() / GuiHelper.TICKS_PER_SECOND : 1f;
          * final double ops = nb != null ? nb.operations() : 1;
          * final int durPerOp = nb != null ? nb.durationPerOp() : node.getRecipeDuration();

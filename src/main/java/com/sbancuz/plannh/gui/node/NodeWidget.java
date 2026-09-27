@@ -63,11 +63,13 @@ public class NodeWidget extends FlowchartWidget<NodeWidget, Node> {
                 .background()
                 .setTextColor(Color.BLACK.main));
 
+        topRow.child(new MachineCountFixedButtonWidget(this));
         topRow.child(new CloseButtonWidget(this));
         mainColumn.child(topRow);
 
         recipeAreaWidget = new RecipeAreaWidget(this);
         mainColumn.child(recipeAreaWidget);
+        mainColumn.child(new ThroughputInfoWidget(this));
 
         Flow settingsColumn = FlowchartFlow.column(this)
             .fullWidth()
@@ -106,6 +108,9 @@ public class NodeWidget extends FlowchartWidget<NodeWidget, Node> {
     @Override
     public void removeFromGraph() {
         super.removeFromGraph();
+        // The graph's own removal, not just the widget's: it also takes this node's edges with it.
+        canvas.getGraph()
+            .removeNode(data.getId());
         canvas.getNodeWidgets2()
             .remove(data.getId());
         arrowWidgets.forEach(ArrowWidget::removeFromGraph);

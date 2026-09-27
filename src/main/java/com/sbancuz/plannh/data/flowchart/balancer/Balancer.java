@@ -298,7 +298,7 @@ public final class Balancer {
                 effIns.put(i, total);
             }
 
-            nodeBalances.put(node.getId(), new NodeBalance(count, durPerOp, totalEnergy, durPerOp, effOuts, effIns));
+            nodeBalances.put(node.getId(), new NodeBalance(count, totalEnergy, durPerOp, effOuts, effIns));
 
             for (final Map.Entry<RecipeProperty<?>, Object> entry : node.getProperties().entrySet()) {
                 if (entry.getValue() instanceof final Number num) {
@@ -314,7 +314,7 @@ public final class Balancer {
     }
 
     /** One machine's share of a solved balance, for the node widget and the machine-count panel. */
-    public record NodeBalance(double operations, int totalDurationTicks, long totalEnergy, int durationPerOp,
+    public record NodeBalance(double operations, long totalEnergy, int durationPerOp,
         Map<Integer, Float> effectiveOutputs, Map<Integer, Float> effectiveInputs) {}
 
 }
