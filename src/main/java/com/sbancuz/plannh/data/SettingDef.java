@@ -13,6 +13,9 @@ import javax.annotation.Nullable;
 
 import net.minecraft.util.StatCollector;
 
+import lombok.AccessLevel;
+import lombok.Builder;
+
 public class SettingDef<T> {
 
     private static final BiPredicate<RecipeContext, Map<String, Object>> ALWAYS = (ctx, s) -> true;
@@ -46,11 +49,12 @@ public class SettingDef<T> {
     @Nullable
     private final Integer neutral;
 
+    @Builder(toBuilder = true, access = AccessLevel.PRIVATE)
     private SettingDef(final String key, final Class<T> type, final T defaultValue, final int minInt, final int maxInt,
         @Nullable final Function<RecipeContext, List<String>> optionsFn,
         @Nullable final Function<RecipeContext, String> defaultFn, @Nullable final UnaryOperator<String> displayFn,
         @Nullable final BiFunction<T, MachineConfig, String> badgeFn,
-        final BiPredicate<RecipeContext, Map<String, Object>> visibility,
+        @Nullable final BiPredicate<RecipeContext, Map<String, Object>> visibility,
         @Nullable final ToIntBiFunction<RecipeContext, Map<String, Object>> autoValueFn,
         @Nullable final ToIntBiFunction<RecipeContext, Map<String, Object>> maxFn, @Nullable final Integer neutral) {
         this.neutral = neutral;
@@ -64,7 +68,7 @@ public class SettingDef<T> {
         this.defaultFn = defaultFn;
         this.displayFn = displayFn;
         this.badgeFn = badgeFn;
-        this.visibility = visibility;
+        this.visibility = visibility == null ? ALWAYS : visibility;
         this.autoValueFn = autoValueFn;
         this.maxFn = maxFn;
     }
@@ -87,19 +91,38 @@ public class SettingDef<T> {
     @Nonnull
     public static SettingDef<Integer> intDef(final String key, final int def, final int min,
         final ToIntBiFunction<RecipeContext, Map<String, Object>> maxFn) {
-        return new SettingDef<>(key, Integer.class, def, min, min, null, null, null, null, ALWAYS, null, maxFn, null);
+        return SettingDef.<Integer>builder()
+            .key(key)
+            .type(Integer.class)
+            .defaultValue(def)
+            .minInt(min)
+            .maxInt(min)
+            .maxFn(maxFn)
+            .build();
     }
 
     @Nonnull
     public static SettingDef<Integer> intDef(final String key, final int def, final int min, final int max,
         @Nullable final BiFunction<Integer, MachineConfig, String> badgeFn) {
-        return new SettingDef<>(key, Integer.class, def, min, max, null, null, null, badgeFn, ALWAYS, null, null, null);
+        return SettingDef.<Integer>builder()
+            .key(key)
+            .type(Integer.class)
+            .defaultValue(def)
+            .minInt(min)
+            .maxInt(max)
+            .badgeFn(badgeFn)
+            .build();
     }
 
     @Nonnull
     public static SettingDef<Boolean> boolDef(final String key, final boolean def,
         final BiFunction<Boolean, MachineConfig, String> badgeFn) {
-        return new SettingDef<>(key, Boolean.class, def, 0, 0, null, null, null, badgeFn, ALWAYS, null, null, null);
+        return SettingDef.<Boolean>builder()
+            .key(key)
+            .type(Boolean.class)
+            .defaultValue(def)
+            .badgeFn(badgeFn)
+            .build();
     }
 
     /**
@@ -109,20 +132,13 @@ public class SettingDef<T> {
     @Nonnull
     public static SettingDef<String> enumDef(final String key, final String def, final List<String> options,
         final BiFunction<String, MachineConfig, String> badgeFn) {
-        return new SettingDef<>(
-            key,
-            String.class,
-            def,
-            0,
-            0,
-            options.isEmpty() ? null : ctx -> options,
-            null,
-            null,
-            badgeFn,
-            ALWAYS,
-            null,
-            null,
-            null);
+        return SettingDef.<String>builder()
+            .key(key)
+            .type(String.class)
+            .defaultValue(def)
+            .optionsFn(options.isEmpty() ? null : ctx -> options)
+            .badgeFn(badgeFn)
+            .build();
     }
 
     /**
@@ -138,7 +154,11 @@ public class SettingDef<T> {
      */
     @Nonnull
     public static SettingDef<String> providedDef(final String key) {
-        return new SettingDef<>(key, String.class, "", 0, 0, null, null, null, null, ALWAYS, null, null, null);
+        return SettingDef.<String>builder()
+            .key(key)
+            .type(String.class)
+            .defaultValue("")
+            .build();
     }
 
     /**
@@ -157,20 +177,14 @@ public class SettingDef<T> {
     public static SettingDef<String> dynamicEnumDef(final String key, final String def,
         final Function<RecipeContext, List<String>> optionsFn, final UnaryOperator<String> displayFn,
         @Nullable final BiFunction<String, MachineConfig, String> badgeFn) {
-        return new SettingDef<>(
-            key,
-            String.class,
-            def,
-            0,
-            0,
-            optionsFn,
-            null,
-            displayFn,
-            badgeFn,
-            ALWAYS,
-            null,
-            null,
-            null);
+        return SettingDef.<String>builder()
+            .key(key)
+            .type(String.class)
+            .defaultValue(def)
+            .optionsFn(optionsFn)
+            .displayFn(displayFn)
+            .badgeFn(badgeFn)
+            .build();
     }
 
     /**
@@ -191,20 +205,16 @@ public class SettingDef<T> {
     public static SettingDef<Integer> autoIntDef(final String key, final int min, final int max,
         @Nullable final Integer neutral, final ToIntBiFunction<RecipeContext, Map<String, Object>> autoValueFn,
         @Nullable final BiFunction<Integer, MachineConfig, String> badgeFn) {
-        return new SettingDef<>(
-            key,
-            Integer.class,
-            0,
-            min,
-            max,
-            null,
-            null,
-            null,
-            badgeFn,
-            ALWAYS,
-            autoValueFn,
-            null,
-            neutral);
+        return SettingDef.<Integer>builder()
+            .key(key)
+            .type(Integer.class)
+            .defaultValue(0)
+            .minInt(min)
+            .maxInt(max)
+            .badgeFn(badgeFn)
+            .autoValueFn(autoValueFn)
+            .neutral(neutral)
+            .build();
     }
 
     /**
@@ -216,20 +226,17 @@ public class SettingDef<T> {
     public static SettingDef<Integer> autoIntDefCapped(final String key, final int min, final int max,
         @Nullable final Integer neutral, final ToIntBiFunction<RecipeContext, Map<String, Object>> autoValueFn,
         @Nullable final BiFunction<Integer, MachineConfig, String> badgeFn) {
-        return new SettingDef<>(
-            key,
-            Integer.class,
-            0,
-            min,
-            max,
-            null,
-            null,
-            null,
-            badgeFn,
-            ALWAYS,
-            autoValueFn,
-            autoValueFn,
-            neutral);
+        return SettingDef.<Integer>builder()
+            .key(key)
+            .type(Integer.class)
+            .defaultValue(0)
+            .minInt(min)
+            .maxInt(max)
+            .badgeFn(badgeFn)
+            .autoValueFn(autoValueFn)
+            .maxFn(autoValueFn)
+            .neutral(neutral)
+            .build();
     }
 
     /**
@@ -240,20 +247,13 @@ public class SettingDef<T> {
     public static SettingDef<Boolean> autoBoolDef(final String key,
         final ToIntBiFunction<RecipeContext, Map<String, Object>> autoValueFn,
         @Nullable final BiFunction<Boolean, MachineConfig, String> badgeFn) {
-        return new SettingDef<>(
-            key,
-            Boolean.class,
-            false,
-            0,
-            0,
-            null,
-            null,
-            null,
-            badgeFn,
-            ALWAYS,
-            autoValueFn,
-            null,
-            null);
+        return SettingDef.<Boolean>builder()
+            .key(key)
+            .type(Boolean.class)
+            .defaultValue(false)
+            .badgeFn(badgeFn)
+            .autoValueFn(autoValueFn)
+            .build();
     }
 
     public boolean isAuto() {
@@ -335,20 +335,8 @@ public class SettingDef<T> {
      */
     @Nonnull
     public SettingDef<T> withDisplay(final UnaryOperator<String> display) {
-        return new SettingDef<>(
-            key,
-            type,
-            defaultValue,
-            minInt,
-            maxInt,
-            optionsFn,
-            defaultFn,
-            display,
-            badgeFn,
-            visibility,
-            autoValueFn,
-            maxFn,
-            neutral);
+        return toBuilder().displayFn(display)
+            .build();
     }
 
     /**
@@ -358,20 +346,8 @@ public class SettingDef<T> {
      */
     @Nonnull
     public SettingDef<T> withDefault(final Function<RecipeContext, String> defaultOption) {
-        return new SettingDef<>(
-            key,
-            type,
-            defaultValue,
-            minInt,
-            maxInt,
-            optionsFn,
-            defaultOption,
-            displayFn,
-            badgeFn,
-            visibility,
-            autoValueFn,
-            maxFn,
-            neutral);
+        return toBuilder().defaultFn(defaultOption)
+            .build();
     }
 
     /**
@@ -380,19 +356,7 @@ public class SettingDef<T> {
      */
     @Nonnull
     public SettingDef<T> withVisibility(final BiPredicate<RecipeContext, Map<String, Object>> condition) {
-        return new SettingDef<>(
-            key,
-            type,
-            defaultValue,
-            minInt,
-            maxInt,
-            optionsFn,
-            defaultFn,
-            displayFn,
-            badgeFn,
-            condition,
-            autoValueFn,
-            maxFn,
-            neutral);
+        return toBuilder().visibility(condition)
+            .build();
     }
 }
