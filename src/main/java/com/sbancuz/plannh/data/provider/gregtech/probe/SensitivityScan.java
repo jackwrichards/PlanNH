@@ -23,8 +23,7 @@ import com.sbancuz.plannh.data.provider.gregtech.StructureState;
  * row appears only when moving it moves a number the chart would show.
  *
  * <p>
- * Two readings are compared whole, because {@link ProbeReading} is a record. Any difference in
- * parallel count, speed, power, overclock behaviour or heat counts as the setting mattering.
+ * Two readings are compared by {@link ProbeReading#movesAnythingTo}.
  */
 public final class SensitivityScan {
 
@@ -39,7 +38,14 @@ public final class SensitivityScan {
     public static EnumSet<Settings> scan(@Nonnull final StructureState reference,
         @Nonnull final EnumSet<Settings> candidates, final int modeCount,
         @Nonnull final Function<StructureState, ProbeReading> readings) {
-        if (!candidates.contains(Settings.GT_MODE) || modeCount < 2) return scanAt(reference, candidates, readings);
+        // Taken once of the reference, as MachineProbe takes it: a machine does not stop counting heat on
+        // a different coil. Per reading, a state that fell back to the reference and one that did not
+        // would be compared with different fields live.
+        final boolean heatCounts = readings.apply(reference).usesHeat();
+
+        if (!candidates.contains(Settings.GT_MODE) || modeCount < 2) {
+            return scanAt(reference, candidates, heatCounts, readings);
+        }
 
         // A mode picks which machine a multiblock is, so the other settings have to be judged in each of
         // them. The Mega Distillation Tower scales with its height in distillery mode and ignores it in
@@ -52,20 +58,20 @@ public final class SensitivityScan {
         ProbeReading inFirstMode = null;
         for (int mode = 0; mode < modeCount; mode++) {
             final StructureState inMode = reference.with(Settings.GT_MODE, mode);
-            used.addAll(scanAt(inMode, others, readings));
+            used.addAll(scanAt(inMode, others, heatCounts, readings));
 
             // Mode itself is judged across the same sweep rather than by a pair of ends, or a machine
             // whose first two modes happen to agree would lose its mode row on the strength of them.
             final ProbeReading here = readings.apply(inMode);
             if (inFirstMode == null) inFirstMode = here;
-            else if (differ(inFirstMode, here)) used.add(Settings.GT_MODE);
+            else if (differ(inFirstMode, here, heatCounts)) used.add(Settings.GT_MODE);
         }
         return used;
     }
 
     @Nonnull
     private static EnumSet<Settings> scanAt(final StructureState reference, final EnumSet<Settings> candidates,
-        final Function<StructureState, ProbeReading> readings) {
+        final boolean heatCounts, final Function<StructureState, ProbeReading> readings) {
         final EnumSet<Settings> used = EnumSet.noneOf(Settings.class);
         for (final Settings setting : candidates) {
             final int[] range = GTSettings.structureRange(setting);
@@ -73,7 +79,7 @@ public final class SensitivityScan {
 
             final ProbeReading low = readings.apply(reference.with(setting, range[0]));
             final ProbeReading high = readings.apply(reference.with(setting, range[1]));
-            if (differ(low, high)) used.add(setting);
+            if (differ(low, high, heatCounts)) used.add(setting);
         }
         return used;
     }
@@ -82,9 +88,8 @@ public final class SensitivityScan {
      * A machine that declined one end says nothing about the setting, so the setting stays off. Hiding a row
      * that does nothing is cheap to undo. Showing one that does nothing is the problem being fixed.
      */
-    private static boolean differ(@Nullable final ProbeReading low, @Nullable final ProbeReading high) {
-        return low != null && high != null
-            && !low.asShown()
-                .equals(high.asShown());
+    private static boolean differ(@Nullable final ProbeReading low, @Nullable final ProbeReading high,
+        final boolean heatCounts) {
+        return low != null && high != null && low.movesAnythingTo(high, heatCounts);
     }
 }

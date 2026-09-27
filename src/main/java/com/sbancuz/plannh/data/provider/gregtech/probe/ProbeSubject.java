@@ -9,6 +9,7 @@ import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import codechicken.nei.LRUCache;
 import com.sbancuz.plannh.PlanNH;
 import com.sbancuz.plannh.data.Settings;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachineModes;
@@ -36,18 +37,11 @@ import gregtech.api.util.OverclockCalculator;
  */
 final class ProbeSubject {
 
-    /**
-     * Readings are memoized because the settings panel asks for them from visibility predicates that
-     * run while the screen draws. The cap is a backstop against a chart walking a wide grid of states;
-     * dropping the lot is fine, every entry is reproducible.
-     */
-    private static final int MAX_CACHED_READINGS = 512;
-
     private final MTEMultiBlockBase machine;
     private final ProcessingLogic logic;
     private final Method createCalculator;
     private final StructureWriter structure;
-    private final Map<StructureState, ProbeReading> readings = new HashMap<>();
+    private final Map<StructureState, ProbeReading> readings = new LRUCache<>(512);
 
     /** The recipe every cached reading answers for. */
     @Nullable
@@ -108,7 +102,6 @@ final class ProbeSubject {
 
         final ProbeReading cached = readings.get(state);
         if (cached != null) return cached;
-        if (readings.size() >= MAX_CACHED_READINGS) readings.clear();
 
         final ProbeReading reading = measure(state, recipe);
         if (reading != null) readings.put(state, reading);

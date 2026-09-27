@@ -7,8 +7,8 @@ import javax.annotation.Nonnull;
  * and every overclock field of the {@code OverclockCalculator} GregTech built for the probe recipe.
  *
  * <p>
- * Record equality is the whole comparison the sensitivity scan needs, once {@link #asShown()} has
- * dropped the fields a chart cannot show.
+ * {@link #movesAnythingTo} is the comparison the sensitivity scan needs: did a number the chart draws
+ * change?
  */
 public record ProbeReading(int maxParallel, double durationModifier, double euModifier, double eutIncreasePerOC,
     double durationDecreasePerOC, int maxTierSkip, boolean heatOC, boolean heatDiscount, int machineHeat,
@@ -32,27 +32,22 @@ public record ProbeReading(int maxParallel, double durationModifier, double euMo
     }
 
     /**
-     * The same reading with everything a chart cannot show removed. GregTech sets a machine heat even
-     * where it never overclocks on one, so comparing raw readings would let a coil "matter" while
-     * moving no number anybody sees, and earn a settings row that does nothing.
+     * Whether a move to {@code other} changed a number the chart draws. A true becomes a settings row,
+     * so a field the chart never draws stays out: {@code recipeEUt} and {@code duration} are a rewrite
+     * {@link MachineProbe} pins once, {@code maxTierSkip} is a cap, {@code noOverclock} and
+     * {@code laserOC} are capabilities. {@code heatCounts} is the machine's answer, so the caller reads
+     * it off the reference once and passes the same value for both sides.
      */
-    @Nonnull
-    public ProbeReading asShown() {
-        if (usesHeat()) return this;
-        return new ProbeReading(
-            maxParallel,
-            durationModifier,
-            euModifier,
-            eutIncreasePerOC,
-            durationDecreasePerOC,
-            maxTierSkip,
-            false,
-            false,
-            0,
-            0,
-            recipeEUt,
-            duration,
-            noOverclock,
-            laserOC);
+    public boolean movesAnythingTo(@Nonnull final ProbeReading other, final boolean heatCounts) {
+        return maxParallel != other.maxParallel
+            || differs(durationModifier, other.durationModifier)
+            || differs(euModifier, other.euModifier)
+            || differs(eutIncreasePerOC, other.eutIncreasePerOC)
+            || differs(durationDecreasePerOC, other.durationDecreasePerOC)
+            || heatCounts && (machineHeat != other.machineHeat || recipeHeat != other.recipeHeat);
+    }
+
+    private static boolean differs(final double a, final double b) {
+        return Math.abs(a - b) > MachineProbe.SAME_NUMBER * Math.max(1, Math.abs(a));
     }
 }

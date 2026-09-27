@@ -48,8 +48,8 @@ public final class MachineProbe {
     /** What {@code OverclockCalculator} starts at, so reading it back means the machine set nothing. */
     private static final int DEFAULT_TIER_SKIPS = 1;
 
-    /** GregTech computes its modifiers in float and the preset table in double, so the last bits differ. */
-    private static final double SAME_NUMBER = 1e-6;
+    /** GregTech computes in float and PlanNH in double, so the last bits differ. Shared with {@link ProbeReading#movesAnythingTo}. */
+    static final double SAME_NUMBER = 1e-6;
 
     /**
      * Keyed by machine class and never invalidated, because a machine's answer cannot change without
