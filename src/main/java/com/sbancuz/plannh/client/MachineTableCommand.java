@@ -283,9 +283,10 @@ public class MachineTableCommand extends CommandBase {
     }
 
     private static String settingNames(@Nullable final GTMachinePreset preset) {
-        if (preset == null || preset.settings()
-            .isEmpty()) return "";
+        if (preset == null) return "";
         final List<String> names = new ArrayList<>();
+        preset.structure()
+            .forEach((kind, range) -> names.add(kind.name() + " " + range.min() + "-" + range.max()));
         preset.settings()
             .forEach(setting -> names.add(setting.name()));
         return String.join(", ", names);

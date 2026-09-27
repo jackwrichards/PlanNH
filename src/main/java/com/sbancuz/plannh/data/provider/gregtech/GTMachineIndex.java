@@ -33,6 +33,7 @@ import gregtech.api.metatileentity.implementations.MTEMultiBlockBase;
 import gregtech.api.metatileentity.implementations.MTETieredMachineBlock;
 import gregtech.api.objects.overclockdescriber.OverclockDescriber;
 import gregtech.api.recipe.RecipeMap;
+import gregtech.api.util.tooltip.TooltipTier;
 
 /**
  * Which GregTech machines can run a given recipemap, derived from GT's own registry rather than a
@@ -102,6 +103,12 @@ public final class GTMachineIndex {
         @Nonnull
         public Set<Settings> settings() {
             return preset == null ? Set.of() : preset.settings();
+        }
+
+        /** The structure parameters GregTech declares for this machine, each with its range. */
+        @Nonnull
+        public Map<TooltipTier, GTSettings.TierRange> structure() {
+            return preset == null ? Map.of() : preset.structure();
         }
 
         /**
@@ -272,7 +279,22 @@ public final class GTMachineIndex {
      * matters, because only the order of the answers is used - so this is a middling one rather than
      * a claim about how anybody builds.
      */
-    private static final StructureState RANKING_REFERENCE = new StructureState(5, 5, 4, 4, 2, 0, 0, 1, 0, 0);
+    private static final StructureState RANKING_REFERENCE = new StructureState(
+        5,
+        0,
+        Map.of(
+            TooltipTier.COIL,
+            5,
+            TooltipTier.SOLENOID,
+            4,
+            TooltipTier.ITEM_PIPE_CASING,
+            4,
+            TooltipTier.PIPE_CASING,
+            2,
+            TooltipTier.STRUCTURE,
+            1,
+            TooltipTier.LENGTH,
+            0));
 
     /**
      * How far a machine scales, used only to order the picker. That order is also the default, since

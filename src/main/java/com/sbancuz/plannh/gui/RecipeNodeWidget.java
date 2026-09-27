@@ -1037,7 +1037,7 @@ public class RecipeNodeWidget extends Widget<RecipeNodeWidget>
                 y,
                 def.label + " " + intRowValue(def, shown),
                 shown,
-                def.minInt,
+                def.effectiveMin(recipeContext(), c.settings),
                 max,
                 chosen,
                 v -> {

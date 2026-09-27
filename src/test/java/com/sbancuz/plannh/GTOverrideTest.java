@@ -15,6 +15,7 @@ import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 
 import gregtech.api.enums.GTValues;
 import gregtech.api.util.OverclockCalculator;
+import gregtech.api.util.tooltip.TooltipTier;
 
 /**
  * Advanced mode is an override, not a second set of maths: a stored value replaces just that one
@@ -32,7 +33,7 @@ class GTOverrideTest {
     }
 
     private static StructureState state() {
-        return new StructureState(5, 5, 4, 4, 2, 0, 0, 1, 0, 0);
+        return new StructureState(5, 0, Map.of(TooltipTier.COIL, 5));
     }
 
     private static OverclockCalculator build(final Map<String, Object> settings) {

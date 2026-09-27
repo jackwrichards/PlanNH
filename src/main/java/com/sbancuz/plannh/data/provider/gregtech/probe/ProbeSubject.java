@@ -1,5 +1,6 @@
 package com.sbancuz.plannh.data.provider.gregtech.probe;
 
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
@@ -10,13 +11,16 @@ import javax.annotation.Nullable;
 import com.sbancuz.plannh.PlanNH;
 import com.sbancuz.plannh.data.Settings;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachineModes;
+import com.sbancuz.plannh.data.provider.gregtech.GTSettings;
 import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.logic.ProcessingLogic;
 import gregtech.api.metatileentity.implementations.MTEMultiBlockBase;
+import gregtech.api.structure.StructureParameter;
 import gregtech.api.util.GTRecipe;
 import gregtech.api.util.OverclockCalculator;
+import gregtech.api.util.tooltip.TooltipTier;
 
 /**
  * One machine, cloned out of GregTech's prototype registry, kept around to be asked what it would do
@@ -43,7 +47,7 @@ final class ProbeSubject {
 
     private final MTEMultiBlockBase machine;
     private final ProcessingLogic logic;
-    private final StructureWriter structure;
+    private final Map<TooltipTier, StructureParameter> parameters = new EnumMap<>(TooltipTier.class);
     private final Map<StructureState, ProbeReading> readings = new HashMap<>();
 
     /** The recipe every cached reading answers for. */
@@ -53,13 +57,24 @@ final class ProbeSubject {
     private ProbeSubject(final MTEMultiBlockBase machine, final ProcessingLogic logic) {
         this.machine = machine;
         this.logic = logic;
-        this.structure = StructureWriter.forClass(machine.getClass());
+        for (final StructureParameter parameter : machine.getStructureParametersForInspection()) {
+            parameters.put(parameter.kind, parameter);
+        }
     }
 
-    /** The settings this machine stores at all - not yet whether any of them changes a number. */
+    /** The structure parameters GregTech declares for this machine, with the range each can take. */
+    @Nonnull
+    Map<TooltipTier, GTSettings.TierRange> declared() {
+        final Map<TooltipTier, GTSettings.TierRange> ranges = new EnumMap<>(TooltipTier.class);
+        parameters
+            .forEach((kind, parameter) -> ranges.put(kind, new GTSettings.TierRange(parameter.min, parameter.max)));
+        return ranges;
+    }
+
+    /** The mode row, where the machine has modes - not yet whether they change a number. */
     @Nonnull
     EnumSet<Settings> reachableSettings() {
-        return structure.reachableSettings();
+        return machine.supportsMachineModeSwitch() ? EnumSet.of(Settings.GT_MODE) : EnumSet.noneOf(Settings.class);
     }
 
     /**
@@ -113,12 +128,17 @@ final class ProbeSubject {
     @Nullable
     private ProbeReading measure(final StructureState state, final GTRecipe recipe) {
         try {
-            structure.apply(machine, state);
             // Voltage is not a field the machine holds; it counts it off its energy hatches, so a
-            // machine that scales per tier answers for tier zero until it has one.
+            // machine that scales per tier answers for tier zero until it has one. Attached before the
+            // structure because a parameter may derive a value from it, as the EBF's heat does.
             if (!FakeEnergyHatch.attach(machine, state.voltageTier())) {
                 PlanNH.LOG.debug("PlanNH: {} would not take a probe energy hatch", machine.getClass());
                 return null;
+            }
+            machine.machineMode = state.mode();
+            for (final StructureParameter parameter : parameters.values()) {
+                final int value = state.tier(parameter.kind, parameter.max);
+                parameter.set(Math.max(parameter.min, Math.min(parameter.max, value)));
             }
             final OverclockCalculator calculator = machine.createOverclockCalculatorForInspection(recipe);
             if (calculator == null) return null;

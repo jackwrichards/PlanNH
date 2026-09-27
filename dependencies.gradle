@@ -33,7 +33,7 @@
  *
  * For more details, see https://docs.gradle.org/8.0.1/userguide/java_library_plugin.html#sec:java_library_configurations_graph
  */
-def gt5uVersion = "5.09.54.187-overclock-read-api+6d6ccb0c5a-dirty"
+def gt5uVersion = "5.09.54.187-structure-params.1+fa7c4f9076-dirty"
 
 dependencies {
     api("com.github.GTNewHorizons:NotEnoughItems:2.8.104-GTNH:dev")

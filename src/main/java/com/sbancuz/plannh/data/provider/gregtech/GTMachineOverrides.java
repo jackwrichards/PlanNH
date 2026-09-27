@@ -1,15 +1,16 @@
 package com.sbancuz.plannh.data.provider.gregtech;
 
-import static com.sbancuz.plannh.data.Settings.GT_COIL;
 import static com.sbancuz.plannh.data.Settings.GT_MODE;
+import static com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers.MAX_COIL_TIER;
 import static com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers.clampCoil;
-import static com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers.coilHeat;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import gregtech.api.util.tooltip.TooltipTier;
 
 /**
  * The only numbers PlanNH asserts about a machine against what the machine reports about itself, for
@@ -41,9 +42,9 @@ public final class GTMachineOverrides {
             "gregtech.common.tileentities.machines.multi.MTEMultiFurnace",
             "no ProcessingLogic at all - the machine computes its own recipes, so there is nothing to read",
             GTMachinePreset.builder()
-                .parallel(s -> 4 << (clampCoil(s.coilTier()) + 1))
+                .parallel(s -> 4 << (clampCoil(s.tier(TooltipTier.COIL, MAX_COIL_TIER)) + 1))
                 .recipeOverride(4, 128)
-                .settings(GT_COIL));
+                .structure(TooltipTier.COIL, 0, MAX_COIL_TIER));
 
         // Its setupProcessingLogic dereferences the circuit imprint, which only exists once a player
         // has imprinted a placed machine.
@@ -53,18 +54,6 @@ public final class GTMachineOverrides {
             GTMachinePreset.builder()
                 .perfectOC()
                 .settings(GT_MODE));
-
-        // checkMachine sets mHeatingCapacity to the coil's heat PLUS 100K per voltage tier over MV.
-        // The probe writes the coil's heat into that field and cannot add the second term, because the
-        // line that adds it only runs while scanning a built structure. So the probe reads 100K per
-        // tier low here, and this row is what a chart uses instead.
-        put(
-            "gregtech.common.tileentities.machines.multi.MTEElectricBlastFurnace",
-            "the probe reads 100K per voltage tier low: checkMachine adds a voltage term it cannot run",
-            GTMachinePreset.builder()
-                .heatOC(s -> coilHeat(s.coilTier()) + 100 * (s.voltageTier() - 2))
-                .heatDiscount()
-                .settings(GT_COIL));
     }
 
     /** A subclass inherits its parent's row, and with it the parent's reason for not being read. */
