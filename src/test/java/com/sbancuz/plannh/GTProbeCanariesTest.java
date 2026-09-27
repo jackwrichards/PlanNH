@@ -27,15 +27,15 @@ import com.sbancuz.plannh.data.provider.gregtech.probe.StructureWriter;
  * mechanisms we promise still resolve" and is green unless action is needed: its universe is our
  * claim list below. A red row means a supported mechanism broke on a GT update - run a client,
  * {@code /plannh_machines}, look at that machine's rows column, and fix
- * {@code StructureWriter.BY_NAME} (possibly with a new {@code Coding} and {@code Settings}
- * constant) or add a {@code GTMachineOverrides} row.
+ * {@code StructureWriter.FieldRole} (possibly with a new {@code Settings} constant) or add a
+ * {@code GTMachineOverrides} row.
  *
  * <p>
  * Rules for this file, so it does not rot back into an audit:
  *
  * <ul>
  * <li>One canary per mechanism, not per machine. A new row belongs here only when PlanNH learns a
- * new {@code Coding}; a new GT machine using an existing mechanism is covered by its mechanism's
+ * new {@code FieldRole}; a new GT machine using an existing mechanism is covered by its mechanism's
  * canary and needs no row.
  * <li>Expectations are {@link Settings}, never field names. If GT renames {@code mCoilTier} and the
  * mapping is updated, the canary passes unchanged - it asserts our claim, not GT's spelling.
@@ -43,12 +43,12 @@ import com.sbancuz.plannh.data.provider.gregtech.probe.StructureWriter;
   * the machine stores it; the sensitivity scan narrows it to what moves a number.
   * <li>Canary rows change only in the same commit as an intentional mechanism change.
   * <li>The list audits itself: {@link #theCanariesCoverEveryRecognizedSetting} fails when a
-  * {@code Coding} has no canary, so the set cannot rot one side at a time.
+  * {@code FieldRole} has no canary, so the set cannot rot one side at a time.
   * </ul>
  *
  * <p>
  * The override machines ({@code EBF}, {@code MultiFurnace}) appear below as <em>mapping</em>
- * canaries only: the probe never reads them, but their fields exercise two {@code Coding}s no
+ * canaries only: the probe never reads them, but their fields exercise two {@code FieldRole}s no
  * probed machine below covers. Their existence as classes is guarded by the override
  * consistency test instead.
  */
@@ -60,7 +60,7 @@ class GTProbeCanariesTest {
 
     /**
      * One row per mechanism, held as data rather than annotations so the coverage assertion below
-     * can read the same list. Each row names the {@code Coding} it guards in a comment. EBF and
+     * can read the same list. Each row names the {@code FieldRole} it guards in a comment. EBF and
      * MultiFurnace are override machines kept as mapping specimens (see class javadoc); everything
      * else is probe-read at runtime.
      */
@@ -75,7 +75,7 @@ class GTProbeCanariesTest {
             // COIL_LEVEL + SOLENOID_TIER (solenoidLevel, boxed Byte).
             new Canary(
                 GT_MULTI + "MTEIndustrialThermalCentrifuge", EnumSet.of(Settings.GT_COIL, Settings.GT_SOLENOID)),
-            // ITEM_PIPE_TIER, two unrelated witnesses sharing the Coding.
+            // ITEM_PIPE_TIER, two unrelated witnesses sharing the FieldRole.
             new Canary(GT_MULTI + "MTEIndustrialMixer", EnumSet.of(Settings.GT_ITEM_PIPE)),
             new Canary(GT_MULTI + "MTEIndustrialWireMill", EnumSet.of(Settings.GT_ITEM_PIPE)),
             // CASING_TIER (controllerTier, structureTier).
@@ -116,7 +116,7 @@ class GTProbeCanariesTest {
     }
 
     /**
-     * The list above must cover every setting the mapper can yield. A {@code Coding} added without
+     * The list above must cover every setting the mapper can yield. A {@code FieldRole} added without
      * a canary row fails here, not silently months later.
      */
     @Test
