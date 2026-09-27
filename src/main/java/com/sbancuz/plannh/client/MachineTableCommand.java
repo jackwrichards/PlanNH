@@ -3,6 +3,8 @@ package com.sbancuz.plannh.client;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.math.BigDecimal;
+import java.math.MathContext;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -13,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import net.minecraft.client.Minecraft;
@@ -30,10 +33,9 @@ import com.sbancuz.plannh.data.properties.RecipeProperty;
 import com.sbancuz.plannh.data.provider.GTProvider;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachineIndex;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachineIndex.NumberSource;
-import com.sbancuz.plannh.data.provider.gregtech.GTMachineOverrides;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachinePreset;
 import com.sbancuz.plannh.data.provider.gregtech.GTSettings;
-import com.sbancuz.plannh.data.provider.gregtech.probe.MachineProbe;
+import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 
 import gregtech.api.GregTechAPI;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
@@ -64,14 +66,8 @@ public class MachineTableCommand extends CommandBase {
             new Section(
                 "describer",
                 "Uses the machine's own OverclockDescriber, which GregTech hands over as public API."),
-            NumberSource.PROBE,
-            new Section("probe", "Uses GT machine's actual OC function."),
-            NumberSource.OVERRIDE,
-            new Section("override", "Hand-written overrides due to wrong probe numbers."),
-            NumberSource.HAND_WRITTEN_FALLBACK,
-            new Section(
-                "hand written fallback",
-                "Hand-written overrides due to probe being unable to read the machine."),
+            NumberSource.SPEC,
+            new Section("spec", "Uses the ProcessingSpec the machine declares."),
             NumberSource.NONE,
             new Section("unmodelled", "Nothing answers, so the node plans as a plain single-speed machine.")));
 
@@ -136,10 +132,8 @@ public class MachineTableCommand extends CommandBase {
     private static void writeSections(final PrintWriter writer) {
         writer.println("## Sections");
         writer.println();
-        writer.println("Two things can say how a machine behaves: GregTech itself - an OverclockDescriber the");
-        writer.println("machine publishes, or MachineProbe reading a fake built instance at runtime - and the");
-        writer.println("hand-written rows in GTMachineOverrides. The heading says which one a chart reads for that");
-        writer.println("machine; the probe column says whether a reading backs it up.");
+        writer.println("GregTech itself says how a machine behaves: an OverclockDescriber the machine publishes,");
+        writer.println("or the ProcessingSpec it declares. The heading says which one a chart reads for that machine.");
         writer.println();
     }
 
@@ -152,16 +146,15 @@ public class MachineTableCommand extends CommandBase {
                 + ReviewTicks.UNCHECKED
                 + ".");
         writer.println("- **numbers** - what a chart plans this machine with, at the structure an untouched node");
-        writer.println("  shows: parallel, duration and EU modifiers, the two overclock factors, machine heat,");
-        writer.println("  heat overclock and discount flags, recipe heat, tier skips.");
-        writer.println("- **probe** - what the probe says about the row this machine is read from. `not read` means");
-        writer.println("  the probe returned nothing, so nothing corroborates the row; `-` means there is no row.");
+        writer.println("  shows: parallel, duration and EU modifiers, energy cost, the two overclock factors, no");
+        writer.println("  overclock, machine heat, heat overclock and discount flags, recipe heat, tier skips.");
+        writer.println("- **assumes** - numbers planned at the machine's best, which it only reaches while it runs:");
+        writer.println("  full momentum, a stable black hole, a unit that has not overheated.");
         writer.println("- **rows** - structure rows a node offers beyond the four every machine shows (Tier,");
         writer.println("  Mach, Amp, Advanced). The goal is the fewest rows that still describe every way this");
         writer.println("  machine can be changed, which is blank only when nothing else changes it.");
-        writer.println("- **override** - why this machine is not read from GregTech.");
         writer.println("- **settings** - structure settings that change a number this machine reports; blank means");
-        writer.println("  none do. `a -> b` means the row claims `a` and the machine reports `b`: fix the row.");
+        writer.println("  none do.");
         writer.println("- **modes** - two machines behind one controller. `{map=n}` is the mode each recipemap");
         writer.println("  selects, so the node derives it; `asks` means it cannot, and the node offers the row.");
         writer.println();
@@ -179,8 +172,8 @@ public class MachineTableCommand extends CommandBase {
         rows.sort(Comparator.comparing(Row::machine));
         writer.println(
             "| " + ReviewTicks.COLUMN
-                + " | machine | numbers | probe | rows | override | settings | modes | class | recipemaps |");
-        writer.println("|---|---|---|---|---|---|---|---|---|---|");
+                + " | machine | numbers | assumes | rows | settings | modes | class | recipemaps |");
+        writer.println("|---|---|---|---|---|---|---|---|---|");
         for (final Row row : rows) {
             writer.println(
                 "| " + carried.forMachine(row.machine(), row.numbers())
@@ -189,11 +182,9 @@ public class MachineTableCommand extends CommandBase {
                     + " | "
                     + row.numbers()
                     + " | "
-                    + row.probe()
+                    + row.assumes()
                     + " | "
                     + row.rows()
-                    + " | "
-                    + row.override()
                     + " | "
                     + row.settings()
                     + " | "
@@ -207,8 +198,8 @@ public class MachineTableCommand extends CommandBase {
         writer.println();
     }
 
-    private record Row(NumberSource source, String machine, String numbers, String probe, String settings, String rows,
-        String modes, String override, String className, String recipeMaps) {}
+    private record Row(NumberSource source, String machine, String numbers, String assumes, String settings,
+        String rows, String modes, String className, String recipeMaps) {}
 
     private static List<Row> collect() {
         final List<Row> rows = new ArrayList<>();
@@ -224,21 +215,16 @@ public class MachineTableCommand extends CommandBase {
     }
 
     private static Row row(final IMetaTileEntity mte, final RecipeMapWorkable workable) {
-        final GTMachineOverrides.Override override = GTMachineOverrides.find(mte.getClass());
-        final GTMachinePreset table = override == null ? null : override.preset();
-        final GTMachinePreset probed = MachineProbe.probe(mte);
         final GTMachineIndex.MachineEntry entry = GTMachineIndex.byId(mte.getLocalNameKey());
-        final String reason = override == null ? null : override.reason();
 
         return new Row(
             source(entry),
             mte.getLocalName(),
             numbers(entry),
-            probeAgreement(table, probed),
-            settings(table, probed),
+            assumes(entry),
+            settingNames(entry == null ? null : entry.preset()),
             visibleRows(entry, workable),
             modes(entry),
-            reason == null ? "" : reason,
             mte.getClass()
                 .getSimpleName(),
             recipeMaps(workable));
@@ -266,20 +252,6 @@ public class MachineTableCommand extends CommandBase {
             if (!ON_EVERY_MACHINE.contains(def.key)) labels.add(def.label);
         }
         return String.join(", ", labels);
-    }
-
-    /**
-     * Both sets when the table and the probe disagree, one when only one source has the machine - the
-     * section it sits under already says which.
-     */
-    private static String settings(@Nullable final GTMachinePreset table, @Nullable final GTMachinePreset probed) {
-        if (table == null && probed == null) return "";
-        if (table == null) return settingNames(probed);
-        if (probed == null) return settingNames(table);
-
-        final String fromTable = settingNames(table);
-        final String fromProbe = settingNames(probed);
-        return fromTable.equals(fromProbe) ? fromTable : fromTable + " -> " + fromProbe;
     }
 
     private static String settingNames(@Nullable final GTMachinePreset preset) {
@@ -328,14 +300,103 @@ public class MachineTableCommand extends CommandBase {
     private static String numbers(@Nullable final GTMachineIndex.MachineEntry entry) {
         if (entry == null) return "-";
         if (entry.describer() != null) return "describer";
-        return entry.preset() == null ? "-" : MachineProbe.numbersText(entry.preset());
+        return entry.preset() == null ? "-" : numbersText(entry.preset());
     }
 
-    /** Whether a probe reading backs up the row a chart is reading, which is how a row earns deletion. */
-    private static String probeAgreement(@Nullable final GTMachinePreset table,
-        @Nullable final GTMachinePreset probed) {
-        if (probed == null) return "not read";
-        if (table == null) return "-";
-        return MachineProbe.agrees(table, probed) ? "agrees" : "disagrees";
+    /** Which numbers the machine's spec gives at its best rather than as it starts. */
+    private static String assumes(@Nullable final GTMachineIndex.MachineEntry entry) {
+        if (entry == null || entry.preset() == null) return "";
+        final List<String> names = new ArrayList<>();
+        entry.preset()
+            .bestCase()
+            .forEach(quantity -> names.add("best " + quantity.name()));
+        return String.join(", ", names);
+    }
+
+    /** What {@code OverclockCalculator} starts at, which is what an unset preset leaves it on. */
+    private static final int DEFAULT_TIER_SKIPS = 1;
+
+    /**
+     * Every number a preset resolves to, at the structure an untouched node shows: every structure
+     * parameter at its maximum, at the lowest real voltage. All twelve always, in a fixed order, so a
+     * GregTech update shows up as a diff on the machines whose numbers moved - a snapshot that omits
+     * defaults cannot tell a value leaving its default from a value never set.
+     */
+    @Nonnull
+    public static String numbersText(@Nonnull final GTMachinePreset preset) {
+        final StructureState state = StructureState.of(1, 0);
+        return "par=" + preset.maxParallel()
+            .applyAsInt(state)
+            + " dur="
+            + num(
+                preset.durationModifier()
+                    .applyAsDouble(state))
+            + " eu="
+            + num(
+                preset.euModifier()
+                    .applyAsDouble(state))
+            + " cost="
+            + num(
+                preset.energyCost()
+                    .applyAsDouble(state))
+            + " ocD="
+            + num(
+                preset.durationDecreasePerOC()
+                    .applyAsDouble(state))
+            + " ocE="
+            + num(
+                preset.eutIncreasePerOC()
+                    .applyAsDouble(state))
+            + " noOC="
+            + (preset.noOverclock() ? 1 : 0)
+            + " heat="
+            + (preset.usesHeat() ? preset.machineHeat()
+                .applyAsInt(state) : 0)
+            + " hOC="
+            + (preset.heatOC() ? 1 : 0)
+            + " hDisc="
+            + (preset.heatDiscount() ? 1 : 0)
+            + " rHeat="
+            + preset.recipeHeatOverride()
+            + " skips="
+            + tierSkips(preset);
+    }
+
+    /**
+     * What the calculator ends up with. An unset preset never calls the setter, so it lands on
+     * GregTech's default of one - which is not the same as a machine that pinned zero.
+     */
+    private static int tierSkips(final GTMachinePreset preset) {
+        if (preset.unlimitedTierSkips()) return Integer.MAX_VALUE;
+        return preset.maxTierSkips() == GTMachinePreset.TIER_SKIPS_UNSET ? DEFAULT_TIER_SKIPS : preset.maxTierSkips();
+    }
+
+    /** Denominators a GregTech modifier is plausibly built from; 1/3 and 9/4 both fall inside this. */
+    private static final int MAX_DENOMINATOR = 64;
+
+    /**
+     * The shortest exact rendering: a whole number, two significant digits, or the fraction GregTech
+     * wrote the ratio as. Anything that fits none of those prints in full rather than rounded - the
+     * cell is what decides whether a hand review still stands, so a value it rounds away is a change
+     * nobody is told about. Locale-independent, because the file is read wherever it was generated.
+     */
+    @Nonnull
+    private static String num(final double value) {
+        if (value == Math.rint(value) && Math.abs(value) < 1e15) return Long.toString((long) value);
+
+        final BigDecimal rounded = BigDecimal.valueOf(value)
+            .round(new MathContext(2));
+        if (rounded.doubleValue() == value) return rounded.stripTrailingZeros()
+            .toPlainString();
+
+        for (int d = 2; d <= MAX_DENOMINATOR; d++) {
+            final double scaled = value * d;
+            if (Math.rint(scaled) != 0 && Math.abs(scaled - Math.rint(scaled)) < 1e-9) {
+                return (long) Math.rint(scaled) + "/" + d;
+            }
+        }
+        return BigDecimal.valueOf(value)
+            .stripTrailingZeros()
+            .toPlainString();
     }
 }

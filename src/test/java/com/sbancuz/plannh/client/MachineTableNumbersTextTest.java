@@ -1,4 +1,4 @@
-package com.sbancuz.plannh;
+package com.sbancuz.plannh.client;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -6,24 +6,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 import com.sbancuz.plannh.data.provider.gregtech.GTMachinePreset;
-import com.sbancuz.plannh.data.provider.gregtech.probe.MachineProbe;
 
 /**
  * The machine table is checked in and diffed against the next GregTech, so this rendering has to move
  * only when a number moves. These assert that property rather than any particular string: an expected
  * string here would just be a copy of the implementation.
  */
-class GTProbeNumbersTextTest {
+class MachineTableNumbersTextTest {
 
     /** Every field, every time. A snapshot that drops defaults cannot tell "left" from "never set". */
     @Test
     void everyFieldIsAlwaysPresent() {
-        final String text = MachineProbe.numbersText(
+        final String text = MachineTableCommand.numbersText(
             GTMachinePreset.builder()
                 .build());
 
-        for (final String key : new String[] { "par=", "dur=", "eu=", "ocD=", "ocE=", "heat=", "hOC=", "hDisc=",
-            "rHeat=", "skips=" }) {
+        for (final String key : new String[] { "par=", "dur=", "eu=", "cost=", "ocD=", "ocE=", "noOC=", "heat=", "hOC=",
+            "hDisc=", "rHeat=", "skips=" }) {
             assertTrue(text.contains(key), key + " missing from " + text);
         }
     }
@@ -34,7 +33,7 @@ class GTProbeNumbersTextTest {
      */
     @Test
     void wholeNumbersCarryNoTrailingZeros() {
-        final String text = MachineProbe.numbersText(
+        final String text = MachineTableCommand.numbersText(
             GTMachinePreset.builder()
                 .speed(_ -> 2.0)
                 .eu(_ -> 1.0)
@@ -48,7 +47,7 @@ class GTProbeNumbersTextTest {
     /** A decimal separator that follows the machine's locale would diff on someone else's checkout. */
     @Test
     void fractionsUseADot() {
-        final String text = MachineProbe.numbersText(
+        final String text = MachineTableCommand.numbersText(
             GTMachinePreset.builder()
                 .speed(_ -> 0.5)
                 .build());
@@ -63,13 +62,13 @@ class GTProbeNumbersTextTest {
      */
     @Test
     void ratiosRenderAsFractionsRatherThanRoundedDecimals() {
-        final String third = MachineProbe.numbersText(
+        final String third = MachineTableCommand.numbersText(
             GTMachinePreset.builder()
                 .speed(_ -> 1 / 3.0)
                 .build());
         assertTrue(third.contains("dur=1/3"), "expected dur=1/3 in " + third);
 
-        final String quarters = MachineProbe.numbersText(
+        final String quarters = MachineTableCommand.numbersText(
             GTMachinePreset.builder()
                 .speed(_ -> 2.25)
                 .build());
@@ -79,7 +78,7 @@ class GTProbeNumbersTextTest {
     /** A value two significant digits describe exactly stays a decimal, because that is how it reads. */
     @Test
     void exactShortDecimalsStayDecimal() {
-        final String text = MachineProbe.numbersText(
+        final String text = MachineTableCommand.numbersText(
             GTMachinePreset.builder()
                 .speed(_ -> 0.9)
                 .eu(_ -> 0.95)
@@ -87,5 +86,16 @@ class GTProbeNumbersTextTest {
 
         assertTrue(text.contains("dur=0.9 "), "expected dur=0.9 in " + text);
         assertTrue(text.contains("eu=0.95 "), "expected eu=0.95 in " + text);
+    }
+
+    /** A value too small for any listed fraction prints as a number, not as a zero numerator. */
+    @Test
+    void tinyValuesAreNotZeroFractions() {
+        final String text = MachineTableCommand.numbersText(
+            GTMachinePreset.builder()
+                .speed(_ -> 3.6e-12)
+                .build());
+
+        assertFalse(text.contains("dur=0/"), "a tiny value rendered as a zero fraction: " + text);
     }
 }

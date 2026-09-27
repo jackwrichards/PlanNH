@@ -19,14 +19,14 @@ import gregtech.api.util.OverclockCalculator;
 /**
  * Turns "this node is a Maceration Stack with HSS-G coils at IV" into a configured
  * {@link OverclockCalculator}. GregTech's implementation of {@link MachineVariant#run}, so the three
- * sources of truth - GT's own describer, the probed or overridden preset, and hand-entered settings - are chosen
+ * sources of truth - GT's own describer, the machine's ProcessingSpec, and hand-entered settings - are chosen
  * between once rather than at each call site.
  *
  * <p>
  * Priority is GT's code first: a machine that publishes an
  * {@link gregtech.api.objects.overclockdescriber.OverclockDescriber} gets asked directly, which
  * covers every singleblock, steam machine and fusion reactor exactly and for free. Only multiblocks,
- * whose behaviour depends on blocks a prototype cannot report, fall through to the preset table.
+ * whose behaviour depends on the blocks around them, fall through to the preset their spec gives.
  */
 public final class GTPresetApplier {
 
@@ -208,13 +208,17 @@ public final class GTPresetApplier {
                 .applyAsDouble(state))
             .setEUtDiscount(
                 preset.euModifier()
-                    .applyAsDouble(state))
+                    .applyAsDouble(state)
+                    * preset.energyCost()
+                        .applyAsDouble(state))
             .setEUtIncreasePerOC(
                 preset.eutIncreasePerOC()
                     .applyAsDouble(state))
             .setDurationDecreasePerOC(
                 preset.durationDecreasePerOC()
                     .applyAsDouble(state));
+
+        if (preset.noOverclock()) calculator.setNoOverclock(true);
 
         if (preset.usesHeat()) {
             calculator.setMachineHeat(

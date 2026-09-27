@@ -19,15 +19,12 @@ import gregtech.api.recipe.RecipeMap;
  * distillery recipe would model a machine that cannot run it, and nothing would say so.
  *
  * <p>
- * The count is needed even where the mapping is ambiguous, to bound both the row and the sensitivity
- * sweep. GregTech stores it nowhere, so it is the length of the cycle {@code nextMachineMode} walks.
+ * The count is needed even where the mapping is ambiguous, to bound the row. GregTech states both on
+ * the prototype: {@code getMachineModeCount()} and {@code getRecipeMapForMode(int)}.
  */
 public final class GTMachineModes {
 
     private GTMachineModes() {}
-
-    /** A mode cycle that does not come back around is broken, not interesting. */
-    private static final int MAX_MODES = 16;
 
     private static final Modes SINGLE = new Modes(1, null);
 
@@ -45,42 +42,23 @@ public final class GTMachineModes {
         }
     }
 
-    /** Walks a prototype's mode cycle. Clones first, because machineMode feeds tooltips and NEI. */
+    /** Read off the registry prototype, which states its modes without being switched through them. */
     @Nonnull
     public static Modes of(@Nonnull final IMetaTileEntity prototype) {
-        if (!(prototype instanceof MTEMultiBlockBase)) return SINGLE;
-        try {
-            if (!(prototype.newMetaEntity(null) instanceof final MTEMultiBlockBase machine)) return SINGLE;
-            return of(machine);
-        } catch (final RuntimeException | LinkageError e) {
-            PlanNH.LOG.debug("PlanNH: {} would not report its modes", prototype.getClass(), e);
+        if (!(prototype instanceof final MTEMultiBlockBase machine) || !machine.supportsMachineModeSwitch()) {
             return SINGLE;
         }
-    }
-
-    /** As above, for a caller that already holds a clone it may write to. */
-    @Nonnull
-    public static Modes of(@Nonnull final MTEMultiBlockBase machine) {
-        if (!machine.supportsMachineModeSwitch()) return SINGLE;
         try {
+            final int count = machine.getMachineModeCount();
+            if (count < 2) return SINGLE;
             final Map<String, Integer> byRecipeMap = new HashMap<>();
             boolean distinct = true;
-            int count = 0;
-            int mode = 0;
-            while (count < MAX_MODES) {
-                machine.machineMode = mode;
-                count++;
-
-                final RecipeMap<?> map = machine.getRecipeMap();
+            for (int mode = 0; mode < count; mode++) {
+                final RecipeMap<?> map = machine.getRecipeMapForMode(mode);
                 // Two modes on one recipemap: the recipe no longer says which, so ask after all. The
                 // count still stands, because the machine still cycles through them.
                 if (map == null || byRecipeMap.putIfAbsent(map.unlocalizedName, mode) != null) distinct = false;
-
-                final int next = machine.nextMachineMode();
-                if (next == 0) break;
-                mode = next;
             }
-            if (count < 2) return SINGLE;
             return new Modes(count, distinct ? Map.copyOf(byRecipeMap) : null);
         } catch (final RuntimeException | LinkageError e) {
             PlanNH.LOG.debug("PlanNH: {} would not report its modes", machine.getClass(), e);

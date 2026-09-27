@@ -99,7 +99,7 @@ public final class ChartMinimums {
      * and the node's own settings, never the node or the graph holding it, and only the active chart
      * draws rows. Reaching the open plan reaches Minecraft, through the save directory, so outside a
      * running game there is no chart to read and the answer is the untouched one - which is the state
-     * a headless test and the machine probe both want.
+     * a headless test wants.
      */
     public static int floor(@Nonnull final Settings setting, final int best) {
         final int held;

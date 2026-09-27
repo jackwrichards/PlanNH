@@ -22,7 +22,6 @@ import com.sbancuz.plannh.data.effect.EffectResult;
 import com.sbancuz.plannh.data.machine.MachineVariant;
 import com.sbancuz.plannh.data.machine.MachineVariants;
 import com.sbancuz.plannh.data.provider.GTProvider;
-import com.sbancuz.plannh.data.provider.gregtech.probe.MachineProbe;
 
 import gregtech.api.GregTechAPI;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
@@ -52,8 +51,6 @@ import gregtech.api.util.tooltip.TooltipTier;
  */
 public final class GTMachineIndex {
 
-    private static final String DEPRECATED_LINE = "GT5U.MBTT.Deprecated.NEI";
-
     /** Appended to a singleblock's name in the picker. Translated, since the name it follows is. */
     private static final String SINGLEBLOCK_SUFFIX = "plannh.machine.singleblock_suffix";
 
@@ -61,13 +58,9 @@ public final class GTMachineIndex {
     public enum NumberSource {
         /** GregTech's own OverclockDescriber, which outranks any preset. */
         DESCRIBER,
-        /** The machine's own answer, read off the installed GregTech. */
-        PROBE,
-        /** A hand-written row that supersedes the probe, because the probe is wrong here. */
-        OVERRIDE,
-        /** A hand-written row standing in because the probe could not read the machine at all. */
-        HAND_WRITTEN_FALLBACK,
-        /** Neither answered, so the machine plans as a plain single-speed one. */
+        /** The ProcessingSpec the machine declares. */
+        SPEC,
+        /** Neither, so the machine plans as a plain single-speed one. */
         NONE
     }
 
@@ -81,7 +74,7 @@ public final class GTMachineIndex {
      *                      singleblock, whose tier is the block a player placed.
      * @param describer     GT's own overclock behaviour for this machine, present on singleblocks and
      *                      a handful of multis. When set it is authoritative and no preset is needed.
-     * @param preset        structure-derived parameters for multiblocks; null when uncovered.
+     * @param preset        the multiblock's ProcessingSpec as a preset; null when it declares none.
      * @param numberSource  what drives this machine's overclock, for whoever has to review it.
      * @param modes         how many modes the machine has, and which recipemap selects which.
      */
@@ -133,7 +126,7 @@ public final class GTMachineIndex {
 
     /**
      * GregTech's answer for the shared picker. The index is built on first use rather than handed
-     * over at registration, because building it clones and probes every multiblock GT ships.
+     * over at registration, because building it reads every machine GT ships, tooltips included.
      */
     public static final MachineVariants.Source SOURCE = new MachineVariants.Source() {
 
@@ -246,28 +239,14 @@ public final class GTMachineIndex {
     }
 
     /**
-     * Builds the index off the first frame that would otherwise pay for it. The build clones every GT
-     * multiblock and probes it, which is a visible stall when it lands inside a draw.
+     * Builds the index off the first frame that would otherwise pay for it. The build reads every GT
+     * machine and builds its tooltip, which is a visible stall when it lands inside a draw.
      */
     public static void warmup() {
         ensureBuilt();
     }
 
-    /**
-     * GT's own deprecation marker, added by MultiblockTooltipBuilder.addStructureDeprecatedLine and
-     * readable from the prototype's public description.
-     */
-    private static boolean isDeprecated(final IMetaTileEntity mte) {
-        final String[] description = mte.getDescription();
-        if (description == null) return false;
-        final String marker = StatCollector.translateToLocal(DEPRECATED_LINE);
-        for (final String line : description) {
-            if (line != null && line.contains(marker)) return true;
-        }
-        return false;
-    }
-
-    /** Neither GT's own describer nor a preset, so its numbers are a generic guess. */
+    /** Neither GT's own describer nor a spec, so its numbers are a generic guess. */
     private static boolean isUncovered(final MachineEntry entry) {
         return entry.preset() == null && entry.describer() == null;
     }
@@ -359,9 +338,8 @@ public final class GTMachineIndex {
         });
 
         if (!uncovered.isEmpty()) {
-            // The preset table is pinned to one GT version. This is how a GT update that adds a
-            // multiblock shows up, instead of that machine silently modelling as a plain 1x node.
-            PlanNH.LOG.warn("PlanNH: {} GT multiblocks have no overclock preset: {}", uncovered.size(), uncovered);
+            // How a multiblock without a spec shows up, instead of silently modelling as a plain 1x node.
+            PlanNH.LOG.warn("PlanNH: {} GT multiblocks declare no processing spec: {}", uncovered.size(), uncovered);
         }
         byId = Map.copyOf(ids);
         return Map.copyOf(index);
@@ -374,25 +352,22 @@ public final class GTMachineIndex {
         if (recipeMaps.isEmpty()) return;
         // Superseded structures stay registered so existing worlds keep loading, but they are
         // converted away by recipe and cannot be built, and they keep the display name of the
-        // machine that replaced them - so offering both just shows the same name twice. GT marks
-        // them in the tooltip rather than in the class name: a *Legacy name matches neither way
-        // round, missing MTEDroneCentre, MTEFluidShaper and MTELargeBoiler while over-matching the
-        // turbines.
-        if (isDeprecated(mte)) return;
+        // machine that replaced them - so offering both just shows the same name twice. GT says so
+        // itself; a *Legacy class name would not, missing MTEDroneCentre, MTEFluidShaper and
+        // MTELargeBoiler while over-matching the turbines.
+        if (mte instanceof final MTEMultiBlockBase multi && multi.isStructureDeprecated()) return;
 
         final boolean tieredByBuild = mte instanceof MTEMultiBlockBase;
+        final GTMachineModes.Modes modes = GTMachineModes.of(mte);
+        // Read whether or not a describer exists: a describer machine still has its parallel and recipe
+        // override read off the preset.
+        final GTMachinePreset preset = GTSpecReader.read(mte, modes.count());
+        // A spec that states its own overclock outranks a describer, which the steam multiblocks share
+        // with the steam singleblocks.
         final OverclockDescriber describer = mte instanceof final IOverclockDescriptionProvider provider
-            ? provider.getOverclockDescriber()
-            : null;
-        final GTMachineOverrides.Override override = GTMachineOverrides.find(mte.getClass());
-        final GTMachinePreset fromTable = override == null ? null : override.preset();
-        final GTMachinePreset probed = MachineProbe.probe(mte);
-        MachineProbe.reportDisagreement(mte.getClass(), fromTable, probed);
-        // The preset follows probe-vs-row whether or not a describer exists: a describer machine still
-        // has its recipe override read off the preset.
-        final NumberSource presetSource = sourceOf(override, probed, fromTable);
-        final GTMachinePreset preset = presetSource == NumberSource.PROBE ? probed : fromTable;
-        final NumberSource numberSource = describer != null ? NumberSource.DESCRIBER : presetSource;
+            && (preset == null || !preset.ownsOverclock()) ? provider.getOverclockDescriber() : null;
+        final NumberSource numberSource = describer != null ? NumberSource.DESCRIBER
+            : preset != null ? NumberSource.SPEC : NumberSource.NONE;
         if (preset == null && describer == null && tieredByBuild) {
             uncovered.add(mte.getClass().getName());
         }
@@ -407,7 +382,7 @@ public final class GTMachineIndex {
             describer,
             preset,
             numberSource,
-            GTMachineModes.of(mte));
+            modes);
 
         // Two machines sharing an id would silently render as one another in the picker.
         final MachineEntry clash = ids.putIfAbsent(entry.id(), entry);
@@ -419,17 +394,5 @@ public final class GTMachineIndex {
             index.computeIfAbsent(recipeMap.unlocalizedName, k -> new ArrayList<>())
                 .add(entry);
         }
-    }
-
-    /**
-     * Which preset a chart reads. GregTech's own answer wins wherever it can be read, so a pack running
-     * a GregTech PlanNH was never compiled against gets that version's numbers - except for the machines
-     * {@link GTMachineOverrides} names, where it has been shown to be wrong and a row stands in.
-     */
-    private static NumberSource sourceOf(@Nullable final GTMachineOverrides.Override override,
-        @Nullable final GTMachinePreset probed, @Nullable final GTMachinePreset fromTable) {
-        if (override != null) return NumberSource.OVERRIDE;
-        if (probed != null) return NumberSource.PROBE;
-        return fromTable != null ? NumberSource.HAND_WRITTEN_FALLBACK : NumberSource.NONE;
     }
 }

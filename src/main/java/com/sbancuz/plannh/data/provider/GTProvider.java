@@ -196,8 +196,8 @@ public class GTProvider implements PropertyProvider {
     private static final MachineProfile PROFILE = MachineProfile.builder("gregtech:unified", "GT Unified")
         .settings(GTProvider::machineDriven)
         .settings(GTProvider::manual)
-        // Per-recipemap overclock defaults are not listed here: the machine probe derives them from
-        // the machine class, so a second table keyed on the recipemap would be a rival authority.
+        // Per-recipemap overclock defaults are not listed here: the machine's ProcessingSpec gives them
+        // per machine class, so a second table keyed on the recipemap would be a rival authority.
         // What stays is the genuinely recipe-driven cases, which no machine can report.
         .effect(
             Effects.durationFromHandler()

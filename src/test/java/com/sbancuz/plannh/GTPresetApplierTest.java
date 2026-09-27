@@ -1,14 +1,12 @@
 package com.sbancuz.plannh;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
-import com.sbancuz.plannh.data.provider.gregtech.GTMachineOverrides;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachinePreset;
 import com.sbancuz.plannh.data.provider.gregtech.GTPresetApplier;
 import com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers;
@@ -25,15 +23,6 @@ import gregtech.api.util.tooltip.TooltipTier;
  * wrong setter.
  */
 class GTPresetApplierTest {
-
-    private static final String MULTI_SMELTER = "gregtech.common.tileentities.machines.multi.MTEMultiFurnace";
-
-    private static GTMachinePreset preset(final String className) throws ClassNotFoundException {
-        final GTMachinePreset found = GTMachineOverrides
-            .preset(Class.forName(className, false, GTPresetApplierTest.class.getClassLoader()));
-        assertNotNull(found, className);
-        return found;
-    }
 
     /** The EBF's arithmetic, which GregTech now hands the probe: coil heat plus 100K per tier over MV. */
     private static GTMachinePreset ebfShaped() {
@@ -53,7 +42,7 @@ class GTPresetApplierTest {
      * overclocks and the heat discount all at once. GT's own unit tests use exactly this shape.
      */
     @Test
-    void blastFurnacePresetMatchesAHandWrittenGregTechCall() throws ClassNotFoundException {
+    void blastFurnacePresetMatchesAHandWrittenGregTechCall() {
         final int coilTier = 8;
         final int voltageTier = 5;
         final int recipeHeat = 1800;
@@ -94,7 +83,7 @@ class GTPresetApplierTest {
 
     /** The discount must be GregTech's own, not a second implementation wired into euModifier. */
     @Test
-    void blastFurnaceHeatDiscountIsGregTechs() throws ClassNotFoundException {
+    void blastFurnaceHeatDiscountIsGregTechs() {
         final int coilTier = 8;
         final int machineHeat = ebfShaped().machineHeat()
             .applyAsInt(state(5, coilTier));
@@ -188,21 +177,6 @@ class GTPresetApplierTest {
             "GT's default would have allowed it");
     }
 
-    /** The Multi Smelter ignores the recipe's own cost entirely: always 4 EU/t over 128 ticks. */
-    @Test
-    void multiSmelterOverridesTheRecipeCost() throws ClassNotFoundException {
-        final GTMachinePreset smelter = preset(MULTI_SMELTER);
-        assertNotNull(smelter.recipeOverride());
-        assertEquals(
-            4,
-            smelter.recipeOverride()
-                .eut());
-        assertEquals(
-            128,
-            smelter.recipeOverride()
-                .duration());
-    }
-
     /** A machine with no preset must still yield a usable calculator rather than throwing. */
     @Test
     void anAbsentPresetFallsBackToAPlainCalculator() {
@@ -214,5 +188,31 @@ class GTPresetApplierTest {
 
         assertTrue(calc.getDuration() > 0);
         assertTrue(calc.getConsumption() > 0);
+    }
+
+    /**
+     * A steam multiblock's cost multiplies what it draws, and without overclocks the hatch voltage
+     * changes nothing: GregTech's own no-overclock calculator is the oracle.
+     */
+    @Test
+    void noOverclockPresetMatchesGregTechsNoOverclockCalculator() {
+        final GTMachinePreset steam = GTMachinePreset.builder()
+            .speed(0.8)
+            .energyCost(s -> 2.5)
+            .noOverclock()
+            .build();
+
+        final OverclockCalculator planned = GTPresetApplier
+            .buildFromPreset(steam, state(9, 0), 16, 200, GTValues.V[9], 1, 0)
+            .setParallel(8)
+            .calculate();
+        final OverclockCalculator gregtech = OverclockCalculator.ofNoOverclock(16, 200)
+            .setDurationModifier(0.8)
+            .setEUtDiscount(2.5)
+            .setParallel(8)
+            .calculate();
+
+        assertEquals(gregtech.getDuration(), planned.getDuration());
+        assertEquals(gregtech.getConsumption(), planned.getConsumption());
     }
 }

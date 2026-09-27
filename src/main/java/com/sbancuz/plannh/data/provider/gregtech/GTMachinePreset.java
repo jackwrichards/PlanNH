@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.ToDoubleFunction;
 import java.util.function.ToIntFunction;
 
@@ -12,15 +13,13 @@ import javax.annotation.Nullable;
 
 import com.sbancuz.plannh.data.Settings;
 
+import gregtech.api.logic.ProcessingSpec;
 import gregtech.api.util.tooltip.TooltipTier;
 
 /**
  * What one GregTech machine does to a recipe, in the terms
- * {@link gregtech.api.util.OverclockCalculator} takes. This mirrors GT's own
- * {@code ProcessingLogic} setters one-to-one - {@code setMaxParallelSupplier} /
- * {@code setSpeedBonusSupplier} / {@code setEuModifierSupplier} - so a row can be diffed against the
- * MetaTileEntity it came from, which is the only way a table this size stays honest across GT
- * updates.
+ * {@link gregtech.api.util.OverclockCalculator} takes, as {@link GTSpecReader} reads it off the
+ * machine's {@code ProcessingSpec}.
  *
  * <p>
  * Everything is a function of {@link StructureState} because the interesting machines derive their
@@ -32,7 +31,8 @@ public record GTMachinePreset(ToDoubleFunction<StructureState> durationModifier,
     ToDoubleFunction<StructureState> eutIncreasePerOC, ToDoubleFunction<StructureState> durationDecreasePerOC,
     ToIntFunction<StructureState> machineHeat, boolean heatOC, boolean heatDiscount, int recipeHeatOverride,
     int maxTierSkips, boolean unlimitedTierSkips, @Nullable RecipeOverride recipeOverride, EnumSet<Settings> settings,
-    Map<TooltipTier, GTSettings.TierRange> structure) {
+    Map<TooltipTier, GTSettings.TierRange> structure, ToDoubleFunction<StructureState> energyCost, boolean noOverclock,
+    boolean ownsOverclock, Set<ProcessingSpec.Quantity> bestCase) {
 
     /** A machine that ignores the recipe's own cost, like the Multi Smelter's fixed 4 EU/t over 128t. */
     public record RecipeOverride(int eut, int duration) {}
@@ -68,6 +68,10 @@ public record GTMachinePreset(ToDoubleFunction<StructureState> durationModifier,
         private RecipeOverride recipeOverride;
         private final EnumSet<Settings> settings = EnumSet.noneOf(Settings.class);
         private final EnumMap<TooltipTier, GTSettings.TierRange> structure = new EnumMap<>(TooltipTier.class);
+        private ToDoubleFunction<StructureState> energyCost = s -> 1.0;
+        private boolean noOverclock;
+        private boolean ownsOverclock;
+        private final EnumSet<ProcessingSpec.Quantity> bestCase = EnumSet.noneOf(ProcessingSpec.Quantity.class);
 
         private Builder() {}
 
@@ -173,6 +177,33 @@ public record GTMachinePreset(ToDoubleFunction<StructureState> durationModifier,
             return this;
         }
 
+        /** An EU/t multiplier that, unlike {@link #eu}, a machine does not count against its parallels. */
+        public Builder energyCost(final ToDoubleFunction<StructureState> fn) {
+            this.energyCost = fn;
+            return this;
+        }
+
+        /** Recipes run at their own voltage and never overclock. */
+        public Builder noOverclock() {
+            this.noOverclock = true;
+            return this;
+        }
+
+        /**
+         * The machine states its own overclock, so it outranks a GregTech OverclockDescriber the
+         * machine also publishes.
+         */
+        public Builder ownsOverclock() {
+            this.ownsOverclock = true;
+            return this;
+        }
+
+        /** Numbers given at the machine's best, which it only reaches while it runs. */
+        public Builder bestCase(final Set<ProcessingSpec.Quantity> quantities) {
+            this.bestCase.addAll(quantities);
+            return this;
+        }
+
         /** A structure parameter the machine reads, over the range its structure allows. */
         public Builder structure(final TooltipTier kind, final int min, final int max) {
             structure.put(kind, new GTSettings.TierRange(min, max));
@@ -195,7 +226,11 @@ public record GTMachinePreset(ToDoubleFunction<StructureState> durationModifier,
                 unlimitedTierSkips,
                 recipeOverride,
                 EnumSet.copyOf(settings),
-                Collections.unmodifiableMap(new EnumMap<>(structure)));
+                Collections.unmodifiableMap(new EnumMap<>(structure)),
+                energyCost,
+                noOverclock,
+                ownsOverclock,
+                Collections.unmodifiableSet(EnumSet.copyOf(bestCase)));
         }
     }
 }

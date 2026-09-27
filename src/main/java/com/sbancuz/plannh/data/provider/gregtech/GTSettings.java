@@ -166,7 +166,7 @@ public final class GTSettings {
      * Something that only answers inside a running game, and its answer when there is none. Resolving
      * a structure reaches the open plan and the recipe's own properties, and both of those reach
      * Minecraft: the plan through the save directory, the properties through the provider that
-     * declares them. A test and the probe's warmup sweep resolve structures with neither loaded, and
+     * declares them. A test resolves structures with neither loaded, and
      * that is not a failure - it means nothing has been chosen yet.
      */
     @Nullable
@@ -580,12 +580,13 @@ public final class GTSettings {
     }
 
     /**
-     * A singleblock's tier is the block you placed, so only a multiblock's energy hatch is a choice.
-     * Also shown when nothing resolved, so a node PlanNH cannot identify keeps a usable control.
+     * A singleblock's tier is the block you placed, so only a multiblock's energy hatch is a choice,
+     * and only on one that overclocks. Also shown when nothing resolved, so a node PlanNH cannot
+     * identify keeps a usable control.
      */
     @Nonnull
     public static BiPredicate<RecipeContext, Map<String, Object>> voltageEditable() {
-        return (ctx, settings) -> multiblockOrUnknown(ctx, settings);
+        return (ctx, settings) -> multiblockOrUnknown(ctx, settings) && overclocks(ctx, settings);
     }
 
     /**
@@ -594,7 +595,19 @@ public final class GTSettings {
      */
     @Nonnull
     public static BiPredicate<RecipeContext, Map<String, Object>> ampEditable() {
-        return (ctx, settings) -> multiblockOrUnknown(ctx, settings);
+        return (ctx, settings) -> multiblockOrUnknown(ctx, settings) && overclocks(ctx, settings);
+    }
+
+    /**
+     * A machine that runs every recipe at the recipe's own voltage takes nothing from its energy
+     * hatches, so their tier and amperage change no number it reports.
+     */
+    private static boolean overclocks(final RecipeContext ctx, final Map<String, Object> settings) {
+        if (isAdvanced(settings)) return true;
+        final GTMachineIndex.MachineEntry entry = GTMachineIndex.selected(ctx, settings);
+        return entry == null || entry.preset() == null
+            || !entry.preset()
+                .noOverclock();
     }
 
     /**
