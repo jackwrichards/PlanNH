@@ -2,11 +2,14 @@ package com.sbancuz.plannh.data.setting;
 
 import java.util.function.BiPredicate;
 
+import net.minecraft.util.EnumChatFormatting;
+
 import com.cleanroommc.modularui.api.widget.IWidget;
 import com.cleanroommc.modularui.value.IntValue;
 import com.cleanroommc.modularui.widgets.textfield.TextFieldWidget;
 import com.sbancuz.plannh.data.MachineConfig;
 import com.sbancuz.plannh.data.RecipeContext;
+import com.sbancuz.plannh.gui.common.TooltipStyle;
 
 import lombok.Getter;
 
@@ -25,6 +28,11 @@ public class IntegerSettingDef extends SettingDef<Integer> {
 
     public IntegerSettingDef(final String key, final int def, final int min, final int max) {
         this(key, def, min, max, (_, _) -> true);
+    }
+
+    @Override
+    protected EnumChatFormatting valueColour() {
+        return TooltipStyle.TUNABLE;
     }
 
     private int getMaxWidth() {

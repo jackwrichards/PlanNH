@@ -2,11 +2,13 @@ package com.sbancuz.plannh.data.setting;
 
 import java.util.function.BiPredicate;
 
+import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.util.StatCollector;
 
 import com.cleanroommc.modularui.api.widget.IWidget;
 import com.sbancuz.plannh.data.MachineConfig;
 import com.sbancuz.plannh.data.RecipeContext;
+import com.sbancuz.plannh.gui.common.TooltipStyle;
 
 import lombok.Getter;
 
@@ -25,6 +27,15 @@ public abstract class SettingDef<T> {
         this.visibility = visibility;
 
         Settings.register(this);
+    }
+
+    /** This setting's line on a node tooltip, or null when the value it holds has nothing to say. */
+    public String tooltip(final T value) {
+        return TooltipStyle.entry(getLabel(), valueColour(), String.valueOf(value));
+    }
+
+    protected EnumChatFormatting valueColour() {
+        return TooltipStyle.IDENTITY;
     }
 
     public boolean isVisible(final RecipeContext ctx, final MachineConfig config) {

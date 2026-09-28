@@ -118,8 +118,8 @@ plannh.gui.node.throughput.ops=×%s
 plannh.gui.node.throughput.duration=%s
 plannh.gui.node.throughput.unbalanced=not balanced
 plannh.gui.node.throughput.unplanned=not planned
-plannh.gui.node.throughput.property=%s: %s
-plannh.gui.node.throughput.rate=%s %s
+plannh.gui.node.throughput.settings=Settings
+plannh.gui.node.throughput.shift_hint=Hold §f§l[LSHIFT]§7 for every unit and setting
 
 
 ## GUI - Node pin
@@ -237,10 +237,12 @@ plannh.summary.help.nei=[R/U] open NEI
 plannh.summary.help.add_recipe=[+ in NEI GUI] add recipe
 
 ## GUI - Time units
+plannh.gui.rate.tick=t
 plannh.gui.rate.second=s
 plannh.gui.rate.minute=m
 plannh.gui.rate.hour=h
 plannh.gui.rate.day=d
+plannh.gui.rate.tick.suffix=/t
 plannh.gui.rate.second.suffix=/s
 plannh.gui.rate.minute.suffix=/m
 plannh.gui.rate.hour.suffix=/h

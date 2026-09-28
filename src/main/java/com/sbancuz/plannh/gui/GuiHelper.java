@@ -57,21 +57,25 @@ public final class GuiHelper {
     /** A unit of time, and how many seconds one of it holds. */
     public enum RateUnit {
 
-        SECONDS("second", 1),
-        MINUTES("minute", 60),
-        HOURS("hour", 60 * 60),
-        DAYS("day", 60 * 60 * 24);
+        TICKS("tick", 1.0 / 20, false),
+        SECONDS("second", 1, true),
+        MINUTES("minute", 60, true),
+        HOURS("hour", 60 * 60, true),
+        DAYS("day", 60 * 60 * 24, true);
 
         public static final RateUnit[] VALUES = RateUnit.values();
 
         public final String name;
         public final String langKey;
         public final double secondsPerUnit;
+        /** Whether a duration reads well in this unit; a tick is a rate, not a span of time. */
+        public final boolean duration;
 
-        RateUnit(final String name, final double secondsPerUnit) {
+        RateUnit(final String name, final double secondsPerUnit, final boolean duration) {
             this.name = name;
             this.langKey = "plannh.gui.rate." + name;
             this.secondsPerUnit = secondsPerUnit;
+            this.duration = duration;
         }
 
         public String suffixKey() {
@@ -83,7 +87,7 @@ public final class GuiHelper {
     public static RateUnit unitFor(final double seconds) {
         RateUnit chosen = RateUnit.SECONDS;
         for (final RateUnit unit : RateUnit.VALUES) {
-            if (seconds >= unit.secondsPerUnit) chosen = unit;
+            if (unit.duration && seconds >= unit.secondsPerUnit) chosen = unit;
         }
         return chosen;
     }
