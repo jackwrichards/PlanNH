@@ -47,6 +47,7 @@ import com.sbancuz.plannh.data.flowchart.Note;
 import com.sbancuz.plannh.data.flowchart.Plan;
 import com.sbancuz.plannh.data.flowchart.Port;
 import com.sbancuz.plannh.data.flowchart.UndoHistory;
+import com.sbancuz.plannh.data.flowchart.balancer.BalanceMode;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceView;
 import com.sbancuz.plannh.layout.AutoLayout;
 import com.sbancuz.plannh.nei.NEIPlanConfig;
@@ -706,21 +707,46 @@ public class CanvasWidget extends ParentWidget<CanvasWidget> implements Interact
     private List<ArrowRouter.Rect> chipRects() {
         final List<ArrowRouter.Rect> rects = new ArrayList<>();
         for (final BalanceView.Boundary flow : graph.boundary()) {
-            final RecipeNodeWidget widget = nodeWidgets.get(
-                flow.port()
-                    .nodeId());
-            if (widget == null) continue;
-            final int index = flow.port()
-                .portIndex();
-            final int width = chipWorldWidth(flow);
-            final boolean input = flow.port()
-                .input();
-            final int x = input ? widget.getNode().x - CHIP_GAP - width
-                : widget.getNode().x + worldWidth(widget) + CHIP_GAP;
-            final int y = widget.getNode().y + portWorldY(index) + chipOffset(flow.kind(), CHIP_H, CHIP_DROP);
-            rects.add(new ArrowRouter.Rect(x, y, width, CHIP_H));
+            final ArrowRouter.Rect rect = chipRect(flow);
+            if (rect != null) rects.add(rect);
         }
         return rects;
+    }
+
+    /** The world-space rectangle one chip occupies, or null when its node has no widget. */
+    private @Nullable ArrowRouter.Rect chipRect(final BalanceView.Boundary flow) {
+        final RecipeNodeWidget widget = nodeWidgets.get(
+            flow.port()
+                .nodeId());
+        if (widget == null) return null;
+        final int index = flow.port()
+            .portIndex();
+        final int width = chipWorldWidth(flow);
+        final boolean input = flow.port()
+            .input();
+        final int x = input ? widget.getNode().x - CHIP_GAP - width
+            : widget.getNode().x + worldWidth(widget) + CHIP_GAP;
+        final int y = widget.getNode().y + portWorldY(index) + chipOffset(flow.kind(), CHIP_H, CHIP_DROP);
+        return new ArrowRouter.Rect(x, y, width, CHIP_H);
+    }
+
+    /**
+     * The import or excess chip under a world-space point, or null. Only AUTO opens gates, so only
+     * AUTO chips can be forbidden.
+     */
+    private BalanceView.@Nullable Boundary gatedChipAt(final int worldX, final int worldY) {
+        if (graph.getBalanceMode() != BalanceMode.AUTO) return null;
+        for (final BalanceView.Boundary flow : graph.boundary()) {
+            if (flow.kind() != BalanceView.Kind.IMPORT && flow.kind() != BalanceView.Kind.EXCESS) continue;
+            final ArrowRouter.Rect rect = chipRect(flow);
+            if (rect != null && worldX >= rect.x()
+                && worldX < rect.x() + rect.w()
+                && worldY >= rect.y()
+                && worldY < rect.y() + rect.h()) {
+                return flow;
+            }
+        }
+        return null;
     }
 
     /** Chip width in world units - the same measurement the drawing and the layout margin use. */
@@ -1247,6 +1273,14 @@ public class CanvasWidget extends ParentWidget<CanvasWidget> implements Interact
         if (mouseButton == 1) {
             final int cmx = absMx - getArea().x;
             final int cmy = absMy - getArea().y;
+            final float z = graph.getZoom();
+            final BalanceView.Boundary chip = gatedChipAt(
+                Math.round((cmx - graph.getPanX()) / z),
+                Math.round((cmy - graph.getPanY()) / z));
+            if (chip != null) {
+                PlanAPI.recordEdit(graph, () -> graph.forbidGate(chip.port()));
+                return Result.SUCCESS;
+            }
 
             /*
              * // Check if over a group header (pass click through for its own right-click menu)

@@ -143,6 +143,7 @@ plannh.solver.choice_no_longer_fits=The saved excess choice no longer fits this 
 plannh.solver.choice_needs_more_gates=The saved excess choice needs more gates than the solver's answer, so it was dropped
 ## Pipeline diagnostics
 plannh.solver.pins_conflict=These pins cannot hold together, and dropping them makes the chart solvable: %s
+plannh.solver.forbidden_conflict=The chart cannot balance without a gate you forbade - allow one again under Forbidden: %s
 plannh.solver.stage_failed=%s %s
 plannh.solver.machines_cannot_run=%d machines cannot run: %s
 plannh.solver.budget=Ran out of solve budget, solver state %s
@@ -176,6 +177,8 @@ plannh.solver.boundary_excess=excess %s
 plannh.solver.boundary_add=add %s
 plannh.solver.boundary_flow=%s
 plannh.solver.boundary_nothing=nothing crosses the boundary
+plannh.solver.forbidden_import=%s into '%s'
+plannh.solver.forbidden_excess=%s out of '%s'
 
 ## NEI config
 nei.options.plannh = "PlanNH";
@@ -207,6 +210,7 @@ plannh.summary.title.properties=Properties
 plannh.summary.title.machine_counts=Machine Counts
 plannh.summary.title.messages=Solver Messages
 plannh.summary.title.help=Help
+plannh.summary.title.forbidden=Forbidden
 plannh.summary.mode.title=Summary mode
 plannh.summary.mode.switch_hint=Click to switch
 plannh.summary.mode.cycles=Cycles
@@ -228,3 +232,5 @@ plannh.summary.help.zoom=[Scroll] zoom
 plannh.summary.help.move=[LMB drag] move node
 plannh.summary.help.nei=[R/U] open NEI
 plannh.summary.help.add_recipe=[+ in NEI GUI] add recipe
+plannh.summary.help.forbid=[RMB import/excess tag] forbid that gate
+plannh.summary.forbidden.allow=Click to allow this gate again

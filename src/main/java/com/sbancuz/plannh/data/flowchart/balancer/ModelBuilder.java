@@ -156,12 +156,13 @@ public final class ModelBuilder {
         return this;
     }
 
-    /** One nonnegative external variable per connected port. */
+    /** One nonnegative external variable per connected port; zero on a gate the player forbade. */
     public ModelBuilder externals() {
         extVars = new Variable[ctx.model.connectedPorts.size()];
         for (int p = 0; p < extVars.length; p++) {
             extVars[p] = m.addVariable("ext_" + p)
                 .lower(0);
+            if (ctx.forbidden[ctx.model.portGate[p]]) extVars[p].upper(0);
         }
         externals = true;
         return this;
@@ -175,6 +176,7 @@ public final class ModelBuilder {
         for (int g = 0; g < gateVars.length; g++) {
             gateVars[g] = m.addVariable("y_" + g)
                 .binary();
+            if (ctx.forbidden[g]) gateVars[g].upper(0);
             final Expression link = m.addExpression("link_" + g);
             for (final int p : model.gates.get(g)
                 .ports()) {
@@ -192,6 +194,7 @@ public final class ModelBuilder {
         for (int g = 0; g < gateVars.length; g++) {
             gateVars[g] = m.addVariable("y_" + g)
                 .binary();
+            if (ctx.forbidden[g]) gateVars[g].upper(0);
         }
         return this;
     }

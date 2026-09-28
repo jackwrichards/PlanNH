@@ -64,7 +64,7 @@ class SummaryHeader extends ParentWidget<SummaryHeader> {
             case INPUTS -> PlannhColors.SECTION_INPUT.getColor();
             case PROPERTIES, MACHINE_COUNTS -> PlannhColors.SECTION_OPS.getColor();
             case CHOICES -> PlannhColors.SECTION_CHOICE.getColor();
-            case MESSAGES -> PlannhColors.SECTION_WARN.getColor();
+            case MESSAGES, FORBIDDEN -> PlannhColors.SECTION_WARN.getColor();
             case HELP -> PlannhColors.SECTION_FLUID_OUT.getColor();
             default -> PlannhColors.SECTION_CHOICE.getColor();
         };
@@ -77,6 +77,7 @@ class SummaryHeader extends ParentWidget<SummaryHeader> {
             case PROPERTIES, MACHINE_COUNTS -> PlannhColors.ACCENT_BLUE.getColor();
             case CHOICES -> PlannhColors.ACCENT_CYAN2.getColor();
             case MESSAGES -> PlannhColors.ACCENT_YELLOW.getColor();
+            case FORBIDDEN -> PlannhColors.ACCENT_RED.getColor();
             case HELP -> PlannhColors.TEXT_LIGHT.getColor();
             default -> PlannhColors.TEXT_WHITE.getColor();
         };

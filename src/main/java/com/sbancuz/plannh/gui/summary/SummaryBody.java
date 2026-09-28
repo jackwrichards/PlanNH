@@ -78,6 +78,7 @@ class SummaryBody extends SummaryFlow {
             case Line.Heading heading -> new TextRow(IKey.str(heading.displayName()),
                 PlannhColors.SUMMARY_TEXT_MUTED.getColor());
             case Line.Choice choice -> new ChoiceRow(choice);
+            case Line.Forbidden forbidden -> new ForbiddenRow(forbidden);
             case Line.Totals totals -> new TotalsRow(totals, rowsMode);
         };
     }

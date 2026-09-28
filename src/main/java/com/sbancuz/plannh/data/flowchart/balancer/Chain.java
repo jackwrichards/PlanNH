@@ -120,9 +120,11 @@ public final class Chain<P> {
                 return new Settlement.Stalled(SolverMessage.BALANCE_FAILED.toNote(reason));
             }
             // A floor-free pass 1 fails only when the most permissive model is infeasible; with
-            // nonnegative externals on every connected port the only thing left to conflict is the
-            // pins. Say so rather than submitting a cryptic "gate count ...".
-            final Note conflict = ctx.diagnosePins();
+            // nonnegative externals on every connected port the only things left to conflict are
+            // the gates the player forbade and the pins. Say so rather than submitting a cryptic
+            // "gate count ...".
+            final Note forbidden = ctx.diagnoseForbidden();
+            final Note conflict = forbidden != null ? forbidden : ctx.diagnosePins();
             return conflict == null
                 ? new Settlement.Stalled(SolverMessage.BALANCE_FAILED.toNote(reason))
                 : new Settlement.Stalled(

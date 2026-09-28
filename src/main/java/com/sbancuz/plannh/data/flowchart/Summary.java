@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
@@ -16,6 +17,8 @@ import com.sbancuz.plannh.data.flowchart.balancer.BalanceView;
 import com.sbancuz.plannh.data.flowchart.balancer.Balancer;
 import com.sbancuz.plannh.data.flowchart.balancer.ChoiceKey;
 import com.sbancuz.plannh.data.flowchart.balancer.Note;
+import com.sbancuz.plannh.data.flowchart.balancer.PortRef;
+import com.sbancuz.plannh.data.flowchart.balancer.SolverMessage;
 import com.sbancuz.plannh.data.flowchart.balancer.alternatives.Alternatives;
 import com.sbancuz.plannh.data.properties.ResourceProperty;
 import com.sbancuz.plannh.data.properties.SummaryProperty;
@@ -40,7 +43,9 @@ public final class Summary extends GraphData {
         PROPERTIES("plannh.summary.title.properties"),
         MACHINE_COUNTS("plannh.summary.title.machine_counts"),
         MESSAGES("plannh.summary.title.messages"),
-        HELP("plannh.summary.title.help");
+        HELP("plannh.summary.title.help"),
+        /** Appended rather than placed: saved folds and orders index sections by ordinal. */
+        FORBIDDEN("plannh.summary.title.forbidden");
 
         public static final Section[] VALUES = Section.values();
 
@@ -93,7 +98,7 @@ public final class Summary extends GraphData {
      * recompute() (which sorts the amount-bearing {@link Measure} rows headlessly) never touches a
      * formatter.
      */
-    public sealed interface Line<T> permits Line.Measure,Line.Message,Line.Text,Line.Choice,Line.Heading,Line.Totals {
+    public sealed interface Line<T> permits Line.Measure,Line.Message,Line.Text,Line.Choice,Line.Heading,Line.Totals,Line.Forbidden {
 
         /** Localized display text; the GUI is the only caller. */
         String displayName();
@@ -139,6 +144,15 @@ public final class Summary extends GraphData {
          * reason} what it gives up against it (null for the default), shown on hover.
          */
         record Choice(ChoiceKey key, Note label, @Nullable Note reason, boolean active) implements Line<Object> {
+
+            @Override
+            public String displayName() {
+                return label.render();
+            }
+        }
+
+        /** A gate the player forbade; clicking it allows the gate again. */
+        record Forbidden(PortRef port, Note label) implements Line<Object> {
 
             @Override
             public String displayName() {
@@ -238,7 +252,8 @@ public final class Summary extends GraphData {
                     new Line.Text("plannh.summary.help.zoom"),
                     new Line.Text("plannh.summary.help.move"),
                     new Line.Text("plannh.summary.help.nei"),
-                    new Line.Text("plannh.summary.help.add_recipe"))));
+                    new Line.Text("plannh.summary.help.add_recipe"),
+                    new Line.Text("plannh.summary.help.forbid"))));
     }
 
     @Override
@@ -267,9 +282,9 @@ public final class Summary extends GraphData {
      */
     public int[] getSectionOrder() {
         final int n = Section.VALUES.length;
-        boolean valid = sectionOrder != null && sectionOrder.length == n;
+        final boolean[] seen = new boolean[n];
+        boolean valid = sectionOrder != null && sectionOrder.length <= n;
         if (valid) {
-            final boolean[] seen = new boolean[n];
             for (final int ordinal : sectionOrder) {
                 if (ordinal < 0 || ordinal >= n || seen[ordinal]) {
                     valid = false;
@@ -278,12 +293,32 @@ public final class Summary extends GraphData {
                 seen[ordinal] = true;
             }
         }
-        if (!valid) sectionOrder = defaultSectionOrder();
+        if (!valid) {
+            sectionOrder = defaultSectionOrder();
+        } else if (sectionOrder.length < n) {
+            // Saved before a section existed: keep the player's order and add the new ones last.
+            final int[] grown = Arrays.copyOf(sectionOrder, n);
+            int next = sectionOrder.length;
+            for (final int ordinal : defaultSectionOrder()) {
+                if (!seen[ordinal]) grown[next++] = ordinal;
+            }
+            sectionOrder = grown;
+        }
         return sectionOrder;
     }
 
     private static int[] defaultSectionOrder() {
-        return Arrays.stream(Section.VALUES)
+        return Stream
+            .of(
+                Section.ALL,
+                Section.OUTPUTS,
+                Section.INPUTS,
+                Section.CHOICES,
+                Section.FORBIDDEN,
+                Section.PROPERTIES,
+                Section.MACHINE_COUNTS,
+                Section.MESSAGES,
+                Section.HELP)
             .mapToInt(Section::ordinal)
             .toArray();
     }
@@ -382,6 +417,7 @@ public final class Summary extends GraphData {
         }
         setLines(Section.MACHINE_COUNTS, machineLines);
         setLines(Section.CHOICES, choiceLines(graph));
+        setLines(Section.FORBIDDEN, forbiddenLines(graph));
         setLines(Section.MESSAGES, messageLines());
 
         atVersion = graph.version();
@@ -488,6 +524,23 @@ public final class Summary extends GraphData {
         choicesComplete = alternatives.complete();
         choiceNotes = alternatives.notes();
         return solved.auto().openGates > 0 ? BalanceView.toLineChoices(graph, alternatives) : List.of();
+    }
+
+    /** One row per forbidden gate, named by the port the player right-clicked. */
+    private static List<Line<?>> forbiddenLines(final Graph graph) {
+        final List<Line<?>> out = new ArrayList<>();
+        for (final PortRef port : graph.getForbiddenGates()) {
+            final Node node = graph.nodes.get(port.nodeId());
+            if (node == null) continue;
+            final List<Port<?>> ports = port.input() ? node.inputs : node.outputs;
+            if (port.portIndex() >= ports.size()) continue;
+            final Note label = (port.input() ? SolverMessage.FORBIDDEN_IMPORT : SolverMessage.FORBIDDEN_EXCESS).toNote(
+                ports.get(port.portIndex())
+                    .getDisplayName(),
+                node.machineName);
+            out.add(new Line.Forbidden(port, label));
+        }
+        return out;
     }
 
     /** Everything the solver had to say, at every severity, in solver order. */

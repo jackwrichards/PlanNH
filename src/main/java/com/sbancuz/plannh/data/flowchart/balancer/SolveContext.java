@@ -1,6 +1,8 @@
 package com.sbancuz.plannh.data.flowchart.balancer;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -12,6 +14,7 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 
 import com.sbancuz.plannh.data.flowchart.Graph;
+import com.sbancuz.plannh.data.flowchart.Node;
 
 /**
  * The shared, mutable state of one solve run - the "threaded" half of the zero-copy pipeline.
@@ -48,6 +51,9 @@ public final class SolveContext {
     /** The pin types this balance mode honors; others are ignored at construction. */
     public final Set<Pin> pins;
 
+    /** Per gate: the player ruled it out, so it carries nothing in any model. */
+    public final boolean[] forbidden;
+
     /** Pass-2 "every machine runs" floors (crafts/s); empty when none. Set by the runner. */
     public double[] floors = new double[0];
     /** True when a prelude or stage has proven the whole chain optimal and halted it. */
@@ -80,6 +86,7 @@ public final class SolveContext {
     SolveContext(final Graph graph, final Heuristics heuristics, final Budget budget,
         final Map<UUID, Double> extraExtentPins, final Set<Pin> pins, final Profiler profiler) {
         this.model = new ModelData(graph, heuristics);
+        this.forbidden = new boolean[model.gates.size()];
         this.heuristics = heuristics;
         this.budget = budget;
         this.pins = Set.copyOf(pins);
@@ -136,6 +143,18 @@ public final class SolveContext {
                         actual,
                         t.getValue()));
             }
+        }
+    }
+
+    /**
+     * Rules out the gate behind each ref. A ref on a port that no longer carries an edge names no
+     * gate and is skipped: the chart changed under it, and a free terminal is not the player's to
+     * forbid.
+     */
+    public void forbid(final Collection<PortRef> refs) {
+        for (final PortRef ref : refs) {
+            final Integer port = model.portOf(ref);
+            if (port != null) forbidden[model.portGate[port]] = true;
         }
     }
 
@@ -349,6 +368,32 @@ public final class SolveContext {
         }
         if (dropped.isEmpty()) return null;
         return new Note(SolverMessage.PIN_CONFLICT, String.join(", ", dropped));
+    }
+
+    /**
+     * The forbidden gates, when they alone stand between the chart and a balance: the most
+     * permissive model fails with them and closes without them. Null when they are not the reason.
+     */
+    public @Nullable Note diagnoseForbidden() {
+        final List<String> names = new ArrayList<>();
+        for (int g = 0; g < forbidden.length; g++) {
+            if (!forbidden[g]) continue;
+            final PortRef anchor = anchorOf(g);
+            final Node node = model.machines.get(model.machineIndex.get(anchor.nodeId())).node;
+            final String ingredient = (anchor.input() ? node.inputs : node.outputs).get(anchor.portIndex())
+                .getDisplayName();
+            names.add("'" + ingredient + "' at '" + node.machineName + "'");
+        }
+        if (names.isEmpty()) return null;
+        final boolean[] saved = forbidden.clone();
+        Arrays.fill(forbidden, false);
+        try {
+            if (Solver.externalsLp(this, null)
+                .isRejected()) return null;
+        } finally {
+            System.arraycopy(saved, 0, forbidden, 0, forbidden.length);
+        }
+        return new Note(SolverMessage.FORBIDDEN_CONFLICT, String.join(", ", names));
     }
 
     /** "Every machine runs" pass-2 floors; empty when every unpinned machine already runs. */

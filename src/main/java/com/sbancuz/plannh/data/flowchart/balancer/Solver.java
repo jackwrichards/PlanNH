@@ -119,7 +119,7 @@ public final class Solver {
         return confirmed(ctx, infeasible -> gateMILP(ctx, upperBoundCost, scale, infeasible));
     }
 
-    private static SolveResult gateMILP(final SolveContext ctx, final Double upperBoundCost, final double scale,
+    private static Proposal gateMILP(final SolveContext ctx, final Double upperBoundCost, final double scale,
         final List<Set<Integer>> infeasible) {
         final Numerics n = ctx.heuristics.numerics();
         double bigM = n.bigMFactor * scale;
@@ -152,19 +152,21 @@ public final class Solver {
             final long solveStart = System.currentTimeMillis();
             final Optimisation.Result result = solve(ctx, h, "stage 1 gate MILP");
             final boolean withinValve = System.currentTimeMillis() - solveStart < h.model().options.time_abort;
-            if (!isUsable(result)) return rejected(ctx, result);
+            if (!isUsable(result)) return new Proposal(rejected(ctx, result), Set.of());
             if (pressesCap(h, bigM)) {
                 ctx.profiler.bigMGrew("stage 1 gate MILP", bigM);
                 bigM *= 10;
                 continue;
             }
-            return fromHandles(
-                ctx,
-                h,
-                withinValve && result.getState()
-                    .isOptimal());
+            return new Proposal(
+                fromHandles(
+                    ctx,
+                    h,
+                    withinValve && result.getState()
+                        .isOptimal()),
+                opened(h));
         }
-        return SolveResult.rejected(ctx.rejection);
+        return new Proposal(SolveResult.rejected(ctx.rejection), Set.of());
     }
 
     /** Least external quantity over a fixed support: no binaries, so a plain LP. */
@@ -191,7 +193,7 @@ public final class Solver {
         return confirmed(ctx, infeasible -> quantityMILP(ctx, weightedCap, cuts, infeasible, scale));
     }
 
-    private static SolveResult quantityMILP(final SolveContext ctx, final double weightedCap,
+    private static Proposal quantityMILP(final SolveContext ctx, final double weightedCap,
         final List<Set<Integer>> cuts, final List<Set<Integer>> infeasible, final double scale) {
         final Numerics n = ctx.heuristics.numerics();
         double minWeight = Double.MAX_VALUE;
@@ -220,7 +222,7 @@ public final class Solver {
             addNoGoodCuts(h, cuts);
             addCoverCuts(h, infeasible);
             final Optimisation.Result result = solve(ctx, h, "stage 2 quantity MILP");
-            if (!isUsable(result)) return rejected(ctx, result);
+            if (!isUsable(result)) return new Proposal(rejected(ctx, result), Set.of());
             // A point big-M excluded imports more than bigM on some port, so its quantity exceeds
             // bigM * minWeight; below that bound, the optimum found is the optimum over every scale.
             if (pressesCap(h, bigM) || ctx.normalizedQuantity(values(h.extVars())) >= bigM * minWeight) {
@@ -228,9 +230,9 @@ public final class Solver {
                 bigM *= 10;
                 continue;
             }
-            return fromHandles(ctx, h, false);
+            return new Proposal(fromHandles(ctx, h, false), opened(h));
         }
-        return SolveResult.rejected(ctx.rejection);
+        return new Proposal(SolveResult.rejected(ctx.rejection), Set.of());
     }
 
     /**
@@ -238,13 +240,20 @@ public final class Solver {
      * a support that is infeasible on its own. Re-solve each answer as an LP over its support; cut
      * and retry every one the LP refutes.
      */
-    private static SolveResult confirmed(final SolveContext ctx, final Function<List<Set<Integer>>, SolveResult> milp) {
+    private static SolveResult confirmed(final SolveContext ctx, final Function<List<Set<Integer>>, Proposal> milp) {
         final List<Set<Integer>> infeasible = new ArrayList<>();
         while (true) {
-            final SolveResult found = milp.apply(infeasible);
+            final Proposal proposal = milp.apply(infeasible);
+            final SolveResult found = proposal.found();
             if (found.isRejected()) return found;
             final StageOutcome point = found.point();
-            final SolveResult lp = fixedQuantity(ctx, point.support);
+            SolveResult lp = fixedQuantity(ctx, point.support);
+            // An open gate can carry less than the support's zero tolerance and still be what makes
+            // the point work. Cutting on the flow-derived support alone lets the MILP answer the cut
+            // with that same gate again, so the refutation covers everything the MILP opened.
+            final Set<Integer> tried = new HashSet<>(point.support);
+            tried.addAll(proposal.opened());
+            if (lp.isRejected() && !tried.equals(point.support)) lp = fixedQuantity(ctx, tried);
             if (!lp.isRejected()) {
                 final StageOutcome confirmedPoint = lp.point();
                 return SolveResult.solved(
@@ -258,8 +267,20 @@ public final class Solver {
             if (infeasible.size() >= ctx.heuristics.numerics().maxRefutedSupports || ctx.budget.expired()) {
                 return lp;
             }
-            infeasible.add(point.support);
+            infeasible.add(tried);
         }
+    }
+
+    /** A gate MILP's answer and the gates whose binaries it opened to reach it. */
+    private record Proposal(SolveResult found, Set<Integer> opened) {}
+
+    private static Set<Integer> opened(final Handles h) {
+        final Set<Integer> open = new HashSet<>();
+        for (int g = 0; g < h.gateVars().length; g++) {
+            if (h.gateVars()[g].getValue()
+                .doubleValue() > 0.5) open.add(g);
+        }
+        return open;
     }
 
     /**
@@ -292,11 +313,7 @@ public final class Solver {
                 .isFeasible()) return new GateProof(true, null);
             if (!master.getState()
                 .isOptimal()) break;
-            final Set<Integer> support = new HashSet<>();
-            for (int g = 0; g < gates; g++) {
-                if (h.gateVars()[g].getValue()
-                    .doubleValue() > 0.5) support.add(g);
-            }
+            final Set<Integer> support = opened(h);
             final long lpStart = System.currentTimeMillis();
             final SolveResult lp = fixedQuantity(ctx, support);
             lps++;

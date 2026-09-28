@@ -92,7 +92,7 @@ public final class Enumerator {
         int skipped = 0;
         for (final int out : sorted(incumbent)) {
             for (int in = 0; in < ctx.model.gates.size(); in++) {
-                if (incumbent.contains(in)) continue;
+                if (incumbent.contains(in) || ctx.forbidden[in]) continue;
                 if (evaluated >= n.effort(n.maxAltSwaps) || ctx.budget.expired()) {
                     skipped++;
                     continue;

@@ -1,15 +1,19 @@
 package com.sbancuz.plannh.data.flowchart;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.SortedMap;
+import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.UUID;
 
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceMode;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceResult;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceView;
 import com.sbancuz.plannh.data.flowchart.balancer.ChoiceKey;
+import com.sbancuz.plannh.data.flowchart.balancer.PortRef;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -26,6 +30,9 @@ public class Graph {
     public final SortedMap<UUID, Edge> edges = new TreeMap<>();
     public final SortedMap<UUID, Note> notes = new TreeMap<>();
     public final SortedMap<UUID, Group> groups = new TreeMap<>();
+
+    /** Gates the player ruled out, each named by the port they right-clicked. */
+    private final SortedSet<PortRef> forbiddenGates = new TreeSet<>(PortRef.ORDER);
 
     @Getter
     @Setter
@@ -107,6 +114,18 @@ public class Graph {
         bumpVersion();
     }
 
+    public SortedSet<PortRef> getForbiddenGates() {
+        return Collections.unmodifiableSortedSet(forbiddenGates);
+    }
+
+    public void forbidGate(final PortRef port) {
+        if (forbiddenGates.add(port)) bumpVersion();
+    }
+
+    public void allowGate(final PortRef port) {
+        if (forbiddenGates.remove(port)) bumpVersion();
+    }
+
     public void setBalanceMode(final BalanceMode mode) {
         balanceMode = mode;
         bumpVersion();
@@ -114,6 +133,9 @@ public class Graph {
 
     public void removeNode(final UUID id) {
         nodes.remove(id);
+        forbiddenGates.removeIf(
+            port -> port.nodeId()
+                .equals(id));
         edges.values()
             .removeIf(e -> e.sourceNodeId.equals(id) || e.targetNodeId.equals(id));
         bumpVersion();

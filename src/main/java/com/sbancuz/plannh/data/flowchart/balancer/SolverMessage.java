@@ -40,6 +40,7 @@ public enum SolverMessage {
     // Pipeline diagnostics - the solver explaining a rejection or a conflict
     // -----------------------------------------------------------------------------------------
     PIN_CONFLICT(Severity.ERROR, "plannh.solver.pins_conflict"),
+    FORBIDDEN_CONFLICT(Severity.ERROR, "plannh.solver.forbidden_conflict"),
     STAGE_FAILED(Severity.ERROR, "plannh.solver.stage_failed"),
     MACHINES_CANNOT_RUN(Severity.ERROR, "plannh.solver.machines_cannot_run"),
     SOLVER_BUDGET(Severity.ERROR, "plannh.solver.budget"),
@@ -81,7 +82,9 @@ public enum SolverMessage {
     BOUNDARY_EXCESS(Severity.INFO, "plannh.solver.boundary_excess"),
     BOUNDARY_ADD(Severity.INFO, "plannh.solver.boundary_add"),
     BOUNDARY_FLOW(Severity.INFO, "plannh.solver.boundary_flow"),
-    BOUNDARY_NOTHING(Severity.INFO, "plannh.solver.boundary_nothing");
+    BOUNDARY_NOTHING(Severity.INFO, "plannh.solver.boundary_nothing"),
+    FORBIDDEN_IMPORT(Severity.INFO, "plannh.solver.forbidden_import"),
+    FORBIDDEN_EXCESS(Severity.INFO, "plannh.solver.forbidden_excess");
 
     private final Severity severity;
     private final String key;

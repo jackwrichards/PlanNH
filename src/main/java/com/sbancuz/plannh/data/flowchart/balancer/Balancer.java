@@ -81,13 +81,16 @@ public final class Balancer {
         final Map<UUID, Double> extraExtentPins, final Profiler profiler) {
         final long budgetMillis = mode.heuristics()
             .numerics().solveBudgetMillis;
-        return new SolveContext(
+        final SolveContext ctx = new SolveContext(
             graph,
             mode.heuristics(),
             Budget.of(budgetMillis),
             extraExtentPins,
             mode.pins(),
             profiler);
+        // Only AUTO chooses its gates; the fixed-machine modes import whatever their counts leave short.
+        if (mode == BalanceMode.AUTO) ctx.forbid(graph.getForbiddenGates());
+        return ctx;
     }
 
     /**

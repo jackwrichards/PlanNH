@@ -25,6 +25,7 @@ import com.sbancuz.plannh.data.MachineProfile;
 import com.sbancuz.plannh.data.MachineProfileRegistry;
 import com.sbancuz.plannh.data.SettingDef;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceMode;
+import com.sbancuz.plannh.data.flowchart.balancer.PortRef;
 
 import codechicken.nei.recipe.Recipe;
 
@@ -260,6 +261,19 @@ public final class Serializer {
         }
         root.add("edges", edgesArray);
 
+        final JsonArray forbiddenArray = new JsonArray();
+        for (final PortRef port : graph.getForbiddenGates()) {
+            final JsonObject obj = new JsonObject();
+            obj.addProperty(
+                "node",
+                port.nodeId()
+                    .toString());
+            obj.addProperty("port", port.portIndex());
+            obj.addProperty("input", port.input());
+            forbiddenArray.add(obj);
+        }
+        root.add("forbiddenGates", forbiddenArray);
+
         final JsonArray notesArray = new JsonArray();
         for (Note note : graph.getNotes()) notesArray.add(GSON.toJsonTree(note));
         root.add("notes", notesArray);
@@ -373,6 +387,21 @@ public final class Serializer {
             final int dstIn = obj.get("dstIn")
                 .getAsInt();
             graph.addEdge(new Edge(id, src, dst, srcOut, dstIn));
+        }
+
+        if (root.has("forbiddenGates")) {
+            for (final JsonElement elem : root.getAsJsonArray("forbiddenGates")) {
+                final JsonObject obj = elem.getAsJsonObject();
+                graph.forbidGate(
+                    new PortRef(
+                        UUID.fromString(
+                            obj.get("node")
+                                .getAsString()),
+                        obj.get("port")
+                            .getAsInt(),
+                        obj.get("input")
+                            .getAsBoolean()));
+            }
         }
 
         for (final JsonElement elem : root.getAsJsonArray("notes")) {

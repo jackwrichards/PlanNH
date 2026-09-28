@@ -211,9 +211,18 @@ public final class ModelData {
         }
     }
 
+    /** The connected port a {@link PortRef} names, or null when that port carries no edge. */
+    public @Nullable Integer portOf(final PortRef ref) {
+        final Integer machine = machineIndex.get(ref.nodeId());
+        return machine == null ? null : portLookup.get(portKey(machine, ref.portIndex(), ref.input()));
+    }
+
+    private static long portKey(final int machine, final int portIndex, final boolean input) {
+        return ((long) machine << 32) | ((long) portIndex << 1) | (input ? 1 : 0);
+    }
+
     private int internPort(final int machine, final int portIndex, final boolean input) {
-        final long key = ((long) machine << 32) | ((long) portIndex << 1) | (input ? 1 : 0);
-        return portLookup.computeIfAbsent(key, k -> {
+        return portLookup.computeIfAbsent(portKey(machine, portIndex, input), k -> {
             connectedPorts.add(
                 new ConnectedPort(
                     machine,
