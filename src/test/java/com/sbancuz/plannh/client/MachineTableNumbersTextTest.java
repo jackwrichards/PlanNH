@@ -3,9 +3,13 @@ package com.sbancuz.plannh.client;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Map;
+
 import org.junit.jupiter.api.Test;
 
-import com.sbancuz.plannh.data.provider.gregtech.GTMachinePreset;
+import com.sbancuz.plannh.data.provider.gregtech.GTMachineSpec;
+
+import gregtech.api.logic.ProcessingSpec;
 
 /**
  * The machine table is checked in and diffed against the next GregTech, so this rendering has to move
@@ -14,12 +18,14 @@ import com.sbancuz.plannh.data.provider.gregtech.GTMachinePreset;
  */
 class MachineTableNumbersTextTest {
 
+    private static GTMachineSpec machine(final ProcessingSpec spec) {
+        return GTMachineSpec.of(spec, Map.of(), 1);
+    }
+
     /** Every field, every time. A snapshot that drops defaults cannot tell "left" from "never set". */
     @Test
     void everyFieldIsAlwaysPresent() {
-        final String text = MachineTableCommand.numbersText(
-            GTMachinePreset.builder()
-                .build());
+        final String text = MachineTableCommand.numbersText(machine(ProcessingSpec.STANDARD));
 
         for (final String key : new String[] { "par=", "dur=", "eu=", "cost=", "ocD=", "ocE=", "noOC=", "heat=", "hOC=",
             "hDisc=", "rHeat=", "skips=" }) {
@@ -34,10 +40,11 @@ class MachineTableNumbersTextTest {
     @Test
     void wholeNumbersCarryNoTrailingZeros() {
         final String text = MachineTableCommand.numbersText(
-            GTMachinePreset.builder()
-                .speed(_ -> 2.0)
-                .eu(_ -> 1.0)
-                .build());
+            machine(
+                ProcessingSpec.builder()
+                    .durationMultiplier(in -> 2.0)
+                    .euModifier(in -> 1.0)
+                    .build()));
 
         assertTrue(text.contains("dur=2 "), "expected dur=2 in " + text);
         assertTrue(text.contains("eu=1 "), "expected eu=1 in " + text);
@@ -48,9 +55,10 @@ class MachineTableNumbersTextTest {
     @Test
     void fractionsUseADot() {
         final String text = MachineTableCommand.numbersText(
-            GTMachinePreset.builder()
-                .speed(_ -> 0.5)
-                .build());
+            machine(
+                ProcessingSpec.builder()
+                    .durationMultiplier(in -> 0.5)
+                    .build()));
 
         assertTrue(text.contains("dur=0.5"), "expected dur=0.5 in " + text);
         assertFalse(text.contains(","), "a locale-dependent separator reached the table: " + text);
@@ -63,15 +71,17 @@ class MachineTableNumbersTextTest {
     @Test
     void ratiosRenderAsFractionsRatherThanRoundedDecimals() {
         final String third = MachineTableCommand.numbersText(
-            GTMachinePreset.builder()
-                .speed(_ -> 1 / 3.0)
-                .build());
+            machine(
+                ProcessingSpec.builder()
+                    .durationMultiplier(in -> 1 / 3.0)
+                    .build()));
         assertTrue(third.contains("dur=1/3"), "expected dur=1/3 in " + third);
 
         final String quarters = MachineTableCommand.numbersText(
-            GTMachinePreset.builder()
-                .speed(_ -> 2.25)
-                .build());
+            machine(
+                ProcessingSpec.builder()
+                    .durationMultiplier(in -> 2.25)
+                    .build()));
         assertTrue(quarters.contains("dur=9/4"), "expected dur=9/4 in " + quarters);
     }
 
@@ -79,10 +89,11 @@ class MachineTableNumbersTextTest {
     @Test
     void exactShortDecimalsStayDecimal() {
         final String text = MachineTableCommand.numbersText(
-            GTMachinePreset.builder()
-                .speed(_ -> 0.9)
-                .eu(_ -> 0.95)
-                .build());
+            machine(
+                ProcessingSpec.builder()
+                    .durationMultiplier(in -> 0.9)
+                    .euModifier(in -> 0.95)
+                    .build()));
 
         assertTrue(text.contains("dur=0.9 "), "expected dur=0.9 in " + text);
         assertTrue(text.contains("eu=0.95 "), "expected eu=0.95 in " + text);
@@ -92,9 +103,10 @@ class MachineTableNumbersTextTest {
     @Test
     void tinyValuesAreNotZeroFractions() {
         final String text = MachineTableCommand.numbersText(
-            GTMachinePreset.builder()
-                .speed(_ -> 3.6e-12)
-                .build());
+            machine(
+                ProcessingSpec.builder()
+                    .durationMultiplier(in -> 3.6e-12)
+                    .build()));
 
         assertFalse(text.contains("dur=0/"), "a tiny value rendered as a zero fraction: " + text);
     }

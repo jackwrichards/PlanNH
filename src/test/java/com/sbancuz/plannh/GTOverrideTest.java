@@ -9,11 +9,11 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import com.sbancuz.plannh.data.Settings;
-import com.sbancuz.plannh.data.provider.gregtech.GTMachinePreset;
 import com.sbancuz.plannh.data.provider.gregtech.GTPresetApplier;
 import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 
 import gregtech.api.enums.GTValues;
+import gregtech.api.logic.ProcessingSpec;
 import gregtech.api.util.OverclockCalculator;
 import gregtech.api.util.tooltip.TooltipTier;
 
@@ -26,9 +26,9 @@ import gregtech.api.util.tooltip.TooltipTier;
 class GTOverrideTest {
 
     /** A perfect-overclocking machine, which is the case where a stray override shows up loudest. */
-    private static GTMachinePreset preset() {
-        return GTMachinePreset.builder()
-            .perfectOC()
+    private static ProcessingSpec spec() {
+        return ProcessingSpec.builder()
+            .perfectOverclock()
             .build();
     }
 
@@ -37,8 +37,7 @@ class GTOverrideTest {
     }
 
     private static OverclockCalculator build(final Map<String, Object> settings) {
-        final OverclockCalculator calc = GTPresetApplier
-            .buildFromPreset(preset(), state(), GTValues.VP[1], 1024, GTValues.V[5], 1, 0);
+        final OverclockCalculator calc = GTSpecs.calculator(spec(), state(), GTValues.VP[1], 1024, GTValues.V[5], 1, 0);
         GTPresetApplier.applyOverrides(calc, settings);
         return calc.setParallel(1)
             .setAmperageOC(true)
@@ -76,8 +75,8 @@ class GTOverrideTest {
      */
     @Test
     void zeroTierSkipsIsExpressible() {
-        final OverclockCalculator noSkips = GTPresetApplier
-            .buildFromPreset(preset(), state(), GTValues.V[6], 1024, GTValues.V[5], 1, 0);
+        final OverclockCalculator noSkips = GTSpecs
+            .calculator(spec(), state(), GTValues.V[6], 1024, GTValues.V[5], 1, 0);
         GTPresetApplier.applyOverrides(noSkips, Map.of(Settings.MAX_TIER_SKIPS.key(), 0));
 
         assertTrue(

@@ -25,7 +25,9 @@ import com.sbancuz.plannh.data.provider.GTProvider;
 
 import gregtech.api.enums.GTValues;
 import gregtech.api.enums.HeatingCoilLevel;
+import gregtech.api.logic.ProcessingSpec;
 import gregtech.api.util.GTUtility;
+import gregtech.api.util.OverclockCalculator;
 import gregtech.api.util.tooltip.TooltipTier;
 
 /**
@@ -34,7 +36,7 @@ import gregtech.api.util.tooltip.TooltipTier;
  *
  * <p>
  * These describe the structure a player built - which coil, which solenoid - rather than raw
- * overclock arithmetic. Each row is shown only when the selected machine's preset says it reads that
+ * overclock arithmetic. Each row is shown only when the selected machine's spec says it reads that
  * setting, so a node asks for the two or three numbers that machine actually uses instead of the
  * fifteen the old profiles offered.
  */
@@ -47,7 +49,7 @@ public final class GTSettings {
     /** Still GregTech's own: it reveals the raw overclock rows, which no other provider has. */
     public static final String ADVANCED = "gt_advanced";
 
-    // Read off the shared vocabulary rather than repeated as literals, so the key a preset names and
+    // Read off the shared vocabulary rather than repeated as literals, so the key a spec names and
     // the key a node stores cannot drift apart. Sourcing them from a method call also keeps them out
     // of the constant pool, which is what makes a single edit here reach every call site.
     public static final String COIL = Settings.GT_COIL.key();
@@ -190,7 +192,7 @@ public final class GTSettings {
 
     /**
      * Hands the node back to the raw overclock numbers. Also the provenance marker: while it is on,
-     * the settings map is what the user meant and no preset may override it.
+     * the settings map is what the user meant and no spec may override it.
      */
     public static final SettingDef<Boolean> ADVANCED_DEF = SettingDef
         .boolDef(ADVANCED, false, (v, c) -> v ? "A" : null);
@@ -205,14 +207,7 @@ public final class GTSettings {
 
     /** The selected machine's own parallel count for the structure the node describes. */
     public static int machineMaxParallel(final RecipeContext ctx, final Map<String, Object> settings) {
-        return Math.max(
-            1,
-            fromPreset(
-                ctx,
-                settings,
-                1,
-                (preset, state) -> preset.maxParallel()
-                    .applyAsInt(state)));
+        return Math.max(1, fromSpec(ctx, settings, 1, GTMachineSpec::maxParallel));
     }
 
     /**
@@ -220,27 +215,22 @@ public final class GTSettings {
      * advanced row resolves this way, so an untouched row reads what the machine actually does
      * instead of a global default that happens to be wrong for it.
      */
-    private static int fromPreset(final RecipeContext ctx, final Map<String, Object> settings, final int fallback,
-        final ToIntBiFunction<GTMachinePreset, StructureState> reader) {
+    private static int fromSpec(final RecipeContext ctx, final Map<String, Object> settings, final int fallback,
+        final ToIntBiFunction<GTMachineSpec, StructureState> reader) {
         final GTMachineIndex.MachineEntry entry = GTMachineIndex.selected(ctx, settings);
-        if (entry == null || entry.preset() == null) return fallback;
-        return reader
-            .applyAsInt(entry.preset(), resolve(ctx, settings, voltageTier(ctx, settings), mode(ctx, entry, settings)));
+        if (entry == null || entry.machine() == null) return fallback;
+        return reader.applyAsInt(
+            entry.machine(),
+            resolve(ctx, settings, voltageTier(ctx, settings), mode(ctx, entry, settings)));
     }
 
-    /** Percentages the rows show; the maths uses the preset's exact doubles, never these. */
+    /** Percentages the rows show; the maths uses the spec's exact doubles, never these. */
     public static final SettingDef<Integer> SPEED_DEF = SettingDef.autoIntDef(
         Settings.SPEED.key(),
         10,
         10000,
         100,
-        (ctx, s) -> fromPreset(
-            ctx,
-            s,
-            100,
-            (p, st) -> (int) Math.round(
-                100.0 / p.durationModifier()
-                    .applyAsDouble(st))),
+        (ctx, s) -> fromSpec(ctx, s, 100, (m, st) -> (int) Math.round(100.0 / m.durationMultiplier(st))),
         (v, c) -> "⏱" + v + "%");
 
     public static final SettingDef<Integer> EUT_DISCOUNT_DEF = SettingDef.autoIntDef(
@@ -248,13 +238,7 @@ public final class GTSettings {
         0,
         100,
         100,
-        (ctx, s) -> fromPreset(
-            ctx,
-            s,
-            100,
-            (p, st) -> (int) Math.round(
-                100.0 * p.euModifier()
-                    .applyAsDouble(st))),
+        (ctx, s) -> fromSpec(ctx, s, 100, (m, st) -> (int) Math.round(100.0 * m.euModifier(st))),
         (v, c) -> "D" + v + "%");
 
     public static final SettingDef<Integer> EUT_PER_OC_DEF = SettingDef.autoIntDef(
@@ -262,13 +246,13 @@ public final class GTSettings {
         100,
         1000,
         400,
-        (ctx, s) -> fromPreset(
+        (ctx, s) -> fromSpec(
             ctx,
             s,
             400,
-            (p, st) -> (int) Math.round(
-                100.0 * p.eutIncreasePerOC()
-                    .applyAsDouble(st))),
+            (m, st) -> (int) Math.round(
+                100.0 * m.overclockRatio()
+                    .euMultiplier())),
         (v, c) -> "EU×" + (v / 100));
 
     public static final SettingDef<Integer> DURATION_PER_OC_DEF = SettingDef.autoIntDef(
@@ -276,13 +260,13 @@ public final class GTSettings {
         100,
         1000,
         200,
-        (ctx, s) -> fromPreset(
+        (ctx, s) -> fromSpec(
             ctx,
             s,
             200,
-            (p, st) -> (int) Math.round(
-                100.0 * p.durationDecreasePerOC()
-                    .applyAsDouble(st))),
+            (m, st) -> (int) Math.round(
+                100.0 * m.overclockRatio()
+                    .durationDivisor())),
         (v, c) -> "Spd×" + (v / 100));
 
     public static final SettingDef<Integer> MACHINE_HEAT_DEF = SettingDef.autoIntDef(
@@ -290,12 +274,7 @@ public final class GTSettings {
         0,
         100000,
         0,
-        (ctx, s) -> fromPreset(
-            ctx,
-            s,
-            0,
-            (p, st) -> p.machineHeat()
-                .applyAsInt(st)),
+        (ctx, s) -> fromSpec(ctx, s, 0, GTMachineSpec::machineHeat),
         (v, c) -> "M" + v);
 
     /**
@@ -307,58 +286,77 @@ public final class GTSettings {
     public static final SettingDef<Integer> RECIPE_HEAT_DEF = SettingDef
         .autoIntDef(Settings.RECIPE_HEAT.key(), 0, 100000, 0, (ctx, s) -> {
             final GTMachineIndex.MachineEntry entry = GTMachineIndex.selected(ctx, s);
-            final GTMachinePreset preset = entry == null ? null : entry.preset();
-            if (preset == null || !preset.usesHeat()) return 0;
-            return GTPresetApplier.recipeHeat(ctx, preset);
+            final GTMachineSpec machine = entry == null ? null : entry.machine();
+            final ProcessingSpec.Heat heat = machine == null ? null
+                : machine.spec()
+                    .getHeat()
+                    .orElse(null);
+            if (heat == null) return 0;
+            final Integer special = ctx.getOrDefault(GTProvider.SPECIAL_VALUE, null);
+            return heat.getFixedRecipeHeat()
+                .orElse(special != null ? special : 0);
         }, (v, c) -> "R" + v);
 
-    /** GT's own heat discount base, 0.95 per 900K of headroom. */
-    public static final SettingDef<Integer> HEAT_DISCOUNT_MULT_DEF = SettingDef
-        .autoIntDef(Settings.HEAT_DISCOUNT_MULT.key(), 0, 200, 95, (ctx, s) -> 95, null);
+    private static final int HEAT_DISCOUNT_PERCENT = (int) Math
+        .round(100 * OverclockCalculator.DEFAULT_HEAT_DISCOUNT_MULTIPLIER);
 
-    /**
-     * A machine that skips no tiers reports 0, which is a real answer. -1 on the preset means the
-     * machine never asked, leaving GT's own default of one.
-     */
+    /** GT's own heat discount base, per 900K of headroom. */
+    public static final SettingDef<Integer> HEAT_DISCOUNT_MULT_DEF = SettingDef.autoIntDef(
+        Settings.HEAT_DISCOUNT_MULT.key(),
+        0,
+        200,
+        HEAT_DISCOUNT_PERCENT,
+        (ctx, s) -> HEAT_DISCOUNT_PERCENT,
+        null);
+
+    /** A machine that skips no tiers reports 0, which is a real answer. A spec that says nothing leaves GT's 1. */
     public static final SettingDef<Integer> MAX_TIER_SKIPS_DEF = SettingDef.autoIntDef(
         Settings.MAX_TIER_SKIPS.key(),
         0,
         10,
         1,
-        (ctx, s) -> fromPreset(
+        (ctx, s) -> fromSpec(
             ctx,
             s,
             1,
-            (p, st) -> p.maxTierSkips() == GTMachinePreset.TIER_SKIPS_UNSET ? 1 : p.maxTierSkips()),
+            (m, st) -> m.spec()
+                .getMaxTierSkips()
+                .orElse(OverclockCalculator.DEFAULT_MAX_TIER_SKIPS)),
         (v, c) -> "Sk" + v);
 
     public static final SettingDef<Boolean> PERFECT_OC_DEF = SettingDef.autoBoolDef(
         Settings.PERFECT_OC.key(),
-        (ctx, s) -> fromPreset(
+        (ctx, s) -> fromSpec(
             ctx,
             s,
             0,
-            (p, st) -> p.durationDecreasePerOC()
-                .applyAsDouble(st) >= 4.0 ? 1 : 0),
+            (m, st) -> m.spec()
+                .isPerfectOverclock() ? 1 : 0),
         (v, c) -> v ? "P" : null);
 
     public static final SettingDef<Boolean> HEAT_OC_DEF = SettingDef.autoBoolDef(
         Settings.HEAT_OC.key(),
-        (ctx, s) -> fromPreset(ctx, s, 0, (p, st) -> p.heatOC() ? 1 : 0),
+        (ctx, s) -> fromSpec(ctx, s, 0, (m, st) -> heatRule(m, ProcessingSpec.HeatRule.OVERCLOCK)),
         (v, c) -> v ? "H" : null);
 
     public static final SettingDef<Boolean> HEAT_DISCOUNT_DEF = SettingDef.autoBoolDef(
         Settings.HEAT_DISCOUNT.key(),
-        (ctx, s) -> fromPreset(ctx, s, 0, (p, st) -> p.heatDiscount() ? 1 : 0),
+        (ctx, s) -> fromSpec(ctx, s, 0, (m, st) -> heatRule(m, ProcessingSpec.HeatRule.DISCOUNT)),
         (v, c) -> v ? "D" : null);
 
     public static final SettingDef<Boolean> UNLIMITED_SKIPS_DEF = SettingDef.autoBoolDef(
         Settings.UNLIMITED_SKIPS.key(),
-        (ctx, s) -> fromPreset(ctx, s, 0, (p, st) -> p.unlimitedTierSkips() ? 1 : 0),
+        (ctx, s) -> fromSpec(
+            ctx,
+            s,
+            0,
+            (m, st) -> m.spec()
+                .getMaxTierSkips()
+                .orElse(0) == Integer.MAX_VALUE ? 1 : 0),
         (v, c) -> v ? "∞T" : null);
 
     /**
-     * Amperage comes from the machine block itself rather than from a preset formula, and is a floor
+     * Amperage comes from the machine block itself rather than from a spec formula, and is a floor
      * rather than a ceiling: a multiblock draws whatever its energy hatches supply, so the row must
      * step past what the machine reports on its own.
      */
@@ -450,6 +448,13 @@ public final class GTSettings {
         return entry == null ? 1
             : entry.modes()
                 .count() - 1;
+    }
+
+    private static int heatRule(final GTMachineSpec machine, final ProcessingSpec.HeatRule rule) {
+        return machine.spec()
+            .getHeat()
+            .map(heat -> rule == ProcessingSpec.HeatRule.OVERCLOCK ? heat.overclocks() : heat.discounts())
+            .orElse(false) ? 1 : 0;
     }
 
     /** What a structure setting can be set to, both ends included. */
@@ -605,13 +610,14 @@ public final class GTSettings {
     private static boolean overclocks(final RecipeContext ctx, final Map<String, Object> settings) {
         if (isAdvanced(settings)) return true;
         final GTMachineIndex.MachineEntry entry = GTMachineIndex.selected(ctx, settings);
-        return entry == null || entry.preset() == null
-            || !entry.preset()
-                .noOverclock();
+        return entry == null || entry.machine() == null
+            || !entry.machine()
+                .spec()
+                .isNoOverclock();
     }
 
     /**
-     * The preset already gives the machine's maximum, but planning for fewer than the structure
+     * The spec already gives the machine's maximum, but planning for fewer than the structure
      * allows is normal, so the cap stays editable wherever it can exceed one. A multiblock that runs
      * one recipe at a time - the Large Chemical Reactor, the IsaMill - reports a maximum of one, and
      * a row that can only be moved below what the machine does is not a plan anybody draws.
@@ -625,7 +631,7 @@ public final class GTSettings {
     /**
      * Whether the node stands for a multiblock. The machine picker already answers this, so the row is
      * never a question - but it stays a setting, because a node whose machine PlanNH cannot identify
-     * still needs a way to say which form factor it is, and because a preset may want to state it.
+     * still needs a way to say which form factor it is, and because a spec may want to state it.
      * Read through {@link MachineVariant#tieredByBuild()} rather than off a GregTech type, so that the
      * one fact has one authority and the question generalizes to a mod whose build choice is not a
      * hatch.
@@ -642,7 +648,7 @@ public final class GTSettings {
 
     /**
      * Settings the machine now derives. A chart saved before the picker existed has these tuned by
-     * hand, and honouring the preset instead would silently change its numbers, so such a chart
+     * hand, and honouring the spec instead would silently change its numbers, so such a chart
      * opens in advanced mode. Voltage and machine count are deliberately absent: they stay
      * user-owned in both modes, so a chart whose only change was "IV, x4" gets the compact UI.
      */

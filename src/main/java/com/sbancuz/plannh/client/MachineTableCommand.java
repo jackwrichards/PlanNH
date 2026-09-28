@@ -33,15 +33,17 @@ import com.sbancuz.plannh.data.properties.RecipeProperty;
 import com.sbancuz.plannh.data.provider.GTProvider;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachineIndex;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachineIndex.NumberSource;
-import com.sbancuz.plannh.data.provider.gregtech.GTMachinePreset;
+import com.sbancuz.plannh.data.provider.gregtech.GTMachineSpec;
 import com.sbancuz.plannh.data.provider.gregtech.GTSettings;
 import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 
 import gregtech.api.GregTechAPI;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.RecipeMapWorkable;
+import gregtech.api.logic.ProcessingSpec;
 import gregtech.api.metatileentity.implementations.MTEMultiBlockBase;
 import gregtech.api.recipe.RecipeMap;
+import gregtech.api.util.OverclockCalculator;
 
 /**
  * Writes what PlanNH believes about every GregTech multiblock to a Markdown file. No test can produce
@@ -222,7 +224,7 @@ public class MachineTableCommand extends CommandBase {
             mte.getLocalName(),
             numbers(entry),
             assumes(entry),
-            settingNames(entry == null ? null : entry.preset()),
+            settingNames(entry == null ? null : entry.machine()),
             visibleRows(entry, workable),
             modes(entry),
             mte.getClass()
@@ -254,12 +256,12 @@ public class MachineTableCommand extends CommandBase {
         return String.join(", ", labels);
     }
 
-    private static String settingNames(@Nullable final GTMachinePreset preset) {
-        if (preset == null) return "";
+    private static String settingNames(@Nullable final GTMachineSpec machine) {
+        if (machine == null) return "";
         final List<String> names = new ArrayList<>();
-        preset.structure()
+        machine.structure()
             .forEach((kind, range) -> names.add(kind.name() + " " + range.min() + "-" + range.max()));
-        preset.settings()
+        machine.settings()
             .forEach(setting -> names.add(setting.name()));
         return String.join(", ", names);
     }
@@ -294,81 +296,68 @@ public class MachineTableCommand extends CommandBase {
 
     /**
      * What a chart actually plans this machine with, so the file doubles as the snapshot a GregTech
-     * update is diffed against. A describer's numbers live in GregTech's own object rather than in a
-     * preset, so those say so instead of showing a preset the describer outranks.
+     * update is diffed against. A describer's numbers live in GregTech's own object rather than in the
+     * spec, so those say so instead of showing a spec the describer outranks.
      */
     private static String numbers(@Nullable final GTMachineIndex.MachineEntry entry) {
         if (entry == null) return "-";
         if (entry.describer() != null) return "describer";
-        return entry.preset() == null ? "-" : numbersText(entry.preset());
+        return entry.machine() == null ? "-" : numbersText(entry.machine());
     }
 
     /** Which numbers the machine's spec gives at its best rather than as it starts. */
     private static String assumes(@Nullable final GTMachineIndex.MachineEntry entry) {
-        if (entry == null || entry.preset() == null) return "";
+        if (entry == null || entry.machine() == null) return "";
         final List<String> names = new ArrayList<>();
-        entry.preset()
-            .bestCase()
+        entry.machine()
+            .spec()
+            .getBestCase()
             .forEach(quantity -> names.add("best " + quantity.name()));
         return String.join(", ", names);
     }
 
-    /** What {@code OverclockCalculator} starts at, which is what an unset preset leaves it on. */
-    private static final int DEFAULT_TIER_SKIPS = 1;
-
     /**
-     * Every number a preset resolves to, at the structure an untouched node shows: every structure
+     * Every number a spec resolves to, at the structure an untouched node shows: every structure
      * parameter at its maximum, at the lowest real voltage. All twelve always, in a fixed order, so a
      * GregTech update shows up as a diff on the machines whose numbers moved - a snapshot that omits
      * defaults cannot tell a value leaving its default from a value never set.
      */
     @Nonnull
-    public static String numbersText(@Nonnull final GTMachinePreset preset) {
+    public static String numbersText(@Nonnull final GTMachineSpec machine) {
         final StructureState state = StructureState.of(1, 0);
-        return "par=" + preset.maxParallel()
-            .applyAsInt(state)
+        final ProcessingSpec spec = machine.spec();
+        final ProcessingSpec.Heat heat = spec.getHeat()
+            .orElse(null);
+        return "par=" + machine.maxParallel(state)
             + " dur="
-            + num(
-                preset.durationModifier()
-                    .applyAsDouble(state))
+            + num(machine.durationMultiplier(state))
             + " eu="
-            + num(
-                preset.euModifier()
-                    .applyAsDouble(state))
+            + num(machine.euModifier(state))
             + " cost="
-            + num(
-                preset.energyCost()
-                    .applyAsDouble(state))
+            + num(machine.euModifierNotLimitingParallel(state))
             + " ocD="
             + num(
-                preset.durationDecreasePerOC()
-                    .applyAsDouble(state))
+                machine.overclockRatio()
+                    .durationDivisor())
             + " ocE="
             + num(
-                preset.eutIncreasePerOC()
-                    .applyAsDouble(state))
+                machine.overclockRatio()
+                    .euMultiplier())
             + " noOC="
-            + (preset.noOverclock() ? 1 : 0)
+            + (spec.isNoOverclock() ? 1 : 0)
             + " heat="
-            + (preset.usesHeat() ? preset.machineHeat()
-                .applyAsInt(state) : 0)
+            + machine.machineHeat(state)
             + " hOC="
-            + (preset.heatOC() ? 1 : 0)
+            + (heat != null && heat.overclocks() ? 1 : 0)
             + " hDisc="
-            + (preset.heatDiscount() ? 1 : 0)
+            + (heat != null && heat.discounts() ? 1 : 0)
             + " rHeat="
-            + preset.recipeHeatOverride()
+            + (heat == null ? -1
+                : heat.getFixedRecipeHeat()
+                    .orElse(-1))
             + " skips="
-            + tierSkips(preset);
-    }
-
-    /**
-     * What the calculator ends up with. An unset preset never calls the setter, so it lands on
-     * GregTech's default of one - which is not the same as a machine that pinned zero.
-     */
-    private static int tierSkips(final GTMachinePreset preset) {
-        if (preset.unlimitedTierSkips()) return Integer.MAX_VALUE;
-        return preset.maxTierSkips() == GTMachinePreset.TIER_SKIPS_UNSET ? DEFAULT_TIER_SKIPS : preset.maxTierSkips();
+            + spec.getMaxTierSkips()
+                .orElse(OverclockCalculator.DEFAULT_MAX_TIER_SKIPS);
     }
 
     /** Denominators a GregTech modifier is plausibly built from; 1/3 and 9/4 both fall inside this. */

@@ -1,7 +1,7 @@
 # What GregTech's ProcessingSpec does not yet tell PlanNH
 
 PlanNH plans a GregTech multiblock from the `ProcessingSpec` the machine declares
-(`GTSpecReader`). A number the spec leaves unset is planned at the plain default: parallel 1,
+(`GTMachineSpec`). A number the spec leaves unset is planned at the plain default: parallel 1,
 speed and EU 1, the standard 2/4 overclock. This file lists the machines where that default is
 wrong, and what GregTech or PlanNH would need to fix each one. `/plannh_machines` writes the
 current numbers of every machine to `plannh-machines.md`.
@@ -106,7 +106,11 @@ row). It does not model time acceleration or the spacetime discount.
 - **Steam multiblocks refuse recipes above their recipe voltage** (`getTierRecipes()`), and PlanNH
   does not model that limit: the picker offers them for recipes they will not run. Other
   multiblocks' `validateRecipe` restrictions are not modelled either.
-- **The steam structure row is the generic Structure kind** (1 = bronze, 2 = steel). A kind named
-  for it in GregTech's `TooltipTier` would read better.
+- **The steam structure row shows numbers** (1 = Basic, 2 = High Pressure). GregTech names the values
+  (`StructureParameter.label`), but PlanNH's generic structure rows do not show labels yet.
+- **Parallels are not limited by energy.** A node runs the machine's full parallel whatever its
+  voltage. GregTech runs fewer when the recipes' EU/t would exceed the hatches, which
+  `ProcessingSpec.calculate` reproduces. PlanNH builds GregTech's calculator instead, because the
+  Advanced rows override single calculator settings that `calculate` does not expose.
 - **The best-case assumption is only noted in `plannh-machines.md`.** A node planned at a best
   case does not say so in the chart.

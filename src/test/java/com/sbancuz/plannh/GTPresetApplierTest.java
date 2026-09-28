@@ -7,17 +7,16 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
-import com.sbancuz.plannh.data.provider.gregtech.GTMachinePreset;
-import com.sbancuz.plannh.data.provider.gregtech.GTPresetApplier;
 import com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers;
 import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 
 import gregtech.api.enums.GTValues;
+import gregtech.api.logic.ProcessingSpec;
 import gregtech.api.util.OverclockCalculator;
 import gregtech.api.util.tooltip.TooltipTier;
 
 /**
- * Checks that a preset configures {@link OverclockCalculator} the way a hand-written GregTech call
+ * Checks that a machine's spec configures {@link OverclockCalculator} the way a hand-written GregTech call
  * would. The oracle is GT's calculator itself, never a reimplementation of its arithmetic - these
  * would still pass if GT changed how overclocking works, and fail if PlanNH wired a setting to the
  * wrong setter.
@@ -25,11 +24,12 @@ import gregtech.api.util.tooltip.TooltipTier;
 class GTPresetApplierTest {
 
     /** The EBF's arithmetic, which GregTech now hands the probe: coil heat plus 100K per tier over MV. */
-    private static GTMachinePreset ebfShaped() {
-        return GTMachinePreset.builder()
-            .heatOC(s -> GTStructureTiers.coilHeat(s.tier(TooltipTier.COIL, 0)) + 100 * (s.voltageTier() - 2))
-            .heatDiscount()
-            .structure(TooltipTier.COIL, 0, GTStructureTiers.MAX_COIL_TIER)
+    private static ProcessingSpec ebfShaped() {
+        return ProcessingSpec.builder()
+            .heat(
+                in -> GTStructureTiers.coilHeat(in.tier(TooltipTier.COIL)) + 100 * (in.voltageTier() - 2),
+                ProcessingSpec.HeatRule.OVERCLOCK,
+                ProcessingSpec.HeatRule.DISCOUNT)
             .build();
     }
 
@@ -42,14 +42,14 @@ class GTPresetApplierTest {
      * overclocks and the heat discount all at once. GT's own unit tests use exactly this shape.
      */
     @Test
-    void blastFurnacePresetMatchesAHandWrittenGregTechCall() {
+    void blastFurnaceSpecMatchesAHandWrittenGregTechCall() {
         final int coilTier = 8;
         final int voltageTier = 5;
         final int recipeHeat = 1800;
-        // Read off the preset, not recomputed here: a copy of the formula would move with it and the
+        // Read off the spec, not recomputed here: a copy of the formula would move with it and the
         // comparison below would hold however wrong the row was. What is under test is the wiring.
-        final int machineHeat = ebfShaped().machineHeat()
-            .applyAsInt(state(voltageTier, coilTier));
+        final int machineHeat = GTSpecs.machine(ebfShaped())
+            .machineHeat(state(voltageTier, coilTier));
 
         final OverclockCalculator expected = new OverclockCalculator().setRecipeEUt(GTValues.VP[1])
             .setEUt(GTValues.V[voltageTier])
@@ -63,8 +63,8 @@ class GTPresetApplierTest {
             .setAmperageOC(true)
             .calculate();
 
-        final OverclockCalculator actual = GTPresetApplier
-            .buildFromPreset(
+        final OverclockCalculator actual = GTSpecs
+            .calculator(
                 ebfShaped(),
                 state(voltageTier, coilTier),
                 GTValues.VP[1],
@@ -85,8 +85,8 @@ class GTPresetApplierTest {
     @Test
     void blastFurnaceHeatDiscountIsGregTechs() {
         final int coilTier = 8;
-        final int machineHeat = ebfShaped().machineHeat()
-            .applyAsInt(state(5, coilTier));
+        final int machineHeat = GTSpecs.machine(ebfShaped())
+            .machineHeat(state(5, coilTier));
 
         final OverclockCalculator expected = new OverclockCalculator().setRecipeEUt(GTValues.VP[1])
             .setEUt(GTValues.V[5])
@@ -95,8 +95,8 @@ class GTPresetApplierTest {
             .setRecipeHeat(1800)
             .setMachineHeat(machineHeat);
 
-        final OverclockCalculator calc = GTPresetApplier
-            .buildFromPreset(ebfShaped(), state(5, coilTier), GTValues.VP[1], 1024, GTValues.V[5], 1, 1800);
+        final OverclockCalculator calc = GTSpecs
+            .calculator(ebfShaped(), state(5, coilTier), GTValues.VP[1], 1024, GTValues.V[5], 1, 1800);
 
         assertEquals(expected.calculateHeatDiscountMultiplier(), calc.calculateHeatDiscountMultiplier(), 1e-9);
     }
@@ -104,12 +104,12 @@ class GTPresetApplierTest {
     /** Perfect overclock is 4x duration per 4x EU, not GT's default 2x per 4x. */
     @Test
     void perfectOverclockHalvesDurationTwiceAsFast() {
-        final GTMachinePreset perfectOC = GTMachinePreset.builder()
-            .perfectOC()
+        final ProcessingSpec perfectOC = ProcessingSpec.builder()
+            .perfectOverclock()
             .build();
 
-        final OverclockCalculator perfect = GTPresetApplier
-            .buildFromPreset(perfectOC, state(5, 0), GTValues.VP[1], 1024, GTValues.V[5], 1, 0)
+        final OverclockCalculator perfect = GTSpecs
+            .calculator(perfectOC, state(5, 0), GTValues.VP[1], 1024, GTValues.V[5], 1, 0)
             .setParallel(1)
             .setAmperageOC(true)
             .calculate();
@@ -130,41 +130,36 @@ class GTPresetApplierTest {
     /**
      * Tier skipping is how far <em>above</em> the machine's own voltage a recipe may sit, so it only
      * shows up on a recipe the machine could not otherwise run. A ZPM recipe is four tiers over an
-     * IV machine: out of reach at GT's default of one skip, fine for a preset that lifts the limit.
+     * IV machine: out of reach at GT's default of one skip, fine for a spec that lifts the limit.
      */
     @Test
     void unlimitedTierSkipsReachAFourTierGap() {
-        final GTMachinePreset unlimited = GTMachinePreset.builder()
+        final ProcessingSpec unlimited = ProcessingSpec.builder()
             .unlimitedTierSkips()
             .build();
 
-        final OverclockCalculator forge = GTPresetApplier
-            .buildFromPreset(unlimited, state(5, 8), GTValues.V[7], 1024, GTValues.V[5], 1, 1800);
+        final OverclockCalculator forge = GTSpecs
+            .calculator(unlimited, state(5, 8), GTValues.V[7], 1024, GTValues.V[5], 1, 1800);
         final OverclockCalculator defaultLimit = new OverclockCalculator().setRecipeEUt(GTValues.V[7])
             .setEUt(GTValues.V[5])
             .setDuration(1024);
 
-        assertTrue(forge.getRecipeEUt() <= forge.getMaxAllowedRecipeEUt(), "an unlimited-skip preset lifts the limit");
+        assertTrue(forge.getRecipeEUt() <= forge.getMaxAllowedRecipeEUt(), "an unlimited-skip spec lifts the limit");
         assertTrue(
             defaultLimit.getRecipeEUt() > defaultLimit.getMaxAllowedRecipeEUt(),
             "GT's default of one skip does not reach four tiers");
     }
 
-    /**
-     * A preset may forbid skipping outright, so it cannot even reach one tier up - which is exactly
-     * what the settings-map path cannot express, since 0 there means "unset". Hence the preset's own
-     * sentinel.
-     */
+    /** A spec may forbid skipping outright, so it cannot even reach one tier up. */
     @Test
     void zeroTierSkipsRefusesEvenOneTier() {
-        final GTMachinePreset arc = GTMachinePreset.builder()
+        final ProcessingSpec arc = ProcessingSpec.builder()
             .maxTierSkips(0)
             .build();
-        assertEquals(0, arc.maxTierSkips());
 
         // One tier up: allowed by GT's default of a single skip, refused with skipping disabled.
-        final OverclockCalculator noSkips = GTPresetApplier
-            .buildFromPreset(arc, state(5, 0), GTValues.V[6], 1024, GTValues.V[5], 1, 0);
+        final OverclockCalculator noSkips = GTSpecs
+            .calculator(arc, state(5, 0), GTValues.V[6], 1024, GTValues.V[5], 1, 0);
         final OverclockCalculator defaultLimit = new OverclockCalculator().setRecipeEUt(GTValues.V[6])
             .setEUt(GTValues.V[5])
             .setDuration(1024);
@@ -177,33 +172,19 @@ class GTPresetApplierTest {
             "GT's default would have allowed it");
     }
 
-    /** A machine with no preset must still yield a usable calculator rather than throwing. */
-    @Test
-    void anAbsentPresetFallsBackToAPlainCalculator() {
-        final OverclockCalculator calc = GTPresetApplier
-            .buildFromPreset(null, state(5, 0), GTValues.VP[1], 1024, GTValues.V[5], 1, 0)
-            .setParallel(1)
-            .setAmperageOC(true)
-            .calculate();
-
-        assertTrue(calc.getDuration() > 0);
-        assertTrue(calc.getConsumption() > 0);
-    }
-
     /**
      * A steam multiblock's cost multiplies what it draws, and without overclocks the hatch voltage
      * changes nothing: GregTech's own no-overclock calculator is the oracle.
      */
     @Test
-    void noOverclockPresetMatchesGregTechsNoOverclockCalculator() {
-        final GTMachinePreset steam = GTMachinePreset.builder()
-            .speed(0.8)
-            .energyCost(s -> 2.5)
+    void noOverclockSpecMatchesGregTechsNoOverclockCalculator() {
+        final ProcessingSpec steam = ProcessingSpec.builder()
+            .durationMultiplier(in -> 0.8)
+            .euModifierNotLimitingParallel(in -> 2.5)
             .noOverclock()
             .build();
 
-        final OverclockCalculator planned = GTPresetApplier
-            .buildFromPreset(steam, state(9, 0), 16, 200, GTValues.V[9], 1, 0)
+        final OverclockCalculator planned = GTSpecs.calculator(steam, state(9, 0), 16, 200, GTValues.V[9], 1, 0)
             .setParallel(8)
             .calculate();
         final OverclockCalculator gregtech = OverclockCalculator.ofNoOverclock(16, 200)

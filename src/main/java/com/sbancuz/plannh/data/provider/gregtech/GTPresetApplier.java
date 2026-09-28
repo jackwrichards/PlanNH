@@ -13,6 +13,7 @@ import com.sbancuz.plannh.data.machine.MachineVariant;
 import com.sbancuz.plannh.data.provider.GTProvider;
 
 import gregtech.api.enums.GTValues;
+import gregtech.api.logic.ProcessingSpec;
 import gregtech.api.util.GTRecipe;
 import gregtech.api.util.OverclockCalculator;
 
@@ -25,8 +26,8 @@ import gregtech.api.util.OverclockCalculator;
  * <p>
  * Priority is GT's code first: a machine that publishes an
  * {@link gregtech.api.objects.overclockdescriber.OverclockDescriber} gets asked directly, which
- * covers every singleblock, steam machine and fusion reactor exactly and for free. Only multiblocks,
- * whose behaviour depends on the blocks around them, fall through to the preset their spec gives.
+ * covers every singleblock and fusion reactor exactly and for free. Multiblocks, whose behaviour
+ * depends on the blocks around them, get the calculator GregTech builds from their spec.
  */
 public final class GTPresetApplier {
 
@@ -71,32 +72,32 @@ public final class GTPresetApplier {
         // choice, so only there does the voltage row mean anything.
         final int voltageTier = entry.tieredByBuild() ? GTSettings.voltageTier(ctx, settings) : entry.voltageTier();
 
-        final GTMachinePreset preset = entry.preset();
+        final GTMachineSpec machine = entry.machine();
         final StructureState state = GTSettings
             .resolve(ctx, settings, voltageTier, GTSettings.mode(ctx, entry, settings));
 
         long eut = recipeEUt;
         int recipeDuration = duration;
-        if (preset != null && preset.recipeOverride() != null) {
-            eut = preset.recipeOverride()
-                .eut();
-            recipeDuration = preset.recipeOverride()
-                .duration();
+        final ProcessingSpec.RecipeOverride override = machine == null ? null
+            : machine.spec()
+                .getRecipeOverride()
+                .orElse(null);
+        if (override != null) {
+            eut = override.eut();
+            recipeDuration = override.duration();
         }
 
-        final int parallels = resolveParallels(settings, preset, state);
+        final int parallels = resolveParallels(settings, machine, state);
         final long machineVoltage = GTValues.V[Math.min(voltageTier, GTValues.V.length - 1)];
+        final GTRecipe recipe = ctx.getOrDefault(GTProvider.GT_RECIPE, null);
 
-        final OverclockCalculator calculator = entry.describer() != null
-            ? fromDescriber(ctx, entry, eut, recipeDuration)
-            : buildFromPreset(
-                preset,
-                state,
-                eut,
-                recipeDuration,
-                machineVoltage,
-                entry.amperage(),
-                recipeHeat(ctx, preset));
+        final OverclockCalculator calculator;
+        if (entry.describer() != null) calculator = fromDescriber(ctx, entry, eut, recipeDuration);
+        else if (machine == null || recipe == null)
+            calculator = plain(eut, recipeDuration, machineVoltage, entry.amperage());
+        else calculator = machine.calculator(recipe, state, machineVoltage, entry.amperage())
+            .setRecipeEUt(eut)
+            .setDuration(recipeDuration);
 
         applyOverrides(calculator, settings);
         calculator.setParallel(parallels)
@@ -189,64 +190,14 @@ public final class GTPresetApplier {
         }
     }
 
-    /**
-     * The preset branch on its own, so it can be exercised without a populated GT machine registry.
-     * Callers still apply parallel and amperage OC afterwards, as {@link #configure} does.
-     */
+    /** A single-speed machine at this voltage, for one PlanNH has no numbers for. */
     @Nonnull
-    public static OverclockCalculator buildFromPreset(@Nullable final GTMachinePreset preset,
-        final StructureState state, final long recipeEUt, final int duration, final long machineVoltage,
-        final long amperage, final int recipeHeat) {
-        final OverclockCalculator calculator = new OverclockCalculator().setRecipeEUt(recipeEUt)
+    private static OverclockCalculator plain(final long recipeEUt, final int duration, final long machineVoltage,
+        final long amperage) {
+        return new OverclockCalculator().setRecipeEUt(recipeEUt)
             .setDuration(duration)
             .setEUt(machineVoltage)
             .setAmperage(amperage);
-        if (preset == null) return calculator;
-
-        calculator.setDurationModifier(
-            preset.durationModifier()
-                .applyAsDouble(state))
-            .setEUtDiscount(
-                preset.euModifier()
-                    .applyAsDouble(state)
-                    * preset.energyCost()
-                        .applyAsDouble(state))
-            .setEUtIncreasePerOC(
-                preset.eutIncreasePerOC()
-                    .applyAsDouble(state))
-            .setDurationDecreasePerOC(
-                preset.durationDecreasePerOC()
-                    .applyAsDouble(state));
-
-        if (preset.noOverclock()) calculator.setNoOverclock(true);
-
-        if (preset.usesHeat()) {
-            calculator.setMachineHeat(
-                preset.machineHeat()
-                    .applyAsInt(state))
-                .setRecipeHeat(recipeHeat)
-                .setHeatOC(preset.heatOC())
-                .setHeatDiscount(preset.heatDiscount());
-        }
-
-        if (preset.unlimitedTierSkips()) {
-            calculator.setUnlimitedTierSkips();
-        } else if (preset.maxTierSkips() != GTMachinePreset.TIER_SKIPS_UNSET) {
-            calculator.setMaxTierSkips(preset.maxTierSkips());
-        }
-        return calculator;
-    }
-
-    /**
-     * The recipe's own heat requirement, which GT stores in mSpecialValue. A preset may pin it -
-     * the Industrial Alloy Smelter overclocks against a floor of 0 with its coil heat doubled.
-     */
-    public static int recipeHeat(final RecipeContext ctx, @Nullable final GTMachinePreset preset) {
-        if (preset != null && preset.recipeHeatOverride() != GTMachinePreset.RECIPE_HEAT_FROM_RECIPE) {
-            return preset.recipeHeatOverride();
-        }
-        final Integer special = ctx.getOrDefault(GTProvider.SPECIAL_VALUE, null);
-        return special != null ? special : 0;
     }
 
     /**
@@ -254,15 +205,11 @@ public final class GTPresetApplier {
      * and it means the maximum - a node must not silently run at one parallel because a default of 1
      * looked like a deliberate cap.
      */
-    private static int resolveParallels(final Map<String, Object> settings, @Nullable final GTMachinePreset preset,
+    private static int resolveParallels(final Map<String, Object> settings, @Nullable final GTMachineSpec machine,
         final StructureState state) {
-        final int fromPreset = preset == null ? 1
-            : Math.max(
-                1,
-                preset.maxParallel()
-                    .applyAsInt(state));
+        final int fromSpec = machine == null ? 1 : Math.max(1, machine.maxParallel(state));
         final int userCap = MachineProfile.getInt(settings, Settings.PARALLELS.key(), 0);
-        return userCap > 0 ? Math.min(userCap, fromPreset) : fromPreset;
+        return userCap > 0 ? Math.min(userCap, fromSpec) : fromSpec;
     }
 
 }

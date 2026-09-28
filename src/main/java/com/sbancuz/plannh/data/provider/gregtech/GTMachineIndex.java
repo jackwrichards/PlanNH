@@ -27,6 +27,7 @@ import gregtech.api.GregTechAPI;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IOverclockDescriptionProvider;
 import gregtech.api.interfaces.tileentity.RecipeMapWorkable;
+import gregtech.api.logic.ProcessingSpec;
 import gregtech.api.metatileentity.implementations.MTEBasicMachine;
 import gregtech.api.metatileentity.implementations.MTEMultiBlockBase;
 import gregtech.api.metatileentity.implementations.MTETieredMachineBlock;
@@ -56,7 +57,7 @@ public final class GTMachineIndex {
 
     /** What drives a machine's overclock, decided once here so nothing has to work it out again. */
     public enum NumberSource {
-        /** GregTech's own OverclockDescriber, which outranks any preset. */
+        /** GregTech's own OverclockDescriber, which outranks the spec's overclock. */
         DESCRIBER,
         /** The ProcessingSpec the machine declares. */
         SPEC,
@@ -73,13 +74,13 @@ public final class GTMachineIndex {
      * @param tieredByBuild true for a multiblock, whose energy hatch is a choice; false for a
      *                      singleblock, whose tier is the block a player placed.
      * @param describer     GT's own overclock behaviour for this machine, present on singleblocks and
-     *                      a handful of multis. When set it is authoritative and no preset is needed.
-     * @param preset        the multiblock's ProcessingSpec as a preset; null when it declares none.
+     *                      a handful of multis. When set it is authoritative for the overclock.
+     * @param machine       the multiblock's ProcessingSpec; null when it declares none.
      * @param numberSource  what drives this machine's overclock, for whoever has to review it.
      * @param modes         how many modes the machine has, and which recipemap selects which.
      */
     public record MachineEntry(String id, String displayName, boolean tieredByBuild, int voltageTier, int amperage,
-        int catalystPriority, @Nullable OverclockDescriber describer, @Nullable GTMachinePreset preset,
+        int catalystPriority, @Nullable OverclockDescriber describer, @Nullable GTMachineSpec machine,
         NumberSource numberSource, GTMachineModes.Modes modes) implements MachineVariant {
 
         /** The mode this recipe implies, or -1 when the user still has to say. */
@@ -88,20 +89,20 @@ public final class GTMachineIndex {
         }
 
         /**
-         * A machine with no preset reads no structure, so it offers no rows. That is the same answer
+         * A machine with no spec reads no structure, so it offers no rows. That is the same answer
          * as "we have no numbers for it", which is correct: guessing rows for a machine PlanNH cannot
          * model would put controls on a node that change nothing.
          */
         @Override
         @Nonnull
         public Set<Settings> settings() {
-            return preset == null ? Set.of() : preset.settings();
+            return machine == null ? Set.of() : machine.settings();
         }
 
         /** The structure parameters GregTech declares for this machine, each with its range. */
         @Nonnull
         public Map<TooltipTier, GTSettings.TierRange> structure() {
-            return preset == null ? Map.of() : preset.structure();
+            return machine == null ? Map.of() : machine.structure();
         }
 
         /**
@@ -248,7 +249,7 @@ public final class GTMachineIndex {
 
     /** Neither GT's own describer nor a spec, so its numbers are a generic guess. */
     private static boolean isUncovered(final MachineEntry entry) {
-        return entry.preset() == null && entry.describer() == null;
+        return entry.machine() == null && entry.describer() == null;
     }
 
     /**
@@ -280,10 +281,9 @@ public final class GTMachineIndex {
      * a node that has chosen nothing takes the first candidate.
      */
     private static int scale(final MachineEntry entry) {
-        if (entry.preset() == null) return 0;
-        return entry.preset()
-            .maxParallel()
-            .applyAsInt(RANKING_REFERENCE);
+        if (entry.machine() == null) return 0;
+        return entry.machine()
+            .maxParallel(RANKING_REFERENCE);
     }
 
     @Nonnull
@@ -360,15 +360,16 @@ public final class GTMachineIndex {
         final boolean tieredByBuild = mte instanceof MTEMultiBlockBase;
         final GTMachineModes.Modes modes = GTMachineModes.of(mte);
         // Read whether or not a describer exists: a describer machine still has its parallel and recipe
-        // override read off the preset.
-        final GTMachinePreset preset = GTSpecReader.read(mte, modes.count());
+        // override read off the spec.
+        final GTMachineSpec machine = GTMachineSpec.read(mte, modes.count());
         // A spec that states its own overclock outranks a describer, which the steam multiblocks share
         // with the steam singleblocks.
         final OverclockDescriber describer = mte instanceof final IOverclockDescriptionProvider provider
-            && (preset == null || !preset.ownsOverclock()) ? provider.getOverclockDescriber() : null;
+            && (machine == null || !machine.spec()
+                .sets(ProcessingSpec.Quantity.OVERCLOCK)) ? provider.getOverclockDescriber() : null;
         final NumberSource numberSource = describer != null ? NumberSource.DESCRIBER
-            : preset != null ? NumberSource.SPEC : NumberSource.NONE;
-        if (preset == null && describer == null && tieredByBuild) {
+            : machine != null ? NumberSource.SPEC : NumberSource.NONE;
+        if (machine == null && describer == null && tieredByBuild) {
             uncovered.add(mte.getClass().getName());
         }
 
@@ -380,7 +381,7 @@ public final class GTMachineIndex {
             mte instanceof final MTEBasicMachine basic ? basic.mAmperage : 1,
             workable.getRecipeCatalystPriority(),
             describer,
-            preset,
+            machine,
             numberSource,
             modes);
 
