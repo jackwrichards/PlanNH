@@ -383,9 +383,8 @@ class GroundTruthTest {
 
     @Test
     void platline230_oneHydrogenSource() {
-        // One gate suffices: the ammonia LCR imports all 3000 L/craft of its hydrogen. The import is
-        // ~6,750x the deletion filter's scale, far past the gate MILP's big-M, so only a proof that
-        // does not rely on M finds it; the alternative is a sodium source plus NaOH sink (2 gates).
+        // One gate suffices: the ammonia LCR imports all 3000 L/craft of its hydrogen. The other
+        // answer feeds it from the sodium LCR instead, which takes a sodium source and a NaOH sink.
         final LoadedChart chart = GtnhFlowLoader.load("230_platline");
         final SolutionView s = solve(chart);
 

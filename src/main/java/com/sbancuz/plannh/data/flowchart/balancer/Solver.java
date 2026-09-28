@@ -263,12 +263,8 @@ public final class Solver {
     }
 
     /**
-     * Whether any support cheaper than {@code weightedCost} is feasible at all. The gate MILPs only
-     * search supports whose imports fit under their big-M, and nothing bounds the scale a support
-     * may need, so this answers without one: a master over the gate binaries alone proposes the
-     * cheapest support no refutation rules out, and an LP over that support either confirms it -
-     * making it the optimum - or refutes it and every subset of the largest infeasible support
-     * containing it.
+     * Whether a support cheaper than {@code weightedCost} is feasible at any scale, which the gate
+     * MILPs cannot see past their big-M: a binary-only master proposes, an LP over the support refutes.
      */
     public static GateProof cheaperSupport(final SolveContext ctx, final double weightedCost) {
         final Numerics n = ctx.heuristics.numerics();
@@ -301,20 +297,22 @@ public final class Solver {
                 if (h.gateVars()[g].getValue()
                     .doubleValue() > 0.5) support.add(g);
             }
+            final long lpStart = System.currentTimeMillis();
             final SolveResult lp = fixedQuantity(ctx, support);
             lps++;
             if (!lp.isRejected()) {
                 final StageOutcome p = lp.point();
                 return new GateProof(true, StageOutcome.of(ctx, p.extents, p.flows, p.externals, true));
             }
+            if (!refuted(ctx, lp, lpStart)) break;
             for (int g = 0; g < gates && lps < n.gateProofLpBudget; g++) {
                 if (support.contains(g)) continue;
                 support.add(g);
+                final long grownStart = System.currentTimeMillis();
+                final SolveResult grown = fixedQuantity(ctx, support);
                 lps++;
-                if (!fixedQuantity(ctx, support).isRejected()) support.remove(g);
+                if (!grown.isRejected() || !refuted(ctx, grown, grownStart)) support.remove(g);
             }
-            // A refutation the budget cut short is not a refutation.
-            if (ctx.budget.expired()) break;
             infeasible.add(support);
         }
         return new GateProof(false, null);
@@ -325,6 +323,16 @@ public final class Solver {
      * and {@code cheaper} is the optimum when a cheaper support exists.
      */
     public record GateProof(boolean proven, @Nullable StageOutcome cheaper) {}
+
+    /**
+     * Whether a rejected LP proves its support infeasible. A model stopped by its time limit or by
+     * the whole budget is rejected too, and no model's limit is shorter than {@code minModelMillis}.
+     */
+    private static boolean refuted(final SolveContext ctx, final SolveResult lp, final long start) {
+        return lp.rejection()
+            .message() == SolverMessage.SOLVER_UNSATISFIABLE
+            && System.currentTimeMillis() - start < ctx.heuristics.numerics().minModelMillis;
+    }
 
     /** The one canonical point among a stage-3 optimum: redistributes within it, deterministically. */
     public static StageOutcome canonicalize(final SolveContext ctx, final Set<Integer> open, final StageOutcome s3) {
