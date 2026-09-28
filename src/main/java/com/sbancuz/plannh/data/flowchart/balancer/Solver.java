@@ -1,9 +1,12 @@
 package com.sbancuz.plannh.data.flowchart.balancer;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
+
+import javax.annotation.Nullable;
 
 import org.ojalgo.optimisation.Expression;
 import org.ojalgo.optimisation.Optimisation;
@@ -191,6 +194,10 @@ public final class Solver {
     private static SolveResult quantityMILP(final SolveContext ctx, final double weightedCap,
         final List<Set<Integer>> cuts, final List<Set<Integer>> infeasible, final double scale) {
         final Numerics n = ctx.heuristics.numerics();
+        double minWeight = Double.MAX_VALUE;
+        for (int p = 0; p < ctx.model.connectedPorts.size(); p++) {
+            minWeight = Math.min(minWeight, ctx.externalWeight(p));
+        }
         double bigM = n.bigMFactor * scale;
         for (int growth = 0; growth <= n.maxMGrowths; growth++) {
             final Handles h = ModelBuilder.over(ctx)
@@ -214,7 +221,9 @@ public final class Solver {
             addCoverCuts(h, infeasible);
             final Optimisation.Result result = solve(ctx, h, "stage 2 quantity MILP");
             if (!isUsable(result)) return rejected(ctx, result);
-            if (pressesCap(h, bigM)) {
+            // A point big-M excluded imports more than bigM on some port, so its quantity exceeds
+            // bigM * minWeight; below that bound, the optimum found is the optimum over every scale.
+            if (pressesCap(h, bigM) || ctx.normalizedQuantity(values(h.extVars())) >= bigM * minWeight) {
                 ctx.profiler.bigMGrew("stage 2 quantity MILP", bigM);
                 bigM *= 10;
                 continue;
@@ -252,6 +261,70 @@ public final class Solver {
             infeasible.add(point.support);
         }
     }
+
+    /**
+     * Whether any support cheaper than {@code weightedCost} is feasible at all. The gate MILPs only
+     * search supports whose imports fit under their big-M, and nothing bounds the scale a support
+     * may need, so this answers without one: a master over the gate binaries alone proposes the
+     * cheapest support no refutation rules out, and an LP over that support either confirms it -
+     * making it the optimum - or refutes it and every subset of the largest infeasible support
+     * containing it.
+     */
+    public static GateProof cheaperSupport(final SolveContext ctx, final double weightedCost) {
+        final Numerics n = ctx.heuristics.numerics();
+        final int gates = ctx.model.gates.size();
+        final List<Set<Integer>> infeasible = new ArrayList<>();
+        int lps = 0;
+        while (lps < n.gateProofLpBudget && !ctx.budget.expired()) {
+            final Handles h = ModelBuilder.over(ctx)
+                .gatesAlone()
+                .handles();
+            final Expression cap = h.model()
+                .addExpression("cheaper");
+            for (int g = 0; g < gates; g++) {
+                h.gateVars()[g].weight(ctx.gateWeight(g));
+                cap.set(h.gateVars()[g], ctx.gateWeight(g));
+            }
+            cap.upper(weightedCost - 0.5);
+            addCoverCuts(h, infeasible);
+            final long solveStart = System.currentTimeMillis();
+            final Optimisation.Result master = solve(ctx, h, "gate count proof");
+            // ojAlgo reports a search it abandoned as INFEASIBLE too, so only a master that finished
+            // inside its time valve proves anything.
+            if (System.currentTimeMillis() - solveStart >= h.model().options.time_abort) break;
+            if (!master.getState()
+                .isFeasible()) return new GateProof(true, null);
+            if (!master.getState()
+                .isOptimal()) break;
+            final Set<Integer> support = new HashSet<>();
+            for (int g = 0; g < gates; g++) {
+                if (h.gateVars()[g].getValue()
+                    .doubleValue() > 0.5) support.add(g);
+            }
+            final SolveResult lp = fixedQuantity(ctx, support);
+            lps++;
+            if (!lp.isRejected()) {
+                final StageOutcome p = lp.point();
+                return new GateProof(true, StageOutcome.of(ctx, p.extents, p.flows, p.externals, true));
+            }
+            for (int g = 0; g < gates && lps < n.gateProofLpBudget; g++) {
+                if (support.contains(g)) continue;
+                support.add(g);
+                lps++;
+                if (!fixedQuantity(ctx, support).isRejected()) support.remove(g);
+            }
+            // A refutation the budget cut short is not a refutation.
+            if (ctx.budget.expired()) break;
+            infeasible.add(support);
+        }
+        return new GateProof(false, null);
+    }
+
+    /**
+     * What {@link #cheaperSupport} established: {@code proven} is false when it ran out of budget,
+     * and {@code cheaper} is the optimum when a cheaper support exists.
+     */
+    public record GateProof(boolean proven, @Nullable StageOutcome cheaper) {}
 
     /** The one canonical point among a stage-3 optimum: redistributes within it, deterministically. */
     public static StageOutcome canonicalize(final SolveContext ctx, final Set<Integer> open, final StageOutcome s3) {
