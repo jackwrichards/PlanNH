@@ -2,7 +2,6 @@ package com.sbancuz.plannh.data;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -41,7 +40,7 @@ public record MachineProfile(String id, String displayName, List<SettingDef<?>> 
             this.displayName = displayName;
             if (NEIClientConfig.getSetting(NEIPlanConfig.ConfigBurnableOverride.KEY)
                 .getIntValue(NEIPlanConfig.ConfigBurnableOverride.OFF) == NEIPlanConfig.ConfigBurnableOverride.ON) {
-                addSetting(Settings.BURNABLE_OVERRIDE.def());
+                addSetting(Settings.BURNABLE_OVERRIDE);
             }
         }
 
@@ -70,24 +69,14 @@ public record MachineProfile(String id, String displayName, List<SettingDef<?>> 
         }
     }
 
-    public static int getInt(final Map<String, Object> s, final String key, final int def) {
-        final Object v = s.get(key);
-        return v instanceof final Number n ? n.intValue() : def;
-    }
-
-    public static boolean getBool(final Map<String, Object> s, final String key, final boolean def) {
-        final Object v = s.get(key);
-        return v instanceof final Boolean b ? b : def;
-    }
-
-    public static String getString(final Map<String, Object> s, final String key, final String def) {
-        final Object v = s.get(key);
-        return v instanceof final String str ? str : def;
-    }
-
+    /**
+     * The settings this profile offers for one machine: its own list, minus the ones hidden for
+     * this recipe and these values. Visibility is a question about the machine, so it answers
+     * against the config rather than against a bag of values.
+     */
     @Nonnull
-    public Stream<SettingDef<?>> visibleSettings(final RecipeContext ctx, final Map<String, Object> machineSettings) {
+    public Stream<SettingDef<?>> visibleSettings(final RecipeContext ctx, final MachineConfig config) {
         return settings.stream()
-            .filter(def -> def.isVisible(ctx, machineSettings));
+            .filter(def -> def.isVisible(ctx, config));
     }
 }

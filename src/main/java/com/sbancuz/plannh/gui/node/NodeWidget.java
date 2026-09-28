@@ -79,7 +79,7 @@ public class NodeWidget extends FlowchartWidget<NodeWidget, Node> {
 
         MachineConfig config = data.getMachineConfig();
         config.getProfile()
-            .visibleSettings(new RecipeContext(data.getProperties()), config.getSettings())
+            .visibleSettings(new RecipeContext(data.getProperties()), config)
             .map(
                 settingDef -> FlowchartFlow.row(this)
                     .fullWidth()

@@ -1,13 +1,8 @@
 package com.sbancuz.plannh.data.setting;
 
 import java.util.Arrays;
-import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 
-import org.jetbrains.annotations.Nullable;
-
-import com.cleanroommc.modularui.api.drawable.IKey;
 import com.cleanroommc.modularui.api.widget.IWidget;
 import com.cleanroommc.modularui.drawable.text.TextRenderer;
 import com.cleanroommc.modularui.value.EnumValue;
@@ -23,15 +18,13 @@ public class EnumSettingDef<E extends Enum<E>> extends SettingDef<E> {
     private final Class<E> type;
 
     public EnumSettingDef(String key, E defaultValue, Class<E> type,
-        @Nullable BiFunction<E, MachineConfig, String> badgeFn,
-        BiPredicate<RecipeContext, Map<String, Object>> visibility) {
-        super(key, defaultValue, badgeFn, visibility);
+        BiPredicate<RecipeContext, MachineConfig> visibility) {
+        super(key, defaultValue, visibility);
         this.type = type;
     }
 
-    public EnumSettingDef(String key, E defaultValue, Class<E> type,
-        @Nullable BiFunction<E, MachineConfig, String> badgeFn) {
-        this(key, defaultValue, type, badgeFn, (_, _) -> true);
+    public EnumSettingDef(String key, E defaultValue, Class<E> type) {
+        this(key, defaultValue, type, (_, _) -> true);
     }
 
     private int getMaxWidth() {
@@ -47,13 +40,9 @@ public class EnumSettingDef<E extends Enum<E>> extends SettingDef<E> {
     @Override
     public IWidget settingsWidget(MachineConfig config) {
         return new CycleButtonWidget().value(new EnumValue.Dynamic<>(type, () -> {
-            E val = config.getEnum(key, type);
+            E val = config.get(this);
             return val != null ? val : type.getEnumConstants()[0];
-        }, val -> config.setEnum(key, val)))
-            .child(
-                IKey.str("ERROR")
-                    .asWidget()
-                    .setEnabledIf(_ -> config.getEnum(key, type) == null))
+        }, val -> config.set(this, val)))
             .width(getMaxWidth()); // this throws if
     }
 }

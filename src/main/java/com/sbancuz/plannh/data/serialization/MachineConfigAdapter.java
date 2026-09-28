@@ -16,6 +16,7 @@ import com.sbancuz.plannh.data.MachineConfig;
 import com.sbancuz.plannh.data.MachineProfile;
 import com.sbancuz.plannh.data.MachineProfileRegistry;
 import com.sbancuz.plannh.data.setting.SettingDef;
+import com.sbancuz.plannh.data.setting.Settings;
 
 public class MachineConfigAdapter implements JsonSerializer<MachineConfig>, JsonDeserializer<MachineConfig> {
 
@@ -28,7 +29,7 @@ public class MachineConfigAdapter implements JsonSerializer<MachineConfig>, Json
 
         JsonObject settingsObj = new JsonObject();
         for (SettingDef<?> def : profile.settings()) {
-            Object val = src.getSettings().get(def.getKey());
+            Object val = src.get(def);
             if (val == null || val.equals(def.getDefaultValue())) continue;
             switch (val) {
                 case Boolean b -> settingsObj.addProperty(def.getKey(), b);
@@ -51,15 +52,18 @@ public class MachineConfigAdapter implements JsonSerializer<MachineConfig>, Json
             obj.get("profile")
                 .getAsString());
 
-        Map<String, Object> settings = new HashMap<>();
+        Map<SettingDef<?>, Object> settings = new HashMap<>();
         JsonObject settingsObj = obj.getAsJsonObject("settings");
         for (Map.Entry<String, JsonElement> entry : settingsObj.entrySet()) {
             JsonElement el = entry.getValue();
             if (el.isJsonPrimitive()) {
                 JsonPrimitive prim = el.getAsJsonPrimitive();
-                if (prim.isBoolean()) settings.put(entry.getKey(), prim.getAsBoolean());
-                else if (prim.isNumber()) settings.put(entry.getKey(), prim.getAsInt());
-                else settings.put(entry.getKey(), prim.getAsString());
+                final SettingDef<?> setting = Settings.get(entry.getKey());
+                if (setting == null) continue;
+
+                if (prim.isBoolean()) settings.put(setting, prim.getAsBoolean());
+                else if (prim.isNumber()) settings.put(setting, prim.getAsInt());
+                else settings.put(setting, prim.getAsString());
             }
         }
 

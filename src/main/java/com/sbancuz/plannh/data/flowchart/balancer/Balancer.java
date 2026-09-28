@@ -15,6 +15,7 @@ import com.sbancuz.plannh.data.flowchart.Node;
 import com.sbancuz.plannh.data.flowchart.balancer.alternatives.Alternatives;
 import com.sbancuz.plannh.data.flowchart.balancer.alternatives.Enumerator;
 import com.sbancuz.plannh.data.properties.RecipeProperty;
+import com.sbancuz.plannh.data.setting.Settings;
 
 /**
  * The single entry point of the balancer package. Every {@link BalanceMode} is a {@link Chain}:
@@ -241,7 +242,7 @@ public final class Balancer {
             counts.put(
                 node.getId(),
                 (double) node.getMachineConfig()
-                    .getMachineCount());
+                    .get(Settings.MACHINES));
         }
         return counts;
     }

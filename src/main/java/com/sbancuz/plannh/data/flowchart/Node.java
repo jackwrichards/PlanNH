@@ -212,4 +212,19 @@ public class Node extends GraphData {
             || machineConfig == null
             || targetOutputRates == null;
     }
+
+    // TODO: Find a better way to make the tests work
+    public Node(final UUID id, String name, final int x, final int y) {
+        super(id);
+        this.x = x;
+        this.y = y;
+        this.machineConfig = new MachineConfig();
+        recipeId = null;
+        machineName = name;
+        properties = new HashMap<>();
+        inputs = new ArrayList<>();
+        outputs = new ArrayList<>();
+        extractor = DefaultProvider.INSTANCE;
+        availableExtractors = List.of(DefaultProvider.INSTANCE);
+    }
 }
