@@ -77,7 +77,26 @@ Their own `checkProcessing` does not use `ProcessingLogic`, so a spec would neve
 the eleven nanochip assembly modules, the Integrated Ore Factory, the Tree Growth Simulator and
 the Steam Water Pump.
 
+**Eye of Harmony.** Its recipe check (`checkProcessing_EM`) builds no overclock calculator, and
+its numbers are not overclock numbers:
+
+- Parallel is `2^floor(log(8 x arrays) / log 1.7)`, where `arrays` is the astral arrays it has
+  taken from its input bus into an internal counter, capped at 8637. That is an item count,
+  which the spec cannot read.
+- Duration and output depend on the spacetime compression, time acceleration and stabilisation
+  field tiers. GregTech does not declare these as structure parameters.
+- The time discount compares the recipe's required spacetime tier with the built one, so it
+  also depends on the recipe.
+
+PlanNH keeps its own copy of the parallel formula (`GTProvider`, with the node's astral array
+row). It does not model time acceleration or the spacetime discount.
+
 ## PlanNH-side gaps
+
+- **Fusion recipes get a perfect overclock by a PlanNH rule** (`GTProvider`) when a node has no
+  machine selected. It only approximates GregTech: `FusionOverclockDescriber` overclocks 2/2,
+  capped by the recipe's startup energy, and only `AdvancedFusionOverclockDescriber` overclocks
+  4/4. A node with a fusion computer selected uses the machine's own describer.
 
 - **Steam multiblocks are planned in EU, not steam.** The spec gives their real speed, energy cost
   and no-overclock, and outranks GregTech's steam describer. That describer is the bronze
