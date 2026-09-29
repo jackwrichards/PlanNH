@@ -33,7 +33,7 @@ public class MachineCountFixedButtonWidget extends ButtonWidget<MachineCountFixe
         overlay(
             IKey.lang(LANG + ".short")
                 .color(
-                    () -> !node().isMachineCountFixed() ? PlannhColors.SETTING_ON.getColor()
+                    () -> node().isMachineCountFixed() ? PlannhColors.SETTING_ON.getColor()
                         : PlannhColors.SETTING_OFF.getColor()));
     }
 

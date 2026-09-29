@@ -128,6 +128,11 @@ plannh.gui.node.fixed.short=✓
 plannh.gui.node.fixed.pinned_hint=Kept at the count above; the balance fits the rest of the chart around it
 plannh.gui.node.fixed.unpinned_hint=Whatever count the balance asks for; click to pin it to the count above
 
+## GUI - Node settings
+plannh.gui.node.settings=Machine settings
+plannh.gui.node.settings.hide_hint=Click to fold these rows away
+plannh.gui.node.settings.show_hint=Click to show the rows again
+
 ## GUI - Groups
 plannh.gui.group.add_machine_group=Add Machine Group
 plannh.gui.group.machine_badge=[M]

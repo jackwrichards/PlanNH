@@ -47,6 +47,9 @@ public class Node extends GraphData {
     @Setter
     private boolean machineCountFixed;
 
+    @Setter
+    private transient boolean settingsOpen = true;
+
     /**
      * Target production rates by output port index, in ingredient units per second. A target is
      * a pin: AUTO holds the machine's extent so the targeted output hits the rate exactly, and

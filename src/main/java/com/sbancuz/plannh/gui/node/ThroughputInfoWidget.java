@@ -69,7 +69,7 @@ public class ThroughputInfoWidget extends ParentWidget<ThroughputInfoWidget> imp
     private void rebuild() {
         final Node node = parent.getData();
         final Balancer.NodeBalance nb = balance();
-        final int duration = durationTicks(node);
+        final int duration = nb == null ? durationTicks(node) : nb.durationPerOp();
         final double operations = nb == null ? -1 : nb.operations();
 
         if (operations == lastOperations && duration == lastDuration) return;
@@ -89,7 +89,11 @@ public class ThroughputInfoWidget extends ParentWidget<ThroughputInfoWidget> imp
                 .mainAxisAlignment(Alignment.MainAxis.SPACE_BETWEEN)
                 .tooltipBuilder(this::rates)
                 .tooltipAutoUpdate(true)
-                .child(new FlowchartTextWidget(count, parent))
+                .child(FlowchartFlow.row(parent)
+                    .coverChildrenHeight()
+                    .childPadding(2)
+                    .child(new MachineCountFixedButtonWidget(parent))
+                    .child(new FlowchartTextWidget(count, parent)))
                 .child(
                     new FlowchartTextWidget(IKey.lang(LANG + "duration", GuiHelper.formatDuration(duration)), parent)));
 

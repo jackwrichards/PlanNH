@@ -27,9 +27,15 @@ public class BooleanSettingDef extends SettingDef<Boolean> {
     }
 
     @Override
-    public IWidget settingsWidget(MachineConfig config) {
-        return new ToggleButton().value(new BoolValue.Dynamic(() -> config.get(this), val -> config.set(this, val)))
+    public IWidget settingsWidget(final MachineConfig config, final SettingEdit edit) {
+        return new ToggleButton()
+            .value(new BoolValue.Dynamic(() -> config.get(this), val -> edit.apply(() -> config.set(this, val))))
             .overlay(false, IKey.str("[ ]"))
             .overlay(true, IKey.str("[✓]"));
+    }
+
+    @Override
+    protected Class<?> valueType() {
+        return Boolean.class;
     }
 }

@@ -1,11 +1,19 @@
 package com.sbancuz.plannh.data.setting;
 
+import java.lang.reflect.Type;
 import java.util.function.BiPredicate;
+
+import javax.annotation.Nullable;
 
 import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.util.StatCollector;
 
 import com.cleanroommc.modularui.api.widget.IWidget;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
 import com.sbancuz.plannh.data.MachineConfig;
 import com.sbancuz.plannh.data.RecipeContext;
 import com.sbancuz.plannh.gui.common.TooltipStyle;
@@ -13,7 +21,7 @@ import com.sbancuz.plannh.gui.common.TooltipStyle;
 import lombok.Getter;
 
 @Getter
-public abstract class SettingDef<T> {
+public abstract class SettingDef<T> implements JsonSerializer<Object>, JsonDeserializer<Object> {
 
     protected final String key;
     protected final String label;
@@ -47,7 +55,22 @@ public abstract class SettingDef<T> {
         return this;
     }
 
-    public abstract IWidget settingsWidget(MachineConfig config);
+    public abstract IWidget settingsWidget(MachineConfig config, SettingEdit edit);
+
+    @Override
+    public final JsonElement serialize(final Object value, final Type typeOfSrc,
+        final JsonSerializationContext context) {
+        return context.serialize(value);
+    }
+
+    @Override
+    public final @Nullable Object deserialize(final JsonElement json, final Type typeOfT,
+        final JsonDeserializationContext context) {
+        return context.deserialize(json, valueType());
+    }
+
+    /** The class a stored value is read back as: an int, a boolean, or the enum this def cycles. */
+    protected abstract Class<?> valueType();
 
     @Override
     public boolean equals(Object obj) {

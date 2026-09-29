@@ -69,6 +69,17 @@ public record MachineProfile(String id, String displayName, List<SettingDef<?>> 
         }
     }
 
+    @Override
+    public boolean equals(final Object obj) {
+        if (!(obj instanceof final MachineProfile other)) return false;
+        return id.equals(other.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return id.hashCode();
+    }
+
     /**
      * The settings this profile offers for one machine: its own list, minus the ones hidden for
      * this recipe and these values. Visibility is a question about the machine, so it answers

@@ -3,6 +3,7 @@ package com.sbancuz.plannh.data.setting;
 import java.util.Arrays;
 import java.util.function.BiPredicate;
 
+import com.cleanroommc.modularui.api.drawable.IKey;
 import com.cleanroommc.modularui.api.widget.IWidget;
 import com.cleanroommc.modularui.drawable.text.TextRenderer;
 import com.cleanroommc.modularui.value.EnumValue;
@@ -38,11 +39,20 @@ public class EnumSettingDef<E extends Enum<E>> extends SettingDef<E> {
     }
 
     @Override
-    public IWidget settingsWidget(MachineConfig config) {
-        return new CycleButtonWidget().value(new EnumValue.Dynamic<>(type, () -> {
+    public IWidget settingsWidget(final MachineConfig config, final SettingEdit edit) {
+        final CycleButtonWidget button = new CycleButtonWidget().value(new EnumValue.Dynamic<>(type, () -> {
             E val = config.get(this);
             return val != null ? val : type.getEnumConstants()[0];
-        }, val -> config.set(this, val)))
-            .width(getMaxWidth()); // this throws if
+        }, val -> edit.apply(() -> config.set(this, val))))
+            .width(getMaxWidth());
+        for (final E constant : type.getEnumConstants()) {
+            button.stateOverlay(constant, IKey.str(constant.name()));
+        }
+        return button;
+    }
+
+    @Override
+    protected Class<?> valueType() {
+        return type;
     }
 }
