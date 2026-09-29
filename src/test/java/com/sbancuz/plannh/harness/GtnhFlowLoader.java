@@ -81,7 +81,7 @@ public final class GtnhFlowLoader {
                 new MachineProfile(
                     MachineProfileRegistry.defaultId(),
                     "Default",
-                    List.of(Settings.MACHINES, Settings.TICK_MODIFIER),
+                    List.of(MachineProfile.entry(Settings.MACHINES), MachineProfile.entry(Settings.TICK_MODIFIER)),
                     (s, ctx) -> new EffectResult(ctx.getOrDefault(DURATION_TICKS, 1), 0, 1)));
         }
     }

@@ -1,7 +1,6 @@
 package com.sbancuz.plannh.data.setting;
 
 import java.util.Arrays;
-import java.util.function.BiPredicate;
 
 import com.cleanroommc.modularui.api.drawable.IKey;
 import com.cleanroommc.modularui.api.widget.IWidget;
@@ -9,7 +8,6 @@ import com.cleanroommc.modularui.drawable.text.TextRenderer;
 import com.cleanroommc.modularui.value.EnumValue;
 import com.cleanroommc.modularui.widgets.CycleButtonWidget;
 import com.sbancuz.plannh.data.MachineConfig;
-import com.sbancuz.plannh.data.RecipeContext;
 
 import lombok.Getter;
 
@@ -18,14 +16,9 @@ public class EnumSettingDef<E extends Enum<E>> extends SettingDef<E> {
 
     private final Class<E> type;
 
-    public EnumSettingDef(String key, E defaultValue, Class<E> type,
-        BiPredicate<RecipeContext, MachineConfig> visibility) {
-        super(key, defaultValue, visibility);
-        this.type = type;
-    }
-
     public EnumSettingDef(String key, E defaultValue, Class<E> type) {
-        this(key, defaultValue, type, (_, _) -> true);
+        super(key, defaultValue);
+        this.type = type;
     }
 
     private int getMaxWidth() {

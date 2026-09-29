@@ -2,6 +2,7 @@ package com.sbancuz.plannh.data;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -16,8 +17,20 @@ import com.sbancuz.plannh.nei.NEIPlanConfig;
 
 import codechicken.nei.NEIClientConfig;
 
-public record MachineProfile(String id, String displayName, List<SettingDef<?>> settings,
-    EffectComputer effectComputer) {
+public record MachineProfile(String id, String displayName, List<Entry> settings, EffectComputer effectComputer) {
+
+    /** One setting this profile offers, and the rule for when a machine running it shows the row. */
+    public record Entry(SettingDef<?> def, BiPredicate<RecipeContext, MachineConfig> visible) {
+
+        public boolean isVisible(final RecipeContext ctx, final MachineConfig config) {
+            return visible.test(ctx, config);
+        }
+    }
+
+    /** An entry with no rule attached: the profile offers it to every machine. */
+    public static Entry entry(final SettingDef<?> def) {
+        return new Entry(def, (_, _) -> true);
+    }
 
     @Nonnull
     public static Builder builder(final String id, final String displayName) {
@@ -28,7 +41,7 @@ public record MachineProfile(String id, String displayName, List<SettingDef<?>> 
 
         private final String id;
         private final String displayName;
-        private final List<SettingDef<?>> settings = new ArrayList<>();
+        private final List<Entry> settings = new ArrayList<>();
         private EffectComputer effectComputer = (s, ctx) -> {
             Object dur = ctx.properties()
                 .get(RecipePropertyAPI.DURATION_TICKS);
@@ -45,12 +58,16 @@ public record MachineProfile(String id, String displayName, List<SettingDef<?>> 
         }
 
         public Builder addSetting(final SettingDef<?> setting) {
-            settings.add(setting);
-            return this;
+            return setting(setting);
         }
 
-        public Builder setting(final SettingDef<?> s) {
-            return addSetting(s);
+        public Builder setting(final SettingDef<?> def) {
+            return setting(def, (_, _) -> true);
+        }
+
+        public Builder setting(final SettingDef<?> def, final BiPredicate<RecipeContext, MachineConfig> visible) {
+            settings.add(new Entry(def, visible));
+            return this;
         }
 
         public Builder settings(final Consumer<Builder> consumer) {
@@ -80,6 +97,14 @@ public record MachineProfile(String id, String displayName, List<SettingDef<?>> 
         return id.hashCode();
     }
 
+    /** The defs on offer, unfiltered: what a fresh config seeds from, and what a save lists. */
+    @Nonnull
+    public List<SettingDef<?>> defs() {
+        return settings.stream()
+            .map(Entry::def)
+            .toList();
+    }
+
     /**
      * The settings this profile offers for one machine: its own list, minus the ones hidden for
      * this recipe and these values. Visibility is a question about the machine, so it answers
@@ -88,6 +113,7 @@ public record MachineProfile(String id, String displayName, List<SettingDef<?>> 
     @Nonnull
     public Stream<SettingDef<?>> visibleSettings(final RecipeContext ctx, final MachineConfig config) {
         return settings.stream()
-            .filter(def -> def.isVisible(ctx, config));
+            .filter(e -> e.isVisible(ctx, config))
+            .map(Entry::def);
     }
 }

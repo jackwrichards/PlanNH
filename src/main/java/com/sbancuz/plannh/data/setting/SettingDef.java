@@ -1,7 +1,6 @@
 package com.sbancuz.plannh.data.setting;
 
 import java.lang.reflect.Type;
-import java.util.function.BiPredicate;
 
 import javax.annotation.Nullable;
 
@@ -15,7 +14,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 import com.sbancuz.plannh.data.MachineConfig;
-import com.sbancuz.plannh.data.RecipeContext;
 import com.sbancuz.plannh.gui.common.TooltipStyle;
 
 import lombok.Getter;
@@ -26,13 +24,11 @@ public abstract class SettingDef<T> implements JsonSerializer<Object>, JsonDeser
     protected final String key;
     protected final String label;
     protected final T defaultValue;
-    protected BiPredicate<RecipeContext, MachineConfig> visibility;
 
-    protected SettingDef(final String key, final T defaultValue, BiPredicate<RecipeContext, MachineConfig> visibility) {
+    protected SettingDef(final String key, final T defaultValue) {
         this.key = key;
         this.label = StatCollector.translateToLocal("plannh.settings." + key);
         this.defaultValue = defaultValue;
-        this.visibility = visibility;
 
         Settings.register(this);
     }
@@ -44,15 +40,6 @@ public abstract class SettingDef<T> implements JsonSerializer<Object>, JsonDeser
 
     protected EnumChatFormatting valueColour() {
         return TooltipStyle.IDENTITY;
-    }
-
-    public boolean isVisible(final RecipeContext ctx, final MachineConfig config) {
-        return visibility.test(ctx, config);
-    }
-
-    public SettingDef<T> withVisibility(final BiPredicate<RecipeContext, MachineConfig> visibility) {
-        this.visibility = visibility;
-        return this;
     }
 
     public abstract IWidget settingsWidget(MachineConfig config, SettingEdit edit);

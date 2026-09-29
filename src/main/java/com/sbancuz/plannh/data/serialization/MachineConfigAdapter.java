@@ -27,7 +27,7 @@ public class MachineConfigAdapter implements JsonSerializer<MachineConfig>, Json
         obj.addProperty("profile", src.getProfileId());
 
         JsonObject settingsObj = new JsonObject();
-        for (SettingDef<?> def : profile.settings()) {
+        for (SettingDef<?> def : profile.defs()) {
             final Object val = src.get(def);
             if (val == null || val.equals(def.getDefaultValue())) continue;
             final JsonElement saved = def.serialize(val, Object.class, context);

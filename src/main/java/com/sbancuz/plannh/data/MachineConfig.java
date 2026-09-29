@@ -49,7 +49,7 @@ public class MachineConfig {
 
         this.settings = new HashMap<>(settings);
 
-        for (final SettingDef<?> def : profile.settings()) this.settings.putIfAbsent(def, def.getDefaultValue());
+        for (final SettingDef<?> def : profile.defs()) this.settings.putIfAbsent(def, def.getDefaultValue());
         this.settings.putIfAbsent(Settings.MACHINES, Settings.MACHINES.getDefaultValue());
     }
 
