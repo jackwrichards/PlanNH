@@ -84,7 +84,7 @@ public class NodeWidget extends FlowchartWidget<NodeWidget, Node> {
         recipeAreaWidget = new RecipeAreaWidget(this);
         mainColumn.child(recipeAreaWidget);
         mainColumn.child(new ThroughputInfoWidget(this));
-        mainColumn.child(new SettingsBody(this));
+        mainColumn.child(new SettingsList(this));
 
         child(mainColumn);
     }

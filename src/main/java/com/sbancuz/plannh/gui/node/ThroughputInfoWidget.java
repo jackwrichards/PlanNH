@@ -89,11 +89,12 @@ public class ThroughputInfoWidget extends ParentWidget<ThroughputInfoWidget> imp
                 .mainAxisAlignment(Alignment.MainAxis.SPACE_BETWEEN)
                 .tooltipBuilder(this::rates)
                 .tooltipAutoUpdate(true)
-                .child(FlowchartFlow.row(parent)
-                    .coverChildrenHeight()
-                    .childPadding(2)
-                    .child(new MachineCountFixedButtonWidget(parent))
-                    .child(new FlowchartTextWidget(count, parent)))
+                .child(
+                    FlowchartFlow.row(parent)
+                        .coverChildrenHeight()
+                        .childPadding(2)
+                        .child(new MachineCountFixedButtonWidget(parent))
+                        .child(new FlowchartTextWidget(count, parent)))
                 .child(
                     new FlowchartTextWidget(IKey.lang(LANG + "duration", GuiHelper.formatDuration(duration)), parent)));
 
