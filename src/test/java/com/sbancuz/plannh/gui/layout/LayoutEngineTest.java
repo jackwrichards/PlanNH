@@ -378,7 +378,8 @@ public class LayoutEngineTest {
         for (final int loose : new int[] { 1, 3 }) {
             final IntIntPair at = plan.machines()
                 .get(id(loose));
-            assertFalse(box(at, 100, 80).intersects(frame), "loose machine " + loose + " landed inside the frame");
+            assertFalse(
+                box(at, 100, 80).intersects(frame), "loose machine " + loose + " landed inside the frame");
         }
     }
 
