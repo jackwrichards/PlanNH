@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -14,42 +15,45 @@ import com.sbancuz.plannh.data.Settings;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachineSpec;
 import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 
-import gregtech.api.enums.GTValues;
+import gregtech.api.logic.MachineMode;
+import gregtech.api.logic.ModifierKind;
 import gregtech.api.logic.ProcessingSpec;
-import gregtech.api.structure.StructureParameter;
-import gregtech.api.util.GTRecipe;
-import gregtech.api.util.OverclockCalculator;
-import gregtech.api.util.tooltip.TooltipTier;
+import gregtech.api.recipe.RecipeMap;
 
 /**
- * The spec is GregTech's, so these pin only what PlanNH adds on top: which structure a node's state stands for, and
- * when a machine earns its mode row.
+ * The spec is GregTech's, so these pin only what PlanNH adds on top: which inputs a node's state stands for, and when
+ * a machine earns its rows.
  */
 class GTMachineSpecTest {
 
-    private static final Map<TooltipTier, StructureParameter> COIL_0_TO_13 = Map.of(
-        TooltipTier.COIL,
-        StructureParameter.builder(TooltipTier.COIL)
-            .between(0, 13)
-            .getter(() -> 0)
-            .setter(tier -> {})
-            .build());
+    private static final ModifierKind.IntKind MOMENTUM = ModifierKind.ofInt("plannh_test:momentum")
+        .source(ModifierKind.Source.RUNTIME)
+        .ordered()
+        .range(0, 100)
+        .register();
 
-    private static GTMachineSpec read(final ProcessingSpec spec) {
-        return GTMachineSpec.of(spec, COIL_0_TO_13, 1);
-    }
+    private static final List<MachineMode> TWO_MODES = List
+        .of(MachineMode.of(mock(RecipeMap.class)), MachineMode.of(mock(RecipeMap.class)));
 
-    /** An untouched node shows every structure parameter at its maximum, so that is what an unset one reads as. */
+    /** An untouched node shows the machine at its best, so that is what an unset value reads as. */
     @Test
-    void anUnsetStructureValueIsItsMaximum() {
-        final GTMachineSpec machine = read(
+    void anUnsetValueIsTheSpecsBest() {
+        final GTMachineSpec machine = GTMachineSpec.of(
             ProcessingSpec.builder()
-                .parallel(in -> 2 * in.tier(TooltipTier.COIL))
-                .parallelPerTier(3, TooltipTier.VOLTAGE)
+                .parallel(in -> 2 * in.value(ModifierKind.COIL), ModifierKind.COIL)
+                .parallelPerTier(3, ModifierKind.VOLTAGE)
                 .build());
+        final int bestCoil = (int) ModifierKind.COIL.getRange()
+            .max();
 
-        assertEquals(2 * 13 + 3 * 5, machine.maxParallel(StructureState.of(5, 0)));
-        assertEquals(2 * 4 + 3 * 5, machine.maxParallel(new StructureState(5, 0, Map.of(TooltipTier.COIL, 4))));
+        assertEquals(
+            2 * bestCoil + 3 * 5,
+            machine.spec()
+                .getMaxParallel(machine.inputs(StructureState.of(5, 0))));
+        assertEquals(
+            2 * 4 + 3 * 5,
+            machine.spec()
+                .getMaxParallel(machine.inputs(new StructureState(5, 1, 0, Map.of(ModifierKind.COIL, 4L)))));
     }
 
     @Test
@@ -58,57 +62,61 @@ class GTMachineSpecTest {
             IllegalArgumentException.class,
             () -> GTMachineSpec.of(
                 ProcessingSpec.builder()
-                    .parallelPerTier(2, TooltipTier.SOLENOID)
-                    .build(),
-                Map.of(),
-                1));
+                    .parallel(in -> in.value(ModifierKind.SOLENOID))
+                    .build()));
     }
 
-    /** A mode row is only worth offering when switching mode moves a number, the steam furnace's cost included. */
+    /** A value the machine builds up while running is planned at its best, so it offers no row. */
+    @Test
+    void onlyBuiltValuesAreRows() {
+        final GTMachineSpec machine = GTMachineSpec.of(
+            ProcessingSpec.builder()
+                .parallelPerVoltageTierRising(4, 8, MOMENTUM, 100)
+                .speedRising(2, 4, MOMENTUM, 100)
+                .speedPerTier(1, 1, ModifierKind.ITEM_PIPE_CASING)
+                .build());
+
+        assertEquals(
+            List.of(ModifierKind.ITEM_PIPE_CASING),
+            List.copyOf(
+                machine.structure()
+                    .keySet()));
+        assertEquals(
+            8 * 5,
+            machine.spec()
+                .getMaxParallel(machine.inputs(StructureState.of(5, 0))),
+            "full momentum");
+    }
+
     @Test
     void aModeRowOnlyWhenTheModeMatters() {
         final ProcessingSpec byMode = ProcessingSpec.builder()
-            .parallel(in -> in.mode() == 0 ? 1 : 32)
-            .build();
-        final ProcessingSpec costByMode = ProcessingSpec.builder()
-            .euModifierNotLimitingParallel(in -> in.mode() == 0 ? 1 : 2)
+            .modes(TWO_MODES)
+            .inMode(1, mode -> mode.parallel(32))
             .build();
 
         assertTrue(
-            GTMachineSpec.of(byMode, Map.of(), 2)
-                .settings()
-                .contains(Settings.GT_MODE));
-        assertTrue(
-            GTMachineSpec.of(costByMode, Map.of(), 2)
+            GTMachineSpec.of(byMode)
                 .settings()
                 .contains(Settings.GT_MODE));
         assertFalse(
-            GTMachineSpec.of(ProcessingSpec.STANDARD, Map.of(), 2)
+            GTMachineSpec.of(ProcessingSpec.STANDARD)
                 .settings()
                 .contains(Settings.GT_MODE));
-        assertFalse(
-            GTMachineSpec.of(byMode, Map.of(), 1)
-                .settings()
-                .contains(Settings.GT_MODE),
-            "a machine with one mode has no mode to switch");
     }
 
-    /** Planners assume the machine at its best: full momentum, a stable black hole. */
+    /** The node's amps reach the spec as one hatch carrying them all, so specs that use every amp see them. */
     @Test
-    void bestCaseNumbersArePlannedAtTheirBest() {
-        final GTMachineSpec machine = read(
+    void theNodesAmpsReachTheSpec() {
+        final GTMachineSpec machine = GTMachineSpec.of(
             ProcessingSpec.builder()
-                .parallelPerTier(8, TooltipTier.VOLTAGE)
-                .speed(4)
-                .bestCase(ProcessingSpec.Quantity.PARALLEL, ProcessingSpec.Quantity.DURATION)
+                .allAmps()
                 .build());
-        final GTRecipe recipe = mock(GTRecipe.class);
-        recipe.mEUt = 30;
-        recipe.mDuration = 200;
 
-        final OverclockCalculator calculator = machine.calculator(recipe, StructureState.of(5, 0), GTValues.V[5], 1);
-
-        assertEquals(40, machine.maxParallel(StructureState.of(5, 0)));
-        assertEquals(0.25, calculator.getDurationModifier());
+        assertEquals(
+            4,
+            machine.spec()
+                .getPower(machine.inputs(new StructureState(5, 4, 0, Map.of())))
+                .amperage());
     }
 }

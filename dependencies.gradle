@@ -33,7 +33,7 @@
  *
  * For more details, see https://docs.gradle.org/8.0.1/userguide/java_library_plugin.html#sec:java_library_configurations_graph
  */
-def gt5uVersion = "5.09.54.187-processing-spec.4+4317f48f5f-dirty"
+def gt5uVersion = "5.09.54.189-gt-interface-rewrite-poc.15+5325456c0c-dirty"
 
 dependencies {
     api("com.github.GTNewHorizons:NotEnoughItems:2.8.104-GTNH:dev")

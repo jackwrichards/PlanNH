@@ -163,6 +163,7 @@ plannh.solver.under_supply=Returned a port that under-supplies: residual %s
 plannh.solver.gate_count_not_certified=Gate count %d is minimal but not certified optimal (exact search over budget)
 ## Names
 plannh.machine.singleblock_suffix= (single)
+plannh.machine.no_spec_suffix= (no ProcessingSpec interface)
 plannh.solver.pin_extent=extent pin
 plannh.solver.pin_target=target rate
 plannh.solver.pin_count=fixed machine count

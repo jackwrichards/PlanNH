@@ -14,7 +14,6 @@ import com.sbancuz.plannh.Compat;
 import com.sbancuz.plannh.api.RecipePropertyAPI;
 import com.sbancuz.plannh.data.MachineProfile;
 import com.sbancuz.plannh.data.MachineProfileRegistry;
-import com.sbancuz.plannh.data.RecipeContext;
 import com.sbancuz.plannh.data.RecipeHandlerAccess;
 import com.sbancuz.plannh.data.SettingDef;
 import com.sbancuz.plannh.data.Settings;
@@ -26,13 +25,13 @@ import com.sbancuz.plannh.data.properties.PropertyProvider;
 import com.sbancuz.plannh.data.properties.RecipeProperty;
 import com.sbancuz.plannh.data.properties.SummaryProperty;
 import com.sbancuz.plannh.data.provider.gregtech.GTMachineIndex;
-import com.sbancuz.plannh.data.provider.gregtech.GTOverclockStep;
 import com.sbancuz.plannh.data.provider.gregtech.GTSettings;
 
 import codechicken.nei.PositionedStack;
 import codechicken.nei.recipe.FurnaceRecipeHandler;
 import codechicken.nei.recipe.IRecipeHandler;
 import codechicken.nei.recipe.TemplateRecipeHandler;
+import gregtech.api.logic.ModifierKind;
 import gregtech.api.recipe.RecipeMap;
 import gregtech.api.recipe.RecipeMaps;
 import gregtech.api.recipe.RecipeMetadataKey;
@@ -41,7 +40,6 @@ import gregtech.api.recipe.maps.LargeBoilerFuelBackend;
 import gregtech.api.util.GTRecipe;
 import gregtech.api.util.GTRecipeConstants;
 import gregtech.api.util.recipe.Sievert;
-import gregtech.api.util.tooltip.TooltipTier;
 import gregtech.common.items.ItemFluidDisplay;
 import gregtech.nei.GTNEIDefaultHandler;
 import gregtech.nei.GTNEIDefaultHandler.CachedDefaultRecipe;
@@ -113,27 +111,6 @@ public class GTProvider implements PropertyProvider {
         GTMachineIndex.reset();
         MachineVariants.register(GTMachineIndex.SOURCE);
         GTSettings.registerChartMinimums();
-        new GTSteamProvider().register();
-    }
-
-    private static boolean hasHeat(final RecipeContext ctx) {
-        return ctx.properties()
-            .containsKey(GLASS_TIER)
-            || ctx.properties()
-                .containsKey(COIL_HEAT);
-    }
-
-    /**
-     * The one recipemap whose parallel count comes from an input item count rather than from the
-     * structure a machine was built with. Named once, because the row that reads the catalyst, the
-     * route that turns it into parallels, and the guard that stops a machine overwriting it are the
-     * same fact stated three times otherwise.
-     */
-    private static final String CATALYST_RECIPE_MAP = "gt.recipe.eyeofharmony";
-
-    private static boolean isEoH(final RecipeContext ctx) {
-        final RecipeMap<?> map = ctx.getOrDefault(RECIPE_MAP, null);
-        return map != null && CATALYST_RECIPE_MAP.equals(map.unlocalizedName);
     }
 
     /**
@@ -148,21 +125,17 @@ public class GTProvider implements PropertyProvider {
         // Nearly every multiblock takes more than one energy hatch, so how many amps reach it is a
         // build decision rather than an advanced override.
         b.setting(GTSettings.AMP_DEF.withVisibility(GTSettings.ampEditable()));
-        b.setting(
-            GTSettings.PARALLELS_DEF.withVisibility(
-                GTSettings.parallelsEditable()
-                    .and((ctx, s) -> !isEoH(ctx))));
-        // One row per kind of structure parameter GregTech knows, offered when the selected machine
-        // declares it. The kinds are GregTech's list, so a kind GregTech adds needs nothing here.
-        for (final TooltipTier kind : TooltipTier.values()) {
+        b.setting(GTSettings.PARALLELS_DEF.withVisibility(GTSettings.parallelsEditable()));
+        // One row per value a player builds or inserts, offered when the selected machine reads it. The
+        // kinds are GregTech's registry, complete once its machines have loaded, which is before this
+        // profile is built - so a kind GregTech adds needs nothing here.
+        for (final ModifierKind kind : ModifierKind.all()) {
+            if (kind == ModifierKind.VOLTAGE || kind.source == ModifierKind.Source.RUNTIME) continue;
             b.setting(
                 GTSettings.structureDef(kind)
                     .withVisibility(GTSettings.usesStructure(kind)));
         }
         b.setting(GTSettings.MODE_DEF.withVisibility(GTSettings.usesSetting(Settings.GT_MODE)));
-        b.setting(
-            Settings.CATALYST_ASTRAL_ARRAYS.def()
-                .withVisibility((ctx, s) -> isEoH(ctx)));
         b.setting(GTSettings.ADVANCED_DEF);
     }
 
@@ -196,27 +169,9 @@ public class GTProvider implements PropertyProvider {
     private static final MachineProfile PROFILE = MachineProfile.builder("gregtech:unified", "GT Unified")
         .settings(GTProvider::machineDriven)
         .settings(GTProvider::manual)
-        // Per-recipemap overclock defaults are not listed here: the machine's ProcessingSpec gives them
-        // per machine class, so a second table keyed on the recipemap would be a rival authority.
-        // What stays is the genuinely recipe-driven cases, which no machine can report.
         .effect(
             Effects.durationFromHandler()
-                .andThen(
-                    Effects.machineDriven(
-                        GTProvider::isEoH,
-                        GTOverclockStep.create()
-                            .applyIf(GTProvider::hasHeat, GTOverclockStep::withHeat)
-                            .applyIf(
-                                ctx -> ctx.properties()
-                                    .containsKey(FUSION_THRESHOLD),
-                                GTOverclockStep::withPerfectOC)
-                            .route(
-                                CATALYST_RECIPE_MAP,
-                                step -> step.withCatalyst(
-                                    (SettingDef<Integer>) Settings.CATALYST_ASTRAL_ARRAYS.def(),
-                                    v -> (int) Math.pow(
-                                        2,
-                                        (int) Math.floor(Math.log(8.0 * Math.min(v, 8637)) / Math.log(1.7))))))))
+                .andThen(Effects.machineDriven()))
         .onLoad(GTSettings::migrateLegacyNode)
         .build();
 

@@ -40,6 +40,9 @@ import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 import gregtech.api.GregTechAPI;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.RecipeMapWorkable;
+import gregtech.api.logic.ModifierKind;
+import gregtech.api.logic.ModifierRange;
+import gregtech.api.logic.ProcessingInputs;
 import gregtech.api.logic.ProcessingSpec;
 import gregtech.api.metatileentity.implementations.MTEMultiBlockBase;
 import gregtech.api.recipe.RecipeMap;
@@ -71,7 +74,7 @@ public class MachineTableCommand extends CommandBase {
             NumberSource.SPEC,
             new Section("spec", "Uses the ProcessingSpec the machine declares."),
             NumberSource.NONE,
-            new Section("unmodelled", "Nothing answers, so the node plans as a plain single-speed machine.")));
+            new Section("unmodelled", "No ProcessingSpec interface, so the node keeps the recipe's own numbers.")));
 
     @Override
     public String getCommandName() {
@@ -260,7 +263,7 @@ public class MachineTableCommand extends CommandBase {
         if (machine == null) return "";
         final List<String> names = new ArrayList<>();
         machine.structure()
-            .forEach((kind, range) -> names.add(kind.name() + " " + range.min() + "-" + range.max()));
+            .forEach((kind, range) -> names.add(kind.id + " " + range.min() + "-" + range.max()));
         machine.settings()
             .forEach(setting -> names.add(setting.name()));
         return String.join(", ", names);
@@ -296,8 +299,7 @@ public class MachineTableCommand extends CommandBase {
 
     /**
      * What a chart actually plans this machine with, so the file doubles as the snapshot a GregTech
-     * update is diffed against. A describer's numbers live in GregTech's own object rather than in the
-     * spec, so those say so instead of showing a spec the describer outranks.
+     * update is diffed against. A describer's numbers live in GregTech's own object, so those say so.
      */
     private static String numbers(@Nullable final GTMachineIndex.MachineEntry entry) {
         if (entry == null) return "-";
@@ -305,55 +307,63 @@ public class MachineTableCommand extends CommandBase {
         return entry.machine() == null ? "-" : numbersText(entry.machine());
     }
 
-    /** Which numbers the machine's spec gives at its best rather than as it starts. */
+    /**
+     * The values the machine builds up while running, which a chart plans at the spec's best rather than as the machine
+     * starts: the top of an ordered kind, the bottom of any other.
+     */
     private static String assumes(@Nullable final GTMachineIndex.MachineEntry entry) {
         if (entry == null || entry.machine() == null) return "";
         final List<String> names = new ArrayList<>();
-        entry.machine()
+        for (final ModifierRange range : entry.machine()
             .spec()
-            .getBestCase()
-            .forEach(quantity -> names.add("best " + quantity.name()));
+            .getModifiers()) {
+            final ModifierKind kind = range.kind();
+            if (kind.source != ModifierKind.Source.RUNTIME) continue;
+            names.add(kind.id + "=" + (kind.ordered ? range.max() : range.min()));
+        }
         return String.join(", ", names);
     }
 
     /**
-     * Every number a spec resolves to, at the structure an untouched node shows: every structure
-     * parameter at its maximum, at the lowest real voltage. All twelve always, in a fixed order, so a
+     * Every number a spec resolves to, at the structure an untouched node shows: every value at the
+     * spec's best, at the lowest real voltage. All twelve always, in a fixed order, so a
      * GregTech update shows up as a diff on the machines whose numbers moved - a snapshot that omits
      * defaults cannot tell a value leaving its default from a value never set.
      */
     @Nonnull
     public static String numbersText(@Nonnull final GTMachineSpec machine) {
-        final StructureState state = StructureState.of(1, 0);
         final ProcessingSpec spec = machine.spec();
+        final ProcessingInputs inputs = machine.inputs(StructureState.of(1, 0));
+        final ProcessingSpec.OverclockRule overclock = spec.getOverclock(inputs);
+        final ProcessingSpec.OverclockRule.Ratio ratio = overclock instanceof final ProcessingSpec.OverclockRule.Ratio r
+            ? r
+            : ProcessingSpec.OverclockRule.Ratio.STANDARD;
         final ProcessingSpec.Heat heat = spec.getHeat()
             .orElse(null);
-        return "par=" + machine.maxParallel(state)
+        return "par=" + spec.getMaxParallel(inputs)
             + " dur="
-            + num(machine.durationMultiplier(state))
+            + num(spec.getDurationMultiplier(inputs))
             + " eu="
-            + num(machine.euModifier(state))
+            + num(spec.getEuModifier(inputs))
             + " cost="
-            + num(machine.euModifierNotLimitingParallel(state))
+            + num(spec.getEuModifierNotLimitingParallel(inputs))
             + " ocD="
-            + num(
-                machine.overclockRatio()
-                    .durationDivisor())
+            + num(ratio.durationDivisor())
             + " ocE="
-            + num(
-                machine.overclockRatio()
-                    .euMultiplier())
+            + num(ratio.euMultiplier())
             + " noOC="
-            + (spec.isNoOverclock() ? 1 : 0)
+            + (overclock instanceof ProcessingSpec.OverclockRule.None ? 1 : 0)
             + " heat="
-            + machine.machineHeat(state)
+            + (heat == null ? 0 : heat.getMachineHeat(inputs))
             + " hOC="
-            + (heat != null && heat.overclocks() ? 1 : 0)
+            + (heat != null && heat.rules()
+                .contains(ProcessingSpec.HeatRule.OVERCLOCK) ? 1 : 0)
             + " hDisc="
-            + (heat != null && heat.discounts() ? 1 : 0)
+            + (heat != null && heat.rules()
+                .contains(ProcessingSpec.HeatRule.DISCOUNT) ? 1 : 0)
             + " rHeat="
             + (heat == null ? -1
-                : heat.getFixedRecipeHeat()
+                : heat.fixedRecipeHeat()
                     .orElse(-1))
             + " skips="
             + spec.getMaxTierSkips()

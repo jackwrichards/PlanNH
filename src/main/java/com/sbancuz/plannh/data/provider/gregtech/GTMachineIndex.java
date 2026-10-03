@@ -27,13 +27,13 @@ import gregtech.api.GregTechAPI;
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.IOverclockDescriptionProvider;
 import gregtech.api.interfaces.tileentity.RecipeMapWorkable;
-import gregtech.api.logic.ProcessingSpec;
+import gregtech.api.logic.ModifierKind;
+import gregtech.api.logic.ModifierRange;
 import gregtech.api.metatileentity.implementations.MTEBasicMachine;
 import gregtech.api.metatileentity.implementations.MTEMultiBlockBase;
 import gregtech.api.metatileentity.implementations.MTETieredMachineBlock;
 import gregtech.api.objects.overclockdescriber.OverclockDescriber;
 import gregtech.api.recipe.RecipeMap;
-import gregtech.api.util.tooltip.TooltipTier;
 
 /**
  * Which GregTech machines can run a given recipemap, derived from GT's own registry rather than a
@@ -54,14 +54,16 @@ public final class GTMachineIndex {
 
     /** Appended to a singleblock's name in the picker. Translated, since the name it follows is. */
     private static final String SINGLEBLOCK_SUFFIX = "plannh.machine.singleblock_suffix";
+    /** Appended to a machine PlanNH has no numbers for, so a node planned in it says why it is not overclocked. */
+    private static final String NO_SPEC_SUFFIX = "plannh.machine.no_spec_suffix";
 
     /** What drives a machine's overclock, decided once here so nothing has to work it out again. */
     public enum NumberSource {
-        /** GregTech's own OverclockDescriber, which outranks the spec's overclock. */
+        /** GregTech's own OverclockDescriber, for a machine without a spec. */
         DESCRIBER,
         /** The ProcessingSpec the machine declares. */
         SPEC,
-        /** Neither, so the machine plans as a plain single-speed one. */
+        /** Neither, so the machine keeps the recipe's own numbers. */
         NONE
     }
 
@@ -99,9 +101,9 @@ public final class GTMachineIndex {
             return machine == null ? Set.of() : machine.settings();
         }
 
-        /** The structure parameters GregTech declares for this machine, each with its range. */
+        /** The values a player builds or inserts for this machine, each with its range. */
         @Nonnull
-        public Map<TooltipTier, GTSettings.TierRange> structure() {
+        public Map<ModifierKind, ModifierRange> structure() {
             return machine == null ? Map.of() : machine.structure();
         }
 
@@ -114,7 +116,8 @@ public final class GTMachineIndex {
         @Override
         @Nonnull
         public String label() {
-            return tieredByBuild ? displayName : displayName + StatCollector.translateToLocal(SINGLEBLOCK_SUFFIX);
+            if (!tieredByBuild) return displayName + StatCollector.translateToLocal(SINGLEBLOCK_SUFFIX);
+            return isUncovered(this) ? displayName + StatCollector.translateToLocal(NO_SPEC_SUFFIX) : displayName;
         }
 
         @Override
@@ -253,28 +256,10 @@ public final class GTMachineIndex {
     }
 
     /**
-     * The structure every machine is measured at when the picker ranks them. Nothing is built here
-     * and no chart reads these numbers: a machine's parallel count is a function of the blocks around
-     * it, so comparing machines needs one structure they are all asked about. Which structure barely
-     * matters, because only the order of the answers is used - so this is a middling one rather than
-     * a claim about how anybody builds.
+     * The structure every machine is measured at when the picker ranks them: an IV hatch and each machine at its best.
+     * Nothing is built here and no chart reads these numbers; only the order of the answers is used.
      */
-    private static final StructureState RANKING_REFERENCE = new StructureState(
-        5,
-        0,
-        Map.of(
-            TooltipTier.COIL,
-            5,
-            TooltipTier.SOLENOID,
-            4,
-            TooltipTier.ITEM_PIPE_CASING,
-            4,
-            TooltipTier.PIPE_CASING,
-            2,
-            TooltipTier.STRUCTURE,
-            1,
-            TooltipTier.LENGTH,
-            0));
+    private static final StructureState RANKING_REFERENCE = StructureState.of(5, 0);
 
     /**
      * How far a machine scales, used only to order the picker. That order is also the default, since
@@ -283,7 +268,10 @@ public final class GTMachineIndex {
     private static int scale(final MachineEntry entry) {
         if (entry.machine() == null) return 0;
         return entry.machine()
-            .maxParallel(RANKING_REFERENCE);
+            .spec()
+            .getMaxParallel(
+                entry.machine()
+                    .inputs(RANKING_REFERENCE));
     }
 
     @Nonnull
@@ -359,14 +347,11 @@ public final class GTMachineIndex {
 
         final boolean tieredByBuild = mte instanceof MTEMultiBlockBase;
         final GTMachineModes.Modes modes = GTMachineModes.of(mte);
-        // Read whether or not a describer exists: a describer machine still has its parallel and recipe
-        // override read off the spec.
-        final GTMachineSpec machine = GTMachineSpec.read(mte, modes.count());
-        // A spec that states its own overclock outranks a describer, which the steam multiblocks share
-        // with the steam singleblocks.
-        final OverclockDescriber describer = mte instanceof final IOverclockDescriptionProvider provider
-            && (machine == null || !machine.spec()
-                .sets(ProcessingSpec.Quantity.OVERCLOCK)) ? provider.getOverclockDescriber() : null;
+        final GTMachineSpec machine = GTMachineSpec.read(mte);
+        // A spec outranks a describer: GregTech checks each machine runs as its spec says, and the steam
+        // multiblocks share their describer with the steam singleblocks.
+        final OverclockDescriber describer = machine == null
+            && mte instanceof final IOverclockDescriptionProvider provider ? provider.getOverclockDescriber() : null;
         final NumberSource numberSource = describer != null ? NumberSource.DESCRIBER
             : machine != null ? NumberSource.SPEC : NumberSource.NONE;
         if (machine == null && describer == null && tieredByBuild) {

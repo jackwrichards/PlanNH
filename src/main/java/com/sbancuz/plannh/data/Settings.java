@@ -36,9 +36,6 @@ public enum Settings {
     INPUTS_PER_TICK("inputs_per_tick", 1, 1, 10000),
     LP_PER_TICK("lp_per_tick", 20, 1, 100000),
 
-    STEAM_EUT_DISCOUNT("steam_eut_discount", 100, 1, 10000, (v, c) -> "\u2622" + v + "%"),
-    STEAM_DURATION_MODIFIER("steam_duration_modifier", 100, 1, 10000, (v, c) -> "\u23F1" + v + "%"),
-
     // ── bool settings ──
     PERFECT_OC("perfect_oc", false, (v, c) -> v ? "P" : null),
     HEAT_OC("heat_oc", true, (v, c) -> v ? "H" : null),
@@ -47,7 +44,6 @@ public enum Settings {
     UNLIMITED_SKIPS("unlimited_skips", false, (v, c) -> v ? "\u221ET" : null),
     NO_OVERCLOCK("no_overclock", false, (v, c) -> v ? "NO" : null),
     GT_MULTIBLOCK("gt_multiblock", false, (v, c) -> v ? "M" : null),
-    CATALYST_ASTRAL_ARRAYS("catalyst_astral_arrays", 0, 0, 8637, (v, c) -> v > 0 ? "\u2606" + v : null),
     CATALYST_ACCEL_CARD("catalyst_accel_card", 0, 0, 5, (v, c) -> v > 0 ? "\u2606" + v : null),
 
     // ── settings the mod that owns the machine defines ──

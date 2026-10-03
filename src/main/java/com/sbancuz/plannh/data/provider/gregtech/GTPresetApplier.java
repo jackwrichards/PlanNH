@@ -13,96 +13,53 @@ import com.sbancuz.plannh.data.machine.MachineVariant;
 import com.sbancuz.plannh.data.provider.GTProvider;
 
 import gregtech.api.enums.GTValues;
-import gregtech.api.logic.ProcessingSpec;
+import gregtech.api.logic.ProcessingRun;
+import gregtech.api.logic.ResolvedRecipe;
 import gregtech.api.util.GTRecipe;
 import gregtech.api.util.OverclockCalculator;
 
 /**
- * Turns "this node is a Maceration Stack with HSS-G coils at IV" into a configured
- * {@link OverclockCalculator}. GregTech's implementation of {@link MachineVariant#run}, so the three
- * sources of truth - GT's own describer, the machine's ProcessingSpec, and hand-entered settings - are chosen
- * between once rather than at each call site.
+ * GregTech's implementation of {@link MachineVariant#run}: turns "this node is a Maceration Stack with HSS-G coils at
+ * IV" into a duration, a draw and a parallel count, from the machine's ProcessingSpec or else GT's own describer.
  *
  * <p>
- * Priority is GT's code first: a machine that publishes an
- * {@link gregtech.api.objects.overclockdescriber.OverclockDescriber} gets asked directly, which
- * covers every singleblock and fusion reactor exactly and for free. Multiblocks, whose behaviour
- * depends on the blocks around them, get the calculator GregTech builds from their spec.
+ * A spec comes first, because GregTech checks at load that each machine runs exactly as its spec says, and it covers
+ * the structure around a multiblock. A describer covers every singleblock exactly and for free.
  */
 public final class GTPresetApplier {
 
     private GTPresetApplier() {}
 
-    /** A configured calculator plus the parallel count it was built for. */
-    public record Configured(OverclockCalculator calculator, int parallels, long recipeEUt, int duration) {}
-
     /**
-     * The machine's own answer for this recipe, which is what {@code Effects.machineDriven} asks for.
-     * Null when the recipe carries no energy or duration to overclock, or when the machine has no
-     * parameters - either way the node falls back to its own settings rows rather than to numbers
-     * nothing stands behind.
+     * The machine's own answer for this recipe, which is what {@code Effects.machineDriven} asks for. Null for a
+     * machine with neither a spec nor a describer, for a recipe GregTech would not start at this structure, or for one
+     * with no energy or duration for a describer to overclock - the node then keeps the recipe's own numbers.
      */
     @Nullable
     public static EffectResult run(@Nonnull final GTMachineIndex.MachineEntry entry, final RecipeContext ctx,
         final Map<String, Object> settings, final EffectResult recipe) {
-        final long recipeEUt = GTOverclockStep.recipeEUt(ctx, recipe);
-        final int duration = recipe.durationTicks();
-        if (recipeEUt <= 0 || duration <= 0) return null;
-
-        final Configured configured = configure(entry, settings, ctx, recipeEUt, duration);
-        if (configured == null) return null;
-
-        final OverclockCalculator calculator = configured.calculator();
-        calculator.calculate();
         final int machines = MachineProfile.getInt(settings, Settings.MACHINES.key(), 1);
-        return new EffectResult(
-            calculator.getDuration(),
-            calculator.getConsumption(),
-            configured.parallels() * machines);
-    }
-
-    /**
-     * @return null when the machine has no parameters at all, which leaves the caller on its existing
-     *         settings path.
-     */
-    @Nullable
-    public static Configured configure(@Nonnull final GTMachineIndex.MachineEntry entry,
-        final Map<String, Object> settings, final RecipeContext ctx, final long recipeEUt, final int duration) {
-        // A singleblock's tier is fixed by the block itself; only a multiblock's energy hatch is a
-        // choice, so only there does the voltage row mean anything.
-        final int voltageTier = entry.tieredByBuild() ? GTSettings.voltageTier(ctx, settings) : entry.voltageTier();
-
-        final GTMachineSpec machine = entry.machine();
-        final StructureState state = GTSettings
-            .resolve(ctx, settings, voltageTier, GTSettings.mode(ctx, entry, settings));
-
-        long eut = recipeEUt;
-        int recipeDuration = duration;
-        final ProcessingSpec.RecipeOverride override = machine == null ? null
-            : machine.spec()
-                .getRecipeOverride()
-                .orElse(null);
-        if (override != null) {
-            eut = override.eut();
-            recipeDuration = override.duration();
+        final ResolvedRecipe resolved = GTSettings.resolved(ctx, settings);
+        if (resolved != null) {
+            // 0 is what an untouched node stores, and it means the machine's maximum
+            final int userCap = MachineProfile.getInt(settings, Settings.PARALLELS.key(), 0);
+            final ResolvedRecipe capped = userCap > 0 && userCap < resolved.maxParallel()
+                ? resolved.withMaxParallel(userCap)
+                : resolved;
+            final ProcessingRun run = capped.calculate(applyOverrides(capped.toCalculator(), settings));
+            if (!run.result()
+                .wasSuccessful()) return null;
+            return new EffectResult(run.ticks(), run.euPerTick(), run.parallel() * machines);
         }
 
-        final int parallels = resolveParallels(settings, machine, state);
-        final long machineVoltage = GTValues.V[Math.min(voltageTier, GTValues.V.length - 1)];
-        final GTRecipe recipe = ctx.getOrDefault(GTProvider.GT_RECIPE, null);
-
-        final OverclockCalculator calculator;
-        if (entry.describer() != null) calculator = fromDescriber(ctx, entry, eut, recipeDuration);
-        else if (machine == null || recipe == null)
-            calculator = plain(eut, recipeDuration, machineVoltage, entry.amperage());
-        else calculator = machine.calculator(recipe, state, machineVoltage, entry.amperage())
-            .setRecipeEUt(eut)
-            .setDuration(recipeDuration);
-
-        applyOverrides(calculator, settings);
-        calculator.setParallel(parallels)
-            .setAmperageOC(true);
-        return new Configured(calculator, parallels, eut, recipeDuration);
+        final long recipeEUt = GTSettings.recipeEUt(ctx, recipe);
+        final int duration = recipe.durationTicks();
+        if (entry.describer() == null || recipeEUt <= 0 || duration <= 0) return null;
+        final OverclockCalculator calculator = applyOverrides(fromDescriber(ctx, entry, recipeEUt, duration), settings)
+            .setParallel(1)
+            .setAmperageOC(true)
+            .calculate();
+        return new EffectResult(calculator.getDuration(), calculator.getConsumption(), machines);
     }
 
     /**
@@ -130,7 +87,9 @@ public final class GTPresetApplier {
      * This is what makes Advanced an override rather than a separate world: ticking it does not
      * change a single number until a row is edited.
      */
-    public static void applyOverrides(final OverclockCalculator calculator, final Map<String, Object> settings) {
+    @Nonnull
+    public static OverclockCalculator applyOverrides(final OverclockCalculator calculator,
+        final Map<String, Object> settings) {
         if (settings.containsKey(Settings.AMP.key())) {
             calculator.setAmperage(MachineProfile.getInt(settings, Settings.AMP.key(), 1));
         }
@@ -188,28 +147,6 @@ public final class GTPresetApplier {
             calculator.setHeatDiscountMultiplier(
                 MachineProfile.getInt(settings, Settings.HEAT_DISCOUNT_MULT.key(), 95) / 100.0);
         }
+        return calculator;
     }
-
-    /** A single-speed machine at this voltage, for one PlanNH has no numbers for. */
-    @Nonnull
-    private static OverclockCalculator plain(final long recipeEUt, final int duration, final long machineVoltage,
-        final long amperage) {
-        return new OverclockCalculator().setRecipeEUt(recipeEUt)
-            .setDuration(duration)
-            .setEUt(machineVoltage)
-            .setAmperage(amperage);
-    }
-
-    /**
-     * The machine's own maximum, unless the user capped it lower. 0 is what an untouched node stores,
-     * and it means the maximum - a node must not silently run at one parallel because a default of 1
-     * looked like a deliberate cap.
-     */
-    private static int resolveParallels(final Map<String, Object> settings, @Nullable final GTMachineSpec machine,
-        final StructureState state) {
-        final int fromSpec = machine == null ? 1 : Math.max(1, machine.maxParallel(state));
-        final int userCap = MachineProfile.getInt(settings, Settings.PARALLELS.key(), 0);
-        return userCap > 0 ? Math.min(userCap, fromSpec) : fromSpec;
-    }
-
 }

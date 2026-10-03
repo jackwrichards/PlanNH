@@ -6,17 +6,18 @@ import net.minecraft.item.ItemStack;
 
 import gregtech.api.enums.HeatingCoilLevel;
 import gregtech.api.enums.ItemList;
+import gregtech.api.logic.ModifierKind;
 
 /**
  * What the coil and pipe casing rows show a player: coil heat, and the casing a pipe casing tier
- * means. How far any structure parameter goes is the machine's own declaration, not this class.
+ * means. How far any structure value goes is the machine's spec's declaration, not this class.
  */
 public final class GTStructureTiers {
 
     private GTStructureTiers() {}
 
-    /** GT counts None and ULV below Cupronickel, which is why its {@code getTier()} subtracts two. */
-    public static final int MAX_COIL_TIER = HeatingCoilLevel.getMaxTier();
+    public static final int MAX_COIL_TIER = (int) ModifierKind.COIL.getRange()
+        .max();
 
     /**
      * The pipe casings, weakest first, so tier 1 is Bronze. Both machines that read the setting agree on

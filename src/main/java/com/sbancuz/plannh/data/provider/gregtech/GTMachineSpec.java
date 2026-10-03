@@ -1,8 +1,7 @@
 package com.sbancuz.plannh.data.provider.gregtech;
 
-import java.util.Collections;
-import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -13,147 +12,86 @@ import com.sbancuz.plannh.PlanNH;
 import com.sbancuz.plannh.data.Settings;
 
 import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
-import gregtech.api.logic.ProcessingLogic;
+import gregtech.api.logic.ModifierKind;
+import gregtech.api.logic.ModifierRange;
+import gregtech.api.logic.ProcessingInputs;
 import gregtech.api.logic.ProcessingSpec;
+import gregtech.api.logic.ResolvedRecipe;
 import gregtech.api.metatileentity.implementations.MTEMultiBlockBase;
-import gregtech.api.structure.StructureParameter;
 import gregtech.api.util.GTRecipe;
-import gregtech.api.util.OverclockCalculator;
-import gregtech.api.util.tooltip.TooltipTier;
 
 /**
- * The {@link ProcessingSpec} a GregTech multiblock declares, with the structure parameters it reads. Every number is
- * the spec's own, evaluated at the structure a node describes.
- *
- * @param parameters  The registry prototype's parameters, read for their ranges only
- * @param modeMatters Whether switching mode moves a number, which is what earns the machine a mode row
+ * The {@link ProcessingSpec} a GregTech multiblock declares. Every number is the spec's own, evaluated at the structure
+ * a node describes.
  */
-public record GTMachineSpec(ProcessingSpec spec, Map<TooltipTier, StructureParameter> parameters, boolean modeMatters) {
+public record GTMachineSpec(ProcessingSpec spec) {
 
-    /** The structure the mode check compares at: the lowest real voltage, every structure parameter at its maximum. */
+    /** Evaluated once when the machine is indexed, so a spec PlanNH cannot evaluate fails there rather than a chart. */
     private static final StructureState REFERENCE = StructureState.of(1, 0);
-
-    private static final ProcessingSpec.OverclockRule.Ratio STANDARD_OVERCLOCK = new ProcessingSpec.OverclockRule.Ratio(
-        2,
-        4);
 
     /** The machine's spec, or null when it declares none or declares one PlanNH cannot evaluate. */
     @Nullable
-    public static GTMachineSpec read(@Nonnull final IMetaTileEntity prototype, final int modeCount) {
+    public static GTMachineSpec read(@Nonnull final IMetaTileEntity prototype) {
         if (!(prototype instanceof final MTEMultiBlockBase multi)) return null;
         final ProcessingSpec spec = multi.getProcessingSpec();
         if (spec == null) return null;
-
         try {
-            final Map<TooltipTier, StructureParameter> parameters = new EnumMap<>(TooltipTier.class);
-            for (final StructureParameter parameter : multi.getStructureParametersForInspection()) {
-                parameters.put(parameter.kind, parameter);
-            }
-            return of(spec, parameters, modeCount);
+            return of(spec);
         } catch (final RuntimeException e) {
             PlanNH.LOG.warn("PlanNH: {} declares a spec PlanNH cannot evaluate", prototype.getClass().getName(), e);
             return null;
         }
     }
 
-    /**
-     * @throws RuntimeException when the spec reads a structure value its machine never declares, so that fails the
-     *                          index rather than a chart
-     */
+    /** @throws RuntimeException when the spec reads a value it does not declare */
     @Nonnull
-    public static GTMachineSpec of(@Nonnull final ProcessingSpec spec,
-        @Nonnull final Map<TooltipTier, StructureParameter> parameters, final int modeCount) {
-        final GTMachineSpec unchecked = new GTMachineSpec(spec, Collections.unmodifiableMap(parameters), false);
-        boolean modeMatters = false;
-        final String reference = unchecked.numbers(REFERENCE);
-        for (int mode = 1; mode < modeCount && !modeMatters; mode++) {
-            modeMatters = !reference.equals(unchecked.numbers(REFERENCE.withMode(mode)));
-        }
-        return new GTMachineSpec(spec, unchecked.parameters, modeMatters);
+    public static GTMachineSpec of(@Nonnull final ProcessingSpec spec) {
+        final GTMachineSpec machine = new GTMachineSpec(spec);
+        spec.getMaxParallel(machine.inputs(REFERENCE));
+        return machine;
     }
 
-    /** What the spec reads, for this structure. A structure value the state leaves unset is the range's maximum. */
+    /**
+     * What the spec reads, for this structure: one hatch at the node's tier carrying the node's amps, and the spec's
+     * best for every value the state leaves unset.
+     */
     @Nonnull
-    public ProcessingSpec.Inputs inputs(@Nonnull final StructureState state) {
-        final ProcessingSpec.Inputs.Builder inputs = ProcessingSpec.Inputs.builder()
-            .voltageTier(state.voltageTier())
+    public ProcessingInputs inputs(@Nonnull final StructureState state) {
+        final ProcessingInputs.Builder inputs = spec.bestInputs()
+            .energyHatch(ProcessingInputs.EnergyHatch.exotic(state.voltageTier(), state.amperage()))
             .mode(state.mode());
-        parameters.forEach((kind, parameter) -> inputs.tier(kind, state.tier(kind, parameter.max)));
+        state.structure()
+            .forEach((kind, value) -> {
+                switch (kind) {
+                    case ModifierKind.IntKind tier -> inputs.value(tier, Math.toIntExact(value));
+                    case ModifierKind.LongKind amount -> inputs.value(amount, value);
+                }
+            });
         return inputs.build();
     }
 
-    public int maxParallel(@Nonnull final StructureState state) {
-        return spec.getMaxParallel(inputs(state));
-    }
-
-    public double durationMultiplier(@Nonnull final StructureState state) {
-        return spec.getDurationMultiplier(inputs(state));
-    }
-
-    public double euModifier(@Nonnull final StructureState state) {
-        return spec.getEuModifier(inputs(state));
-    }
-
-    public double euModifierNotLimitingParallel(@Nonnull final StructureState state) {
-        return spec.getEuModifierNotLimitingParallel(inputs(state));
-    }
-
-    /** 0 for a machine without heat. */
-    public int machineHeat(@Nonnull final StructureState state) {
-        return spec.getHeat()
-            .map(heat -> heat.getMachineHeat(inputs(state)))
-            .orElse(0);
+    /** Every number the spec gives this recipe at this structure. */
+    @Nonnull
+    public ResolvedRecipe resolve(@Nonnull final GTRecipe recipe, @Nonnull final StructureState state) {
+        return spec.resolve(recipe, inputs(state));
     }
 
     /**
-     * The calculator GregTech builds for this recipe at this structure, voltage and amperage, before
-     * {@link OverclockCalculator#calculate()}. Numbers the spec gives at the machine's best are taken at their best.
+     * The values a player builds or inserts, each with its range. Values the machine builds up while running, such as
+     * momentum, are planned at their best and offer no row.
      */
     @Nonnull
-    public OverclockCalculator calculator(@Nonnull final GTRecipe recipe, @Nonnull final StructureState state,
-        final long voltage, final long amperage) {
-        return new ProcessingLogic().setAvailableVoltage(voltage)
-            .setAvailableAmperage(amperage)
-            .setAmperageOC(true)
-            .applySpecForInspection(spec, () -> inputs(state))
-            .createOverclockCalculatorForInspection(recipe);
-    }
-
-    /** The spec's overclock ratios, or GT's standard 2x speed for 4x EU/t when it leaves overclocks alone. */
-    @Nonnull
-    public ProcessingSpec.OverclockRule.Ratio overclockRatio() {
-        return spec.getOverclock()
-            .filter(ProcessingSpec.OverclockRule.Ratio.class::isInstance)
-            .map(ProcessingSpec.OverclockRule.Ratio.class::cast)
-            .orElse(STANDARD_OVERCLOCK);
-    }
-
-    /** The structure parameters this machine reads, each with its range. */
-    @Nonnull
-    public Map<TooltipTier, GTSettings.TierRange> structure() {
-        final Map<TooltipTier, GTSettings.TierRange> structure = new EnumMap<>(TooltipTier.class);
-        parameters
-            .forEach((kind, parameter) -> structure.put(kind, new GTSettings.TierRange(parameter.min, parameter.max)));
+    public Map<ModifierKind, ModifierRange> structure() {
+        final Map<ModifierKind, ModifierRange> structure = new LinkedHashMap<>();
+        for (final ModifierRange range : spec.getModifiers()) {
+            if (range.kind().source != ModifierKind.Source.RUNTIME) structure.put(range.kind(), range);
+        }
         return structure;
     }
 
     /** The rows beyond the structure that change a number for this machine. */
     @Nonnull
     public Set<Settings> settings() {
-        return modeMatters ? EnumSet.of(Settings.GT_MODE) : EnumSet.noneOf(Settings.class);
-    }
-
-    /** Every number the spec gives at this structure, for telling two structures apart. */
-    @Nonnull
-    private String numbers(final StructureState state) {
-        final ProcessingSpec.Inputs inputs = inputs(state);
-        return spec.getMaxParallel(inputs) + " "
-            + spec.getDurationMultiplier(inputs)
-            + " "
-            + spec.getEuModifier(inputs)
-            + " "
-            + spec.getEuModifierNotLimitingParallel(inputs)
-            + " "
-            + machineHeat(state);
+        return spec.variesByMode() ? EnumSet.of(Settings.GT_MODE) : EnumSet.noneOf(Settings.class);
     }
 }

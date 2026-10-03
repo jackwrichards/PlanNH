@@ -1,34 +1,36 @@
 package com.sbancuz.plannh.data.provider.gregtech;
 
 import java.util.ArrayList;
-import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiPredicate;
 import java.util.function.Supplier;
-import java.util.function.ToIntBiFunction;
+import java.util.function.ToIntFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import net.minecraft.util.StatCollector;
-
+import com.sbancuz.plannh.api.RecipePropertyAPI;
 import com.sbancuz.plannh.data.ChartMinimums;
 import com.sbancuz.plannh.data.MachineProfile;
 import com.sbancuz.plannh.data.RecipeContext;
 import com.sbancuz.plannh.data.SettingDef;
 import com.sbancuz.plannh.data.Settings;
+import com.sbancuz.plannh.data.effect.EffectResult;
 import com.sbancuz.plannh.data.machine.MachineVariant;
 import com.sbancuz.plannh.data.machine.MachineVariants;
 import com.sbancuz.plannh.data.provider.GTProvider;
 
 import gregtech.api.enums.GTValues;
 import gregtech.api.enums.HeatingCoilLevel;
+import gregtech.api.logic.ModifierKind;
+import gregtech.api.logic.ModifierRange;
 import gregtech.api.logic.ProcessingSpec;
+import gregtech.api.logic.ResolvedRecipe;
+import gregtech.api.util.GTRecipe;
 import gregtech.api.util.GTUtility;
 import gregtech.api.util.OverclockCalculator;
-import gregtech.api.util.tooltip.TooltipTier;
 
 /**
  * Settings that only exist for GregTech nodes, kept out of {@link com.sbancuz.plannh.data.Settings}
@@ -90,15 +92,37 @@ public final class GTSettings {
      */
     public static final SettingDef<String> VOLTAGE_DEF = SettingDef
         .dynamicEnumDef(Settings.VOLTAGE.key(), "", GTSettings::voltageOptions, name -> name, (v, c) -> v)
-        .withDefault(ctx -> GTValues.VN[defaultVoltageTier(GTOverclockStep.recipeEUt(ctx))]);
+        .withDefault(ctx -> GTValues.VN[defaultVoltageTier(recipeEUt(ctx))]);
 
     @Nonnull
     private static List<String> voltageOptions(final RecipeContext ctx) {
-        return voltageOptions(GTOverclockStep.recipeEUt(ctx));
+        return voltageOptions(recipeEUt(ctx));
+    }
+
+    /**
+     * The recipe's own EU/t, for the settings rows, which need it to know which voltage tiers can run the recipe at
+     * all.
+     */
+    public static long recipeEUt(final RecipeContext ctx) {
+        return recipeEUt(ctx, ctx.getOrDefault(RecipePropertyAPI.DURATION_TICKS, 0));
+    }
+
+    /** As {@link #recipeEUt(RecipeContext)}, falling back on what the chart has computed so far. */
+    static long recipeEUt(final RecipeContext ctx, final EffectResult current) {
+        final long fromRecipe = recipeEUt(ctx, current.durationTicks());
+        return fromRecipe > 0 ? fromRecipe : current.energyPerT();
+    }
+
+    private static long recipeEUt(final RecipeContext ctx, final int duration) {
+        final Long euPerTick = ctx.getOrDefault(GTProvider.EU_PER_TICK, null);
+        if (euPerTick != null && euPerTick > 0) return euPerTick;
+        final Long totalEu = ctx.getOrDefault(GTProvider.TOTAL_EU, null);
+        if (totalEu != null && totalEu > 0 && duration > 0) return totalEu / duration;
+        return 0;
     }
 
     public static int minimumVoltageTier(final RecipeContext ctx) {
-        return minimumVoltageTier(GTOverclockStep.recipeEUt(ctx));
+        return minimumVoltageTier(recipeEUt(ctx));
     }
 
     /** The lowest tier whose voltage covers the recipe's EU/t. */
@@ -108,7 +132,7 @@ public final class GTSettings {
     }
 
     public static int voltageTier(final RecipeContext ctx, final Map<String, Object> settings) {
-        return voltageTier(GTOverclockStep.recipeEUt(ctx), settings);
+        return voltageTier(recipeEUt(ctx), settings);
     }
 
     /** The tier a node runs at: what it stored, or the recipe's minimum when it stored nothing. */
@@ -207,7 +231,20 @@ public final class GTSettings {
 
     /** The selected machine's own parallel count for the structure the node describes. */
     public static int machineMaxParallel(final RecipeContext ctx, final Map<String, Object> settings) {
-        return Math.max(1, fromSpec(ctx, settings, 1, GTMachineSpec::maxParallel));
+        return fromSpec(ctx, settings, 1, ResolvedRecipe::maxParallel);
+    }
+
+    /**
+     * GregTech's numbers for this node's recipe, on the machine it selected, at the structure it describes. Null for a
+     * machine without a spec, or a node without a GregTech recipe.
+     */
+    @Nullable
+    public static ResolvedRecipe resolved(final RecipeContext ctx, final Map<String, Object> settings) {
+        final GTMachineIndex.MachineEntry entry = GTMachineIndex.selected(ctx, settings);
+        final GTRecipe recipe = ctx.getOrDefault(GTProvider.GT_RECIPE, null);
+        if (entry == null || entry.machine() == null || recipe == null) return null;
+        return entry.machine()
+            .resolve(recipe, resolve(ctx, settings, voltageTier(ctx, settings), mode(ctx, entry, settings)));
     }
 
     /**
@@ -216,12 +253,15 @@ public final class GTSettings {
      * instead of a global default that happens to be wrong for it.
      */
     private static int fromSpec(final RecipeContext ctx, final Map<String, Object> settings, final int fallback,
-        final ToIntBiFunction<GTMachineSpec, StructureState> reader) {
-        final GTMachineIndex.MachineEntry entry = GTMachineIndex.selected(ctx, settings);
-        if (entry == null || entry.machine() == null) return fallback;
-        return reader.applyAsInt(
-            entry.machine(),
-            resolve(ctx, settings, voltageTier(ctx, settings), mode(ctx, entry, settings)));
+        final ToIntFunction<ResolvedRecipe> reader) {
+        final ResolvedRecipe resolved = resolved(ctx, settings);
+        return resolved == null ? fallback : reader.applyAsInt(resolved);
+    }
+
+    /** GT's standard 2x speed for 4x EU/t where the machine does not overclock. */
+    private static ProcessingSpec.OverclockRule.Ratio ratio(final ResolvedRecipe resolved) {
+        return resolved.overclock() instanceof final ProcessingSpec.OverclockRule.Ratio ratio ? ratio
+            : ProcessingSpec.OverclockRule.Ratio.STANDARD;
     }
 
     /** Percentages the rows show; the maths uses the spec's exact doubles, never these. */
@@ -230,7 +270,7 @@ public final class GTSettings {
         10,
         10000,
         100,
-        (ctx, s) -> fromSpec(ctx, s, 100, (m, st) -> (int) Math.round(100.0 / m.durationMultiplier(st))),
+        (ctx, s) -> fromSpec(ctx, s, 100, r -> (int) Math.round(100.0 / r.durationMultiplier())),
         (v, c) -> "⏱" + v + "%");
 
     public static final SettingDef<Integer> EUT_DISCOUNT_DEF = SettingDef.autoIntDef(
@@ -238,7 +278,7 @@ public final class GTSettings {
         0,
         100,
         100,
-        (ctx, s) -> fromSpec(ctx, s, 100, (m, st) -> (int) Math.round(100.0 * m.euModifier(st))),
+        (ctx, s) -> fromSpec(ctx, s, 100, r -> (int) Math.round(100.0 * r.euModifier())),
         (v, c) -> "D" + v + "%");
 
     public static final SettingDef<Integer> EUT_PER_OC_DEF = SettingDef.autoIntDef(
@@ -246,13 +286,7 @@ public final class GTSettings {
         100,
         1000,
         400,
-        (ctx, s) -> fromSpec(
-            ctx,
-            s,
-            400,
-            (m, st) -> (int) Math.round(
-                100.0 * m.overclockRatio()
-                    .euMultiplier())),
+        (ctx, s) -> fromSpec(ctx, s, 400, r -> (int) Math.round(100.0 * ratio(r).euMultiplier())),
         (v, c) -> "EU×" + (v / 100));
 
     public static final SettingDef<Integer> DURATION_PER_OC_DEF = SettingDef.autoIntDef(
@@ -260,13 +294,7 @@ public final class GTSettings {
         100,
         1000,
         200,
-        (ctx, s) -> fromSpec(
-            ctx,
-            s,
-            200,
-            (m, st) -> (int) Math.round(
-                100.0 * m.overclockRatio()
-                    .durationDivisor())),
+        (ctx, s) -> fromSpec(ctx, s, 200, r -> (int) Math.round(100.0 * ratio(r).durationDivisor())),
         (v, c) -> "Spd×" + (v / 100));
 
     public static final SettingDef<Integer> MACHINE_HEAT_DEF = SettingDef.autoIntDef(
@@ -274,28 +302,29 @@ public final class GTSettings {
         0,
         100000,
         0,
-        (ctx, s) -> fromSpec(ctx, s, 0, GTMachineSpec::machineHeat),
+        (ctx, s) -> fromSpec(
+            ctx,
+            s,
+            0,
+            r -> r.heat() == null ? 0
+                : r.heat()
+                    .machineHeat()),
         (v, c) -> "M" + v);
 
-    /**
-     * The heat a recipe demands, which GregTech keeps in the recipe's special value. That field holds
-     * whatever each machine wants it to - the Chemical Plant keeps its required casing tier there - so
-     * it is only heat for a machine that overclocks on heat. Every other machine reports zero, because
-     * a row that shows a number nothing reads is worse than no row.
-     */
-    public static final SettingDef<Integer> RECIPE_HEAT_DEF = SettingDef
-        .autoIntDef(Settings.RECIPE_HEAT.key(), 0, 100000, 0, (ctx, s) -> {
-            final GTMachineIndex.MachineEntry entry = GTMachineIndex.selected(ctx, s);
-            final GTMachineSpec machine = entry == null ? null : entry.machine();
-            final ProcessingSpec.Heat heat = machine == null ? null
-                : machine.spec()
-                    .getHeat()
-                    .orElse(null);
-            if (heat == null) return 0;
-            final Integer special = ctx.getOrDefault(GTProvider.SPECIAL_VALUE, null);
-            return heat.getFixedRecipeHeat()
-                .orElse(special != null ? special : 0);
-        }, (v, c) -> "R" + v);
+    /** Zero for a machine that ignores heat, which keeps something else in the recipe's special value. */
+    public static final SettingDef<Integer> RECIPE_HEAT_DEF = SettingDef.autoIntDef(
+        Settings.RECIPE_HEAT.key(),
+        0,
+        100000,
+        0,
+        (ctx, s) -> fromSpec(
+            ctx,
+            s,
+            0,
+            r -> r.heat() == null ? 0
+                : r.heat()
+                    .recipeHeat()),
+        (v, c) -> "R" + v);
 
     private static final int HEAT_DISCOUNT_PERCENT = (int) Math
         .round(100 * OverclockCalculator.DEFAULT_HEAT_DISCOUNT_MULTIPLIER);
@@ -309,19 +338,13 @@ public final class GTSettings {
         (ctx, s) -> HEAT_DISCOUNT_PERCENT,
         null);
 
-    /** A machine that skips no tiers reports 0, which is a real answer. A spec that says nothing leaves GT's 1. */
+    /** A machine that skips no tiers reports 0, which is a real answer. */
     public static final SettingDef<Integer> MAX_TIER_SKIPS_DEF = SettingDef.autoIntDef(
         Settings.MAX_TIER_SKIPS.key(),
         0,
         10,
         1,
-        (ctx, s) -> fromSpec(
-            ctx,
-            s,
-            1,
-            (m, st) -> m.spec()
-                .getMaxTierSkips()
-                .orElse(OverclockCalculator.DEFAULT_MAX_TIER_SKIPS)),
+        (ctx, s) -> fromSpec(ctx, s, 1, ResolvedRecipe::maxTierSkips),
         (v, c) -> "Sk" + v);
 
     public static final SettingDef<Boolean> PERFECT_OC_DEF = SettingDef.autoBoolDef(
@@ -330,29 +353,33 @@ public final class GTSettings {
             ctx,
             s,
             0,
-            (m, st) -> m.spec()
-                .isPerfectOverclock() ? 1 : 0),
+            r -> r.overclock()
+                .equals(ProcessingSpec.OverclockRule.Ratio.PERFECT) ? 1 : 0),
         (v, c) -> v ? "P" : null);
 
     public static final SettingDef<Boolean> HEAT_OC_DEF = SettingDef.autoBoolDef(
         Settings.HEAT_OC.key(),
-        (ctx, s) -> fromSpec(ctx, s, 0, (m, st) -> heatRule(m, ProcessingSpec.HeatRule.OVERCLOCK)),
-        (v, c) -> v ? "H" : null);
-
-    public static final SettingDef<Boolean> HEAT_DISCOUNT_DEF = SettingDef.autoBoolDef(
-        Settings.HEAT_DISCOUNT.key(),
-        (ctx, s) -> fromSpec(ctx, s, 0, (m, st) -> heatRule(m, ProcessingSpec.HeatRule.DISCOUNT)),
-        (v, c) -> v ? "D" : null);
-
-    public static final SettingDef<Boolean> UNLIMITED_SKIPS_DEF = SettingDef.autoBoolDef(
-        Settings.UNLIMITED_SKIPS.key(),
         (ctx, s) -> fromSpec(
             ctx,
             s,
             0,
-            (m, st) -> m.spec()
-                .getMaxTierSkips()
-                .orElse(0) == Integer.MAX_VALUE ? 1 : 0),
+            r -> r.heat() != null && r.heat()
+                .overclocking() ? 1 : 0),
+        (v, c) -> v ? "H" : null);
+
+    public static final SettingDef<Boolean> HEAT_DISCOUNT_DEF = SettingDef.autoBoolDef(
+        Settings.HEAT_DISCOUNT.key(),
+        (ctx, s) -> fromSpec(
+            ctx,
+            s,
+            0,
+            r -> r.heat() != null && r.heat()
+                .discounting() ? 1 : 0),
+        (v, c) -> v ? "D" : null);
+
+    public static final SettingDef<Boolean> UNLIMITED_SKIPS_DEF = SettingDef.autoBoolDef(
+        Settings.UNLIMITED_SKIPS.key(),
+        (ctx, s) -> fromSpec(ctx, s, 0, r -> r.maxTierSkips() == Integer.MAX_VALUE ? 1 : 0),
         (v, c) -> v ? "∞T" : null);
 
     /**
@@ -450,48 +477,50 @@ public final class GTSettings {
                 .count() - 1;
     }
 
-    private static int heatRule(final GTMachineSpec machine, final ProcessingSpec.HeatRule rule) {
-        return machine.spec()
-            .getHeat()
-            .map(heat -> rule == ProcessingSpec.HeatRule.OVERCLOCK ? heat.overclocks() : heat.discounts())
-            .orElse(false) ? 1 : 0;
-    }
-
-    /** What a structure setting can be set to, both ends included. */
-    public record TierRange(int min, int max) {}
-
-    /** The key a structure parameter of this kind is stored under. */
+    /**
+     * The key a structure value of this kind is stored under. GregTech's own kinds keep the bare name, which is what
+     * charts saved before kinds were namespaced hold.
+     */
     @Nonnull
-    public static String structureKey(final TooltipTier kind) {
-        return "gt_" + kind.name()
-            .toLowerCase(Locale.ROOT);
+    public static String structureKey(final ModifierKind kind) {
+        final String[] namespaceAndName = kind.id.split(":", 2);
+        final String name = namespaceAndName[namespaceAndName.length - 1];
+        return namespaceAndName.length == 2 && !namespaceAndName[0].equals("gregtech")
+            ? "gt_" + namespaceAndName[0] + "_" + name
+            : "gt_" + name;
     }
 
     /**
-     * The row a structure parameter is edited through: labelled with GregTech's own name for the kind
-     * and bounded by the range the selected machine declares. Coil and pipe casing keep their own rows,
-     * which show the block a player places rather than a number.
+     * The row a structure value is edited through: labelled and valued with GregTech's own names for the kind, and
+     * bounded by the range the selected machine declares. Coil and pipe casing keep their own rows, which show the
+     * block a player places and follow the chart's floor.
      */
     @Nonnull
-    public static SettingDef<?> structureDef(final TooltipTier kind) {
-        if (kind == TooltipTier.COIL) return COIL_DEF;
-        if (kind == TooltipTier.PIPE_CASING) return PIPE_CASING_DEF;
-        final ToIntBiFunction<RecipeContext, Map<String, Object>> max = (ctx, s) -> declaredRange(ctx, s, kind).max();
-        return SettingDef.autoIntDef(structureKey(kind), 0, 0, max, null)
+    public static SettingDef<?> structureDef(final ModifierKind kind) {
+        if (kind == ModifierKind.COIL) return COIL_DEF;
+        if (kind == ModifierKind.PIPE_CASING) return PIPE_CASING_DEF;
+        return SettingDef.autoIntDef(structureKey(kind), 0, 0, (ctx, s) -> best(ctx, s, kind), null)
             .withLabelAndRange(
-                StatCollector.translateToLocal(kind.key),
-                (ctx, s) -> declaredRange(ctx, s, kind).min(),
-                max);
+                kind.getName(),
+                (ctx, s) -> (int) declaredRange(ctx, s, kind).min(),
+                (ctx, s) -> (int) declaredRange(ctx, s, kind).max())
+            .withDisplay(value -> kind.label(Long.parseLong(value)));
+    }
+
+    /** What an untouched row opens on: the spec's best, as {@link ProcessingSpec#bestInputs} defines it. */
+    private static int best(final RecipeContext ctx, final Map<String, Object> settings, final ModifierKind kind) {
+        final ModifierRange range = declaredRange(ctx, settings, kind);
+        return (int) (kind.ordered ? range.max() : range.min());
     }
 
     @Nonnull
-    private static TierRange declaredRange(final RecipeContext ctx, final Map<String, Object> settings,
-        final TooltipTier kind) {
+    private static ModifierRange declaredRange(final RecipeContext ctx, final Map<String, Object> settings,
+        final ModifierKind kind) {
         final GTMachineIndex.MachineEntry entry = GTMachineIndex.selected(ctx, settings);
-        final TierRange range = entry == null ? null
+        final ModifierRange range = entry == null ? null
             : entry.structure()
                 .get(kind);
-        return range == null ? new TierRange(0, 0) : range;
+        return range == null ? new ModifierRange(kind, 0, 0) : range;
     }
 
     /**
@@ -511,18 +540,20 @@ public final class GTSettings {
     @Nonnull
     public static StructureState resolve(final RecipeContext ctx, final Map<String, Object> settings,
         final int voltageTier, final int mode) {
-        final Map<TooltipTier, Integer> structure = new EnumMap<>(TooltipTier.class);
+        final Map<ModifierKind, Long> structure = new HashMap<>();
         structure.put(
-            TooltipTier.COIL,
-            COIL_NAMES.indexOf(MachineProfile.getString(settings, COIL, COIL_NAMES.get(defaultCoilTier(ctx)))));
-        structure.put(TooltipTier.PIPE_CASING, MachineProfile.getInt(settings, PIPE_CASING, defaultPipeCasingTier()));
-        for (final TooltipTier kind : TooltipTier.values()) {
+            ModifierKind.COIL,
+            (long) COIL_NAMES.indexOf(MachineProfile.getString(settings, COIL, COIL_NAMES.get(defaultCoilTier(ctx)))));
+        structure.put(
+            ModifierKind.PIPE_CASING,
+            (long) MachineProfile.getInt(settings, PIPE_CASING, defaultPipeCasingTier()));
+        for (final ModifierKind kind : ModifierKind.all()) {
             final String key = structureKey(kind);
-            if (kind != TooltipTier.COIL && kind != TooltipTier.PIPE_CASING && settings.containsKey(key)) {
-                structure.put(kind, MachineProfile.getInt(settings, key, 0));
+            if (kind != ModifierKind.COIL && kind != ModifierKind.PIPE_CASING && settings.containsKey(key)) {
+                structure.put(kind, (long) MachineProfile.getInt(settings, key, 0));
             }
         }
-        return new StructureState(voltageTier, mode, structure);
+        return new StructureState(voltageTier, MachineProfile.getInt(settings, Settings.AMP.key(), 1), mode, structure);
     }
 
     /**
@@ -557,9 +588,9 @@ public final class GTSettings {
         };
     }
 
-    /** Shows a structure row only when the machine the node selected declares that parameter. */
+    /** Shows a structure row only when the machine the node selected reads that kind. */
     @Nonnull
-    public static BiPredicate<RecipeContext, Map<String, Object>> usesStructure(final TooltipTier kind) {
+    public static BiPredicate<RecipeContext, Map<String, Object>> usesStructure(final ModifierKind kind) {
         return (ctx, settings) -> {
             if (isAdvanced(settings)) return false;
             final GTMachineIndex.MachineEntry entry = GTMachineIndex.selected(ctx, settings);
@@ -610,10 +641,13 @@ public final class GTSettings {
     private static boolean overclocks(final RecipeContext ctx, final Map<String, Object> settings) {
         if (isAdvanced(settings)) return true;
         final GTMachineIndex.MachineEntry entry = GTMachineIndex.selected(ctx, settings);
+        // GregTech keeps noOverclock out of modes and tiers, so any structure answers for all of them
         return entry == null || entry.machine() == null
-            || !entry.machine()
+            || !(entry.machine()
                 .spec()
-                .isNoOverclock();
+                .getOverclock(
+                    entry.machine()
+                        .inputs(StructureState.of(1, 0))) instanceof ProcessingSpec.OverclockRule.None);
     }
 
     /**

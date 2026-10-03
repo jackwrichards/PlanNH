@@ -15,7 +15,7 @@ import com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers;
 import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 
 import gregtech.api.enums.HeatingCoilLevel;
-import gregtech.api.util.tooltip.TooltipTier;
+import gregtech.api.logic.ModifierKind;
 
 /**
  * The coil row stores a HeatingCoilLevel name but the preset formulas take GT's coil <em>tier</em>,
@@ -48,9 +48,10 @@ class GTStructureSettingsTest {
 
         // HV is Nichrome: ordinal 4, so tier 2 and 3601K.
         assertEquals(
-            2,
+            2L,
             GTSettings.resolve(EMPTY, settings, 5)
-                .tier(TooltipTier.COIL, -2));
+                .structure()
+                .getOrDefault(ModifierKind.COIL, -2L));
         assertEquals(3601, HeatingCoilLevel.HV.getHeat());
     }
 
@@ -59,10 +60,19 @@ class GTStructureSettingsTest {
     void unsetSettingsDefaultToTheBestStructure() {
         final StructureState state = GTSettings.resolve(EMPTY, Map.of(), 5);
 
-        assertEquals(GTStructureTiers.MAX_COIL_TIER, state.tier(TooltipTier.COIL, -2));
-        assertEquals(GTStructureTiers.MAX_PIPE_CASING_TIER, state.tier(TooltipTier.PIPE_CASING, -2));
-        // Anything else is left out, which the probe reads as the machine's own maximum.
-        assertEquals(-2, state.tier(TooltipTier.SOLENOID, -2));
+        assertEquals(
+            (long) GTStructureTiers.MAX_COIL_TIER,
+            state.structure()
+                .getOrDefault(ModifierKind.COIL, -2L));
+        assertEquals(
+            (long) GTStructureTiers.MAX_PIPE_CASING_TIER,
+            state.structure()
+                .getOrDefault(ModifierKind.PIPE_CASING, -2L));
+        // Anything else is left out, which reads as the spec's best.
+        assertEquals(
+            -2L,
+            state.structure()
+                .getOrDefault(ModifierKind.SOLENOID, -2L));
         assertEquals(5, state.voltageTier());
     }
 
@@ -101,7 +111,13 @@ class GTStructureSettingsTest {
     void anUnknownCoilNameDoesNotMasqueradeAsTierZero() {
         final StructureState state = GTSettings.resolve(EMPTY, Map.of(GTSettings.COIL, "NOT_A_COIL"), 5);
 
-        assertNotEquals(0, state.tier(TooltipTier.COIL, -2));
-        assertEquals(-1, state.tier(TooltipTier.COIL, -2));
+        assertNotEquals(
+            0L,
+            state.structure()
+                .getOrDefault(ModifierKind.COIL, -2L));
+        assertEquals(
+            -1L,
+            state.structure()
+                .getOrDefault(ModifierKind.COIL, -2L));
     }
 }

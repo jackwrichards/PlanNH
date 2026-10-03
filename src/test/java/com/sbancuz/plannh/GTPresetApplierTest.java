@@ -7,13 +7,13 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
-import com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers;
 import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 
 import gregtech.api.enums.GTValues;
+import gregtech.api.enums.VoltageIndex;
+import gregtech.api.logic.ModifierKind;
 import gregtech.api.logic.ProcessingSpec;
 import gregtech.api.util.OverclockCalculator;
-import gregtech.api.util.tooltip.TooltipTier;
 
 /**
  * Checks that a machine's spec configures {@link OverclockCalculator} the way a hand-written GregTech call
@@ -23,18 +23,28 @@ import gregtech.api.util.tooltip.TooltipTier;
  */
 class GTPresetApplierTest {
 
-    /** The EBF's arithmetic, which GregTech now hands the probe: coil heat plus 100K per tier over MV. */
+    /** The EBF's heat, as GregTech declares it: coil heat plus 100K per tier over MV. */
     private static ProcessingSpec ebfShaped() {
         return ProcessingSpec.builder()
-            .heat(
-                in -> GTStructureTiers.coilHeat(in.tier(TooltipTier.COIL)) + 100 * (in.voltageTier() - 2),
+            .coilHeatPerVoltageTier(
+                100,
+                VoltageIndex.MV,
                 ProcessingSpec.HeatRule.OVERCLOCK,
                 ProcessingSpec.HeatRule.DISCOUNT)
             .build();
     }
 
+    /** Read off the spec, not recomputed here: a copy of the formula would move with it. */
+    private static int machineHeat(final StructureState state) {
+        return ebfShaped().getHeat()
+            .orElseThrow()
+            .getMachineHeat(
+                GTSpecs.machine(ebfShaped())
+                    .inputs(state));
+    }
+
     private static StructureState state(final int voltageTier, final int coilTier) {
-        return new StructureState(voltageTier, 0, Map.of(TooltipTier.COIL, coilTier));
+        return new StructureState(voltageTier, 1, 0, Map.of(ModifierKind.COIL, (long) coilTier));
     }
 
     /**
@@ -48,8 +58,7 @@ class GTPresetApplierTest {
         final int recipeHeat = 1800;
         // Read off the spec, not recomputed here: a copy of the formula would move with it and the
         // comparison below would hold however wrong the row was. What is under test is the wiring.
-        final int machineHeat = GTSpecs.machine(ebfShaped())
-            .machineHeat(state(voltageTier, coilTier));
+        final int machineHeat = machineHeat(state(voltageTier, coilTier));
 
         final OverclockCalculator expected = new OverclockCalculator().setRecipeEUt(GTValues.VP[1])
             .setEUt(GTValues.V[voltageTier])
@@ -64,14 +73,7 @@ class GTPresetApplierTest {
             .calculate();
 
         final OverclockCalculator actual = GTSpecs
-            .calculator(
-                ebfShaped(),
-                state(voltageTier, coilTier),
-                GTValues.VP[1],
-                1024,
-                GTValues.V[voltageTier],
-                1,
-                recipeHeat)
+            .calculator(ebfShaped(), state(voltageTier, coilTier), GTValues.VP[1], 1024, recipeHeat)
             .setParallel(1)
             .setAmperageOC(true)
             .calculate();
@@ -85,8 +87,7 @@ class GTPresetApplierTest {
     @Test
     void blastFurnaceHeatDiscountIsGregTechs() {
         final int coilTier = 8;
-        final int machineHeat = GTSpecs.machine(ebfShaped())
-            .machineHeat(state(5, coilTier));
+        final int machineHeat = machineHeat(state(5, coilTier));
 
         final OverclockCalculator expected = new OverclockCalculator().setRecipeEUt(GTValues.VP[1])
             .setEUt(GTValues.V[5])
@@ -96,7 +97,7 @@ class GTPresetApplierTest {
             .setMachineHeat(machineHeat);
 
         final OverclockCalculator calc = GTSpecs
-            .calculator(ebfShaped(), state(5, coilTier), GTValues.VP[1], 1024, GTValues.V[5], 1, 1800);
+            .calculator(ebfShaped(), state(5, coilTier), GTValues.VP[1], 1024, 1800);
 
         assertEquals(expected.calculateHeatDiscountMultiplier(), calc.calculateHeatDiscountMultiplier(), 1e-9);
     }
@@ -108,8 +109,7 @@ class GTPresetApplierTest {
             .perfectOverclock()
             .build();
 
-        final OverclockCalculator perfect = GTSpecs
-            .calculator(perfectOC, state(5, 0), GTValues.VP[1], 1024, GTValues.V[5], 1, 0)
+        final OverclockCalculator perfect = GTSpecs.calculator(perfectOC, state(5, 0), GTValues.VP[1], 1024, 0)
             .setParallel(1)
             .setAmperageOC(true)
             .calculate();
@@ -138,8 +138,7 @@ class GTPresetApplierTest {
             .unlimitedTierSkips()
             .build();
 
-        final OverclockCalculator forge = GTSpecs
-            .calculator(unlimited, state(5, 8), GTValues.V[7], 1024, GTValues.V[5], 1, 1800);
+        final OverclockCalculator forge = GTSpecs.calculator(unlimited, state(5, 8), GTValues.V[7], 1024, 1800);
         final OverclockCalculator defaultLimit = new OverclockCalculator().setRecipeEUt(GTValues.V[7])
             .setEUt(GTValues.V[5])
             .setDuration(1024);
@@ -158,8 +157,7 @@ class GTPresetApplierTest {
             .build();
 
         // One tier up: allowed by GT's default of a single skip, refused with skipping disabled.
-        final OverclockCalculator noSkips = GTSpecs
-            .calculator(arc, state(5, 0), GTValues.V[6], 1024, GTValues.V[5], 1, 0);
+        final OverclockCalculator noSkips = GTSpecs.calculator(arc, state(5, 0), GTValues.V[6], 1024, 0);
         final OverclockCalculator defaultLimit = new OverclockCalculator().setRecipeEUt(GTValues.V[6])
             .setEUt(GTValues.V[5])
             .setDuration(1024);
@@ -179,12 +177,12 @@ class GTPresetApplierTest {
     @Test
     void noOverclockSpecMatchesGregTechsNoOverclockCalculator() {
         final ProcessingSpec steam = ProcessingSpec.builder()
-            .durationMultiplier(in -> 0.8)
+            .speed(in -> 1.25)
             .euModifierNotLimitingParallel(in -> 2.5)
             .noOverclock()
             .build();
 
-        final OverclockCalculator planned = GTSpecs.calculator(steam, state(9, 0), 16, 200, GTValues.V[9], 1, 0)
+        final OverclockCalculator planned = GTSpecs.calculator(steam, state(9, 0), 16, 200, 0)
             .setParallel(8)
             .calculate();
         final OverclockCalculator gregtech = OverclockCalculator.ofNoOverclock(16, 200)

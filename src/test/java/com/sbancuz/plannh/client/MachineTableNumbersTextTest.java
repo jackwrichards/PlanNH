@@ -3,8 +3,6 @@ package com.sbancuz.plannh.client;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.Map;
-
 import org.junit.jupiter.api.Test;
 
 import com.sbancuz.plannh.data.provider.gregtech.GTMachineSpec;
@@ -19,7 +17,7 @@ import gregtech.api.logic.ProcessingSpec;
 class MachineTableNumbersTextTest {
 
     private static GTMachineSpec machine(final ProcessingSpec spec) {
-        return GTMachineSpec.of(spec, Map.of(), 1);
+        return GTMachineSpec.of(spec);
     }
 
     /** Every field, every time. A snapshot that drops defaults cannot tell "left" from "never set". */
@@ -42,7 +40,7 @@ class MachineTableNumbersTextTest {
         final String text = MachineTableCommand.numbersText(
             machine(
                 ProcessingSpec.builder()
-                    .durationMultiplier(in -> 2.0)
+                    .speed(0.5)
                     .euModifier(in -> 1.0)
                     .build()));
 
@@ -57,7 +55,7 @@ class MachineTableNumbersTextTest {
         final String text = MachineTableCommand.numbersText(
             machine(
                 ProcessingSpec.builder()
-                    .durationMultiplier(in -> 0.5)
+                    .speed(2)
                     .build()));
 
         assertTrue(text.contains("dur=0.5"), "expected dur=0.5 in " + text);
@@ -73,16 +71,16 @@ class MachineTableNumbersTextTest {
         final String third = MachineTableCommand.numbersText(
             machine(
                 ProcessingSpec.builder()
-                    .durationMultiplier(in -> 1 / 3.0)
+                    .euModifierNotLimitingParallel(in -> 1 / 3.0)
                     .build()));
-        assertTrue(third.contains("dur=1/3"), "expected dur=1/3 in " + third);
+        assertTrue(third.contains("cost=1/3"), "expected cost=1/3 in " + third);
 
         final String quarters = MachineTableCommand.numbersText(
             machine(
                 ProcessingSpec.builder()
-                    .durationMultiplier(in -> 2.25)
+                    .euModifierNotLimitingParallel(in -> 2.25)
                     .build()));
-        assertTrue(quarters.contains("dur=9/4"), "expected dur=9/4 in " + quarters);
+        assertTrue(quarters.contains("cost=9/4"), "expected cost=9/4 in " + quarters);
     }
 
     /** A value two significant digits describe exactly stays a decimal, because that is how it reads. */
@@ -91,11 +89,11 @@ class MachineTableNumbersTextTest {
         final String text = MachineTableCommand.numbersText(
             machine(
                 ProcessingSpec.builder()
-                    .durationMultiplier(in -> 0.9)
+                    .euModifierNotLimitingParallel(in -> 0.9)
                     .euModifier(in -> 0.95)
                     .build()));
 
-        assertTrue(text.contains("dur=0.9 "), "expected dur=0.9 in " + text);
+        assertTrue(text.contains("cost=0.9 "), "expected cost=0.9 in " + text);
         assertTrue(text.contains("eu=0.95 "), "expected eu=0.95 in " + text);
     }
 
@@ -105,9 +103,9 @@ class MachineTableNumbersTextTest {
         final String text = MachineTableCommand.numbersText(
             machine(
                 ProcessingSpec.builder()
-                    .durationMultiplier(in -> 3.6e-12)
+                    .euModifierNotLimitingParallel(in -> 3.6e-12)
                     .build()));
 
-        assertFalse(text.contains("dur=0/"), "a tiny value rendered as a zero fraction: " + text);
+        assertFalse(text.contains("cost=0/"), "a tiny value rendered as a zero fraction: " + text);
     }
 }

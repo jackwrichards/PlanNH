@@ -13,9 +13,9 @@ import com.sbancuz.plannh.data.provider.gregtech.GTPresetApplier;
 import com.sbancuz.plannh.data.provider.gregtech.StructureState;
 
 import gregtech.api.enums.GTValues;
+import gregtech.api.logic.ModifierKind;
 import gregtech.api.logic.ProcessingSpec;
 import gregtech.api.util.OverclockCalculator;
-import gregtech.api.util.tooltip.TooltipTier;
 
 /**
  * Advanced mode is an override, not a second set of maths: a stored value replaces just that one
@@ -33,11 +33,11 @@ class GTOverrideTest {
     }
 
     private static StructureState state() {
-        return new StructureState(5, 0, Map.of(TooltipTier.COIL, 5));
+        return new StructureState(5, 1, 0, Map.of(ModifierKind.COIL, 5L));
     }
 
     private static OverclockCalculator build(final Map<String, Object> settings) {
-        final OverclockCalculator calc = GTSpecs.calculator(spec(), state(), GTValues.VP[1], 1024, GTValues.V[5], 1, 0);
+        final OverclockCalculator calc = GTSpecs.calculator(spec(), state(), GTValues.VP[1], 1024, 0);
         GTPresetApplier.applyOverrides(calc, settings);
         return calc.setParallel(1)
             .setAmperageOC(true)
@@ -75,8 +75,7 @@ class GTOverrideTest {
      */
     @Test
     void zeroTierSkipsIsExpressible() {
-        final OverclockCalculator noSkips = GTSpecs
-            .calculator(spec(), state(), GTValues.V[6], 1024, GTValues.V[5], 1, 0);
+        final OverclockCalculator noSkips = GTSpecs.calculator(spec(), state(), GTValues.V[6], 1024, 0);
         GTPresetApplier.applyOverrides(noSkips, Map.of(Settings.MAX_TIER_SKIPS.key(), 0));
 
         assertTrue(
