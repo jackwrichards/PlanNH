@@ -61,18 +61,8 @@ public final class ChartLayouter {
         apply(plan);
     }
 
-    // ===========================================================================================
-    // Phase 1 - build
-    // ===========================================================================================
-
     /**
      * Reads the chart into a request, on the client thread.
-     *
-     * <p>
-     * The model says <em>what</em> to lay out and the widgets are only asked <em>how big</em> things are.
-     * Keeping those apart is not tidiness: the widget map is a strict superset of the model, because
-     * {@code NodeWidget} registers itself whether or not it is filed inside a group, so iterating widgets
-     * would quietly disagree with the chart about what exists.
      */
     private LayoutRequest build() {
         final List<LayoutMachine> machines = new ArrayList<>();
@@ -110,16 +100,6 @@ public final class ChartLayouter {
 
     /**
      * Adds a machine to the request, measuring it from its widget.
-     *
-     * <p>
-     * <b>No guessed size.</b> The widget is the only thing that knows how big a machine is — nothing in
-     * {@code data.flowchart} stores it — so whatever it reports is what the engine gets, including a
-     * zero. A machine measured at zero is laid out as a dot in the right place, which is wrong but
-     * visible; a machine measured at an invented 120x80 is laid out overlapping whatever was really
-     * there, which is wrong and not visible.
-     *
-     * @param unmeasured incremented, not used for control flow — it exists so the count shows up in a
-     *                   log line rather than being a silent zero
      */
     private void addNode(final List<LayoutMachine> out, final Node node, final @Nullable UUID groupId ) {
         int width = 0;
@@ -136,15 +116,6 @@ public final class ChartLayouter {
         if (groupId != null) parentOf.put(node.getId(), groupId);
     }
 
-    /**
-     * The live relations.
-     *
-     * <p>
-     * {@code getEdges2}, not {@code getEdges}. The latter is the legacy type the old engine wanted, it has
-     * no producer anywhere in {@code src/main}, and the serializer reads and writes the {@code Edge2} map
-     * — so a reloaded chart has an empty one and the button does nothing at all, which is precisely what
-     * used to happen.
-     */
     private List<LayoutRelation> relations() {
         final List<LayoutRelation> relations = new ArrayList<>();
         for (final Edge2 edge : canvas.getGraph()
@@ -207,11 +178,6 @@ public final class ChartLayouter {
 
 /**
  * A note's measured box, or zero if its widget has not been measured.
- *
- * <p>
- * Same rule as {@link #addMachine}: the widget is the only source, and nothing is guessed. A
- * {@code NoteWidget} is pure {@code coverChildren()}, so unlike a machine it has no declared size to
- * fall back to even in principle.
  */
 private int[] noteSize(final Note note) {
     if (canvas.getFlowchartWidgets()
@@ -223,25 +189,6 @@ private int[] noteSize(final Note note) {
     return new int[] { 0, 0 };
 }
 
-    // ===========================================================================================
-    // Phase 3 - apply
-    // ===========================================================================================
-
-    /**
-     * Writes a plan onto the chart.
-     *
-     * <p>
-     * <b>Anchored in two passes.</b> The plan is laid out at offset zero, the chart's corner is measured
-     * before and after, and everything is shifted by the difference. Because a translation is affine, that
-     * lands on the anchor exactly, with no rounding in the argument.
-     *
-     * <p>
-     * The two corners read different things — the current one from the model, the new one from the plan —
-     * so they cannot be one method. What has to match is the <em>predicate</em>: both take the minimum over
-     * loose machines and group frames, and neither counts anything nested inside a group, because a nested
-     * stored position is not a world coordinate at all. An earlier attempt implemented that predicate three
-     * times in three files and drifted.
-     */
     private void apply(final LayoutPlan plan) {
         final Point current = chartCorner();
         final Point planned = planCorner(plan);
@@ -261,14 +208,6 @@ private int[] noteSize(final Note note) {
         });
     }
 
-    /**
-     * A group's stored position and size, from the frame the engine reserved.
-     *
-     * <p>
-     * {@code Group.width} and {@code Group.height} are the <em>area</em> size, not the frame's: the frame
-     * is the area plus the title row above it. So the width is the frame's width unchanged, and the height
-     * is the frame's height less the header.
-     */
     private void writeGroups(final LayoutPlan plan, final int shiftX, final int shiftY) {
         for (final Map.Entry<UUID, Box> entry : plan.groupFrames()
             .entrySet()) {
@@ -286,16 +225,6 @@ private int[] noteSize(final Note note) {
         }
     }
 
-    /**
-     * Every machine and note, from world coordinates to the coordinate the model stores.
-     *
-     * <p>
-     * <b>Snapping happens in world space, before the conversion.</b> Snapping a group and its members
-     * independently would move each by up to a grid step relative to the other and break both the frame
-     * and the clearance the engine promised. A grouped member's stored x is then not itself grid-aligned,
-     * which is fine: the grid is a world-space drawing aid, and the thing that has to stay correct is the
-     * gap between machines.
-     */
     private void writeChildren(final LayoutPlan plan, final int shiftX, final int shiftY) {
         for (final Map.Entry<UUID, Point> entry : plan.machines()
             .entrySet()) {
@@ -317,16 +246,6 @@ private int[] noteSize(final Note note) {
 
     /**
      * A world position, snapped, converted into whatever the model stores for that thing.
-     *
-     * <p>
-     * Loose things store world coordinates. Things inside a group store coordinates relative to that
-     * group's content area, so exactly one subtraction — and only one, because a stored coordinate is always
-     * relative to its <em>immediate</em> parent, whatever depth that parent sits at.
-     *
-     * <p>
-     * The header is subtracted here because it is the same measured value the engine reserved it against,
-     * read out of the same widget. Subtracting it in both places is the bug that put every grouped machine
-     * one header above where the engine put it, and reading it twice is what made that happen.
      */
     private int[] toStored(final Point world, final UUID id, final int shiftX, final int shiftY) {
         final int x = snap(world.x() + shiftX);
@@ -343,12 +262,6 @@ private int[] noteSize(final Note note) {
 
     /**
      * Puts every widget where the model now says it is.
-     *
-     * <p>
-     * {@code pos()} takes a parent-relative coordinate, which is exactly what the model stores for a
-     * grouped child and exactly what it stores for a loose one. Groups additionally need a resize, because
-     * the area measures its own children and the children just moved - without it the frame keeps the size
-     * it had, and the next layout reads that stale size instead of the one it just wrote.
      */
     private void repositionWidgets() {
         for (final FlowchartWidget<?, ?> widget : canvas.getFlowchartWidgets()
