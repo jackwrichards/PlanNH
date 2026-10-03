@@ -21,8 +21,8 @@ import gregtech.api.logic.ProcessingSpec;
 import gregtech.api.recipe.RecipeMap;
 
 /**
- * The spec is GregTech's, so these pin only what PlanNH adds on top: which inputs a node's state stands for, and when
- * a machine earns its rows.
+ * Spec math is GregTech's, so these test only PlanNH's additions: the inputs a node's state maps to, and when a machine
+ * gets rows.
  */
 class GTMachineSpecTest {
 
@@ -35,7 +35,6 @@ class GTMachineSpecTest {
     private static final List<MachineMode> TWO_MODES = List
         .of(MachineMode.of(mock(RecipeMap.class)), MachineMode.of(mock(RecipeMap.class)));
 
-    /** An untouched node shows the machine at its best, so that is what an unset value reads as. */
     @Test
     void anUnsetValueIsTheSpecsBest() {
         final GTMachineSpec machine = GTMachineSpec.of(
@@ -57,9 +56,8 @@ class GTMachineSpecTest {
     }
 
     /**
-     * A chart's floor is what an untouched node plans at, unless the recipe needs more: a coil too cold for the recipe
-     * is
-     * raised to the coolest that runs it, as GregTech's own check decides, voltage bonus included.
+     * An untouched node is planned at the chart's floor unless the recipe requires more: a coil too cold for the recipe
+     * is raised to the coolest that passes GregTech's check, voltage bonus included.
      */
     @Test
     void anUnsetValueIsRaisedToTheLowestThatRunsTheRecipe() {
@@ -70,7 +68,7 @@ class GTMachineSpecTest {
         final StructureState atCupronickel = new StructureState(5, 1, 0, Map.of(), Map.of(ModifierKind.COIL, 0L));
         final StructureState chosen = new StructureState(5, 1, 0, Map.of(ModifierKind.COIL, 0L));
 
-        // Nichrome, coil tier 2, runs at 3601K, plus 300K at IV
+        // Nichrome (coil tier 2) is 3601K, plus 300K at IV
         assertEquals(
             2,
             ebf.inputs(atCupronickel, GTSpecs.recipe(120, 100, 3901))
@@ -96,7 +94,7 @@ class GTMachineSpecTest {
                     .build()));
     }
 
-    /** A value the machine builds up while running is planned at its best, so it offers no row. */
+    /** A value built up while running is planned at its best, so it has no row. */
     @Test
     void onlyBuiltValuesAreRows() {
         final GTMachineSpec machine = GTMachineSpec.of(
@@ -135,7 +133,7 @@ class GTMachineSpecTest {
                 .contains(Settings.GT_MODE));
     }
 
-    /** The node's amps reach the spec as one hatch carrying them all, so specs that use every amp see them. */
+    /** The node's amps reach the spec as one hatch with all of them, so a spec using every amp reads them all. */
     @Test
     void theNodesAmpsReachTheSpec() {
         final GTMachineSpec machine = GTMachineSpec.of(

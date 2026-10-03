@@ -13,10 +13,10 @@ import com.sbancuz.plannh.data.provider.gregtech.GTPresetApplier;
 import gregtech.api.logic.ProcessingRun;
 import gregtech.api.recipe.check.CheckRecipeResultRegistry;
 
-/** What a node takes from a run GregTech worked out, beyond its duration, draw and parallels. */
+/** What a node reads from a GregTech run besides duration, EU/t and parallels. */
 class GTPresetApplierEffectTest {
 
-    /** As the Eye of Harmony runs: each parallel may fail, a success yields less, and EU moves once per run. */
+    /** Modelled on the Eye of Harmony: each parallel may fail, a success yields less, and EU flows once per run. */
     @Test
     void aRunsOddsScaleItsOutputsAndItsOnceOffEuIsStated() {
         final ProcessingRun run = new ProcessingRun(

@@ -10,9 +10,8 @@ import com.sbancuz.plannh.data.provider.gregtech.GTMachineSpec;
 import gregtech.api.logic.ProcessingSpec;
 
 /**
- * The machine table is checked in and diffed against the next GregTech, so this rendering has to move
- * only when a number moves. These assert that property rather than any particular string: an expected
- * string here would just be a copy of the implementation.
+ * The machine table is checked in and diffed against the next GregTech, so this rendering has to move only when a
+ * number moves. An expected full string here would only copy the implementation, so only that property is asserted.
  */
 class MachineTableNumbersTextTest {
 
@@ -20,7 +19,7 @@ class MachineTableNumbersTextTest {
         return GTMachineSpec.of(spec);
     }
 
-    /** Every field, every time. A snapshot that drops defaults cannot tell "left" from "never set". */
+    /** In a snapshot that drops defaults, "left" and "never set" look the same. */
     @Test
     void everyFieldIsAlwaysPresent() {
         final String text = MachineTableCommand.numbersText(machine(ProcessingSpec.STANDARD));
@@ -32,8 +31,8 @@ class MachineTableNumbersTextTest {
     }
 
     /**
-     * A whole number must not render as "2.0", or every regenerated table diffs against itself the
-     * first time a double lands exactly on an integer.
+     * A whole number must not render as "2.0", or every regenerated table diffs against itself the first time a double
+     * lands on an integer.
      */
     @Test
     void wholeNumbersCarryNoTrailingZeros() {
@@ -83,7 +82,7 @@ class MachineTableNumbersTextTest {
         assertTrue(quarters.contains("cost=9/4"), "expected cost=9/4 in " + quarters);
     }
 
-    /** A value two significant digits describe exactly stays a decimal, because that is how it reads. */
+    /** A value exact at two significant digits stays a decimal, because that is how it reads. */
     @Test
     void exactShortDecimalsStayDecimal() {
         final String text = MachineTableCommand.numbersText(

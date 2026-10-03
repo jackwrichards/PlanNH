@@ -48,11 +48,10 @@ public enum Settings {
 
     // ── settings the mod that owns the machine defines ──
     // Only the key is declared. The provider attaches the def, so no mod's voltage names, coil names
-    // or tier ceilings are written down here; see GTSettings and GTProvider.machineDriven. The GT_
-    // prefix follows GT_MULTIBLOCK above, and is honest: a coil is a GregTech idea, and the next mod's
-    // tier setting will not be a coil. GregTech's other structure rows are keyed by the kind a machine
-    // declares, not by a constant here; coil and pipe casing are named because a chart can set a floor
-    // for them.
+    // or tier ceilings appear here. See GTSettings and GTProvider.machineDriven. The GT_ prefix follows
+    // GT_MULTIBLOCK above: a coil is a GregTech concept, and another mod's tier setting won't be a coil.
+    // GregTech's other structure rows are keyed by each machine's structure kind, not by a constant
+    // here. Coil and pipe casing get constants because a chart can set a floor for them.
     MACHINE("machine"),
     VOLTAGE("voltage"),
     GT_COIL("gt_coil"),
@@ -68,7 +67,7 @@ public enum Settings {
 
     private final SettingDef<?> def;
 
-    /** A setting the owning mod defines; see {@link SettingDef#providedDef}. */
+    /** A setting the owning mod defines. See {@link SettingDef#providedDef}. */
     Settings(final String key) {
         this.def = SettingDef.providedDef(key);
     }

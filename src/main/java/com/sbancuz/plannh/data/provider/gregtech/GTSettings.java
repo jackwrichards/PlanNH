@@ -33,14 +33,13 @@ import gregtech.api.util.GTUtility;
 import gregtech.api.util.OverclockCalculator;
 
 /**
- * Settings that only exist for GregTech nodes, kept out of {@link com.sbancuz.plannh.data.Settings}
- * because their option lists come from GT enums and {@code data} must stay loadable without it.
+ * Settings for GregTech nodes only, kept out of {@link com.sbancuz.plannh.data.Settings} because their
+ * option lists come from GT enums and {@code data} must load without GT.
  *
  * <p>
- * These describe the structure a player built - which coil, which solenoid - rather than raw
- * overclock arithmetic. Each row is shown only when the selected machine's spec says it reads that
- * setting, so a node asks for the two or three numbers that machine actually uses instead of the
- * fifteen the old profiles offered.
+ * Rows are the structure a player built (which coil, which solenoid), not raw overclock arithmetic.
+ * Each row appears only when the selected machine's spec reads that setting, so a node has rows for
+ * the two or three numbers that machine uses.
  */
 public final class GTSettings {
 
@@ -48,31 +47,28 @@ public final class GTSettings {
 
     /** Shared: any mod's machines are picked through the same row, so a node has one machine key. */
     public static final String MACHINE = Settings.MACHINE.key();
-    /** Still GregTech's own: it reveals the raw overclock rows, which no other provider has. */
+    /** GregTech-only: it enables the raw overclock rows, which no other provider has. */
     public static final String ADVANCED = "gt_advanced";
 
-    // Read off the shared vocabulary rather than repeated as literals, so the key a spec names and
-    // the key a node stores cannot drift apart. Sourcing them from a method call also keeps them out
-    // of the constant pool, which is what makes a single edit here reach every call site.
+    // Read from Settings, not repeated as literals, so the key a spec reads and the key a node stores
+    // cannot drift apart. As non-constants they are not inlined into call sites, so an edit here
+    // reaches every caller.
     public static final String MODE = Settings.GT_MODE.key();
-    /** The coil and pipe casing rows' keys, which {@link #structureKey} gives GregTech's kinds. */
+    /** Coil and pipe casing row keys, from {@link #structureKey}. */
     public static final String COIL = structureKey(ModifierKind.COIL);
     public static final String PIPE_CASING = structureKey(ModifierKind.PIPE_CASING);
 
-    /** Sixteen 4A hatches is past anything GregTech builds, and the row is a plan rather than a limit. */
+    /** Sixteen 4A hatches exceeds any real GregTech build. The row is a plan, not a limit. */
     private static final int MAX_AMPERAGE = 64;
 
-    /**
-     * The machine picker, which is no longer GregTech's own: {@link MachineVariants} builds it from
-     * whichever providers offer machines for the node's recipe.
-     */
+    /** Machine picker, built by {@link MachineVariants} from every provider with machines for the node's recipe. */
     public static final SettingDef<String> MACHINE_DEF = MachineVariants.pickerDef();
 
     /**
-     * Voltage offered from the lowest tier that can actually run this recipe upward. A machine below
-     * the recipe's own EU/t cannot run it at all, so those tiers are not choices, and there is no
-     * "off": a GT node always draws power. Unset resolves to the chart's own tier, raised to that
-     * minimum, so a fresh node already reads as something buildable rather than as nothing.
+     * Voltage options from the lowest tier that can run this recipe upward. Tiers below the recipe's
+     * EU/t cannot run it, so they're not options. There is no "off" because a GT node always draws
+     * power. Unset resolves to the chart's tier, raised to that minimum, so a new node starts at a
+     * buildable tier.
      */
     public static final SettingDef<String> VOLTAGE_DEF = SettingDef
         .dynamicEnumDef(Settings.VOLTAGE.key(), "", GTSettings::voltageOptions, name -> name, (v, c) -> v)
@@ -83,15 +79,12 @@ public final class GTSettings {
         return voltageOptions(recipeEUt(ctx));
     }
 
-    /**
-     * The recipe's own EU/t, for the settings rows, which need it to know which voltage tiers can run the recipe at
-     * all.
-     */
+    /** Recipe's EU/t, which bounds the voltage tiers the settings rows list. */
     public static long recipeEUt(final RecipeContext ctx) {
         return recipeEUt(ctx, ctx.getOrDefault(RecipePropertyAPI.DURATION_TICKS, 0));
     }
 
-    /** As {@link #recipeEUt(RecipeContext)}, falling back on what the chart has computed so far. */
+    /** As {@link #recipeEUt(RecipeContext)}, falling back on the chart's current EU/t when the recipe has none. */
     static long recipeEUt(final RecipeContext ctx, final EffectResult current) {
         final long fromRecipe = recipeEUt(ctx, current.durationTicks());
         return fromRecipe > 0 ? fromRecipe : current.energyPerT();
@@ -119,7 +112,7 @@ public final class GTSettings {
         return voltageTier(recipeEUt(ctx), settings);
     }
 
-    /** The tier a node runs at: what it stored, or the recipe's minimum when it stored nothing. */
+    /** Tier a node runs at: the stored tier raised to the recipe's minimum, else {@link #defaultVoltageTier}. */
     public static int voltageTier(final long recipeEUt, final Map<String, Object> settings) {
         final String stored = MachineProfile.getString(settings, Settings.VOLTAGE.key(), "");
         final int minimum = minimumVoltageTier(recipeEUt);
@@ -130,26 +123,26 @@ public final class GTSettings {
     }
 
     /**
-     * The tier a node opens at: the chart's own minimum, raised to the lowest tier that can run this
-     * recipe at all. A node the user has not set is planning at whatever this chart plans at, and a
-     * recipe too expensive for that still gets a hatch that works.
+     * Tier for a node with no stored voltage: the chart's minimum, raised to the lowest tier that can
+     * run this recipe. An unset node is planned at the chart's tier, and a recipe too expensive for
+     * that still gets a working hatch.
      */
     public static int defaultVoltageTier(final long recipeEUt) {
         return Math.max(minimumVoltageTier(recipeEUt), chartMinimum(Settings.VOLTAGE, 0));
     }
 
     /**
-     * What a chart says it can build, or the best the game offers when it has not said. Read from the
-     * chart on screen rather than handed in: a {@link SettingDef} is given the recipe and the node's
-     * own settings, never the node or the graph holding it, and only the active chart draws rows.
+     * Chart's floor for this setting, or {@code best} when the chart sets none. Read from the chart on
+     * screen, not passed in: a {@link SettingDef} receives the recipe and the node's settings, never the
+     * node or its graph, and only the active chart draws rows.
      */
     private static int chartMinimum(final Settings setting, final int best) {
         return ChartMinimums.floor(setting, best);
     }
 
     /**
-     * The settings a GregTech chart can set a floor for. Registered rather than listed by the panel that
-     * draws them, so that panel names no mod and keeps working on a pack without GregTech.
+     * Settings a GregTech chart can set a floor for. Registered, not listed in the panel that draws
+     * them, so the panel references no mod and works on a pack without GregTech.
      */
     public static void registerChartMinimums() {
         for (final ChartFloor floor : CHART_FLOORS) {
@@ -163,17 +156,17 @@ public final class GTSettings {
                     (int) range.max(),
                     floor.kind()::label));
         }
-        // One below the top of GregTech's own list, matching the tiers the voltage row offers.
+        // one below the top of GregTech's list, matching the voltage row's options
         ChartMinimums.register(
             ChartMinimums.Minimum
                 .weakest(Settings.VOLTAGE, "Volt", 0, GTValues.VN.length - 2, tier -> GTValues.VN[tier]));
     }
 
     /**
-     * A structure value a whole chart sets a floor for, because it describes how far the world has progressed rather
-     * than one machine: a chart planned at Cupronickel that quotes Eternal numbers is wrong everywhere at once.
+     * Structure value with a chart-wide floor, because it follows the world's progression, not one machine. A chart
+     * planned at Cupronickel that prints Eternal numbers is wrong on every node.
      *
-     * @param label Short enough to sit beside the floor's two steppers
+     * @param label Short enough to fit beside the floor's two steppers
      */
     private record ChartFloor(ModifierKind.IntKind kind, Settings setting, String label) {}
 
@@ -181,7 +174,7 @@ public final class GTSettings {
         new ChartFloor(ModifierKind.COIL, Settings.GT_COIL, "Coil"),
         new ChartFloor(ModifierKind.PIPE_CASING, Settings.GT_PIPE_CASING, "Pipe"));
 
-    /** The tiers offered for a recipe of this cost, lowest usable first. */
+    /** Voltage options for a recipe of this cost, lowest usable first. */
     @Nonnull
     public static List<String> voltageOptions(final long recipeEUt) {
         final List<String> names = new ArrayList<>();
@@ -192,28 +185,28 @@ public final class GTSettings {
     }
 
     /**
-     * Hands the node back to the raw overclock numbers. Also the provenance marker: while it is on,
-     * the settings map is what the user meant and no spec may override it.
+     * Switches the node to the raw overclock rows. Also the provenance marker: while set, every stored
+     * setting is a user value and no spec value replaces it.
      */
     public static final SettingDef<Boolean> ADVANCED_DEF = SettingDef
         .boolDef(ADVANCED, false, (v, c) -> v ? "A" : null);
 
     /**
-     * Parallels sit at whatever the structure allows, because running a multiblock below its maximum
-     * is almost never what a player wants. Stored 0 means exactly that, so the number follows the
-     * machine and its coils instead of freezing at whatever was current when the node was made.
+     * Parallels default to the structure's maximum, since players rarely run a multiblock below it.
+     * Stored 0 means that maximum, so the number follows the machine and its coils. A stored count
+     * would stay at the value from when the node was made.
      */
     public static final SettingDef<Integer> PARALLELS_DEF = SettingDef
         .autoIntDefCapped(Settings.PARALLELS.key(), 1, 4096, 1, GTSettings::machineMaxParallel, (v, c) -> "∥" + v);
 
-    /** The selected machine's own parallel count for the structure the node describes. */
+    /** Selected machine's max parallels at the node's structure. */
     public static int machineMaxParallel(final RecipeContext ctx, final Map<String, Object> settings) {
         return fromSpec(ctx, settings, 1, ResolvedRecipe::maxParallel);
     }
 
     /**
-     * GregTech's numbers for this node's recipe, on the machine it selected, at the structure it describes. Null for a
-     * machine without a spec, or a node without a GregTech recipe.
+     * GregTech's numbers for this node's recipe on its selected machine and structure. Null for a machine without a
+     * spec, or a node without a GregTech recipe.
      */
     @Nullable
     public static ResolvedRecipe resolved(final RecipeContext ctx, final Map<String, Object> settings) {
@@ -222,19 +215,18 @@ public final class GTSettings {
     }
 
     /**
-     * What a node plans with: its machine's inputs, and the numbers its recipe resolves to there.
+     * Node's plan: its machine's inputs and the numbers its recipe resolves to with them.
      *
-     * @param floors     The chart floors the plan read, in {@link #floor(int)} order
-     * @param calculator For the rows to read, never to change
+     * @param floors     Chart floors read for this plan, in {@link #floor(int)} order
+     * @param calculator Read by the rows, never modified
      */
     private record Planned(RecipeContext ctx, Map<String, Object> settings, long[] floors,
         GTMachineIndex.MachineEntry entry, ProcessingInputs inputs, @Nullable ResolvedRecipe resolved,
         @Nullable OverclockCalculator calculator) {}
 
     /**
-     * The last node's plan. Every row of a node's panel reads it on every frame, and a panel draws its rows together,
-     * so
-     * one slot holds it, as {@link GTMachineIndex#candidates} does. Everything the plan reads is in the key.
+     * Last node's plan. Every row of a node's panel reads it each frame, and a panel draws its rows together, so one
+     * slot is enough, as in {@link GTMachineIndex#candidates}. Every input of the plan is part of the cache key.
      */
     @Nullable
     private static Planned lastPlanned;
@@ -296,9 +288,8 @@ public final class GTSettings {
     }
 
     /**
-     * Reads one number off the machine the node is using, for the structure it describes. Every
-     * advanced row resolves this way, so an untouched row reads what the machine actually does
-     * instead of a global default that happens to be wrong for it.
+     * Reads one number off the node's machine at its structure, so an untouched row draws the machine's
+     * value, not a global default that is wrong for most machines.
      */
     private static int fromSpec(final RecipeContext ctx, final Map<String, Object> settings, final int fallback,
         final ToIntFunction<ResolvedRecipe> reader) {
@@ -307,8 +298,8 @@ public final class GTSettings {
     }
 
     /**
-     * Reads one number off the calculator the machine would overclock this node's recipe with, which is what an
-     * advanced row overrides.
+     * Reads one number off the calculator for this node's recipe on its machine. Each advanced row can store an
+     * override for this value.
      */
     private static int fromCalculator(final RecipeContext ctx, final Map<String, Object> settings, final int fallback,
         final ToIntFunction<OverclockCalculator> reader) {
@@ -316,12 +307,12 @@ public final class GTSettings {
         return planned == null || planned.calculator() == null ? fallback : reader.applyAsInt(planned.calculator());
     }
 
-    /** A row's percentage, for a value GregTech keeps as a factor. */
+    /** Row percentage for a value GregTech stores as a factor. */
     public static int percent(final double factor) {
         return (int) Math.round(100 * factor);
     }
 
-    /** Percentages the rows show; the maths uses the spec's exact doubles, never these. */
+    /** Percentages drawn in the rows. The maths uses the spec's exact doubles, never these. */
     public static final SettingDef<Integer> SPEED_DEF = SettingDef.autoIntDef(
         Settings.SPEED.key(),
         10,
@@ -362,7 +353,7 @@ public final class GTSettings {
         (ctx, s) -> fromCalculator(ctx, s, 0, OverclockCalculator::getMachineHeat),
         (v, c) -> "M" + v);
 
-    /** Zero for a machine that ignores heat, which keeps something else in the recipe's special value. */
+    /** Zero for a machine without heat, since such a recipe's special value stores something else. */
     public static final SettingDef<Integer> RECIPE_HEAT_DEF = SettingDef.autoIntDef(
         Settings.RECIPE_HEAT.key(),
         0,
@@ -384,7 +375,7 @@ public final class GTSettings {
             c -> percent(c.getHeatDiscountMultiplier())),
         null);
 
-    /** A machine that skips no tiers reports 0, which is a real answer. */
+    /** 0 for a machine that skips no tiers, a valid value and not "unset". */
     public static final SettingDef<Integer> MAX_TIER_SKIPS_DEF = SettingDef.autoIntDef(
         Settings.MAX_TIER_SKIPS.key(),
         0,
@@ -420,9 +411,8 @@ public final class GTSettings {
         (v, c) -> v ? "∞T" : null);
 
     /**
-     * Amperage comes from the machine block itself rather than from a spec formula, and is a floor
-     * rather than a ceiling: a multiblock draws whatever its energy hatches supply, so the row must
-     * step past what the machine reports on its own.
+     * Default amperage comes from the machine block, not a spec formula. It's a floor, not a ceiling: a
+     * multiblock draws whatever its energy hatches supply, so the row must go past the block's amperage.
      */
     public static final SettingDef<Integer> AMP_DEF = SettingDef
         .autoIntDef(Settings.AMP.key(), 1, MAX_AMPERAGE, 1, (ctx, s) -> {
@@ -431,8 +421,8 @@ public final class GTSettings {
         }, (v, c) -> "A" + v);
 
     /**
-     * How many modes a machine has is the machine's business, not a constant: GregTech ships three-mode
-     * multiblocks, and a fixed ceiling of one would leave the third unreachable.
+     * Ceiling comes from the selected machine's mode count. Some GregTech multiblocks have three modes, and a fixed
+     * ceiling of one would leave the third unreachable.
      */
     public static final SettingDef<Integer> MODE_DEF = SettingDef.intDef(MODE, 0, 0, GTSettings::modeCeiling);
 
@@ -444,8 +434,8 @@ public final class GTSettings {
     }
 
     /**
-     * The key a structure value of this kind is stored under. GregTech's own kinds keep the bare name, which is what
-     * charts saved before kinds were namespaced hold.
+     * Key a structure value of this kind is stored under. GregTech kinds use the bare name, matching charts saved
+     * before kinds were namespaced.
      */
     @Nonnull
     public static String structureKey(final ModifierKind kind) {
@@ -457,8 +447,8 @@ public final class GTSettings {
     }
 
     /**
-     * The row a structure value is edited through: labelled and valued with GregTech's own names for the kind, so a
-     * coil row reads as the block a player places, and bounded by the range the selected machine declares.
+     * Row for a structure value: labelled and valued with GregTech's names for the kind, so a coil row draws coil block
+     * names, and bounded by the selected machine's range.
      */
     @Nonnull
     public static SettingDef<?> structureDef(final ModifierKind kind) {
@@ -471,8 +461,8 @@ public final class GTSettings {
     }
 
     /**
-     * What an untouched row opens on, which is what the node plans with: the chart's floor, raised to the lowest value
-     * that runs the recipe, else the spec's best, as {@link GTMachineSpec#inputs} decides it.
+     * Value an untouched row draws, the one the node is planned with: the chart's floor raised to the lowest value that
+     * runs the recipe, else the spec's best, per {@link GTMachineSpec#inputs}.
      */
     private static int planned(final RecipeContext ctx, final Map<String, Object> settings, final ModifierKind kind) {
         final Planned planned = planned(ctx, settings);
@@ -495,8 +485,8 @@ public final class GTSettings {
     }
 
     /**
-     * The player's structure values, and the chart's floors for the rest: what the chart says it can build, or the
-     * best the game offers where the chart has said nothing. The row is right there to move one node off that.
+     * Player's structure values, plus the chart's floors for the other kinds, or the best value where the chart sets no
+     * floor. A value stored in a node's row is used for that node in place of the floor.
      */
     @Nonnull
     public static StructureState resolve(final RecipeContext ctx, final Map<String, Object> settings,
@@ -505,8 +495,8 @@ public final class GTSettings {
     }
 
     /**
-     * As above, with the mode supplied by a caller that already knows the machine. Kept separate so
-     * that resolving a structure never reaches the machine index, which a chart does per frame.
+     * As above, with the mode passed by a caller that already has the machine. Separate so resolving a
+     * structure, which a chart does per frame, never reads the machine index.
      */
     @Nonnull
     public static StructureState resolve(final RecipeContext ctx, final Map<String, Object> settings,
@@ -535,9 +525,9 @@ public final class GTSettings {
     }
 
     /**
-     * The machine mode this node runs in. A machine that is two machines behind one controller picks
-     * between them by recipemap, and the node's recipe already came from one of them, so the answer is
-     * read rather than asked for. Everything else falls back to the row.
+     * Machine mode this node runs in. A controller with two machines behind it runs one per recipemap,
+     * and the node's recipe came from one of those recipemaps, so the mode is derived from it. Other
+     * machines use the mode row.
      */
     public static int mode(final RecipeContext ctx, @Nullable final GTMachineIndex.MachineEntry entry,
         final Map<String, Object> settings) {
@@ -549,14 +539,13 @@ public final class GTSettings {
         return MachineProfile.getBool(settings, ADVANCED, false);
     }
 
-    /** Shows a setting only when the machine the node selected actually reads it. */
+    /** Row predicate: true only when the node's selected machine reads the setting. */
     @Nonnull
     public static BiPredicate<RecipeContext, Map<String, Object>> usesSetting(final Settings setting) {
         final BiPredicate<RecipeContext, Map<String, Object>> machineReadsIt = MachineVariants.usesSetting(setting);
         return (ctx, settings) -> {
-            // Two conditions the shared predicate cannot know about: advanced mode replaces these rows
-            // with the raw overclock ones, and a recipe that already implies its machine's mode has
-            // answered the question the mode row would ask.
+            // Two GregTech-only conditions: advanced mode replaces these rows with the raw overclock
+            // ones, and the mode row is hidden when the mode follows from the recipemap.
             if (isAdvanced(settings)) return false;
             if (setting == Settings.GT_MODE) {
                 final GTMachineIndex.MachineEntry entry = GTMachineIndex.selected(ctx, settings);
@@ -566,7 +555,7 @@ public final class GTSettings {
         };
     }
 
-    /** Shows a structure row only when the machine the node selected reads that kind. */
+    /** Row predicate: true only when the node's selected machine reads that kind. */
     @Nonnull
     public static BiPredicate<RecipeContext, Map<String, Object>> usesStructure(final ModifierKind kind) {
         return (ctx, settings) -> {
@@ -577,16 +566,15 @@ public final class GTSettings {
         };
     }
 
-    /** The raw overclock rows, shown only once the user has asked for them. */
+    /** Raw overclock rows, visible only in advanced mode. */
     @Nonnull
     public static BiPredicate<RecipeContext, Map<String, Object>> advancedOnly() {
         return (ctx, settings) -> isAdvanced(settings);
     }
 
     /**
-     * The machine is chosen from the node's title bar, not from a settings row - it names what the
-     * node is, rather than tuning it. The def still belongs to the profile so the choice serializes;
-     * it just never draws.
+     * The machine is picked from the node's title bar, not a settings row. The def is still in the
+     * profile so the choice serializes, but it never draws as a row.
      */
     @Nonnull
     public static BiPredicate<RecipeContext, Map<String, Object>> neverAsARow() {
@@ -594,9 +582,9 @@ public final class GTSettings {
     }
 
     /**
-     * A singleblock's tier is the block you placed, so only a multiblock's energy hatch is a choice,
-     * and only on one that overclocks. Also shown when nothing resolved, so a node PlanNH cannot
-     * identify keeps a usable control.
+     * A singleblock's tier is fixed by the placed block, so voltage is editable only on a multiblock that
+     * overclocks. Also visible when no machine resolves, so a node with an unknown machine still has a
+     * usable control.
      */
     @Nonnull
     public static BiPredicate<RecipeContext, Map<String, Object>> voltageEditable() {
@@ -604,8 +592,8 @@ public final class GTSettings {
     }
 
     /**
-     * Amperage is the energy hatches a multiblock was built with, so it is a choice wherever the
-     * machine is one. A singleblock draws the amperage its block draws and has nothing to say.
+     * Amperage comes from a multiblock's energy hatches, so it's editable on a multiblock that
+     * overclocks. A singleblock's amperage is fixed by its block.
      */
     @Nonnull
     public static BiPredicate<RecipeContext, Map<String, Object>> ampEditable() {
@@ -613,13 +601,13 @@ public final class GTSettings {
     }
 
     /**
-     * A machine that runs every recipe at the recipe's own voltage takes nothing from its energy
-     * hatches, so their tier and amperage change no number it reports.
+     * A machine that runs every recipe at the recipe's voltage gains nothing from its energy hatches,
+     * so their tier and amperage change none of its numbers.
      */
     private static boolean overclocks(final RecipeContext ctx, final Map<String, Object> settings) {
         if (isAdvanced(settings)) return true;
         final GTMachineIndex.MachineEntry entry = GTMachineIndex.selected(ctx, settings);
-        // GregTech keeps noOverclock out of modes and tiers, so any structure answers for all of them
+        // noOverclock doesn't vary by mode or tier in GregTech, so testing one structure covers all
         return entry == null || entry.machine() == null
             || !(entry.machine()
                 .spec()
@@ -629,10 +617,9 @@ public final class GTSettings {
     }
 
     /**
-     * The spec already gives the machine's maximum, but planning for fewer than the structure
-     * allows is normal, so the cap stays editable wherever it can exceed one. A multiblock that runs
-     * one recipe at a time - the Large Chemical Reactor, the IsaMill - reports a maximum of one, and
-     * a row that can only be moved below what the machine does is not a plan anybody draws.
+     * The spec gives the machine's maximum, but planning for fewer parallels is common, so the cap is
+     * editable wherever the maximum exceeds one. A multiblock that runs one recipe at a time (Large
+     * Chemical Reactor, IsaMill) has a maximum of one, so its row would have no other value.
      */
     @Nonnull
     public static BiPredicate<RecipeContext, Map<String, Object>> parallelsEditable() {
@@ -641,12 +628,10 @@ public final class GTSettings {
     }
 
     /**
-     * Whether the node stands for a multiblock. The machine picker already answers this, so the row is
-     * never a question - but it stays a setting, because a node whose machine PlanNH cannot identify
-     * still needs a way to say which form factor it is, and because a spec may want to state it.
-     * Read through {@link MachineVariant#tieredByBuild()} rather than off a GregTech type, so that the
-     * one fact has one authority and the question generalizes to a mod whose build choice is not a
-     * hatch.
+     * Whether the node is a multiblock. The machine picker sets it, but it stays a setting so a node with
+     * an unknown machine can still be marked as either form factor. Read through
+     * {@link MachineVariant#tieredByBuild()}, not a GregTech type check, so the fact has one source and
+     * works for a mod whose build choice is not a hatch.
      */
     public static final SettingDef<Boolean> MULTIBLOCK_DEF = SettingDef
         .autoBoolDef(Settings.GT_MULTIBLOCK.key(), (ctx, s) -> {
@@ -659,10 +644,10 @@ public final class GTSettings {
     }
 
     /**
-     * Settings the machine now derives. A chart saved before the picker existed has these tuned by
-     * hand, and honouring the spec instead would silently change its numbers, so such a chart
-     * opens in advanced mode. Voltage and machine count are deliberately absent: they stay
-     * user-owned in both modes, so a chart whose only change was "IV, x4" gets the compact UI.
+     * Settings derived from the machine. A chart saved before the machine picker has these tuned by
+     * hand, and applying the spec would change its numbers, so such a chart opens in advanced mode.
+     * Voltage and machine count are absent because the user sets them in both modes, so a chart that
+     * only set "IV, x4" gets the compact UI.
      */
     private static final List<String> DERIVED_KEYS = List.of(
         Settings.AMP.key(),
@@ -685,8 +670,8 @@ public final class GTSettings {
         Settings.HEAT_DISCOUNT_MULT.key());
 
     /**
-     * The coil row stored GregTech's coil level name before every structure row stored its kind's own number. A name
-     * no coil has is dropped, so the node opens on the chart's coil rather than on Cupronickel.
+     * Older charts store the coil row as GregTech's coil level name, not the kind's number. An unknown name is dropped,
+     * so the node opens on the chart's coil, not on Cupronickel.
      */
     private static void migrateCoilName(final Map<String, Object> settings) {
         if (!(settings.get(COIL) instanceof final String name)) return;

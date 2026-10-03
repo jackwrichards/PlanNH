@@ -7,16 +7,14 @@ import javax.annotation.Nonnull;
 import gregtech.api.logic.ModifierKind;
 
 /**
- * The structure a player built around a machine, as far as the overclock math cares: the energy hatch tier and the
- * amps it delivers, the machine mode, and a value for each {@link ModifierKind} the machine's spec reads. Values use
- * GregTech's numbering per kind.
+ * Structure a player built around a machine, as read by the overclock math: energy hatch tier and amperage, machine
+ * mode, and a value for each {@link ModifierKind} the machine's spec reads. Values use GregTech's numbering per kind.
  *
  * <p>
- * A kind with no value here reads as the spec's best for it, so a state only has to name what the player chose or the
- * chart decided.
+ * A kind missing here reads as the spec's best, so a state stores only values the player set or the chart planned.
  *
- * @param structure What the player chose
- * @param floors    What the chart plans at for a kind the player left alone, raised where the recipe needs more
+ * @param structure Values the player set
+ * @param floors    Planned value for each kind the player left unset, raised where the recipe requires more
  */
 public record StructureState(int voltageTier, long amperage, int mode, Map<ModifierKind, Long> structure,
     Map<ModifierKind, Long> floors) {

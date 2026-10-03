@@ -9,7 +9,7 @@ import gregtech.api.logic.ProcessingSpec;
 import gregtech.api.util.GTRecipe;
 import gregtech.api.util.OverclockCalculator;
 
-/** Machines built from a spec, as the GregTech registry would hand them over. */
+/** Test machines built from a spec, as the GregTech registry would supply them. */
 final class GTSpecs {
 
     private GTSpecs() {}
@@ -18,7 +18,7 @@ final class GTSpecs {
         return GTMachineSpec.of(spec);
     }
 
-    /** GTRecipe's constructor needs the game loaded; these are the only fields the calculator reads. */
+    /** GTRecipe's constructor requires a loaded game. The calculator reads only these fields. */
     static GTRecipe recipe(final long eut, final int duration, final int heat) {
         final GTRecipe recipe = mock(GTRecipe.class);
         recipe.mEUt = (int) eut;
@@ -27,7 +27,7 @@ final class GTSpecs {
         return recipe;
     }
 
-    /** The calculator a chart node runs this machine with, before its overrides, parallel and calculation. */
+    /** Calculator for this machine on a chart node, before overrides, parallels and calculation. */
     static OverclockCalculator calculator(final ProcessingSpec spec, final StructureState state, final long recipeEUt,
         final int duration, final int recipeHeat) {
         return machine(spec).resolve(recipe(recipeEUt, duration, recipeHeat), state)

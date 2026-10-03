@@ -36,64 +36,61 @@ import gregtech.api.objects.overclockdescriber.OverclockDescriber;
 import gregtech.api.recipe.RecipeMap;
 
 /**
- * Which GregTech machines can run a given recipemap, derived from GT's own registry rather than a
- * table PlanNH would have to maintain.
+ * GregTech machines that can run each recipemap, read from GT's registry.
  *
  * <p>
- * {@link GregTechAPI#METATILEENTITIES} holds prototype MetaTileEntities - no world, no tile entity -
- * so this is the same walk GT does in {@code NEIGTConfig.generateRecipeCatalystIndex}, just keyed by
- * recipemap instead of recipe category. That also settles a question a RecipeMap alone cannot answer:
- * nothing on a RecipeMap says whether its recipes are run by a singleblock, a multiblock, or both
- * (the macerator map is shared by five machine classes), but the machines themselves know.
+ * {@link GregTechAPI#METATILEENTITIES} stores prototype MetaTileEntities with no world and no tile
+ * entity. This is the walk GT runs in {@code NEIGTConfig.generateRecipeCatalystIndex}, keyed by
+ * recipemap where GT's index is keyed by recipe category. A RecipeMap has no field for whether its
+ * recipes run on a singleblock, a multiblock, or both (five machine classes share the macerator map),
+ * so the walk reads that off each machine prototype.
  *
  * <p>
- * The cache is static because what it mirrors is static: GregTechAPI's array is fixed once mods have
- * loaded, and the map is immutable after the one build. GT keeps its equivalent index the same way.
+ * The cache is static because GregTechAPI's array is fixed once mods have loaded, and the map is
+ * immutable after its build. GT's equivalent index is static too.
  */
 public final class GTMachineIndex {
 
-    /** Appended to a singleblock's name in the picker. Translated, since the name it follows is. */
+    /** Appended to a singleblock's name in the picker. Translated, like the name before it. */
     private static final String SINGLEBLOCK_SUFFIX = "plannh.machine.singleblock_suffix";
-    /** Appended to a machine PlanNH has no numbers for, so a node planned in it says why it is not overclocked. */
+    /** Appended to a machine PlanNH has no numbers for, marking why a node using it is not overclocked. */
     private static final String NO_SPEC_SUFFIX = "plannh.machine.no_spec_suffix";
 
-    /** What drives a machine's overclock, decided once here so nothing has to work it out again. */
+    /** Source of a machine's overclock numbers, set once at indexing. */
     public enum NumberSource {
-        /** GregTech's own OverclockDescriber, for a machine without a spec. */
+        /** GregTech's OverclockDescriber, for a machine without a spec. */
         DESCRIBER,
-        /** The ProcessingSpec the machine declares. */
+        /** Machine's ProcessingSpec. */
         SPEC,
-        /** Neither, so the machine keeps the recipe's own numbers. */
+        /** Neither, so the node uses the recipe's numbers unchanged. */
         NONE
     }
 
     /**
-     * @param id            {@code MetaTileEntity.getLocalNameKey()} - the value charts persist. Not
-     *                      the meta id, which GT reassigns between versions, nor the localized name,
-     *                      which is locale-dependent. Not getMetaName() either: that is declared on
-     *                      the tile entity, not on the prototypes this walks, so it does not identify
-     *                      them.
-     * @param tieredByBuild true for a multiblock, whose energy hatch is a choice; false for a
-     *                      singleblock, whose tier is the block a player placed.
-     * @param describer     GT's own overclock behaviour for this machine, present on singleblocks and
-     *                      a handful of multis. When set it is authoritative for the overclock.
-     * @param machine       the multiblock's ProcessingSpec; null when it declares none.
-     * @param numberSource  what drives this machine's overclock, for whoever has to review it.
-     * @param modes         how many modes the machine has, and which recipemap selects which.
+     * @param id            {@code MetaTileEntity.getLocalNameKey()}, persisted in charts. Not the meta
+     *                      id, which GT reassigns between versions, nor the localized name, which is
+     *                      locale-dependent. Not getMetaName() either: that is declared on the tile
+     *                      entity and cannot be called on the prototypes this walks.
+     * @param tieredByBuild true for a multiblock, whose energy hatch the player picks. False for a
+     *                      singleblock, whose tier is fixed by the placed block.
+     * @param describer     GT's overclock describer for this machine, present on singleblocks and a few
+     *                      multis. When set, the overclock comes from it.
+     * @param machine       the multiblock's ProcessingSpec, or null without one.
+     * @param numberSource  source of this machine's overclock numbers, grouped by MachineTableCommand.
+     * @param modes         mode count and each mode's recipemap.
      */
     public record MachineEntry(String id, String displayName, boolean tieredByBuild, int voltageTier, int amperage,
         int catalystPriority, @Nullable OverclockDescriber describer, @Nullable GTMachineSpec machine,
         NumberSource numberSource, GTMachineModes.Modes modes) implements MachineVariant {
 
-        /** The mode this recipe implies, or -1 when the user still has to say. */
+        /** Mode that runs this recipemap, or -1 when the user has to pick it. */
         public int modeFor(@Nullable final RecipeMap<?> recipeMap) {
             return modes.modeFor(recipeMap);
         }
 
         /**
-         * A machine with no spec reads no structure, so it offers no rows. That is the same answer
-         * as "we have no numbers for it", which is correct: guessing rows for a machine PlanNH cannot
-         * model would put controls on a node that change nothing.
+         * A machine with no spec reads no structure, so it has no rows. Guessed rows for a machine
+         * PlanNH cannot model would put controls on a node that change nothing.
          */
         @Override
         @Nonnull
@@ -101,17 +98,17 @@ public final class GTMachineIndex {
             return machine == null ? Set.of() : machine.settings();
         }
 
-        /** The values a player builds or inserts for this machine, each with its range. */
+        /** Values a player builds or inserts for this machine, each with its range. */
         @Nonnull
         public Map<ModifierKind, ModifierRange> structure() {
             return machine == null ? Map.of() : machine.structure();
         }
 
         /**
-         * GT's own names do not always say which form factor a machine is - "Chemical Reactor" against
-         * "Large Chemical Reactor" reads as a size, not as singleblock against multiblock - and the two
-         * overclock completely differently. Saying so avoids reading the wrong numbers as a bug. Only
-         * the label says it: the name itself is matched against NEI's tab title.
+         * GT's machine names don't always include the form factor. "Chemical Reactor" against "Large
+         * Chemical Reactor" reads as a size, not as singleblock against multiblock, and the two overclock
+         * differently. Without the suffix, a player could read the other form's numbers as a bug. Only the
+         * label gets it, because displayName is matched against NEI's tab title.
          */
         @Override
         @Nonnull
@@ -129,8 +126,8 @@ public final class GTMachineIndex {
     }
 
     /**
-     * GregTech's answer for the shared picker. The index is built on first use rather than handed
-     * over at registration, because building it reads every machine GT ships, tooltips included.
+     * GregTech's source for the shared picker. The index is built on first use, not at registration,
+     * because the build reads every machine GT ships, tooltips included.
      */
     public static final MachineVariants.Source SOURCE = new MachineVariants.Source() {
 
@@ -148,18 +145,18 @@ public final class GTMachineIndex {
     };
 
     /**
-     * The index itself. Null until the first ask and replaced wholesale by {@link #reset()}, because
-     * what it mirrors is GregTech's own static registry: one per client, fixed once mods have loaded.
+     * Null until first use and replaced whole by {@link #reset()}, since the GregTech registry it
+     * mirrors is static: one per client, fixed once mods have loaded.
      */
     @Nullable
     private static Map<String, List<MachineEntry>> byRecipeMap;
     private static Map<String, MachineEntry> byId = Map.of();
-    /** Reordered candidate lists, keyed by recipemap and NEI title. Derived, so it is safe to keep. */
+    /** Reordered candidate lists, keyed by recipemap and NEI title. */
     private static final Map<String, List<MachineEntry>> byNeiTitle = new HashMap<>();
 
     /**
-     * The last answer {@link #candidates} gave. One slot, because the visibility predicates ask this
-     * a dozen times per frame with the same arguments and the panel finishes one node before the next.
+     * Last result of {@link #candidates}. One slot is enough: the visibility predicates call it about a
+     * dozen times per frame with the same arguments, and the panel draws one node's rows at a time.
      */
     @Nullable
     private static RecipeMap<?> lastMap;
@@ -180,8 +177,8 @@ public final class GTMachineIndex {
     }
 
     /**
-     * Looks a machine up by its persisted id regardless of recipemap, so a row can still render the
-     * name of a machine the current recipe cannot run. Null once the pack no longer has it.
+     * Looks a machine up by its persisted id across all recipemaps, so a row can render the name of a
+     * machine the current recipe cannot run. Null when the machine is missing from the pack.
      */
     @Nullable
     public static MachineEntry byId(final String id) {
@@ -196,7 +193,7 @@ public final class GTMachineIndex {
         if (recipeMap == null) return List.of();
         final String title = ctx.getOrDefault(GTProvider.NEI_TITLE, "");
 
-        // Checked before anything is built or concatenated, because the miss path allocates a key.
+        // checked before any build or concatenation, because the miss path allocates a key
         if (recipeMap == lastMap && title.equals(lastTitle) && lastCandidates != null) return lastCandidates;
 
         final List<MachineEntry> ordered = ensureBuilt().getOrDefault(recipeMap.unlocalizedName, List.of());
@@ -211,10 +208,10 @@ public final class GTMachineIndex {
     }
 
     /**
-     * NEI's own tab title names the machine the recipe list is for, so when a candidate matches it
-     * exactly that is the answer, ahead of any heuristic about which machine is simplest. Returns the
-     * cached list untouched unless a match exists and is not already leading. The result is memoized
-     * per recipemap and title because this runs every frame from the visibility predicates.
+     * Moves the candidate named by NEI's tab title to the front, ahead of the simplest-first order,
+     * since that title is the machine the recipe list belongs to. Returns the input list when no
+     * candidate matches or the match already leads. Memoized per recipemap and title because the
+     * visibility predicates call this every frame.
      */
     @Nonnull
     private static List<MachineEntry> preferNeiTitle(final List<MachineEntry> entries, @Nullable final String title) {
@@ -233,9 +230,9 @@ public final class GTMachineIndex {
     }
 
     /**
-     * The machine a node is using, when that machine is a GregTech one. Resolution and its per-frame
-     * memo live in {@link MachineVariants} so there is one of each; what comes back is whatever this
-     * source handed over, and anything else means the recipe belongs to another mod.
+     * Machine a node is using, or null when it isn't a GregTech one. Resolution and its per-frame memo
+     * are in {@link MachineVariants}, which returns a variant this source supplied. Any other type
+     * means the recipe belongs to another mod.
      */
     @Nullable
     public static MachineEntry selected(final RecipeContext ctx, final Map<String, Object> settings) {
@@ -243,27 +240,27 @@ public final class GTMachineIndex {
     }
 
     /**
-     * Builds the index off the first frame that would otherwise pay for it. The build reads every GT
-     * machine and builds its tooltip, which is a visible stall when it lands inside a draw.
+     * Builds the index ahead of the first frame that would use it. The build reads every GT machine and
+     * builds its tooltip, a visible stall inside a draw.
      */
     public static void warmup() {
         ensureBuilt();
     }
 
-    /** Neither GT's own describer nor a spec, so its numbers are a generic guess. */
+    /** Neither GT's describer nor a spec, so its numbers are a generic guess. */
     private static boolean isUncovered(final MachineEntry entry) {
         return entry.machine() == null && entry.describer() == null;
     }
 
     /**
-     * The structure every machine is measured at when the picker ranks them: an IV hatch and each machine at its best.
-     * Nothing is built here and no chart reads these numbers; only the order of the answers is used.
+     * Structure every machine is measured at for picker ranking: an IV hatch and each machine at its best. Only the
+     * resulting order is used. No chart reads these numbers.
      */
     private static final StructureState RANKING_REFERENCE = StructureState.of(5, 0);
 
     /**
-     * How far a machine scales, used only to order the picker. That order is also the default, since
-     * a node that has chosen nothing takes the first candidate.
+     * Max parallels at {@link #RANKING_REFERENCE}, used only to order the picker. The order also sets
+     * the default, since a node with no machine set uses the first candidate.
      */
     private static int scale(final MachineEntry entry) {
         if (entry.machine() == null) return 0;
@@ -297,8 +294,7 @@ public final class GTMachineIndex {
                 try {
                     addMachine(index, ids, mte, workable, uncovered);
                 } catch (final Throwable t) {
-                    // A prototype reporting its recipemaps is not something GT does outside its own
-                    // load order, so one hostile machine must not cost the whole picker.
+                    // a prototype queried outside GT's load order can throw: skip it, keep the picker
                     PlanNH.LOG.warn("PlanNH: skipping GT machine {} while indexing", mte.getClass().getName(), t);
                 }
             }
@@ -307,14 +303,13 @@ public final class GTMachineIndex {
             return Map.of();
         }
 
-        // Simplest first, because that is the machine someone planning a line reaches for and the one
-        // they expect with no clicks. GT's catalyst priority leads where it is set; after that,
-        // singleblocks before multiblocks, then by how much the machine scales - which is what puts
-        // the Large Chemical Reactor ahead of the Mega, where an id tiebreak had put Mega first.
+        // Simplest first, since a player planning a line picks that machine most often and gets it with
+        // no clicks. GT's catalyst priority leads where set. After that come singleblocks before
+        // multiblocks, then lower tier, then scale, which puts the Large Chemical Reactor ahead of the
+        // Mega. An id tiebreak alone would put Mega first.
         final Comparator<MachineEntry> best = Comparator.comparingInt(MachineEntry::catalystPriority)
             .reversed()
-            // A machine PlanNH has no numbers for goes last: it can only be modelled generically, so
-            // it is never the better default.
+            // machine PlanNH has no numbers for is only modelled generically, so it goes last
             .thenComparing(GTMachineIndex::isUncovered)
             .thenComparing(MachineEntry::tieredByBuild)
             .thenComparingInt(MachineEntry::voltageTier)
@@ -326,7 +321,7 @@ public final class GTMachineIndex {
         });
 
         if (!uncovered.isEmpty()) {
-            // How a multiblock without a spec shows up, instead of silently modelling as a plain 1x node.
+            // without this warning a multiblock with no spec is modelled as a plain 1x node unnoticed
             PlanNH.LOG.warn("PlanNH: {} GT multiblocks declare no processing spec: {}", uncovered.size(), uncovered);
         }
         byId = Map.copyOf(ids);
@@ -338,18 +333,17 @@ public final class GTMachineIndex {
         final Set<String> uncovered) {
         final var recipeMaps = workable.getAvailableRecipeMaps();
         if (recipeMaps.isEmpty()) return;
-        // Superseded structures stay registered so existing worlds keep loading, but they are
-        // converted away by recipe and cannot be built, and they keep the display name of the
-        // machine that replaced them - so offering both just shows the same name twice. GT says so
-        // itself; a *Legacy class name would not, missing MTEDroneCentre, MTEFluidShaper and
-        // MTELargeBoiler while over-matching the turbines.
+        // Superseded structures stay registered so existing worlds load, but a recipe converts them
+        // away and they cannot be built. They share the display name of the machine that replaced
+        // them, so listing both would put the same name in the picker twice. Matching *Legacy class
+        // names would skip MTEDroneCentre, MTEFluidShaper and MTELargeBoiler and catch the turbines.
         if (mte instanceof final MTEMultiBlockBase multi && multi.isStructureDeprecated()) return;
 
         final boolean tieredByBuild = mte instanceof MTEMultiBlockBase;
         final GTMachineModes.Modes modes = GTMachineModes.of(mte);
         final GTMachineSpec machine = GTMachineSpec.read(mte);
-        // A spec outranks a describer: GregTech checks each machine runs as its spec says, and the steam
-        // multiblocks share their describer with the steam singleblocks.
+        // A spec outranks a describer. GregTech checks at load that each machine runs as its spec
+        // computes, and the steam multiblocks share their describer with the steam singleblocks.
         final OverclockDescriber describer = machine == null
             && mte instanceof final IOverclockDescriptionProvider provider ? provider.getOverclockDescriber() : null;
         final NumberSource numberSource = describer != null ? NumberSource.DESCRIBER
@@ -370,7 +364,7 @@ public final class GTMachineIndex {
             numberSource,
             modes);
 
-        // Two machines sharing an id would silently render as one another in the picker.
+        // two machines sharing an id would render as each other in the picker
         final MachineEntry clash = ids.putIfAbsent(entry.id(), entry);
         if (clash != null && clash != entry) {
             PlanNH.LOG.warn("PlanNH: GT machines {} and {} share the id {}", clash.displayName(), entry.displayName(),

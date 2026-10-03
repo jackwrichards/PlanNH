@@ -16,14 +16,13 @@ import gregtech.api.logic.ProcessingSpec;
 import gregtech.api.util.OverclockCalculator;
 
 /**
- * Checks that a machine's spec configures {@link OverclockCalculator} the way a hand-written GregTech call
- * would. The oracle is GT's calculator itself, never a reimplementation of its arithmetic - these
- * would still pass if GT changed how overclocking works, and fail if PlanNH wired a setting to the
- * wrong setter.
+ * Checks that a machine's spec configures {@link OverclockCalculator} like a hand-written GregTech call.
+ * The oracle is GT's calculator, not a copy of its arithmetic. These pass if GT changes how
+ * overclocking works, and fail if PlanNH wires a setting to the wrong setter.
  */
 class GTPresetApplierTest {
 
-    /** The EBF's heat, as GregTech declares it: coil heat plus 100K per tier over MV. */
+    /** EBF heat as GregTech defines it: coil heat plus 100K per tier over MV. */
     private static ProcessingSpec ebfShaped() {
         return ProcessingSpec.builder()
             .coilHeatPerVoltageTier(
@@ -34,7 +33,7 @@ class GTPresetApplierTest {
             .build();
     }
 
-    /** Read off the spec, not recomputed here: a copy of the formula would move with it. */
+    /** Read off the spec, not recomputed here. The tests cover the wiring, not the heat formula. */
     private static int machineHeat(final StructureState state) {
         return ebfShaped().getHeat()
             .orElseThrow()
@@ -48,16 +47,15 @@ class GTPresetApplierTest {
     }
 
     /**
-     * The EBF is the machine where the most can go wrong: coil heat, the voltage bonus, heat
-     * overclocks and the heat discount all at once. GT's own unit tests use exactly this shape.
+     * The EBF combines the most moving parts: coil heat, the voltage bonus, heat overclocks and the
+     * heat discount. GT's unit tests use this shape too.
      */
     @Test
     void blastFurnaceSpecMatchesAHandWrittenGregTechCall() {
         final int coilTier = 8;
         final int voltageTier = 5;
         final int recipeHeat = 1800;
-        // Read off the spec, not recomputed here: a copy of the formula would move with it and the
-        // comparison below would hold however wrong the row was. What is under test is the wiring.
+        // read off the spec, not recomputed: this test covers the wiring, not the heat formula
         final int machineHeat = machineHeat(state(voltageTier, coilTier));
 
         final OverclockCalculator expected = new OverclockCalculator().setRecipeEUt(GTValues.VP[1])
@@ -83,7 +81,7 @@ class GTPresetApplierTest {
         assertTrue(actual.getDuration() < 1024, "heat overclocks should have applied at all");
     }
 
-    /** The discount must be GregTech's own, not a second implementation wired into euModifier. */
+    /** The discount must come from GregTech's calculator, not a second implementation wired into euModifier. */
     @Test
     void blastFurnaceHeatDiscountIsGregTechs() {
         final int coilTier = 8;
@@ -128,9 +126,9 @@ class GTPresetApplierTest {
     }
 
     /**
-     * Tier skipping is how far <em>above</em> the machine's own voltage a recipe may sit, so it only
-     * shows up on a recipe the machine could not otherwise run. A ZPM recipe is four tiers over an
-     * IV machine: out of reach at GT's default of one skip, fine for a spec that lifts the limit.
+     * Tier skipping is how far <em>above</em> the machine's voltage a recipe may be, so it only matters
+     * for a recipe the machine could not otherwise run. A ZPM recipe is four tiers over an IV machine:
+     * out of reach at GT's default of one skip, runnable for a spec that lifts the limit.
      */
     @Test
     void unlimitedTierSkipsReachAFourTierGap() {
@@ -149,14 +147,14 @@ class GTPresetApplierTest {
             "GT's default of one skip does not reach four tiers");
     }
 
-    /** A spec may forbid skipping outright, so it cannot even reach one tier up. */
+    /** A spec that disables skipping cannot run a recipe even one tier up. */
     @Test
     void zeroTierSkipsRefusesEvenOneTier() {
         final ProcessingSpec arc = ProcessingSpec.builder()
             .maxTierSkips(0)
             .build();
 
-        // One tier up: allowed by GT's default of a single skip, refused with skipping disabled.
+        // one tier up: allowed by GT's default of a single skip, refused with skipping disabled
         final OverclockCalculator noSkips = GTSpecs.calculator(arc, state(5, 0), GTValues.V[6], 1024, 0);
         final OverclockCalculator defaultLimit = new OverclockCalculator().setRecipeEUt(GTValues.V[6])
             .setEUt(GTValues.V[5])
@@ -171,8 +169,8 @@ class GTPresetApplierTest {
     }
 
     /**
-     * A steam multiblock's cost multiplies what it draws, and without overclocks the hatch voltage
-     * changes nothing: GregTech's own no-overclock calculator is the oracle.
+     * A steam multiblock's cost multiplier scales its draw, and without overclocks the hatch voltage
+     * changes nothing. The oracle is GregTech's no-overclock calculator.
      */
     @Test
     void noOverclockSpecMatchesGregTechsNoOverclockCalculator() {

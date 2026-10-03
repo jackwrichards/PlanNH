@@ -18,14 +18,13 @@ import gregtech.api.logic.ProcessingSpec;
 import gregtech.api.util.OverclockCalculator;
 
 /**
- * Advanced mode is an override, not a second set of maths: a stored value replaces just that one
- * setting and everything else stays exactly as the machine computed it. The old design ran a wholly
- * separate calculator whose unset rows fell back to global defaults, so ticking Advanced silently
- * changed numbers the user had not touched.
+ * Advanced mode is an override: a stored value replaces only its setting, and every other number
+ * stays as the machine computed it. A separate calculator whose unset rows fall back to global
+ * defaults would change untouched numbers when Advanced is ticked.
  */
 class GTOverrideTest {
 
-    /** A perfect-overclocking machine, which is the case where a stray override shows up loudest. */
+    /** A perfect-overclocking machine, where a stray override changes the numbers most. */
     private static ProcessingSpec spec() {
         return ProcessingSpec.builder()
             .perfectOverclock()
@@ -44,7 +43,7 @@ class GTOverrideTest {
             .calculate();
     }
 
-    /** The LCR perfect-overclocks; an empty override map must not disturb that. */
+    /** The LCR perfect-overclocks. An empty override map must not change that. */
     @Test
     void noStoredKeysMeansTheMachinesOwnNumbers() {
         final OverclockCalculator machine = build(Map.of());
@@ -69,10 +68,7 @@ class GTOverrideTest {
             "overriding the OC factor must change the result");
     }
 
-    /**
-     * The sentinel these replace could not express this: 0 meant "unset", so a machine that forbids
-     * tier skipping had no way to say so through the settings map.
-     */
+    /** A present key is a set value, so 0 is a valid tier-skip limit and not "unset". */
     @Test
     void zeroTierSkipsIsExpressible() {
         final OverclockCalculator noSkips = GTSpecs.calculator(spec(), state(), GTValues.V[6], 1024, 0);
@@ -83,7 +79,7 @@ class GTOverrideTest {
             "a stored 0 must mean no skipping, not 'unset'");
     }
 
-    /** A stored discount equal to the nominal default is still a choice and must be applied. */
+    /** A stored discount equal to the nominal default is a user value and must be applied. */
     @Test
     void aStoredValueEqualToTheDefaultIsStillApplied() {
         final OverclockCalculator overridden = build(Map.of(Settings.EUT_DISCOUNT.key(), 50));

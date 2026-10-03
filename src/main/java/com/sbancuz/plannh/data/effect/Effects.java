@@ -73,10 +73,10 @@ public final class Effects {
     }
 
     /**
-     * Lets the machine a node is set to supply the numbers, and keeps the recipe's own when none is
-     * selected or the one that is cannot answer. The single place a machine's own arithmetic enters a
-     * chart, so a provider joins it by implementing {@link MachineVariant#run} rather than by writing a
-     * step of its own.
+     * Takes the numbers from the node's selected machine. Passes the recipe's numbers through when no
+     * machine is selected or its {@link MachineVariant#run} returns null. This is the only step where a
+     * machine's arithmetic enters a chart, so providers hook in through {@link MachineVariant#run}, not
+     * through a new effect step.
      */
     @Nonnull
     public static EffectStep machineDriven() {

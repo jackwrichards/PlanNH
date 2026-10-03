@@ -10,12 +10,12 @@ public class EffectResult {
     private int durationTicks;
     private long costPerT;
     private int throughputFactor;
-    /** Why the selected machine will not run the recipe, in the machine's own words. Null when it will. */
+    /** The reason the selected machine won't run the recipe, as its GUI prints it. Null when it will. */
     @Nullable
     private final String rejection;
     /** What each output is multiplied by on average, such as a machine's chance that a run succeeds. */
     private final double outputFactor;
-    /** Facts about the run the numbers above cannot carry, in the machine's own words, for the node to show. */
+    /** Facts about the run outside the numbers above, as lines for the node's panel. */
     @Nonnull
     private final List<String> details;
 
@@ -33,7 +33,7 @@ public class EffectResult {
         this.details = List.copyOf(details);
     }
 
-    /** These numbers, from a machine that will not run the recipe for this reason. */
+    /** These numbers, marked as rejected by the machine for {@code reason}. */
     public EffectResult rejectedBecause(String reason) {
         return new EffectResult(durationTicks, costPerT, throughputFactor, reason, outputFactor, details);
     }
@@ -43,7 +43,7 @@ public class EffectResult {
         return new EffectResult(durationTicks, costPerT, throughputFactor, rejection, outputFactor, details);
     }
 
-    /** These numbers at another duration and draw, everything else kept. */
+    /** These numbers at another duration and draw, everything else unchanged. */
     public EffectResult withTiming(int durationTicks, long costPerT) {
         return new EffectResult(durationTicks, costPerT, throughputFactor, rejection, outputFactor, details);
     }

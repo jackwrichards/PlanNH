@@ -48,8 +48,8 @@ import gregtech.api.metatileentity.implementations.MTEMultiBlockBase;
 import gregtech.api.recipe.RecipeMap;
 
 /**
- * Writes what PlanNH believes about every GregTech multiblock to a Markdown file. No test can produce
- * it: {@code GregTechAPI.METATILEENTITIES} is empty outside a client, so review happens against this.
+ * Writes PlanNH's model of every GregTech multiblock to a Markdown file. Hand review uses this file because no test
+ * can produce it: {@code GregTechAPI.METATILEENTITIES} is empty outside a client.
  */
 public class MachineTableCommand extends CommandBase {
 
@@ -57,11 +57,11 @@ public class MachineTableCommand extends CommandBase {
 
     private static final String FILE_NAME = "plannh-machines.md";
 
-    /** Listing these says nothing about a particular machine. By key, because the label is translated. */
+    /** Settings every machine has, left out of the table. Matched by key, because the label is translated. */
     private static final Set<String> ON_EVERY_MACHINE = Set
         .of(Settings.VOLTAGE.key(), Settings.MACHINES.key(), Settings.AMP.key(), GTSettings.ADVANCED);
 
-    /** The heading and blurb a section gets. Display prose, so it lives here rather than on the enum. */
+    /** Display prose, so defined in this command and not on {@link NumberSource}. */
     private record Section(String heading, String explanation) {}
 
     private static final Map<NumberSource, Section> SECTIONS = new EnumMap<>(
@@ -85,7 +85,7 @@ public class MachineTableCommand extends CommandBase {
         return "/" + COMMAND_NAME;
     }
 
-    /** Client-side and read-only, so it needs no permission. CommandBase would demand op otherwise. */
+    /** Client-side and read-only, so open to every sender. CommandBase's default requires op. */
     @Override
     public boolean canCommandSenderUseCommand(final ICommandSender sender) {
         return true;
@@ -235,8 +235,8 @@ public class MachineTableCommand extends CommandBase {
     }
 
     /**
-     * The rows shown before Advanced is ticked. Asked the way the panel asks: a context carrying one of
-     * the machine's recipemaps and a settings map naming it, which visibility predicates resolve against.
+     * The rows that appear before Advanced is ticked. Computed like the node panel: a context with one of the machine's
+     * recipemaps and a settings map with the machine's id, which visibility predicates resolve against.
      */
     private static String visibleRows(@Nullable final GTMachineIndex.MachineEntry entry,
         final RecipeMapWorkable workable) {
@@ -270,7 +270,7 @@ public class MachineTableCommand extends CommandBase {
 
     private static String modes(@Nullable final GTMachineIndex.MachineEntry entry) {
         if (entry == null) return "";
-        // A machine with one mode has no mode, so it asks nothing and shows nothing.
+        // a single-mode machine has no mode setting, so the cell stays empty
         if (entry.modes()
             .count() < 2) return "";
 
@@ -279,7 +279,7 @@ public class MachineTableCommand extends CommandBase {
         final String count = entry.modes()
             .count() + " modes";
         if (modes == null) return count + ", asks";
-        // Sorted so two runs of this command diff cleanly.
+        // sorted so two runs of this command diff cleanly
         return count + " " + new TreeMap<>(modes);
     }
 
@@ -291,14 +291,14 @@ public class MachineTableCommand extends CommandBase {
         return String.join(", ", names);
     }
 
-    /** A machine GregTech registers but the index skipped has no numbers either. */
+    /** A machine GregTech registers but the index skipped counts as unmodelled too. */
     private static NumberSource source(@Nullable final GTMachineIndex.MachineEntry entry) {
         return entry == null ? NumberSource.NONE : entry.numberSource();
     }
 
     /**
-     * What a chart actually plans this machine with, so the file doubles as the snapshot a GregTech
-     * update is diffed against. A describer's numbers live in GregTech's own object, so those say so.
+     * The numbers this machine is planned with in a chart, so the file doubles as the snapshot a GregTech update is
+     * diffed against. A describer's numbers are inside GregTech's object, so those rows print {@code describer}.
      */
     private static String numbers(@Nullable final GTMachineIndex.MachineEntry entry) {
         if (entry == null) return "-";
@@ -307,8 +307,8 @@ public class MachineTableCommand extends CommandBase {
     }
 
     /**
-     * The values the machine builds up while running, which a chart plans at the spec's best rather than as the machine
-     * starts: the top of an ordered kind, the bottom of any other.
+     * The values the machine builds up while running, each planned at the spec's best: the top of an ordered kind, the
+     * bottom of any other.
      */
     private static String assumes(@Nullable final GTMachineIndex.MachineEntry entry) {
         if (entry == null || entry.machine() == null) return "";
@@ -324,10 +324,9 @@ public class MachineTableCommand extends CommandBase {
     }
 
     /**
-     * Every number a spec resolves to, at the structure an untouched node shows: every value at the
-     * spec's best, at the lowest real voltage. All twelve always, in a fixed order, so a
-     * GregTech update shows up as a diff on the machines whose numbers moved - a snapshot that omits
-     * defaults cannot tell a value leaving its default from a value never set.
+     * Every number a spec resolves to, at an untouched node's structure: every value at the spec's best, at the lowest
+     * real voltage. All twelve fields in a fixed order, so a GregTech update appears as a diff on the machines whose
+     * numbers moved. In a snapshot without defaults, a value leaving its default looks the same as a value never set.
      */
     @Nonnull
     public static String numbersText(@Nonnull final GTMachineSpec machine) {
@@ -368,14 +367,14 @@ public class MachineTableCommand extends CommandBase {
             + spec.getMaxTierSkipsOrDefault();
     }
 
-    /** Denominators a GregTech modifier is plausibly built from; 1/3 and 9/4 both fall inside this. */
+    /** Largest denominator a GregTech modifier is plausibly built from. 1/3 and 9/4 both fall inside this. */
     private static final int MAX_DENOMINATOR = 64;
 
     /**
-     * The shortest exact rendering: a whole number, two significant digits, or the fraction GregTech
-     * wrote the ratio as. Anything that fits none of those prints in full rather than rounded - the
-     * cell is what decides whether a hand review still stands, so a value it rounds away is a change
-     * nobody is told about. Locale-independent, because the file is read wherever it was generated.
+     * Shortest exact rendering: a whole number, two significant digits, or the fraction GregTech wrote the ratio as.
+     * Anything else prints in full. A hand review stands only while this cell is unchanged, so a change lost to
+     * rounding would go unnoticed. Locale-independent, because the file is diffed on machines other than the one that
+     * wrote it.
      */
     @Nonnull
     private static String num(final double value) {

@@ -81,17 +81,16 @@ public class GTProvider implements PropertyProvider {
         .build();
 
     /**
-     * The recipe this node was extracted from, kept so GT's own OverclockDescriber can be asked what
-     * a machine would do with it - several describers discard the template and rebuild from the
-     * recipe. Node.properties is rebuilt by refresh() and never serialized, and the balancer only
-     * aggregates Number values, so holding it costs nothing.
+     * Recipe this node was extracted from, passed to GT's OverclockDescriber. Several describers discard
+     * the template and rebuild from the recipe. Node.properties is rebuilt by refresh() and never
+     * serialized, and the balancer aggregates only Number values, so storing it here costs nothing.
      */
     public static final RecipeProperty<GTRecipe> GT_RECIPE = RecipeProperty.<GTRecipe>builder("gt.recipe", null)
         .build();
 
     /**
-     * The NEI handler's own tab title, which names the machine the recipe list belongs to. The
-     * machine picker uses it to default to the machine the player was actually looking at.
+     * NEI handler's tab title, which contains the name of the machine the recipe list belongs to. The
+     * machine picker defaults to that machine, the one the player had open in NEI.
      */
     public static final RecipeProperty<String> NEI_TITLE = RecipeProperty.<String>builder("gt.nei_title", "")
         .build();
@@ -106,29 +105,27 @@ public class GTProvider implements PropertyProvider {
         RecipePropertyAPI.registerExtractor(GTNEIDefaultHandler.class, this);
 
         MachineProfileRegistry.register(PROFILE);
-        // Cleared alongside the shared registries rather than left standing, so the index and the
-        // memo in MachineVariants that keys off it are emptied by the same pass.
+        // reset with the shared registries so the index and the MachineVariants memo keyed off it empty together
         GTMachineIndex.reset();
         MachineVariants.register(GTMachineIndex.SOURCE);
         GTSettings.registerChartMinimums();
     }
 
     /**
-     * The machine picker plus the structure settings the chosen machine actually reads. Speed, EU
-     * discount, overclock factors and heat are all derived from the machine, and reappear as rows
-     * only once the user ticks Advanced.
+     * Machine picker plus the structure settings the chosen machine reads. Speed, EU discount, overclock
+     * factors and heat are derived from the machine and appear as rows only when Advanced is ticked.
      */
     private static void machineDriven(final MachineProfile.Builder b) {
         b.setting(GTSettings.MACHINE_DEF.withVisibility(GTSettings.neverAsARow()));
         b.setting(GTSettings.VOLTAGE_DEF.withVisibility(GTSettings.voltageEditable()));
         b.setting(Settings.MACHINES.def());
-        // Nearly every multiblock takes more than one energy hatch, so how many amps reach it is a
-        // build decision rather than an advanced override.
+        // Nearly every multiblock accepts more than one energy hatch, so amperage is a build choice and its
+        // row appears without Advanced.
         b.setting(GTSettings.AMP_DEF.withVisibility(GTSettings.ampEditable()));
         b.setting(GTSettings.PARALLELS_DEF.withVisibility(GTSettings.parallelsEditable()));
-        // One row per value a player builds or inserts, offered when the selected machine reads it. The
-        // kinds are GregTech's registry, complete once its machines have loaded, which is before this
-        // profile is built - so a kind GregTech adds needs nothing here.
+        // One row per value a player builds or inserts, visible when the selected machine reads it.
+        // GregTech registers its kinds as its machines load, before this profile is built, so adding a kind
+        // requires no code here.
         for (final ModifierKind kind : ModifierKind.all()) {
             if (kind == ModifierKind.VOLTAGE || kind.source == ModifierKind.Source.RUNTIME) continue;
             b.setting(
@@ -139,11 +136,11 @@ public class GTProvider implements PropertyProvider {
         b.setting(GTSettings.ADVANCED_DEF);
     }
 
-    /** The pre-picker rows, kept so a hand-tuned chart can still be edited exactly as before. */
+    /** Override rows, under Advanced, for charts tuned by hand. */
     private static void manual(final MachineProfile.Builder b) {
-        // Each row reads the machine's own value until the user stores one over it. The two
-        // overclock caps have no machine counterpart - GT rarely sets them - so they stay plain
-        // optional limits where nothing stored means no cap.
+        // Each row reads the machine's value until the user stores one over it. The two overclock caps
+        // have no machine counterpart (GT rarely sets them), so they're plain optional limits and an
+        // empty value means no cap.
         for (final SettingDef<?> def : List.of(
             GTSettings.SPEED_DEF,
             GTSettings.PERFECT_OC_DEF,

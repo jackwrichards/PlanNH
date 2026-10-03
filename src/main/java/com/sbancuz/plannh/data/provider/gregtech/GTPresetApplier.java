@@ -24,21 +24,21 @@ import gregtech.api.util.GTRecipe;
 import gregtech.api.util.OverclockCalculator;
 
 /**
- * GregTech's implementation of {@link MachineVariant#run}: turns "this node is a Maceration Stack with HSS-G coils at
- * IV" into a duration, a draw and a parallel count, from the machine's ProcessingSpec or else GT's own describer.
+ * GregTech's implementation of {@link MachineVariant#run}: turns "Maceration Stack with HSS-G coils at IV" into a
+ * duration, an EU/t draw and a parallel count, from the machine's ProcessingSpec or else GT's describer.
  *
  * <p>
- * A spec comes first, because GregTech checks at load that each machine runs exactly as its spec says, and it covers
- * the structure around a multiblock. A describer covers every singleblock exactly and for free.
+ * A spec comes first, because GregTech checks at load that each machine runs as its spec computes, and a spec models
+ * the structure around a multiblock. A describer matches every singleblock at no extra cost.
  */
 public final class GTPresetApplier {
 
     private GTPresetApplier() {}
 
     /**
-     * The machine's own answer for this recipe, which is what {@code Effects.machineDriven} asks for. A recipe GregTech
-     * would not start at this structure keeps its own numbers, with GregTech's reason. Null for a machine with neither
-     * a spec nor a describer, or a recipe with no energy or duration for a describer to overclock.
+     * Machine's result for this recipe, called by {@code Effects.machineDriven}. A recipe GregTech would not start at
+     * this structure returns the recipe's numbers unchanged, with GregTech's rejection reason. Null for a machine with
+     * neither a spec nor a describer, or a recipe with no energy or duration for a describer to overclock.
      */
     @Nullable
     public static EffectResult run(@Nonnull final GTMachineIndex.MachineEntry entry, final RecipeContext ctx,
@@ -46,7 +46,7 @@ public final class GTPresetApplier {
         final int machines = MachineProfile.getInt(settings, Settings.MACHINES.key(), 1);
         final ResolvedRecipe resolved = GTSettings.resolved(ctx, settings);
         if (resolved != null) {
-            // 0 is what an untouched node stores, and it means the machine's maximum
+            // an untouched node stores 0, meaning the machine's maximum
             final int userCap = MachineProfile.getInt(settings, Settings.PARALLELS.key(), 0);
             final ResolvedRecipe capped = userCap > 0 ? resolved.capParallel(userCap) : resolved;
             final ProcessingRun run = capped.calculate(applyOverrides(capped.toCalculator(), settings));
@@ -58,7 +58,7 @@ public final class GTPresetApplier {
             return effect(run, machines);
         }
 
-        // a singleblock runs as GregTech's own describer says, the same calculator the machine and NEI use
+        // singleblock: GregTech's describer, the same calculator the machine and NEI use
         final GTRecipe gtRecipe = ctx.getOrDefault(GTProvider.GT_RECIPE, null);
         if (entry.describer() == null || gtRecipe == null || gtRecipe.mEUt <= 0 || gtRecipe.mDuration <= 0) return null;
         final OverclockCalculator calculator = applyOverrides(
@@ -68,19 +68,19 @@ public final class GTPresetApplier {
         return new EffectResult(calculator.getDuration(), calculator.getConsumption(), machines);
     }
 
-    /** A node's numbers for a run GregTech worked out, at this many machines. */
+    /** Node's numbers for a run GregTech computed, at this many machines. */
     @Nonnull
     public static EffectResult effect(final ProcessingRun run, final int machines) {
         return new EffectResult(run.ticks(), run.euPerTick(), run.parallel() * machines)
             .withOutputs(expectedOutput(run.output()), details(run));
     }
 
-    /** Each parallel's outputs on average: the chance it succeeds, times what a success yields. */
+    /** Average output per parallel: success chance times yield per success. */
     private static double expectedOutput(final ProcessingRun.Output output) {
         return output.successChance() * output.yield();
     }
 
-    /** What the run costs and gives besides EU/t, and its odds, which the node states beside its numbers. */
+    /** Run's costs and gains besides EU/t, and its odds, listed beside the node's numbers. */
     @Nonnull
     private static List<String> details(final ProcessingRun run) {
         final List<String> details = new ArrayList<>();
@@ -114,14 +114,10 @@ public final class GTPresetApplier {
     }
 
     /**
-     * Lays the user's own numbers over the machine's. Only keys actually stored are applied - the map
-     * is sparse, so anything absent stays exactly as the machine computed it, at full precision
-     * rather than the rounded percentage the advanced rows display. A stored value that cannot be read
-     * keeps the machine's own.
-     *
-     * <p>
-     * This is what makes Advanced an override rather than a separate world: ticking it does not
-     * change a single number until a row is edited.
+     * Lays the user's numbers over the machine's. Only stored keys are applied. The map is sparse, so an
+     * absent key leaves the machine's value at full precision, not the rounded percentage drawn in the
+     * advanced rows. An unreadable stored value falls back to the machine's. Ticking Advanced changes no
+     * number until a row is edited.
      */
     @Nonnull
     public static OverclockCalculator applyOverrides(final OverclockCalculator calculator,
@@ -182,7 +178,7 @@ public final class GTPresetApplier {
             && MachineProfile.getBool(settings, Settings.UNLIMITED_SKIPS.key(), false)) {
             calculator.setUnlimitedTierSkips();
         } else if (settings.containsKey(Settings.MAX_TIER_SKIPS.key())) {
-            // Zero is a real answer here, not "unset" - presence is what says the user meant it.
+            // zero is a valid cap here, not "unset": a present key is a user value
             calculator.setMaxTierSkips(
                 MachineProfile.getInt(settings, Settings.MAX_TIER_SKIPS.key(), calculator.getMaxTierSkips()));
         }

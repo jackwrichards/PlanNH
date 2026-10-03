@@ -312,25 +312,12 @@ public final class Balancer {
         return new BalanceResult.Solved(nodeBalances, propertyTotals, totalOps, totalDuration, notes, auto, alternatives);
     }
 
-    /** One machine's share of a solved balance, for the node widget and the machine-count panel. */
-                                                                                                    /**
-                                                                                                     * @param rejection Why
-                                                                                                     *                  the
-                                                                                                     *                  node's
-                                                                                                     *                  machine
-                                                                                                     *                  will
-                                                                                                     *                  not
-                                                                                                     *                  run
-                                                                                                     *                  its
-                                                                                                     *                  recipe,
-                                                                                                     *                  which
-                                                                                                     *                  then
-                                                                                                     *                  plans
-                                                                                                     *                  at
-                                                                                                     *                  the
-                                                                                                     *                  recipe's
-                                                                                                     *                  numbers
-                                                                                                     */
+    /**
+     * One machine's share of a solved balance, for the node widget and the machine-count panel.
+     *
+     * @param rejection Why the node's machine won't run its recipe. The node is then planned at the recipe's numbers.
+     * @param details   Lines for the node's panel, beside its numbers.
+     */
     public record NodeBalance(double operations, int totalDurationTicks, long totalEnergy, int durationPerOp,
         Map<Integer, Float> effectiveOutputs, Map<Integer, Float> effectiveInputs, @Nullable String rejection,
         List<String> details) {}

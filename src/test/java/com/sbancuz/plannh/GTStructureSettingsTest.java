@@ -18,8 +18,8 @@ import gregtech.api.enums.HeatingCoilLevel;
 import gregtech.api.logic.ModifierKind;
 
 /**
- * Every structure row stores its kind's own number, as GregTech counts it, so a coil row and a solenoid row are the
- * same row. Charts saved while the coil row stored GregTech's coil level name are migrated on load.
+ * Every structure row stores its kind's number in GregTech's numbering, so a coil row and a solenoid row work the same.
+ * Charts that stored the coil row as GregTech's coil level name are migrated on load.
  */
 class GTStructureSettingsTest {
 
@@ -42,7 +42,7 @@ class GTStructureSettingsTest {
                 .get(ModifierKind.COIL));
     }
 
-    /** Unset values open on the chart's floor, which is the best the game offers on a chart that set none. */
+    /** Unset values open on the chart's floor, or the best value on a chart with no floor. */
     @Test
     void unsetValuesOpenOnTheChartsFloor() {
         final StructureState state = GTSettings.resolve(EMPTY, Map.of(), 5);
@@ -77,7 +77,7 @@ class GTStructureSettingsTest {
         assertEquals(2, settings.get(GTSettings.COIL));
     }
 
-    /** A junk name must not silently read as Cupronickel. */
+    /** A junk name must not read as Cupronickel. */
     @Test
     void aSavedNameNoCoilHasIsDropped() {
         final Map<String, Object> settings = new HashMap<>(Map.of(GTSettings.COIL, "NOT_A_COIL"));
