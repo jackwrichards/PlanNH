@@ -69,7 +69,8 @@ public interface MachineVariant {
      * This is the whole of "the machine supplies the numbers", so a provider gets that behaviour by
      * implementing this rather than by writing an effect step of its own. Null means the machine
      * cannot answer - it has no parameters for this recipe, or the recipe carries something no
-     * machine can report - and leaves the node on its own settings rows.
+     * machine can report - and leaves the node on its own settings rows. A machine that will not run
+     * the recipe returns {@link EffectResult#rejectedBecause} on it, which the node shows.
      */
     @Nullable
     default EffectResult run(final RecipeContext ctx, final Map<String, Object> settings, final EffectResult recipe) {

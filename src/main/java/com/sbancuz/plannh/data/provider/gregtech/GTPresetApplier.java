@@ -31,9 +31,9 @@ public final class GTPresetApplier {
     private GTPresetApplier() {}
 
     /**
-     * The machine's own answer for this recipe, which is what {@code Effects.machineDriven} asks for. Null for a
-     * machine with neither a spec nor a describer, for a recipe GregTech would not start at this structure, or for one
-     * with no energy or duration for a describer to overclock - the node then keeps the recipe's own numbers.
+     * The machine's own answer for this recipe, which is what {@code Effects.machineDriven} asks for. A recipe GregTech
+     * would not start at this structure keeps its own numbers, with GregTech's reason. Null for a machine with neither
+     * a spec nor a describer, or a recipe with no energy or duration for a describer to overclock.
      */
     @Nullable
     public static EffectResult run(@Nonnull final GTMachineIndex.MachineEntry entry, final RecipeContext ctx,
@@ -48,7 +48,10 @@ public final class GTPresetApplier {
                 : resolved;
             final ProcessingRun run = capped.calculate(applyOverrides(capped.toCalculator(), settings));
             if (!run.result()
-                .wasSuccessful()) return null;
+                .wasSuccessful())
+                return recipe.rejectedBecause(
+                    run.result()
+                        .getDisplayString());
             return new EffectResult(run.ticks(), run.euPerTick(), run.parallel() * machines);
         }
 

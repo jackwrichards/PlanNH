@@ -33,7 +33,8 @@ Steam Water Pump.
 
 - **A recipe GregTech would refuse gets no machine numbers.** When a spec's requirement fails at
   the node's structure (a coil too cold, a steam multiblock below the recipe's voltage), the node
-  keeps the recipe's own numbers and does not say why.
+  keeps the recipe's own numbers and shows GregTech's reason in red. A chart that has not been
+  solved yet has no balance to carry it, so it shows nothing there.
 - **Steam multiblocks are planned in EU, not steam.** GregTech burns 2 L of steam per EU.
 - **The Eye of Harmony's success chance, yield and per-run EU are not shown.** A node carries a
   duration, an EU/t and a parallel count, and the Eye draws its EU once per run from the wireless

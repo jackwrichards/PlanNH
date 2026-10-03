@@ -293,7 +293,8 @@ public final class Balancer {
                 effIns.put(i, total);
             }
 
-            nodeBalances.put(node.id, new NodeBalance(count, durPerOp, totalEnergy, durPerOp, effOuts, effIns));
+            nodeBalances
+                .put(node.id, new NodeBalance(count, durPerOp, totalEnergy, durPerOp, effOuts, effIns, eff.rejection()));
 
             for (final Map.Entry<RecipeProperty<?>, Object> entry : node.properties.entrySet()) {
                 if (entry.getValue() instanceof final Number num) {
@@ -309,7 +310,25 @@ public final class Balancer {
     }
 
     /** One machine's share of a solved balance, for the node widget and the machine-count panel. */
+                                                                                                    /**
+                                                                                                     * @param rejection Why
+                                                                                                     *                  the
+                                                                                                     *                  node's
+                                                                                                     *                  machine
+                                                                                                     *                  will
+                                                                                                     *                  not
+                                                                                                     *                  run
+                                                                                                     *                  its
+                                                                                                     *                  recipe,
+                                                                                                     *                  which
+                                                                                                     *                  then
+                                                                                                     *                  plans
+                                                                                                     *                  at
+                                                                                                     *                  the
+                                                                                                     *                  recipe's
+                                                                                                     *                  numbers
+                                                                                                     */
     public record NodeBalance(double operations, int totalDurationTicks, long totalEnergy, int durationPerOp,
-        Map<Integer, Float> effectiveOutputs, Map<Integer, Float> effectiveInputs) {}
+        Map<Integer, Float> effectiveOutputs, Map<Integer, Float> effectiveInputs, @Nullable String rejection) {}
 
 }
