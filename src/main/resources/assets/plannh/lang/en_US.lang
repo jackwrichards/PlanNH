@@ -39,7 +39,6 @@ plannh.settings.heat_discount=Heat Disc.
 plannh.settings.laser_oc=Laser OC
 plannh.settings.unlimited_skips=Unl. Skips
 plannh.settings.no_overclock=No OC
-plannh.settings.catalyst_astral_arrays=Astral Arrays
 plannh.settings.catalyst_accel_card=Accel. Card
 
 ## Settings - Botania
@@ -164,6 +163,10 @@ plannh.solver.gate_count_not_certified=Gate count %d is minimal but not certifie
 ## Names
 plannh.machine.singleblock_suffix= (single)
 plannh.machine.no_spec_suffix= (no ProcessingSpec interface)
+plannh.gt.output_odds=%s%% success, %s%% yield
+plannh.gt.startup_eu=Start-up: %s EU
+plannh.gt.eu_per_run=Per run: %s EU
+plannh.gt.eu_generated=Gives per run: %s EU
 plannh.solver.pin_extent=extent pin
 plannh.solver.pin_target=target rate
 plannh.solver.pin_count=fixed machine count

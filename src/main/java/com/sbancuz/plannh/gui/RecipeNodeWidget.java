@@ -569,6 +569,18 @@ public class RecipeNodeWidget extends Widget<RecipeNodeWidget>
                 false);
             y += LINE_H;
         }
+        if (nb != null) {
+            for (final String detail : nb.details()) {
+                GuiDraw.drawText(
+                    Minecraft.getMinecraft().fontRenderer.trimStringToWidth(detail, neiWidget.w),
+                    x,
+                    y,
+                    1.0f,
+                    PlannhColors.TEXT_MUTED.getColor(),
+                    false);
+                y += LINE_H;
+            }
+        }
         if (ops <= 0) return;
 
         y = drawPortList(x, y, node.inputs, nb, sec, false);

@@ -56,6 +56,36 @@ class GTMachineSpecTest {
                 .getMaxParallel(machine.inputs(new StructureState(5, 1, 0, Map.of(ModifierKind.COIL, 4L)))));
     }
 
+    /**
+     * A chart's floor is what an untouched node plans at, unless the recipe needs more: a coil too cold for the recipe
+     * is
+     * raised to the coolest that runs it, as GregTech's own check decides, voltage bonus included.
+     */
+    @Test
+    void anUnsetValueIsRaisedToTheLowestThatRunsTheRecipe() {
+        final GTMachineSpec ebf = GTMachineSpec.of(
+            ProcessingSpec.builder()
+                .coilHeatPerVoltageTier(100, 2, ProcessingSpec.HeatRule.REQUIRED)
+                .build());
+        final StructureState atCupronickel = new StructureState(5, 1, 0, Map.of(), Map.of(ModifierKind.COIL, 0L));
+        final StructureState chosen = new StructureState(5, 1, 0, Map.of(ModifierKind.COIL, 0L));
+
+        // Nichrome, coil tier 2, runs at 3601K, plus 300K at IV
+        assertEquals(
+            2,
+            ebf.inputs(atCupronickel, GTSpecs.recipe(120, 100, 3901))
+                .value(ModifierKind.COIL));
+        assertEquals(
+            3,
+            ebf.inputs(atCupronickel, GTSpecs.recipe(120, 100, 3902))
+                .value(ModifierKind.COIL));
+        assertEquals(
+            0,
+            ebf.inputs(chosen, GTSpecs.recipe(120, 100, 3902))
+                .value(ModifierKind.COIL),
+            "what the player chose stays, and the node shows why it cannot run");
+    }
+
     @Test
     void aSpecThatReadsAnUndeclaredKindFails() {
         assertThrows(

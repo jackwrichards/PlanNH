@@ -6,15 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import com.sbancuz.plannh.data.Settings;
 import com.sbancuz.plannh.data.flowchart.Graph;
 import com.sbancuz.plannh.data.flowchart.Serializer;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceResult;
 import com.sbancuz.plannh.data.provider.gregtech.GTSettings;
-import com.sbancuz.plannh.data.provider.gregtech.GTStructureTiers;
 
 import gregtech.api.enums.GTValues;
 
@@ -81,42 +78,6 @@ class ChartMinimumsTest {
         graph.setMinimum(COIL, 0);
 
         assertNotSame(solved, graph.balance());
-    }
-
-    /** Zero and below is "no requirement", which is what a recipe with no heat carries. */
-    @ParameterizedTest
-    @ValueSource(ints = { -1, 0 })
-    void aRecipeThatAsksForNoHeatAsksForNoCoil(final int heat) {
-        assertEquals(0, GTSettings.coilTierForHeat(heat));
-    }
-
-    @Test
-    void aRecipeHotterThanEveryCoilLandsOnTheHottest() {
-        assertEquals(
-            GTStructureTiers.MAX_COIL_TIER,
-            GTSettings.coilTierForHeat(GTStructureTiers.coilHeat(GTStructureTiers.MAX_COIL_TIER) + 1));
-    }
-
-    /**
-     * The property that matters, checked over the whole range rather than at a chosen tier: the coil
-     * picked reaches the heat, and the one below it does not. One tier too low is a node that opens
-     * on a structure its own recipe cannot run in.
-     */
-    @Test
-    void everyHeatLandsOnTheWeakestCoilThatReachesIt() {
-        for (int tier = 0; tier <= GTStructureTiers.MAX_COIL_TIER; tier++) {
-            for (final int heat : new int[] { GTStructureTiers.coilHeat(tier) - 1, GTStructureTiers.coilHeat(tier) }) {
-                if (heat <= 0) continue;
-                final int picked = GTSettings.coilTierForHeat(heat);
-
-                assertTrue(
-                    GTStructureTiers.coilHeat(picked) >= heat,
-                    "coil " + picked + " runs at " + GTStructureTiers.coilHeat(picked) + " for " + heat);
-                assertTrue(
-                    picked == 0 || GTStructureTiers.coilHeat(picked - 1) < heat,
-                    "coil " + (picked - 1) + " already reached " + heat);
-            }
-        }
     }
 
     /**

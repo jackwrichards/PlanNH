@@ -46,7 +46,6 @@ import gregtech.api.logic.ProcessingInputs;
 import gregtech.api.logic.ProcessingSpec;
 import gregtech.api.metatileentity.implementations.MTEMultiBlockBase;
 import gregtech.api.recipe.RecipeMap;
-import gregtech.api.util.OverclockCalculator;
 
 /**
  * Writes what PlanNH believes about every GregTech multiblock to a Markdown file. No test can produce
@@ -337,7 +336,7 @@ public class MachineTableCommand extends CommandBase {
         final ProcessingSpec.OverclockRule overclock = spec.getOverclock(inputs);
         final ProcessingSpec.OverclockRule.Ratio ratio = overclock instanceof final ProcessingSpec.OverclockRule.Ratio r
             ? r
-            : ProcessingSpec.OverclockRule.Ratio.STANDARD;
+            : null;
         final ProcessingSpec.Heat heat = spec.getHeat()
             .orElse(null);
         return "par=" + spec.getMaxParallel(inputs)
@@ -348,9 +347,9 @@ public class MachineTableCommand extends CommandBase {
             + " cost="
             + num(spec.getEuModifierNotLimitingParallel(inputs))
             + " ocD="
-            + num(ratio.durationDivisor())
+            + (ratio == null ? "-" : num(ratio.durationDivisor()))
             + " ocE="
-            + num(ratio.euMultiplier())
+            + (ratio == null ? "-" : num(ratio.euMultiplier()))
             + " noOC="
             + (overclock instanceof ProcessingSpec.OverclockRule.None ? 1 : 0)
             + " heat="
@@ -366,8 +365,7 @@ public class MachineTableCommand extends CommandBase {
                 : heat.fixedRecipeHeat()
                     .orElse(-1))
             + " skips="
-            + spec.getMaxTierSkips()
-                .orElse(OverclockCalculator.DEFAULT_MAX_TIER_SKIPS);
+            + spec.getMaxTierSkipsOrDefault();
     }
 
     /** Denominators a GregTech modifier is plausibly built from; 1/3 and 9/4 both fall inside this. */

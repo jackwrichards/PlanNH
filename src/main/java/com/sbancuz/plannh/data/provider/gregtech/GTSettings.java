@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiPredicate;
-import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 
 import javax.annotation.Nonnull;
@@ -26,6 +25,7 @@ import gregtech.api.enums.GTValues;
 import gregtech.api.enums.HeatingCoilLevel;
 import gregtech.api.logic.ModifierKind;
 import gregtech.api.logic.ModifierRange;
+import gregtech.api.logic.ProcessingInputs;
 import gregtech.api.logic.ProcessingSpec;
 import gregtech.api.logic.ResolvedRecipe;
 import gregtech.api.util.GTRecipe;
@@ -54,29 +54,13 @@ public final class GTSettings {
     // Read off the shared vocabulary rather than repeated as literals, so the key a spec names and
     // the key a node stores cannot drift apart. Sourcing them from a method call also keeps them out
     // of the constant pool, which is what makes a single edit here reach every call site.
-    public static final String COIL = Settings.GT_COIL.key();
-    public static final String PIPE_CASING = Settings.GT_PIPE_CASING.key();
     public static final String MODE = Settings.GT_MODE.key();
+    /** The coil and pipe casing rows' keys, which {@link #structureKey} gives GregTech's kinds. */
+    public static final String COIL = structureKey(ModifierKind.COIL);
+    public static final String PIPE_CASING = structureKey(ModifierKind.PIPE_CASING);
 
     /** Sixteen 4A hatches is past anything GregTech builds, and the row is a plan rather than a limit. */
     private static final int MAX_AMPERAGE = 64;
-
-    /**
-     * Coil names in GT's tier order, so index 0 is Cupronickel. {@code HeatingCoilLevel} counts None
-     * and ULV below that, which is why its {@code getTier()} subtracts two.
-     */
-    public static final List<String> COIL_NAMES = coilNames();
-
-    @Nonnull
-    private static List<String> coilNames() {
-        final List<String> names = new ArrayList<>();
-        for (int tier = 0; tier <= GTStructureTiers.MAX_COIL_TIER; tier++) {
-            names.add(
-                HeatingCoilLevel.getFromTier((byte) tier)
-                    .name());
-        }
-        return List.copyOf(names);
-    }
 
     /**
      * The machine picker, which is no longer GregTech's own: {@link MachineVariants} builds it from
@@ -168,20 +152,17 @@ public final class GTSettings {
      * draws them, so that panel names no mod and keeps working on a pack without GregTech.
      */
     public static void registerChartMinimums() {
-        ChartMinimums.register(
-            ChartMinimums.Minimum.strongest(
-                Settings.GT_COIL,
-                "Coil",
-                0,
-                GTStructureTiers.MAX_COIL_TIER,
-                tier -> COIL_DEF.display(COIL_NAMES.get(tier))));
-        ChartMinimums.register(
-            ChartMinimums.Minimum.strongest(
-                Settings.GT_PIPE_CASING,
-                "Pipe",
-                1,
-                GTStructureTiers.MAX_PIPE_CASING_TIER,
-                GTStructureTiers::pipeCasingName));
+        for (final ChartFloor floor : CHART_FLOORS) {
+            final ModifierRange range = floor.kind()
+                .getRange();
+            ChartMinimums.register(
+                ChartMinimums.Minimum.strongest(
+                    floor.setting(),
+                    floor.label(),
+                    (int) range.min(),
+                    (int) range.max(),
+                    floor.kind()::label));
+        }
         // One below the top of GregTech's own list, matching the tiers the voltage row offers.
         ChartMinimums.register(
             ChartMinimums.Minimum
@@ -189,20 +170,16 @@ public final class GTSettings {
     }
 
     /**
-     * Something that only answers inside a running game, and its answer when there is none. Resolving
-     * a structure reaches the open plan and the recipe's own properties, and both of those reach
-     * Minecraft: the plan through the save directory, the properties through the provider that
-     * declares them. A test resolves structures with neither loaded, and
-     * that is not a failure - it means nothing has been chosen yet.
+     * A structure value a whole chart sets a floor for, because it describes how far the world has progressed rather
+     * than one machine: a chart planned at Cupronickel that quotes Eternal numbers is wrong everywhere at once.
+     *
+     * @param label Short enough to sit beside the floor's two steppers
      */
-    @Nullable
-    private static <T> T insideAGame(final Supplier<T> value, @Nullable final T otherwise) {
-        try {
-            return value.get();
-        } catch (final RuntimeException | LinkageError outsideAGame) {
-            return otherwise;
-        }
-    }
+    private record ChartFloor(ModifierKind.IntKind kind, Settings setting, String label) {}
+
+    private static final List<ChartFloor> CHART_FLOORS = List.of(
+        new ChartFloor(ModifierKind.COIL, Settings.GT_COIL, "Coil"),
+        new ChartFloor(ModifierKind.PIPE_CASING, Settings.GT_PIPE_CASING, "Pipe"));
 
     /** The tiers offered for a recipe of this cost, lowest usable first. */
     @Nonnull
@@ -240,11 +217,82 @@ public final class GTSettings {
      */
     @Nullable
     public static ResolvedRecipe resolved(final RecipeContext ctx, final Map<String, Object> settings) {
+        final Planned planned = planned(ctx, settings);
+        return planned == null ? null : planned.resolved();
+    }
+
+    /**
+     * What a node plans with: its machine's inputs, and the numbers its recipe resolves to there.
+     *
+     * @param floors     The chart floors the plan read, in {@link #floor(int)} order
+     * @param calculator For the rows to read, never to change
+     */
+    private record Planned(RecipeContext ctx, Map<String, Object> settings, long[] floors,
+        GTMachineIndex.MachineEntry entry, ProcessingInputs inputs, @Nullable ResolvedRecipe resolved,
+        @Nullable OverclockCalculator calculator) {}
+
+    /**
+     * The last node's plan. Every row of a node's panel reads it on every frame, and a panel draws its rows together,
+     * so
+     * one slot holds it, as {@link GTMachineIndex#candidates} does. Everything the plan reads is in the key.
+     */
+    @Nullable
+    private static Planned lastPlanned;
+
+    @Nullable
+    private static Planned planned(final RecipeContext ctx, final Map<String, Object> settings) {
         final GTMachineIndex.MachineEntry entry = GTMachineIndex.selected(ctx, settings);
+        if (entry == null || entry.machine() == null) return null;
+        final Planned last = lastPlanned;
+        if (last != null && last.ctx() == ctx
+            && last.entry() == entry
+            && last.settings()
+                .equals(settings)
+            && sameFloors(last.floors())) return last;
+
+        final StructureState state = state(ctx, settings, entry);
         final GTRecipe recipe = ctx.getOrDefault(GTProvider.GT_RECIPE, null);
-        if (entry == null || entry.machine() == null || recipe == null) return null;
-        return entry.machine()
-            .resolve(recipe, resolve(ctx, settings, voltageTier(ctx, settings), mode(ctx, entry, settings)));
+        final ProcessingInputs inputs = recipe == null ? entry.machine()
+            .inputs(state)
+            : entry.machine()
+                .inputs(state, recipe);
+        final ResolvedRecipe resolved = recipe == null ? null
+            : entry.machine()
+                .spec()
+                .resolve(recipe, inputs);
+        final long[] floors = new long[CHART_FLOORS.size() + 1];
+        for (int i = 0; i < floors.length; i++) floors[i] = floor(i);
+        lastPlanned = new Planned(
+            ctx,
+            new HashMap<>(settings),
+            floors,
+            entry,
+            inputs,
+            resolved,
+            resolved == null ? null : resolved.toCalculator());
+        return lastPlanned;
+    }
+
+    private static boolean sameFloors(final long[] floors) {
+        for (int i = 0; i < floors.length; i++) if (floors[i] != floor(i)) return false;
+        return true;
+    }
+
+    /** 0 is the voltage floor, then the {@link #CHART_FLOORS}. */
+    private static long floor(final int index) {
+        if (index == 0) return chartMinimum(Settings.VOLTAGE, 0);
+        final ChartFloor floor = CHART_FLOORS.get(index - 1);
+        return chartMinimum(
+            floor.setting(),
+            (int) floor.kind()
+                .getRange()
+                .max());
+    }
+
+    @Nonnull
+    private static StructureState state(final RecipeContext ctx, final Map<String, Object> settings,
+        final GTMachineIndex.MachineEntry entry) {
+        return resolve(ctx, settings, voltageTier(ctx, settings), mode(ctx, entry, settings));
     }
 
     /**
@@ -258,10 +306,19 @@ public final class GTSettings {
         return resolved == null ? fallback : reader.applyAsInt(resolved);
     }
 
-    /** GT's standard 2x speed for 4x EU/t where the machine does not overclock. */
-    private static ProcessingSpec.OverclockRule.Ratio ratio(final ResolvedRecipe resolved) {
-        return resolved.overclock() instanceof final ProcessingSpec.OverclockRule.Ratio ratio ? ratio
-            : ProcessingSpec.OverclockRule.Ratio.STANDARD;
+    /**
+     * Reads one number off the calculator the machine would overclock this node's recipe with, which is what an
+     * advanced row overrides.
+     */
+    private static int fromCalculator(final RecipeContext ctx, final Map<String, Object> settings, final int fallback,
+        final ToIntFunction<OverclockCalculator> reader) {
+        final Planned planned = planned(ctx, settings);
+        return planned == null || planned.calculator() == null ? fallback : reader.applyAsInt(planned.calculator());
+    }
+
+    /** A row's percentage, for a value GregTech keeps as a factor. */
+    public static int percent(final double factor) {
+        return (int) Math.round(100 * factor);
     }
 
     /** Percentages the rows show; the maths uses the spec's exact doubles, never these. */
@@ -270,7 +327,7 @@ public final class GTSettings {
         10,
         10000,
         100,
-        (ctx, s) -> fromSpec(ctx, s, 100, r -> (int) Math.round(100.0 / r.durationMultiplier())),
+        (ctx, s) -> fromCalculator(ctx, s, 100, c -> percent(1 / c.getDurationModifier())),
         (v, c) -> "⏱" + v + "%");
 
     public static final SettingDef<Integer> EUT_DISCOUNT_DEF = SettingDef.autoIntDef(
@@ -278,7 +335,7 @@ public final class GTSettings {
         0,
         100,
         100,
-        (ctx, s) -> fromSpec(ctx, s, 100, r -> (int) Math.round(100.0 * r.euModifier())),
+        (ctx, s) -> fromCalculator(ctx, s, 100, c -> percent(c.getEUtDiscount())),
         (v, c) -> "D" + v + "%");
 
     public static final SettingDef<Integer> EUT_PER_OC_DEF = SettingDef.autoIntDef(
@@ -286,7 +343,7 @@ public final class GTSettings {
         100,
         1000,
         400,
-        (ctx, s) -> fromSpec(ctx, s, 400, r -> (int) Math.round(100.0 * ratio(r).euMultiplier())),
+        (ctx, s) -> fromCalculator(ctx, s, 400, c -> percent(c.getEUtIncreasePerOC())),
         (v, c) -> "EU×" + (v / 100));
 
     public static final SettingDef<Integer> DURATION_PER_OC_DEF = SettingDef.autoIntDef(
@@ -294,7 +351,7 @@ public final class GTSettings {
         100,
         1000,
         200,
-        (ctx, s) -> fromSpec(ctx, s, 200, r -> (int) Math.round(100.0 * ratio(r).durationDivisor())),
+        (ctx, s) -> fromCalculator(ctx, s, 200, c -> percent(c.getDurationDecreasePerOC())),
         (v, c) -> "Spd×" + (v / 100));
 
     public static final SettingDef<Integer> MACHINE_HEAT_DEF = SettingDef.autoIntDef(
@@ -302,13 +359,7 @@ public final class GTSettings {
         0,
         100000,
         0,
-        (ctx, s) -> fromSpec(
-            ctx,
-            s,
-            0,
-            r -> r.heat() == null ? 0
-                : r.heat()
-                    .machineHeat()),
+        (ctx, s) -> fromCalculator(ctx, s, 0, OverclockCalculator::getMachineHeat),
         (v, c) -> "M" + v);
 
     /** Zero for a machine that ignores heat, which keeps something else in the recipe's special value. */
@@ -317,25 +368,20 @@ public final class GTSettings {
         0,
         100000,
         0,
-        (ctx, s) -> fromSpec(
-            ctx,
-            s,
-            0,
-            r -> r.heat() == null ? 0
-                : r.heat()
-                    .recipeHeat()),
+        (ctx, s) -> fromCalculator(ctx, s, 0, OverclockCalculator::getRecipeHeat),
         (v, c) -> "R" + v);
 
-    private static final int HEAT_DISCOUNT_PERCENT = (int) Math
-        .round(100 * OverclockCalculator.DEFAULT_HEAT_DISCOUNT_MULTIPLIER);
-
-    /** GT's own heat discount base, per 900K of headroom. */
+    /** GT's heat discount base, per 900K of headroom. */
     public static final SettingDef<Integer> HEAT_DISCOUNT_MULT_DEF = SettingDef.autoIntDef(
         Settings.HEAT_DISCOUNT_MULT.key(),
         0,
         200,
-        HEAT_DISCOUNT_PERCENT,
-        (ctx, s) -> HEAT_DISCOUNT_PERCENT,
+        percent(OverclockCalculator.DEFAULT_HEAT_DISCOUNT_MULTIPLIER),
+        (ctx, s) -> fromCalculator(
+            ctx,
+            s,
+            percent(OverclockCalculator.DEFAULT_HEAT_DISCOUNT_MULTIPLIER),
+            c -> percent(c.getHeatDiscountMultiplier())),
         null);
 
     /** A machine that skips no tiers reports 0, which is a real answer. */
@@ -344,7 +390,7 @@ public final class GTSettings {
         0,
         10,
         1,
-        (ctx, s) -> fromSpec(ctx, s, 1, ResolvedRecipe::maxTierSkips),
+        (ctx, s) -> fromCalculator(ctx, s, 1, OverclockCalculator::getMaxTierSkips),
         (v, c) -> "Sk" + v);
 
     public static final SettingDef<Boolean> PERFECT_OC_DEF = SettingDef.autoBoolDef(
@@ -354,32 +400,23 @@ public final class GTSettings {
             s,
             0,
             r -> r.overclock()
+                .rule()
                 .equals(ProcessingSpec.OverclockRule.Ratio.PERFECT) ? 1 : 0),
         (v, c) -> v ? "P" : null);
 
     public static final SettingDef<Boolean> HEAT_OC_DEF = SettingDef.autoBoolDef(
         Settings.HEAT_OC.key(),
-        (ctx, s) -> fromSpec(
-            ctx,
-            s,
-            0,
-            r -> r.heat() != null && r.heat()
-                .overclocking() ? 1 : 0),
+        (ctx, s) -> fromCalculator(ctx, s, 0, c -> c.isHeatOC() ? 1 : 0),
         (v, c) -> v ? "H" : null);
 
     public static final SettingDef<Boolean> HEAT_DISCOUNT_DEF = SettingDef.autoBoolDef(
         Settings.HEAT_DISCOUNT.key(),
-        (ctx, s) -> fromSpec(
-            ctx,
-            s,
-            0,
-            r -> r.heat() != null && r.heat()
-                .discounting() ? 1 : 0),
+        (ctx, s) -> fromCalculator(ctx, s, 0, c -> c.isHeatDiscount() ? 1 : 0),
         (v, c) -> v ? "D" : null);
 
     public static final SettingDef<Boolean> UNLIMITED_SKIPS_DEF = SettingDef.autoBoolDef(
         Settings.UNLIMITED_SKIPS.key(),
-        (ctx, s) -> fromSpec(ctx, s, 0, r -> r.maxTierSkips() == Integer.MAX_VALUE ? 1 : 0),
+        (ctx, s) -> fromCalculator(ctx, s, 0, c -> c.getMaxTierSkips() == Integer.MAX_VALUE ? 1 : 0),
         (v, c) -> v ? "∞T" : null);
 
     /**
@@ -393,77 +430,6 @@ public final class GTSettings {
             return entry == null ? 1 : Math.max(1, entry.amperage());
         }, (v, c) -> "A" + v);
 
-    /**
-     * Stores GregTech's tier name and shows GregTech's material name, because the tier name is what a
-     * save can keep - it is locale-independent and stable - while "Cupronickel" is what a player built.
-     *
-     * <p>
-     * An untouched row opens on the chart's own coil rather than on the best one, because a coil sets
-     * the heat every overclock is counted from and a chart planned at Cupronickel that quotes Eternal
-     * numbers is wrong everywhere at once. The whole list stays offered, so one node can still model a
-     * hotter build than the rest of the chart.
-     */
-    public static final SettingDef<String> COIL_DEF = SettingDef
-        .dynamicEnumDef(COIL, "", ctx -> COIL_NAMES, GTSettings::coilDisplayName, (v, c) -> null)
-        .withDefault(ctx -> COIL_NAMES.get(defaultCoilTier(ctx)));
-
-    /**
-     * The coil a node opens on: the chart's own minimum, raised to whatever the recipe needs to reach
-     * its heat. GregTech keeps that heat in the recipe's special value, which a machine that ignores
-     * heat uses for something else - but a casing tier or a mode number sits far below the weakest
-     * coil's 1801K, so reading it here raises nothing.
-     */
-    public static int defaultCoilTier(final RecipeContext ctx) {
-        return Math.max(chartMinimum(Settings.GT_COIL, GTStructureTiers.MAX_COIL_TIER), coilTierForRecipe(ctx));
-    }
-
-    private static int coilTierForRecipe(final RecipeContext ctx) {
-        final Integer heat = insideAGame(() -> ctx.getOrDefault(GTProvider.SPECIAL_VALUE, null), null);
-        return heat == null ? 0 : coilTierForHeat(heat);
-    }
-
-    /**
-     * The weakest coil that reaches a heat, or the hottest coil when none does. Public because it is
-     * the rule the recipe-driven part of a coil default is, and it is worth pinning on its own: one
-     * tier too low and a node opens on a structure that cannot run its recipe.
-     */
-    public static int coilTierForHeat(final int heat) {
-        if (heat <= 0) return 0;
-        for (int tier = 0; tier < GTStructureTiers.MAX_COIL_TIER; tier++) {
-            if (GTStructureTiers.coilHeat(tier) >= heat) return tier;
-        }
-        return GTStructureTiers.MAX_COIL_TIER;
-    }
-
-    /** The pipe casing a node opens on. GregTech attaches no casing requirement to a recipe. */
-    public static int defaultPipeCasingTier() {
-        return chartMinimum(Settings.GT_PIPE_CASING, GTStructureTiers.MAX_PIPE_CASING_TIER);
-    }
-
-    /** GregTech's own translated name for a coil tier, so the row reads as the block a player places. */
-    @Nonnull
-    private static String coilDisplayName(final String tierName) {
-        for (final HeatingCoilLevel level : HeatingCoilLevel.values()) {
-            if (level.name()
-                .equals(tierName)) return level.getName();
-        }
-        return tierName;
-    }
-
-    /**
-     * Stores GregTech's tier number, which is what the machines read, and shows the casing it means.
-     * An untouched row follows the chart, so it is an automatic row rather than one with a fixed
-     * default.
-     */
-    public static final SettingDef<Integer> PIPE_CASING_DEF = SettingDef
-        .autoIntDef(
-            PIPE_CASING,
-            1,
-            GTStructureTiers.MAX_PIPE_CASING_TIER,
-            null,
-            (ctx, s) -> defaultPipeCasingTier(),
-            null)
-        .withDisplay(tier -> GTStructureTiers.pipeCasingName(Integer.parseInt(tier)));
     /**
      * How many modes a machine has is the machine's business, not a constant: GregTech ships three-mode
      * multiblocks, and a fixed ceiling of one would leave the third unreachable.
@@ -491,15 +457,12 @@ public final class GTSettings {
     }
 
     /**
-     * The row a structure value is edited through: labelled and valued with GregTech's own names for the kind, and
-     * bounded by the range the selected machine declares. Coil and pipe casing keep their own rows, which show the
-     * block a player places and follow the chart's floor.
+     * The row a structure value is edited through: labelled and valued with GregTech's own names for the kind, so a
+     * coil row reads as the block a player places, and bounded by the range the selected machine declares.
      */
     @Nonnull
     public static SettingDef<?> structureDef(final ModifierKind kind) {
-        if (kind == ModifierKind.COIL) return COIL_DEF;
-        if (kind == ModifierKind.PIPE_CASING) return PIPE_CASING_DEF;
-        return SettingDef.autoIntDef(structureKey(kind), 0, 0, (ctx, s) -> best(ctx, s, kind), null)
+        return SettingDef.autoIntDef(structureKey(kind), 0, 0, (ctx, s) -> planned(ctx, s, kind), null)
             .withLabelAndRange(
                 kind.getName(),
                 (ctx, s) -> (int) declaredRange(ctx, s, kind).min(),
@@ -507,10 +470,18 @@ public final class GTSettings {
             .withDisplay(value -> kind.label(Long.parseLong(value)));
     }
 
-    /** What an untouched row opens on: the spec's best, as {@link ProcessingSpec#bestInputs} defines it. */
-    private static int best(final RecipeContext ctx, final Map<String, Object> settings, final ModifierKind kind) {
-        final ModifierRange range = declaredRange(ctx, settings, kind);
-        return (int) (kind.ordered ? range.max() : range.min());
+    /**
+     * What an untouched row opens on, which is what the node plans with: the chart's floor, raised to the lowest value
+     * that runs the recipe, else the spec's best, as {@link GTMachineSpec#inputs} decides it.
+     */
+    private static int planned(final RecipeContext ctx, final Map<String, Object> settings, final ModifierKind kind) {
+        final Planned planned = planned(ctx, settings);
+        if (planned == null) return 0;
+        final ProcessingInputs inputs = planned.inputs();
+        return switch (kind) {
+            case ModifierKind.IntKind tier -> inputs.value(tier);
+            case ModifierKind.LongKind amount -> (int) Math.min(Integer.MAX_VALUE, inputs.value(amount));
+        };
     }
 
     @Nonnull
@@ -524,8 +495,8 @@ public final class GTSettings {
     }
 
     /**
-     * Structure settings open on what the chart says it can build, and on the best the game offers where
-     * the chart has said nothing. The row is right there to move one node off that.
+     * The player's structure values, and the chart's floors for the rest: what the chart says it can build, or the
+     * best the game offers where the chart has said nothing. The row is right there to move one node off that.
      */
     @Nonnull
     public static StructureState resolve(final RecipeContext ctx, final Map<String, Object> settings,
@@ -541,19 +512,26 @@ public final class GTSettings {
     public static StructureState resolve(final RecipeContext ctx, final Map<String, Object> settings,
         final int voltageTier, final int mode) {
         final Map<ModifierKind, Long> structure = new HashMap<>();
-        structure.put(
-            ModifierKind.COIL,
-            (long) COIL_NAMES.indexOf(MachineProfile.getString(settings, COIL, COIL_NAMES.get(defaultCoilTier(ctx)))));
-        structure.put(
-            ModifierKind.PIPE_CASING,
-            (long) MachineProfile.getInt(settings, PIPE_CASING, defaultPipeCasingTier()));
         for (final ModifierKind kind : ModifierKind.all()) {
             final String key = structureKey(kind);
-            if (kind != ModifierKind.COIL && kind != ModifierKind.PIPE_CASING && settings.containsKey(key)) {
-                structure.put(kind, (long) MachineProfile.getInt(settings, key, 0));
-            }
+            if (settings.containsKey(key)) structure.put(kind, (long) MachineProfile.getInt(settings, key, 0));
         }
-        return new StructureState(voltageTier, MachineProfile.getInt(settings, Settings.AMP.key(), 1), mode, structure);
+        final Map<ModifierKind, Long> floors = new HashMap<>();
+        for (final ChartFloor floor : CHART_FLOORS) {
+            floors.put(
+                floor.kind(),
+                (long) chartMinimum(
+                    floor.setting(),
+                    (int) floor.kind()
+                        .getRange()
+                        .max()));
+        }
+        return new StructureState(
+            voltageTier,
+            MachineProfile.getInt(settings, Settings.AMP.key(), 1),
+            mode,
+            structure,
+            floors);
     }
 
     /**
@@ -706,7 +684,25 @@ public final class GTSettings {
         Settings.HEAT_DISCOUNT.key(),
         Settings.HEAT_DISCOUNT_MULT.key());
 
+    /**
+     * The coil row stored GregTech's coil level name before every structure row stored its kind's own number. A name
+     * no coil has is dropped, so the node opens on the chart's coil rather than on Cupronickel.
+     */
+    private static void migrateCoilName(final Map<String, Object> settings) {
+        if (!(settings.get(COIL) instanceof final String name)) return;
+        settings.remove(COIL);
+        for (final HeatingCoilLevel level : HeatingCoilLevel.values()) {
+            if (level.name()
+                .equals(name)
+                && ModifierKind.COIL.getRange()
+                    .contains(level.getTier())) {
+                settings.put(COIL, (int) level.getTier());
+            }
+        }
+    }
+
     public static void migrateLegacyNode(final Map<String, Object> settings) {
+        migrateCoilName(settings);
         if (settings.containsKey(ADVANCED) || settings.containsKey(MACHINE)) return;
         for (final String key : DERIVED_KEYS) {
             if (settings.containsKey(key)) {

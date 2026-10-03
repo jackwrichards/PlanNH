@@ -3,6 +3,7 @@ package com.sbancuz.plannh.data.provider.gregtech;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -52,28 +53,59 @@ public record GTMachineSpec(ProcessingSpec spec) {
     }
 
     /**
-     * What the spec reads, for this structure: one hatch at the node's tier carrying the node's amps, and the spec's
-     * best for every value the state leaves unset.
+     * What the spec reads, for this structure: one hatch at the node's tier carrying the node's amps, the player's
+     * values, the chart's floors within the machine's range, and the spec's best for everything else.
      */
     @Nonnull
     public ProcessingInputs inputs(@Nonnull final StructureState state) {
         final ProcessingInputs.Builder inputs = spec.bestInputs()
             .energyHatch(ProcessingInputs.EnergyHatch.exotic(state.voltageTier(), state.amperage()))
             .mode(state.mode());
-        state.structure()
-            .forEach((kind, value) -> {
-                switch (kind) {
-                    case ModifierKind.IntKind tier -> inputs.value(tier, Math.toIntExact(value));
-                    case ModifierKind.LongKind amount -> inputs.value(amount, value);
-                }
+        final Map<ModifierKind, ModifierRange> declared = new LinkedHashMap<>();
+        for (final ModifierRange range : spec.getModifiers()) declared.put(range.kind(), range);
+        state.floors()
+            .forEach((kind, floor) -> {
+                final ModifierRange range = declared.get(kind);
+                if (range != null) put(inputs, kind, Math.max(range.min(), Math.min(range.max(), floor)));
             });
+        state.structure()
+            .forEach((kind, value) -> put(inputs, kind, value));
         return inputs.build();
+    }
+
+    /**
+     * As {@link #inputs(StructureState)}, for one recipe: each value the player left alone is raised to the lowest
+     * that runs the recipe, such as a coil hot enough, as GregTech's own check decides it.
+     */
+    @Nonnull
+    public ProcessingInputs inputs(@Nonnull final StructureState state, @Nonnull final GTRecipe recipe) {
+        ProcessingInputs inputs = inputs(state);
+        for (final ModifierRange range : spec.getModifiers()) {
+            if (!(range.kind() instanceof final ModifierKind.IntKind kind) || !kind.ordered
+                || state.structure()
+                    .containsKey(kind))
+                continue;
+            final OptionalInt lowest = spec.lowestPassing(kind, recipe, inputs);
+            if (lowest.isPresent() && lowest.getAsInt() > inputs.value(kind)) {
+                inputs = inputs.toBuilder()
+                    .value(kind, lowest.getAsInt())
+                    .build();
+            }
+        }
+        return inputs;
+    }
+
+    private static void put(final ProcessingInputs.Builder inputs, final ModifierKind kind, final long value) {
+        switch (kind) {
+            case ModifierKind.IntKind tier -> inputs.value(tier, Math.toIntExact(value));
+            case ModifierKind.LongKind amount -> inputs.value(amount, value);
+        }
     }
 
     /** Every number the spec gives this recipe at this structure. */
     @Nonnull
     public ResolvedRecipe resolve(@Nonnull final GTRecipe recipe, @Nonnull final StructureState state) {
-        return spec.resolve(recipe, inputs(state));
+        return spec.resolve(recipe, inputs(state, recipe));
     }
 
     /**

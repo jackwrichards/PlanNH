@@ -9,6 +9,12 @@ Values a machine builds up while running (`ModifierKind.Source.RUNTIME`, such as
 Centrifuge's momentum) are planned at the spec's best and offer no row. The table's `assumes`
 column lists them.
 
+Every other value has one row, keyed by `GTSettings.structureKey` and named by the kind. An
+untouched row opens on the chart's floor for that kind (coil and pipe casing have one), raised by
+`ProcessingSpec.lowestPassing` to the lowest value that runs the recipe, and else on the spec's best.
+A run's success chance and yield scale the node's outputs, and its start-up and per-run EU are
+stated on the node.
+
 ## Machines without a spec
 
 Most multiblocks declare no spec yet, and converting them is GregTech-side work. A spec can read
@@ -36,12 +42,9 @@ Steam Water Pump.
   keeps the recipe's own numbers and shows GregTech's reason in red. A chart that has not been
   solved yet has no balance to carry it, so it shows nothing there.
 - **Steam multiblocks are planned in EU, not steam.** GregTech burns 2 L of steam per EU.
-- **The Eye of Harmony's success chance, yield and per-run EU are not shown.** A node carries a
-  duration, an EU/t and a parallel count, and the Eye draws its EU once per run from the wireless
-  network.
-- **The coil row opens on the weakest coil that reaches the recipe's heat**, ignoring the
-  voltage bonus. `ProcessingSpec.lowestPassing` gives the exact coil, but a row's default sees
-  only the recipe, not the machine.
+- **The Eye of Harmony's per-run EU is stated, not planned.** It moves through the wireless
+  network once per run, which a node's EU/t does not model.
 - **Charts saved before this change lose two things.** The Eye of Harmony's astral array count
   moved from `catalyst_astral_arrays` to the spec's `gt_tectech_astral_arrays` row. Nodes on the
-  removed manual "GT Steam" profile have no profile.
+  removed manual "GT Steam" profile have no profile. A coil saved as GregTech's coil level name is
+  migrated to the coil tier on load.

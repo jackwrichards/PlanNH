@@ -276,6 +276,7 @@ public final class Balancer {
                 if (stackSize <= 0) continue;
                 final float total = (float) (count * stackSize * outStack.getChance()
                     * cfg.outputMultiplier(i)
+                    * eff.outputFactor()
                     * throughputFactor);
                 if (total <= 0) continue;
                 effOuts.put(i, total);
@@ -294,7 +295,9 @@ public final class Balancer {
             }
 
             nodeBalances
-                .put(node.id, new NodeBalance(count, durPerOp, totalEnergy, durPerOp, effOuts, effIns, eff.rejection()));
+                .put(
+                    node.id,
+                    new NodeBalance(count, durPerOp, totalEnergy, durPerOp, effOuts, effIns, eff.rejection(), eff.details()));
 
             for (final Map.Entry<RecipeProperty<?>, Object> entry : node.properties.entrySet()) {
                 if (entry.getValue() instanceof final Number num) {
@@ -329,6 +332,7 @@ public final class Balancer {
                                                                                                      *                  numbers
                                                                                                      */
     public record NodeBalance(double operations, int totalDurationTicks, long totalEnergy, int durationPerOp,
-        Map<Integer, Float> effectiveOutputs, Map<Integer, Float> effectiveInputs, @Nullable String rejection) {}
+        Map<Integer, Float> effectiveOutputs, Map<Integer, Float> effectiveInputs, @Nullable String rejection,
+        List<String> details) {}
 
 }

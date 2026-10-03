@@ -143,7 +143,7 @@ public class MachineConfig {
             final double factor = 100.0 / tickMod;
             final int newDuration = Math.max(1, (int) Math.round(result.durationTicks() * factor));
             final long newEnergyPerT = Math.round(result.energyPerT() / factor);
-            result = new EffectResult(newDuration, newEnergyPerT, result.throughputFactor(), result.rejection());
+            result = result.withTiming(newDuration, newEnergyPerT);
         }
         return result;
     }
