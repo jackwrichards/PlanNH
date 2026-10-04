@@ -46,6 +46,16 @@ class GTLegacyNodeMigrationTest {
         assertTrue(GTSettings.isAdvanced(s));
     }
 
+    @Test
+    void aPerfectOverclockFlagBecomesTheDurationFactor() {
+        final Map<String, Object> s = loaded("perfect_oc", true, Settings.DURATION_DECREASE_PER_OC.key(), 200);
+        GTSettings.migrateLegacyNode(s);
+
+        assertFalse(s.containsKey("perfect_oc"));
+        assertEquals(400, s.get(Settings.DURATION_DECREASE_PER_OC.key()));
+        assertTrue(GTSettings.isAdvanced(s));
+    }
+
     /**
      * Voltage and machine count are user-set in both modes, so a chart that only set "IV, four
      * machines" gets the compact UI, not the advanced rows.

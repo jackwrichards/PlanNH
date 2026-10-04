@@ -155,10 +155,6 @@ public final class GTPresetApplier {
                     Settings.DURATION_DECREASE_PER_OC.key(),
                     GTSettings.percent(calculator.getDurationDecreasePerOC())) / 100.0);
         }
-        if (settings.containsKey(Settings.PERFECT_OC.key())
-            && MachineProfile.getBool(settings, Settings.PERFECT_OC.key(), false)) {
-            calculator.enablePerfectOC();
-        }
         if (settings.containsKey(Settings.NO_OVERCLOCK.key())) {
             calculator.setNoOverclock(
                 MachineProfile.getBool(settings, Settings.NO_OVERCLOCK.key(), calculator.isNoOverclock()));

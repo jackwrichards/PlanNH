@@ -384,17 +384,6 @@ public final class GTSettings {
         (ctx, s) -> fromCalculator(ctx, s, 1, OverclockCalculator::getMaxTierSkips),
         (v, c) -> "Sk" + v);
 
-    public static final SettingDef<Boolean> PERFECT_OC_DEF = SettingDef.autoBoolDef(
-        Settings.PERFECT_OC.key(),
-        (ctx, s) -> fromSpec(
-            ctx,
-            s,
-            0,
-            r -> r.overclock()
-                .rule()
-                .equals(ProcessingSpec.OverclockRule.Ratio.PERFECT) ? 1 : 0),
-        (v, c) -> v ? "P" : null);
-
     public static final SettingDef<Boolean> HEAT_OC_DEF = SettingDef.autoBoolDef(
         Settings.HEAT_OC.key(),
         (ctx, s) -> fromCalculator(ctx, s, 0, c -> c.isHeatOC() ? 1 : 0),
@@ -653,7 +642,6 @@ public final class GTSettings {
         Settings.AMP.key(),
         Settings.SPEED.key(),
         Settings.PARALLELS.key(),
-        Settings.PERFECT_OC.key(),
         Settings.LASER_OC.key(),
         Settings.NO_OVERCLOCK.key(),
         Settings.UNLIMITED_SKIPS.key(),
@@ -686,8 +674,16 @@ public final class GTSettings {
         }
     }
 
+    /** Older charts store perfect overclocking as a flag, which only set the duration factor to 4x. */
+    private static void migratePerfectOverclock(final Map<String, Object> settings) {
+        if (Boolean.TRUE.equals(settings.remove("perfect_oc"))) {
+            settings.put(Settings.DURATION_DECREASE_PER_OC.key(), 400);
+        }
+    }
+
     public static void migrateLegacyNode(final Map<String, Object> settings) {
         migrateCoilName(settings);
+        migratePerfectOverclock(settings);
         if (settings.containsKey(ADVANCED) || settings.containsKey(MACHINE)) return;
         for (final String key : DERIVED_KEYS) {
             if (settings.containsKey(key)) {

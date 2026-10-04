@@ -37,7 +37,6 @@ public enum Settings {
     LP_PER_TICK("lp_per_tick", 20, 1, 100000),
 
     // ── bool settings ──
-    PERFECT_OC("perfect_oc", false, (v, c) -> v ? "P" : null),
     HEAT_OC("heat_oc", true, (v, c) -> v ? "H" : null),
     HEAT_DISCOUNT("heat_discount", false, (v, c) -> v ? "D" : null),
     LASER_OC("laser_oc", false, (v, c) -> v ? "L" : null),

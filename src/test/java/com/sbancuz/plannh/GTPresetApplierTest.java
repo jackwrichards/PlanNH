@@ -104,7 +104,7 @@ class GTPresetApplierTest {
     @Test
     void perfectOverclockHalvesDurationTwiceAsFast() {
         final ProcessingSpec perfectOC = ProcessingSpec.builder()
-            .perfectOverclock()
+            .overclock(4, 4)
             .build();
 
         final OverclockCalculator perfect = GTSpecs.calculator(perfectOC, state(5, 0), GTValues.VP[1], 1024, 0)

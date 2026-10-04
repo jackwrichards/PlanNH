@@ -27,7 +27,7 @@ class GTOverrideTest {
     /** A perfect-overclocking machine, where a stray override changes the numbers most. */
     private static ProcessingSpec spec() {
         return ProcessingSpec.builder()
-            .perfectOverclock()
+            .overclock(4, 4)
             .build();
     }
 

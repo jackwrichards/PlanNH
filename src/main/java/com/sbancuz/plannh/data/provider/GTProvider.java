@@ -143,7 +143,6 @@ public class GTProvider implements PropertyProvider {
         // empty value means no cap.
         for (final SettingDef<?> def : List.of(
             GTSettings.SPEED_DEF,
-            GTSettings.PERFECT_OC_DEF,
             Settings.LASER_OC.def(),
             Settings.NO_OVERCLOCK.def(),
             GTSettings.UNLIMITED_SKIPS_DEF,

@@ -982,12 +982,6 @@ public class RecipeNodeWidget extends Widget<RecipeNodeWidget>
 
         final int value = def.effectiveInt(recipeContext(), c.settings);
         if (def.isNeutral(value)) return null;
-        // perfect overclocking is 4/4 by definition, so its two factor rows are redundant with the flag row
-        if (perfectOC(c) && (Settings.EUT_INCREASE_PER_OC.key()
-            .equals(def.key)
-            || Settings.DURATION_DECREASE_PER_OC.key()
-                .equals(def.key)))
-            return null;
         return def.badge(value, c) == null ? null : intRowValue(def, value);
     }
 
@@ -1000,12 +994,6 @@ public class RecipeNodeWidget extends Widget<RecipeNodeWidget>
             if (derivedValue(def, c) != null) rows++;
         }
         return rows;
-    }
-
-    private boolean perfectOC(final MachineConfig c) {
-        final SettingDef<?> def = c.getProfile()
-            .setting(Settings.PERFECT_OC.key());
-        return def != null && def.effectiveBool(recipeContext(), c.settings);
     }
 
     private static boolean machineCountRow(final SettingDef<?> def) {

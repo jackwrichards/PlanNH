@@ -33,7 +33,6 @@ plannh.settings.max_overclocks=Max OC
 plannh.settings.max_regular_oc=Max Reg OC
 plannh.settings.max_tier_skips=Max Skips
 plannh.settings.fuel_efficiency=Fuel Eff.%
-plannh.settings.perfect_oc=Perfect OC
 plannh.settings.heat_oc=Heat OC
 plannh.settings.heat_discount=Heat Disc.
 plannh.settings.laser_oc=Laser OC
