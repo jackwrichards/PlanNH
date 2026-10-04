@@ -90,7 +90,7 @@ class GTMachineSpecTest {
             IllegalArgumentException.class,
             () -> GTMachineSpec.of(
                 ProcessingSpec.builder()
-                    .parallel(in -> in.value(ModifierKind.SOLENOID))
+                    .parallel(in -> in.value(ModifierKind.LENGTH))
                     .build()));
     }
 
@@ -128,7 +128,9 @@ class GTMachineSpecTest {
                 .settings()
                 .contains(Settings.GT_MODE));
         assertFalse(
-            GTMachineSpec.of(ProcessingSpec.STANDARD)
+            GTMachineSpec.of(
+                ProcessingSpec.builder()
+                    .build())
                 .settings()
                 .contains(Settings.GT_MODE));
     }

@@ -22,7 +22,10 @@ class MachineTableNumbersTextTest {
     /** In a snapshot that drops defaults, "left" and "never set" look the same. */
     @Test
     void everyFieldIsAlwaysPresent() {
-        final String text = MachineTableCommand.numbersText(machine(ProcessingSpec.STANDARD));
+        final String text = MachineTableCommand.numbersText(
+            machine(
+                ProcessingSpec.builder()
+                    .build()));
 
         for (final String key : new String[] { "par=", "dur=", "eu=", "cost=", "ocD=", "ocE=", "noOC=", "heat=", "hOC=",
             "hDisc=", "rHeat=", "skips=" }) {

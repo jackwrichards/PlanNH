@@ -62,7 +62,7 @@ class GTStructureSettingsTest {
                 .get(ModifierKind.PIPE_CASING));
         assertFalse(
             state.floors()
-                .containsKey(ModifierKind.SOLENOID),
+                .containsKey(ModifierKind.LENGTH),
             "anything else reads as the spec's best");
         assertEquals(5, state.voltageTier());
     }
