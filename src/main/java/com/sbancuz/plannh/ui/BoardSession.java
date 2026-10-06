@@ -18,7 +18,8 @@ import com.sbancuz.plannh.data.flowchart.Plan;
 import com.sbancuz.plannh.data.flowchart.Port;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceMode;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceResult;
-import com.sbancuz.plannh.data.flowchart.balancer.Balancer;
+import com.sbancuz.plannh.data.flowchart.balancer.SolveInput;
+import com.sbancuz.plannh.data.flowchart.balancer.SolveService;
 import com.sbancuz.plannh.nei.NodeLookupContext;
 import com.sbancuz.plannh.ui.card.CardDefaults;
 import com.sbancuz.plannh.ui.card.CardLayout;
@@ -46,6 +47,8 @@ public final class BoardSession {
     private int structure;
     private Fmt.RateUnit rateUnit = Fmt.RateUnit.SECOND;
     private NodeLookupContext pendingLookup;
+    private final SolveService solver = new SolveService();
+    private SolveService.Result lastResult;
     private UUID pendingReplace;
 
     BoardSession() {
@@ -59,6 +62,7 @@ public final class BoardSession {
     }
 
     void close() {
+        solver.close();
         PlanAPI.save();
         if (current == this) current = null;
     }
@@ -98,7 +102,7 @@ public final class BoardSession {
     @SuppressWarnings("deprecation")
     public void edit(final Runnable change) {
         PlanAPI.recordEdit(graph, change);
-        graph.markDirty();
+        graph.touch();
         PlanAPI.save();
     }
 
@@ -273,22 +277,37 @@ public final class BoardSession {
 
     // endregion
 
-    /** Called every client tick while the board is open. Never from drawing. */
-    @SuppressWarnings("deprecation")
+    /** True while the board shows an answer older than the plan (a solve is queued or running). */
+    public boolean solving() {
+        final SolveService.Result latest = solver.latest();
+        return latest == null || latest.version() != graph.solveVersion();
+    }
+
+    /**
+     * Called every client tick while the board is open, never from drawing. Hands the solver a snapshot when the plan
+     * changed in a way that matters to the answer, and rebuilds the card models when the layout moved or an answer
+     * came back. Until then the cards keep showing the last answer.
+     */
     public void tick() {
         final Graph active = Plan.getActiveGraph();
         if (active != graph) {
             graph = active;
             seenVersion = Long.MIN_VALUE;
         }
-        if (graph.version() == seenVersion) return;
-        seenVersion = graph.version();
         try {
-            result = Balancer.balance(graph, BalanceMode.AUTO);
+            solver.request(graph.solveVersion(), () -> SolveInput.of(graph, BalanceMode.AUTO, null));
         } catch (final RuntimeException e) {
-            PlanNH.LOG.warn("Solve failed", e);
-            result = null;
+            PlanNH.LOG.warn("Could not snapshot the plan for solving", e);
         }
+        final SolveService.Result latest = solver.latest();
+        if (latest != null && latest != lastResult) {
+            lastResult = latest;
+            if (latest.error() != null) PlanNH.LOG.warn("Solve failed", latest.error());
+            result = latest.balance();
+        } else if (graph.version() == seenVersion) {
+            return;
+        }
+        seenVersion = graph.version();
         final Map<UUID, CardModel> next = new LinkedHashMap<>();
         for (final Node node : graph.getNodes()) {
             try {

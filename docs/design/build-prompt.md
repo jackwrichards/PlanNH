@@ -49,7 +49,7 @@ Don't send synthetic input while the owner is using it.
 
 Engine (keep, extend): `data/` model (`Graph`, `Node`, `Port`, `Edge`, `Plan`), per-mod recipe providers and
 machine profiles (`data/provider`, `MachineProfile`, `SettingDef`, `MachineConfig`), GregTech's real overclock
-calculator (`GTOverclockStep`), the ojAlgo balancer (`data/flowchart/balancer`, ~131 tests), `Serializer`,
+calculator (`GTOverclockStep`), the ojAlgo balancer (`data/flowchart/balancer`, ~180 tests), `Serializer`,
 `PlanAPI` (save, share, clipboard), `AutoLayout` (ELK), `ArrowRouter` (grid A*), and the NEI glue in `nei/`
 (the "+" overlay on NEI recipe pages, R/U lookup context, NEI layout so its item list sits on the right).
 
@@ -70,16 +70,37 @@ Engine facts that matter (from a code survey):
   duration ticks, EU/t, throughput factor. Per-craft quantity of a port = amount * chance * multipliers * tf.
 - GregTech overclocking itself: `gregtech.api.util.OverclockCalculator` (wrapped by `GTOverclockStep`).
 
-Engine work being done (milestone 3 depends on it; if it is not on `main` yet, it is your first job):
-- Drawers in the model: `Drawer` (kind SOURCE / PRODUCT / BYPRODUCT / TRASH, rule ANY / AT_LEAST / EXACTLY /
-  AT_MOST, rate per second, links to node ports), saved with the graph.
-- Drawer rules as balancer constraints; EXACTLY and AT_LEAST count as anchors; per-drawer achieved rate and
-  unmet flag in the result.
-- `SolveInput` (pure-data snapshot, effects precomputed on the client thread) and `SolveService` (one worker
-  thread, newest-wins).
-- Fixes: `machines` no longer multiplies throughput (the count is the solved or pinned machine count); GT recipe
-  heat uses the recipe's COIL_HEAT; GT ports copy stacks; `Graph.touch()` bumps the version on every edit; undo
-  history lives per slot outside the Graph.
+Engine API on `main` (merged from the engine work; tests in `DrawerRulesTest`, `SolveServiceTest` and friends):
+- `Drawer extends GraphData` (x, y, id): `Kind` SOURCE / PRODUCT / BYPRODUCT / TRASH (`linksInputs()` only for
+  SOURCE, `hasRule()` for SOURCE and PRODUCT, `next()` cycles product -> byproduct -> trash), `Rule` ANY /
+  AT_LEAST / EXACTLY / AT_MOST, `setTarget(rule, perSecond)` (fluids in L/s), `effectiveRule()` (ANY for
+  byproduct and trash), links `Drawer.Link(nodeId, portIndex)`, `getResourceKey()` ("item:<reg>:<meta>",
+  "fluid:<name>"), `getLabel()`.
+- `Graph`: `drawers` / `getDrawer` / `addDrawer` / `removeDrawer`, `linkDrawer(drawerId, link)` (a port belongs
+  to at most one drawer per direction), `drawerAt(nodeId, port, input)`. `version()` moves on every change,
+  `solveVersion()` only on changes that matter to the answer. Call `touch()` after edits the graph can't see
+  (settings, pins, drawer setters, rates) and `touchLayout()` after moves.
+- Solving off the render thread: `SolveService.request(graph.solveVersion(), () -> SolveInput.of(graph,
+  BalanceMode.AUTO, null))` every tick; `latest()` is the newest `Result(version, input, balance, error, ms)`;
+  it is current when `latest().version() == graph.solveVersion()`. `BoardSession` already does this.
+- `BalanceResult`: `nodeBalances()` -> `NodeBalance(operations = machine count, ...)` with
+  `inputPerSecond(i)` / `outputPerSecond(i)`; `drawers()` -> `DrawerReadout(rates, unmet, shortfalls)`, where a
+  `Shortfall` names the limiting nodes, drawers and groups ("Show me" frames those). Notes carry
+  `SolverMessage` keys (`DRAWER_UNMET`, `DRAWER_NOT_CONNECTED`, `LIMIT_PIN`, `SOLVE_CRASHED`, ...) with lang
+  entries in `en_US.lang`.
+- Rules: pins are hard; drawers turn soft only when the solve fails, and then the unmet ones are reported with a
+  shortfall. AT_LEAST / EXACTLY with a rate anchor AUTO; only AT_MOST drawers leave it idle with a note.
+- Undo: `PlanAPI.undoHistory(graph)`; histories live per slot outside the graph, and `undo`/`redo` return the
+  graph that takes the slot (put it back into `plan.getGraphs()`).
+- Known gap: AUTO may still balance a wired port through a gated import or surplus that no drawer allows;
+  Factory Flow would not. Revisit if plans import things the user never asked for.
+
+ModularUI lessons from steps 1-2 (already handled in `ui/popup/Popup` and `RecipeCard`):
+- A `ParentWidget` is only hovered when it has a background, hover overlay or tooltip; widgets that draw
+  themselves override `canHover()` to return true, or tooltips and hover states never fire.
+- Open popups a tick after the click (`Popup.open` queues; the canvas drains it), or the opening click closes them
+  as an outside click. Give every popup panel its own name: the panel manager re-opens the old panel, with its
+  stale callbacks, when a name comes back.
 
 ## Architecture of the new UI
 

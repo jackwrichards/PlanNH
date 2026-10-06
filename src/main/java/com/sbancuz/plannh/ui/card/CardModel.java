@@ -3,7 +3,6 @@ package com.sbancuz.plannh.ui.card;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -114,17 +113,8 @@ public final class CardModel {
         final String machineName = machineStack != null ? machineStack.getDisplayName() : node.machineName;
 
         final double machines = balance == null ? 0 : balance.operations();
-        final int durPerOp = balance == null ? duration : Math.max(1, balance.durationPerOp());
-        final List<PortView> inputs = ports(
-            node.inputs,
-            false,
-            balance == null ? Collections.emptyMap() : balance.effectiveInputs(),
-            durPerOp);
-        final List<PortView> outputs = ports(
-            node.outputs,
-            true,
-            balance == null ? Collections.emptyMap() : balance.effectiveOutputs(),
-            durPerOp);
+        final List<PortView> inputs = ports(node.inputs, false, balance);
+        final List<PortView> outputs = ports(node.outputs, true, balance);
 
         return new CardModel(
             node,
@@ -149,15 +139,15 @@ public final class CardModel {
     }
 
     private static List<PortView> ports(final List<Port<?>> ports, final boolean output,
-        final Map<Integer, Float> perOp, final int durPerOp) {
+        final Balancer.NodeBalance balance) {
         final List<PortView> views = new ArrayList<>(ports.size());
         for (int i = 0; i < ports.size(); i++) {
             final Port<?> port = ports.get(i);
             final Object value = port.getValue();
             final boolean fluid = port.getType()
                 .equals(RecipePropertyAPI.FLUID);
-            final Float qty = perOp.get(i);
-            final double perSecond = qty == null ? 0 : qty * 20.0 / durPerOp;
+            final double perSecond = balance == null ? 0
+                : output ? balance.outputPerSecond(i) : balance.inputPerSecond(i);
             views.add(
                 new PortView(
                     i,

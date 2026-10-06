@@ -683,6 +683,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         if (successful) {
             PlanAPI.undoHistory()
                 .commitEdit(dragUndo, session.graph());
+            session.graph()
+                .touchLayout();
             PlanAPI.save();
         } else {
             model.node.x = dragStartX;
