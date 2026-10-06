@@ -51,6 +51,8 @@ public final class PortSlot extends Widget<PortSlot>
     // region Dragging a wire out of the port
 
     private boolean moving;
+    /** Whether the press turned into a drag; a press that did not is a click. */
+    private boolean dragged;
 
     private BoardCanvas canvas() {
         return card.getParent() instanceof final BoardCanvas c ? c : null;
@@ -58,13 +60,23 @@ public final class PortSlot extends Widget<PortSlot>
 
     @Override
     public Result onMousePressed(final int mouseButton) {
+        dragged = false;
         return mouseButton == 0 ? Result.ACCEPT : Result.IGNORE;
+    }
+
+    @Override
+    public boolean onMouseRelease(final int mouseButton) {
+        if (mouseButton != 0 || dragged) return false;
+        final BoardCanvas canvas = canvas();
+        if (canvas != null) canvas.clickPort(card.nodeId, output, index);
+        return true;
     }
 
     @Override
     public boolean onDragStart(final int button) {
         final BoardCanvas canvas = canvas();
         if (button != 0 || canvas == null) return false;
+        dragged = true;
         canvas.beginPortDrag(card.nodeId, output, index);
         return true;
     }

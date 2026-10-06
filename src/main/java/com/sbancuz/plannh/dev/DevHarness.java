@@ -307,7 +307,7 @@ public final class DevHarness {
                 "/screenshot?name=x.png[&x&y&w&h] - save the next frame (optionally a GUI-coord crop), returns the path",
                 "/widgets - dump the ModularUI widget tree with GUI-coordinate areas",
                 "/move?x&y, /click?x&y&button&count, /drag?x1&y1&x2&y2&steps&button, /scroll?x&y&amount - GUI coords",
-                "/key?code[&char] - LWJGL2 key code, /type?text - text into the focused field",
+                "/key?code[&char][&mods=ctrl,shift,alt] - LWJGL2 key code, /type?text - text into the focused field",
                 "/cmd?c=/time set day - run a command as the player",
                 "/addrecipe?output=dustRutile[&handler=blast][&input=ilmenite][&x&y] - put a real recipe on the board (with the board open: placed and auto-wired like NEI's +)",
                 "/clearplan - empty the active board (one undoable edit)",
@@ -487,8 +487,23 @@ public final class DevHarness {
         final int code = intArg(q, "code");
         final String ch = q.getOrDefault("char", "");
         final int codepoint = ch.isEmpty() ? 0 : ch.codePointAt(0);
-        return input(
-            List.of(() -> SyntheticInput.key(code, codepoint, true), () -> SyntheticInput.key(code, codepoint, false)));
+        // mods=ctrl,shift,alt: held around the key (LWJGL left-hand codes).
+        final List<Integer> mods = new ArrayList<>();
+        for (final String m : q.getOrDefault("mods", "")
+            .split(",")) {
+            switch (m.trim()) {
+                case "ctrl" -> mods.add(29);
+                case "shift" -> mods.add(42);
+                case "alt" -> mods.add(56);
+                default -> {}
+            }
+        }
+        final List<Runnable> steps = new ArrayList<>();
+        for (final int m : mods) steps.add(() -> SyntheticInput.key(m, 0, true));
+        steps.add(() -> SyntheticInput.key(code, codepoint, true));
+        steps.add(() -> SyntheticInput.key(code, codepoint, false));
+        for (final int m : mods) steps.add(() -> SyntheticInput.key(m, 0, false));
+        return input(steps);
     }
 
     private Object type(final Map<String, String> q) throws Exception {
@@ -691,11 +706,30 @@ public final class DevHarness {
             }
         }
 
+        /** SDL scancodes of synthetic keys pressed and not yet released. */
+        private static final java.util.Set<Integer> HELD = new java.util.HashSet<>();
+
         static void key(final int code, final int codepoint, final boolean down) {
             try {
                 addRawKeyEvent.invoke(
                     null,
                     keyEventCtor.newInstance(code, code, codepoint, down ? keyPress : keyRelease, System.nanoTime()));
+                // isKeyDown() (Ctrl and Shift checks) reads SDL's key state array, not the event queue: keep it in
+                // step.
+                final Class<?> keyboard = Class.forName("org.lwjglx.input.Keyboard");
+                final java.lang.reflect.Field state = keyboard.getDeclaredField("sdlKeyPressedArray");
+                state.setAccessible(true);
+                final java.nio.ByteBuffer pressed = (java.nio.ByteBuffer) state.get(null);
+                final int scancode = (int) Class.forName("org.lwjglx.input.KeyCodes")
+                    .getMethod("lwjglToSdlScancode", int.class)
+                    .invoke(null, code);
+                if (down) HELD.add(scancode);
+                else HELD.remove(scancode);
+                if (pressed != null && scancode > 0 && scancode < pressed.limit())
+                    pressed.put(scancode, (byte) (down ? 1 : 0));
+                // SDL refreshes the array as it pumps events, so re-assert every key still held (modifiers).
+                if (pressed != null)
+                    for (final int held : HELD) if (held > 0 && held < pressed.limit()) pressed.put(held, (byte) 1);
             } catch (final ReflectiveOperationException e) {
                 throw new IllegalStateException(e);
             }

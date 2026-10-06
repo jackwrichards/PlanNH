@@ -84,7 +84,8 @@ public class NEIPlanConfig implements IConfigureNEI {
 
     @Override
     public void loadConfig() {
-        API.registerNEIGuiHandler(new FlowchartGuiHandler());
+        // First in line, so an item dropped from NEI's list reaches the board before ModularUI's own handler.
+        codechicken.nei.api.GuiInfo.guiHandlers.addFirst(new FlowchartGuiHandler());
         API.addLayoutStyle(0, new FlowchartLayoutStyle());
         MinecraftForge.EVENT_BUS.register(this);
         API.addOption(new OptionCycled(ConfigBurnableOverride.KEY, 2) {

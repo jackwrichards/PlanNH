@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import net.minecraft.item.ItemStack;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -24,6 +26,7 @@ import com.sbancuz.plannh.data.flowchart.Drawer;
 import com.sbancuz.plannh.data.flowchart.Edge;
 import com.sbancuz.plannh.data.flowchart.Graph;
 import com.sbancuz.plannh.data.flowchart.Node;
+import com.sbancuz.plannh.nei.NodeLookupContext;
 import com.sbancuz.plannh.ui.BoardSession;
 import com.sbancuz.plannh.ui.card.CardLayout;
 import com.sbancuz.plannh.ui.card.CardModel;
@@ -32,6 +35,7 @@ import com.sbancuz.plannh.ui.drawer.DrawerCard;
 import com.sbancuz.plannh.ui.drawer.DrawerModel;
 import com.sbancuz.plannh.ui.popup.PickList;
 import com.sbancuz.plannh.ui.popup.Popup;
+import com.sbancuz.plannh.ui.popup.RecipePicker;
 import com.sbancuz.plannh.ui.theme.Hyb;
 
 /**
@@ -73,6 +77,10 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         boolean rebuild = builtStructure != session.structure();
         for (final RecipeCard card : cards.values()) rebuild |= card.shapeChanged();
         if (rebuild) rebuildCards();
+        if (reveal != null && cards.containsKey(reveal)) {
+            reveal(cards.get(reveal));
+            reveal = null;
+        }
     }
 
     private void rebuildCards() {
@@ -187,9 +195,14 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     public void endPortDrag(final boolean successful) {
         final PortDrag drag = portDrag;
         portDrag = null;
-        if (drag == null || !successful) return;
+        if (drag == null) return;
         final int mx = getContext().getAbsMouseX(), my = getContext().getAbsMouseY();
-        if (Math.abs(mx - drag.startX()) + Math.abs(my - drag.startY()) < 4) return;
+        if (Math.abs(mx - drag.startX()) + Math.abs(my - drag.startY()) < 4) {
+            // A click, not a drag: what makes this input, or what uses this output.
+            openPortPicker(drag);
+            return;
+        }
+        if (!successful) return;
         final float wx = worldX(mx), wy = worldY(my);
         for (final RecipeCard card : cards.values()) {
             if (card.model() == null
@@ -207,6 +220,65 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             return;
         }
         session.dropPortOnBoard(drag.nodeId(), drag.output(), drag.port(), Math.round(wx), Math.round(wy));
+    }
+
+    /** A click on a port: "What makes this?" for an input, "What uses this?" for an output. */
+    public void clickPort(final UUID nodeId, final boolean output, final int port) {
+        openPortPicker(new PortDrag(nodeId, output, port, 0, 0));
+    }
+
+    private void openPortPicker(final PortDrag drag) {
+        final RecipeCard card = cards.get(drag.nodeId());
+        if (card == null || card.model() == null) return;
+        final List<CardModel.PortView> ports = drag.output() ? card.model().outputs : card.model().inputs;
+        if (drag.port() >= ports.size()) return;
+        final ItemStack stack = ports.get(drag.port())
+            .lookupStack();
+        if (stack == null) return;
+        openRecipePicker(stack.copy(), drag.output(), new NodeLookupContext(drag.nodeId(), drag.output(), drag.port()));
+    }
+
+    /**
+     * Opens "What makes this?" ({@code uses} false) or "What uses this?" for an item. With an origin port, the recipe
+     * picked lands beside that card and wires only that resource into it; without one it is auto-wired.
+     */
+    public void openRecipePicker(final ItemStack stack, final boolean uses, @Nullable final NodeLookupContext origin) {
+        final Popup picker = RecipePicker.create(stack, uses, (handler, index) -> {
+            if (origin != null) session.armLookup(origin.nodeId(), origin.output(), origin.portIndex());
+            reveal = session.addRecipe(handler, index).id;
+        });
+        final int x, y;
+        if (origin != null && cards.get(origin.nodeId()) != null) {
+            final Node n = cards.get(origin.nodeId())
+                .model().node;
+            x = screenX(n.x + CardLayout.anchorX(origin.output())) + (origin.output() ? 4 : -RecipePicker.ROW * 16);
+            y = screenY(n.y + CardLayout.anchorY(origin.portIndex()));
+        } else {
+            x = getArea().x + getArea().width / 2 - 180;
+            y = getArea().y + 30;
+        }
+        if (picker != null) {
+            Popup.open(getPanel(), picker, x, y);
+            return;
+        }
+        final String name = stack.getDisplayName();
+        Popup.open(
+            getPanel(),
+            PickList.popup(
+                "plannh_none",
+                null,
+                List.of(
+                    new PickList.Entry(
+                        stack,
+                        (uses ? "Nothing uses " : "Nothing makes ") + name,
+                        "",
+                        Hyb.MUTED,
+                        false,
+                        () -> {})),
+                false,
+                160),
+            x,
+            y);
     }
 
     private static boolean inside(final int x, final int y, final int w, final int h, final float px, final float py) {
@@ -237,7 +309,62 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     // endregion
 
+    /**
+     * An item dragged in from NEI's list and dropped on the board: offers it as a drawer there (source or
+     * product), or its recipes.
+     */
+    public void dropNeiItem(final ItemStack stack, final int screenX, final int screenY) {
+        final int wx = Math.round(worldX(screenX)), wy = Math.round(worldY(screenY));
+        final String key = com.sbancuz.plannh.ui.Resources.keyOf(stack);
+        final String label = stack.getDisplayName();
+        final List<PickList.Entry> rows = new ArrayList<>();
+        rows.add(
+            new PickList.Entry(
+                stack,
+                "Add as a product",
+                "",
+                Hyb.PRODUCT_INK,
+                false,
+                () -> session.addDrawer(Drawer.Kind.PRODUCT, key, label, wx, wy - DrawerCard.ANCHOR_Y)));
+        rows.add(
+            new PickList.Entry(
+                stack,
+                "Add as a source",
+                "",
+                Hyb.SOURCE_INK,
+                false,
+                () -> session.addDrawer(Drawer.Kind.SOURCE, key, label, wx - DrawerCard.W, wy - DrawerCard.ANCHOR_Y)));
+        rows.add(PickList.Entry.of("What makes this?", () -> openRecipePicker(stack, false, null)));
+        rows.add(PickList.Entry.of("What uses this?", () -> openRecipePicker(stack, true, null)));
+        Popup.open(getPanel(), PickList.popup("plannh_drop", null, rows, false, 150), screenX, screenY);
+    }
+
     // region Show me
+
+    /** A card just added from the picker; brought into view once its widget exists. */
+    private UUID reveal;
+
+    /** Pans the least needed to show a whole card (with a margin), keeping the zoom. */
+    private void reveal(final RecipeCard card) {
+        if (card.model() == null || card.layout() == null) return;
+        final Node n = card.model().node;
+        final Graph g = graph();
+        final float z = g.getZoom(), m = 16;
+        final float left = g.getPanX() + n.x * z, right = g.getPanX() + (n.x + CardLayout.W) * z;
+        final float top = g.getPanY() + n.y * z, bottom = g.getPanY() + (n.y + card.layout().height) * z;
+        final int w = getArea().width, h = getArea().height;
+        if (left < m) g.setPanX(g.getPanX() + m - left);
+        else if (right > w - m) g.setPanX(g.getPanX() - Math.min(right - (w - m), left - m));
+        if (top < m) g.setPanY(g.getPanY() + m - top);
+        else if (bottom > h - m) g.setPanY(g.getPanY() - Math.min(bottom - (h - m), top - m));
+    }
+
+    /** Frames every card and drawer on the board. */
+    public void frameAll() {
+        final List<UUID> ids = new ArrayList<>(cards.keySet());
+        ids.addAll(drawers.keySet());
+        frame(ids);
+    }
 
     /** Pans and zooms so the given cards and drawers fill the view, at the largest whole zoom step that fits. */
     public void frame(final List<UUID> ids) {

@@ -293,6 +293,35 @@ public final class BoardSession {
         });
     }
 
+    /** A new, unlinked drawer for a resource at a world point (from an NEI drag). */
+    public void addDrawer(final Drawer.Kind kind, final String resourceKey, final String label, final int x,
+        final int y) {
+        final Drawer drawer = new Drawer(kind, resourceKey);
+        drawer.setLabel(label);
+        drawer.setX(x);
+        drawer.setY(y);
+        edit(() -> {
+            graph.addDrawer(drawer);
+            // Take the ports already waiting for this resource.
+            for (final Node n : graph.getNodes()) {
+                final List<Port<?>> ports = kind.linksInputs() ? n.inputs : n.outputs;
+                for (int i = 0; i < ports.size(); i++) {
+                    if (!resourceKey.equals(Resources.key(ports.get(i))) || isWired(n, !kind.linksInputs(), i))
+                        continue;
+                    graph.linkDrawer(drawer.getId(), new Drawer.Link(n.id, i));
+                }
+            }
+        });
+    }
+
+    private boolean isWired(final Node node, final boolean output, final int port) {
+        for (final Edge e : graph.getEdges()) {
+            if (output && e.sourceNodeId.equals(node.id) && e.sourceOutputIndex == port) return true;
+            if (!output && e.targetNodeId.equals(node.id) && e.targetInputIndex == port) return true;
+        }
+        return graph.drawerAt(node.id, port, !output) != null;
+    }
+
     /** A drawer for a wire's resource beside it, taking the wire's surplus (product) or topping it up (source). */
     public void addDrawerOnEdge(final Edge edge, final Drawer.Kind kind, final int worldX, final int worldY) {
         final Node src = graph.nodes.get(edge.sourceNodeId), dst = graph.nodes.get(edge.targetNodeId);
@@ -430,6 +459,128 @@ public final class BoardSession {
         final int by, final int bw, final int bh, final int margin) {
         return ax < bx + bw + margin && bx < ax + aw + margin && ay < by + bh + margin && by < ay + ah + margin;
     }
+
+    // region Undo, plan slots, board keys
+
+    public boolean canUndo() {
+        return PlanAPI.undoHistory(graph)
+            .canUndo();
+    }
+
+    public boolean canRedo() {
+        return PlanAPI.undoHistory(graph)
+            .canRedo();
+    }
+
+    public void undo() {
+        if (canUndo()) adopt(
+            PlanAPI.undoHistory(graph)
+                .undo(graph));
+    }
+
+    public void redo() {
+        if (canRedo()) adopt(
+            PlanAPI.undoHistory(graph)
+                .redo(graph));
+    }
+
+    /**
+     * Puts a graph restored by undo or redo into the active slot. The view is not part of an edit, so it carries over;
+     * the slot must take the graph or the next save writes the old one back.
+     */
+    private void adopt(final Graph restored) {
+        restored.setZoom(graph.getZoom());
+        restored.setPanX(graph.getPanX());
+        restored.setPanY(graph.getPanY());
+        final Plan plan = Plan.getInstance();
+        plan.getGraphs()
+            .set(plan.getActiveIndex(), restored);
+        graph = restored;
+        seenVersion = Long.MIN_VALUE;
+        PlanAPI.save();
+    }
+
+    public List<Graph> slots() {
+        return Plan.getInstance()
+            .getGraphs();
+    }
+
+    public int activeSlot() {
+        return Plan.getInstance()
+            .getActiveIndex();
+    }
+
+    public void switchSlot(final int index) {
+        final Plan plan = Plan.getInstance();
+        if (index < 0 || index >= plan.getGraphs()
+            .size() || index == plan.getActiveIndex()) return;
+        plan.setActiveIndex(index);
+        PlanAPI.save();
+    }
+
+    public void addSlot() {
+        final Plan plan = Plan.getInstance();
+        final int size = plan.getGraphs()
+            .size();
+        plan.getGraphs()
+            .add(new Graph("Plan " + (size + 1)));
+        plan.setActiveIndex(size);
+        PlanAPI.save();
+    }
+
+    public void renameSlot(final int index, final String name) {
+        if (index < 0 || index >= slots().size() || name == null || name.isBlank()) return;
+        slots().get(index)
+            .setName(name.trim());
+        PlanAPI.save();
+    }
+
+    /** Removes a plan slot; the last one stays. */
+    public void deleteSlot(final int index) {
+        final Plan plan = Plan.getInstance();
+        final int size = plan.getGraphs()
+            .size();
+        if (size <= 1 || index < 0 || index >= size) return;
+        plan.getGraphs()
+            .remove(index);
+        if (plan.getActiveIndex() >= index && plan.getActiveIndex() > 0) plan.setActiveIndex(plan.getActiveIndex() - 1);
+        PlanAPI.save();
+    }
+
+    /** How the board shows power: EU/t, or amps at each card's tier. */
+    public enum PowerKey {
+        EU,
+        AMPS
+    }
+
+    private PowerKey powerKey = PowerKey.EU;
+    private boolean peakPower;
+
+    public PowerKey powerKey() {
+        return powerKey;
+    }
+
+    public void togglePowerKey() {
+        powerKey = powerKey == PowerKey.EU ? PowerKey.AMPS : PowerKey.EU;
+    }
+
+    /** Peak counts every machine running at once (whole machines); average uses the solved fraction. */
+    public boolean peakPower() {
+        return peakPower;
+    }
+
+    public void togglePeakPower() {
+        peakPower = !peakPower;
+        // The totals rail sums power with it.
+        seenVersion = Long.MIN_VALUE;
+    }
+
+    /** A card's power as the board's switches say: average or peak. */
+    public double power(final CardModel card) {
+        return card.euPerTick * (peakPower ? Math.ceil(card.machines - 1e-9) : card.machines);
+    }
+
+    // endregion
 
     // region Card edits (each one undoable, saved, re-solved)
 
@@ -590,7 +741,82 @@ public final class BoardSession {
         models = next;
         drawerModels = nextDrawers;
         notices = buildNotices(next);
+        totals = buildTotals(next);
     }
+
+    // region Totals
+
+    /** One line of the totals rail: a resource (or machine) and its rate (or count). */
+    public record TotalLine(String key, String label, ItemStack item, net.minecraftforge.fluids.FluidStack fluid,
+        double amount) {}
+
+    /** What the whole plan takes in and gives out, its power, and the machines to build. */
+    public record Totals(List<TotalLine> inputs, List<TotalLine> outputs, double euPerTick, List<TotalLine> machines) {
+
+        static final Totals EMPTY = new Totals(List.of(), List.of(), 0, List.of());
+    }
+
+    private Totals totals = Totals.EMPTY;
+
+    public Totals totals() {
+        return totals;
+    }
+
+    /**
+     * Sums per resource what crosses the plan's edge: sources and unwired inputs come in, products, byproducts,
+     * trash and unwired outputs go out. Machines are counted whole, per machine type.
+     */
+    private Totals buildTotals(final Map<UUID, CardModel> cards) {
+        final Map<String, TotalLine> in = new LinkedHashMap<>(), out = new LinkedHashMap<>();
+        final Map<String, TotalLine> machines = new LinkedHashMap<>();
+        double eu = 0;
+        for (final DrawerModel d : drawerModels.values()) {
+            add(d.kind == Drawer.Kind.SOURCE ? in : out, d.drawer.getResourceKey(), d.label, d.item, d.fluid, d.rate);
+        }
+        for (final CardModel card : cards.values()) {
+            for (final CardModel.PortView p : card.inputs) {
+                if (!p.wired())
+                    add(in, keyOfPort(card.node, false, p.index()), p.name(), p.item(), p.fluid(), p.perSecond());
+            }
+            for (final CardModel.PortView p : card.outputs) {
+                if (!p.wired())
+                    add(out, keyOfPort(card.node, true, p.index()), p.name(), p.item(), p.fluid(), p.perSecond());
+            }
+            eu += power(card);
+            if (card.machines > 0) add(
+                machines,
+                card.machineName,
+                card.machineName,
+                card.machineStack,
+                null,
+                Math.ceil(card.machines - 1e-9));
+        }
+        return new Totals(sorted(in.values()), sorted(out.values()), eu, sorted(machines.values()));
+    }
+
+    private static String keyOfPort(final Node node, final boolean output, final int index) {
+        final List<Port<?>> ports = output ? node.outputs : node.inputs;
+        return index < ports.size() ? Resources.key(ports.get(index)) : "";
+    }
+
+    private static void add(final Map<String, TotalLine> into, final String key, final String label,
+        final ItemStack item, final net.minecraftforge.fluids.FluidStack fluid, final double amount) {
+        if (!(amount > 0)) return;
+        final String k = key.isEmpty() ? label : key;
+        final TotalLine was = into.get(k);
+        into.put(
+            k,
+            was == null ? new TotalLine(k, label, item, fluid, amount)
+                : new TotalLine(k, was.label(), was.item(), was.fluid(), was.amount() + amount));
+    }
+
+    private static List<TotalLine> sorted(final java.util.Collection<TotalLine> lines) {
+        final List<TotalLine> list = new ArrayList<>(lines);
+        list.sort((a, b) -> Double.compare(b.amount(), a.amount()));
+        return list;
+    }
+
+    // endregion
 
     // region Wiring state and notices
 

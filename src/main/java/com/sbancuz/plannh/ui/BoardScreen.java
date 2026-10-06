@@ -4,12 +4,15 @@ import static codechicken.lib.gui.GuiDraw.drawMultilineTip;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.item.ItemStack;
 
 import org.lwjgl.opengl.GL11;
 
+import com.cleanroommc.modularui.api.drawable.IDrawable;
 import com.cleanroommc.modularui.api.drawable.IKey;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.ModularScreen;
@@ -18,15 +21,18 @@ import com.cleanroommc.modularui.widgets.ButtonWidget;
 import com.cleanroommc.modularui.widgets.TextWidget;
 import com.cleanroommc.modularui.widgets.layout.Flow;
 import com.sbancuz.plannh.PlanNH;
+import com.sbancuz.plannh.nei.NEIPlanConfig;
 import com.sbancuz.plannh.ui.canvas.BoardCanvas;
 import com.sbancuz.plannh.ui.card.CardModel;
 import com.sbancuz.plannh.ui.card.PortSlot;
 import com.sbancuz.plannh.ui.card.RecipeCard;
 import com.sbancuz.plannh.ui.drawer.DrawerCard;
+import com.sbancuz.plannh.ui.popup.RecipePicker;
 import com.sbancuz.plannh.ui.theme.Fmt;
 import com.sbancuz.plannh.ui.theme.Hyb;
 
 import codechicken.nei.LayoutManager;
+import codechicken.nei.NEIClientConfig;
 import codechicken.nei.guihook.GuiContainerManager;
 
 /**
@@ -61,40 +67,55 @@ public final class BoardScreen extends ModularScreen {
                     / Minecraft.getMinecraft().currentScreen.width,
                 0);
         final BoardCanvas canvas = new BoardCanvas(session, panel);
+        final TotalsRail rail = new TotalsRail(session);
 
         final Flow topBar = Flow.row()
             .widthRel(1f)
             .height(TOP_BAR)
             .padding(4, 2)
-            .childPadding(4)
-            .background((com.cleanroommc.modularui.api.drawable.IDrawable) (ctx, x, y, w, h, theme) -> {
+            .childPadding(3)
+            .background((IDrawable) (ctx, x, y, w, h, theme) -> {
                 Hyb.rect(x, y, w, h, 0xFF0E0F12);
                 Hyb.rect(x, y + h - 1, w, 1, 0xFF2A2C31);
             });
         topBar.child(
-            new TextWidget<>(
-                IKey.dynamic(
-                    () -> session.graph()
-                        .getName())).color(Hyb.INK)
-                            .shadow(true)
-                            .heightRel(1f));
-        topBar.child(
-            new ButtonWidget<>().size(34, 16)
-                .overlay(IKey.dynamic(() -> session.rateUnit().suffix))
-                .addTooltipLine("Rate unit")
-                .onMousePressed(b -> {
-                    session.setRateUnit(
-                        session.rateUnit()
-                            .next());
-                    return true;
-                }));
+            new PlanTabs(session).width(320)
+                .height(16));
+        topBar.child(key(() -> "Undo", session::canUndo, "Undo (Ctrl+Z)", 30, session::undo));
+        topBar.child(key(() -> "Redo", session::canRedo, "Redo (Ctrl+Shift+Z)", 30, session::redo));
         topBar.child(
             new TextWidget<>(
                 IKey.dynamic(
                     () -> session.solving() ? "Solving" + ".".repeat((int) (System.currentTimeMillis() / 400 % 4))
                         : "")).color(Hyb.MUTED)
                             .shadow(true)
-                            .heightRel(1f));
+                            .heightRel(1f)
+                            .expanded());
+        topBar.child(
+            key(
+                () -> session.rateUnit().suffix,
+                () -> true,
+                "Rate unit",
+                30,
+                () -> session.setRateUnit(
+                    session.rateUnit()
+                        .next())));
+        topBar.child(
+            key(
+                () -> session.powerKey() == BoardSession.PowerKey.EU ? "EU/t" : "Amps",
+                () -> true,
+                "Power: EU/t, or amps at each card's tier",
+                30,
+                session::togglePowerKey));
+        topBar.child(
+            key(
+                () -> session.peakPower() ? "Peak" : "Avg",
+                () -> true,
+                "Power: average (solved machines) or peak (every machine running)",
+                28,
+                session::togglePeakPower));
+        topBar.child(key(() -> "Fit", () -> true, "Fit the whole plan in view", 24, canvas::frameAll));
+        topBar.child(key(() -> "Totals", () -> true, "What the plan takes in and gives out", 38, rail::toggle));
 
         final Flow column = Flow.column()
             .widthRel(1f)
@@ -108,7 +129,37 @@ public final class BoardScreen extends ModularScreen {
             new NoticeBar(session, canvas).left(6)
                 .right(6)
                 .top(TOP_BAR + 4));
+        panel.child(
+            rail.right(0)
+                .top(TOP_BAR)
+                .bottom(0)
+                .width(TotalsRail.W));
         return new BoardScreen(panel, session, canvas);
+    }
+
+    /** A top-bar key in the card's key style: a label, a tooltip, greyed when it can do nothing. */
+    private static ButtonWidget<?> key(final Supplier<String> label, final BooleanSupplier enabled,
+        final String tooltip, final int width, final Runnable action) {
+        return new ButtonWidget<>().size(width, 16)
+            .background(
+                (IDrawable) (ctx, x, y, w, h, theme) -> {
+                    Hyb.bevel(x, y, w, h, Hyb.KEY, Hyb.KEY_HI, Hyb.KEY_LO, 0, 1);
+                })
+            .hoverBackground(
+                (IDrawable) (ctx, x, y, w, h, theme) -> {
+                    Hyb.bevel(x, y, w, h, Hyb.KEY_HOVER, Hyb.KEY_HI, Hyb.KEY_LO, 0, 1);
+                })
+            .overlay(
+                (IDrawable) (ctx, x, y, w, h, theme) -> Hyb.textCentered(
+                    label.get(),
+                    x + w / 2f,
+                    y + (h - 8) / 2f,
+                    enabled.getAsBoolean() ? Hyb.INK : 0xFF5A5C65))
+            .addTooltipLine(tooltip)
+            .onMousePressed(b -> {
+                if (b == 0 && enabled.getAsBoolean()) action.run();
+                return true;
+            });
     }
 
     public BoardSession session() {
@@ -117,6 +168,38 @@ public final class BoardScreen extends ModularScreen {
 
     public BoardCanvas canvas() {
         return canvas;
+    }
+
+    /**
+     * Undo and redo on the screen, not the canvas: the panel only offers keys to the hovered widget. The keys are
+     * NEI-configurable (Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y). A focused text field keeps its own Ctrl+Z.
+     */
+    private long lastUndoKeyEvent;
+
+    /** Whether a widget (a text field) has the keyboard. The context returns an empty holder, never null. */
+    public static boolean textFocused(final ModularScreen screen) {
+        final com.cleanroommc.modularui.screen.viewport.LocatedWidget focused = screen.getContext()
+            .getFocusedWidget();
+        return focused != null && focused.getElement() != null;
+    }
+
+    @Override
+    public boolean onKeyPressed(final char typedChar, final int keyCode) {
+        if (!textFocused(this)) {
+            final boolean undo = NEIClientConfig.isKeyHashDown(NEIPlanConfig.ConfigUndoKey.KEY);
+            if (undo || NEIClientConfig.isKeyHashDown(NEIPlanConfig.ConfigRedoKey.KEY)
+                || NEIClientConfig.isKeyHashDown(NEIPlanConfig.ConfigRedoAltKey.KEY)) {
+                // ModularUI offers each key event twice (char and key paths); act once per event.
+                final long event = org.lwjgl.input.Keyboard.getEventNanoseconds();
+                if (event != lastUndoKeyEvent) {
+                    lastUndoKeyEvent = event;
+                    if (undo) session.undo();
+                    else session.redo();
+                }
+                return true;
+            }
+        }
+        return super.onKeyPressed(typedChar, keyCode);
     }
 
     @Override
@@ -143,6 +226,12 @@ public final class BoardScreen extends ModularScreen {
             if (lines == null) return;
         } else if (hovered instanceof final DrawerCard drawer) {
             lines = drawer.hoverLines();
+            if (lines == null) return;
+        } else if (hovered instanceof final RecipePicker picker) {
+            lines = picker.hoverLines();
+            if (lines == null) return;
+        } else if (hovered instanceof final PlanTabs tabs) {
+            lines = tabs.hoverLines();
             if (lines == null) return;
         } else if (hovered instanceof final PortSlot slot) {
             final ItemStack stack = slot.stack();

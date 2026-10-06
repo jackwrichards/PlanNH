@@ -28,6 +28,11 @@ public class ClientProxy extends CommonProxy {
         Keyboard.KEY_F8,
         "key.categories.neiflowchart");
 
+    private static final KeyBinding planItemKey = new KeyBinding(
+        "key.plannh.plan_item",
+        Keyboard.KEY_P,
+        "key.categories.neiflowchart");
+
     @Override
     public void preInit(FMLPreInitializationEvent event) {
         super.preInit(event);
@@ -41,6 +46,10 @@ public class ClientProxy extends CommonProxy {
         Compat.init();
 
         ClientRegistry.registerKeyBinding(openFlowchartKey);
+        ClientRegistry.registerKeyBinding(planItemKey);
+        // First in line: NEI also binds P (Potions); ours only takes it over an item.
+        codechicken.nei.guihook.GuiContainerManager.inputHandlers
+            .addFirst(new com.sbancuz.plannh.nei.PlanInputHandler(planItemKey));
 
         final WorldHandler handler = new WorldHandler();
         MinecraftForge.EVENT_BUS.register(handler);

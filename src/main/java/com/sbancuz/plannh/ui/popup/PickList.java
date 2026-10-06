@@ -78,17 +78,29 @@ public final class PickList extends Widget<PickList> implements Interactable {
             y += 14;
         }
         if (filterable) {
-            top.add(
-                new TextFieldWidget().value(new StringValue.Dynamic(() -> list.filter, list::setFilter))
-                    .hintText("Filter...")
-                    .pos(4, y)
-                    .size(width - 8, 14));
+            final TextFieldWidget field = new TextFieldWidget()
+                .value(new StringValue.Dynamic(() -> list.filter, list::setFilter));
+            field.hintText("Filter...")
+                .pos(4, y)
+                .size(width - 8, 14);
+            list.field = field;
+            top.add(field);
             y += 18;
         }
         final Popup popup = new Popup(name, width, y + list.rows * ROW + 4);
         for (final com.cleanroommc.modularui.api.widget.IWidget w : top) popup.child(w);
         popup.child(list.pos(4, y));
         return popup;
+    }
+
+    private TextFieldWidget field;
+
+    /** The field only commits on Enter, so read its live text every tick to filter as the player types. */
+    @Override
+    public void onUpdate() {
+        super.onUpdate();
+        if (field != null && !field.getText()
+            .equals(filter)) setFilter(field.getText());
     }
 
     private void setFilter(final String text) {

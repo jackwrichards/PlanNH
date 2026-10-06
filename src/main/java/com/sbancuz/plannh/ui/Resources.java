@@ -27,6 +27,14 @@ public final class Resources {
         return "";
     }
 
+    /** The key of a stack as NEI shows it; fluid display items (GT's fluid cells in NEI) become the fluid. */
+    public static String keyOf(final ItemStack stack) {
+        final FluidStack fluid = codechicken.nei.recipe.StackInfo.getFluid(stack);
+        if (fluid != null && fluid.getFluid() != null) return "fluid:" + fluid.getFluid()
+            .getName();
+        return CardDefaults.itemKey(stack);
+    }
+
     public static boolean isFluid(final String key) {
         return key.startsWith("fluid:");
     }

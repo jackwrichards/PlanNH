@@ -2,6 +2,7 @@ package com.sbancuz.plannh.ui;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.item.ItemStack;
 
 import com.cleanroommc.modularui.screen.GuiContainerWrapper;
 import com.cleanroommc.modularui.screen.ModularContainer;
@@ -31,5 +32,16 @@ public final class Planner {
 
     public static boolean isPlanner(final GuiScreen gui) {
         return screenOf(gui) != null;
+    }
+
+    /**
+     * "What makes this?" (or uses it) for any item, from anywhere NEI sees one: opens the planner when it is not
+     * already up, then the recipe picker in the middle of the board. The recipe picked goes on the board, auto-wired.
+     */
+    public static void pick(final ItemStack stack, final boolean uses) {
+        final ModularScreen open = screenOf(Minecraft.getMinecraft().currentScreen);
+        final BoardScreen board = open instanceof final BoardScreen b ? b : open();
+        board.canvas()
+            .openRecipePicker(stack, uses, null);
     }
 }

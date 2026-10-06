@@ -51,7 +51,7 @@ is a thin curl wrapper. Every request waits until the game has processed it, so 
 | `/click?x&y[&button=0][&count=1]` | button 0 left, 1 right, 2 middle; `count=2` double-clicks |
 | `/drag?x1&y1&x2&y2[&steps=10][&button=0]` | press, move in steps (one per tick), release |
 | `/scroll?x&y[&amount=1]` | wheel; positive is up |
-| `/key?code[&char]` | press + release an LWJGL2 key code (`Keyboard.KEY_*`: 1 Esc, 28 Enter, 14 Backspace, 20 T, 66 F8) |
+| `/key?code[&char][&mods=ctrl,shift]` | press + release an LWJGL2 key code (modifiers held around it) (`Keyboard.KEY_*`: 1 Esc, 28 Enter, 14 Backspace, 20 T, 66 F8) |
 | `/type?text` | type text into the focused field |
 | `/cmd?c=/time%20set%20day` | run a command as the player (client commands first, then chat) |
 | `/board` | the open board as data: zoom/pan, per card its state (tier, amps, coil, machines, pinned, ports) and the GUI rect of each control and port (`parts.TIER`, `parts.OUT1`, with `cx/cy`), per drawer its kind, rule, target, rate, unmet flag and parts, the edge count, `solving`, and the notices |

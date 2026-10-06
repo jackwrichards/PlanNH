@@ -328,9 +328,13 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         Hyb.tile(x, y, 150, CardLayout.FOOT);
         Hyb.text("POWER", x + 4, y + 3, Hyb.MUTED);
         final boolean tooLow = tierTooLow(m);
-        final String power = tooLow ? "TIER!" : Fmt.power(m.powerEuPerTick());
+        final double eu = session.power(m);
+        final int tierIdx = CardDefaults.tierIndex(m.tier);
+        final boolean amps = session.powerKey() == BoardSession.PowerKey.AMPS && m.gregtech && tierIdx >= 0;
+        final String power = tooLow ? "TIER!" : amps ? Fmt.compact(eu / (8L << (2 * tierIdx))) : Fmt.power(eu);
+        final String unit = amps ? "A " + m.tier : "EU/t";
         Hyb.text(power, x + 4, y + 13, 2f, tooLow ? Hyb.RED_INK : Hyb.INK);
-        if (!tooLow) Hyb.text("EU/t", x + 6 + Hyb.width(power) * 2, y + 20, Hyb.MUTED);
+        if (!tooLow) Hyb.text(unit, x + 6 + Hyb.width(power) * 2, y + 20, Hyb.MUTED);
 
         if (hoverMachines) Hyb.rect(MACHINES_X, y, MACHINES_W, CardLayout.FOOT, Hyb.TILE_HI);
         else Hyb.tile(MACHINES_X, y, MACHINES_W, CardLayout.FOOT);

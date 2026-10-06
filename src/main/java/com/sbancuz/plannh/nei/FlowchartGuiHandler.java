@@ -20,4 +20,22 @@ public class FlowchartGuiHandler extends INEIGuiAdapter {
         }
         return currentVisibility;
     }
+
+    /** An item dragged from NEI's list onto the board: offered as a drawer there, or its recipes. */
+    @Override
+    public boolean handleDragNDrop(final GuiContainer gui, final int mouseX, final int mouseY,
+        final net.minecraft.item.ItemStack draggedStack, final int button) {
+        if (!(com.sbancuz.plannh.ui.Planner.screenOf(gui) instanceof final com.sbancuz.plannh.ui.BoardScreen board)
+            || draggedStack == null) return false;
+        final com.cleanroommc.modularui.widget.sizer.Area area = board.canvas()
+            .getArea();
+        if (mouseX < area.x || mouseY < area.y || mouseX >= area.x + area.width || mouseY >= area.y + area.height)
+            return false;
+        final net.minecraft.item.ItemStack stack = draggedStack.copy();
+        stack.stackSize = 1;
+        board.canvas()
+            .dropNeiItem(stack, mouseX, mouseY);
+        draggedStack.stackSize = 0;
+        return true;
+    }
 }
