@@ -25,6 +25,10 @@ window 1920x1080 (`PLANNH_DEV_WIDTH`/`PLANNH_DEV_HEIGHT`), GUI scale 2 (`PLANNH_
 (`PLANNH_DEV_SOUND`). The harness also mutes sound at runtime unless `-Dplannh.dev.sound=true`, and turns off
 pause-on-lost-focus so an unfocused window keeps running.
 
+`PLANNH_GTNH=1` adds `-PgtnhRecipes`: the GTNH core mod, GregTech and the pack's recipes (72 mods instead of 29;
+about 30s to the world once the jars are cached). It uses its own world, `plannh-dev-gtnh`, because opening a world
+across mod sets stops on EndlessIDs' "convert this world?" prompt, which the harness cannot get past.
+
 On first launch it creates a creative superflat world `plannh-dev` (`-Dplannh.dev.world=name`, empty to stay on
 the main menu) and loads it automatically. Plans are saved per world, so notes and nodes persist across runs;
 with the game stopped, delete `run/client/saves/plannh-dev` (the world) and

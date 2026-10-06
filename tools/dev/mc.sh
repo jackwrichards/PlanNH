@@ -12,7 +12,8 @@
 #   tools/dev/mc.sh smoke               start, open the flowchart, screenshot, stop; non-zero on failure
 #
 # Env: PLANNH_DEV_PORT (25599), PLANNH_RUN_TASK (runClient25), PLANNH_DEV_WIDTH/HEIGHT (1920x1080),
-#      PLANNH_DEV_GUI_SCALE (2), PLANNH_DEV_SOUND (master volume, 0.0 = muted).
+#      PLANNH_DEV_GUI_SCALE (2), PLANNH_DEV_SOUND (master volume, 0.0 = muted),
+#      PLANNH_GTNH=1 (load GregTech and the pack's recipes; slow first start).
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -31,6 +32,7 @@ GUI_SCALE="${PLANNH_DEV_GUI_SCALE:-2}"
 SOUND="${PLANNH_DEV_SOUND:-0.0}"
 HOTSWAP="${PLANNH_HOTSWAP:-1}"
 JDWP_PORT="${PLANNH_JDWP_PORT:-5005}"
+GTNH="${PLANNH_GTNH:-0}"
 SWAP_MANIFEST="$STATE/hotswap.sums"
 CLASSES="$ROOT/build/tmp/downgradeMainClasses/main"  # what the jar (and so the game) is built from
 JAVA="${JAVA_HOME:+$JAVA_HOME/bin/}java"  # any JDK 17+: runs tools/dev/Hotswap.java from source
@@ -76,6 +78,9 @@ start() {
     rm -f "$GAME_PIDFILE"
     # downgradeMainClasses is built alongside so the swap baseline matches the jar the game runs.
     local run_args=(downgradeMainClasses "$TASK" --console=plain)
+    # The GTNH core mod pulls in GregTech and the pack's recipes: ~180 dependencies, a much slower start.
+    # Its own world too: a world saved with GregTech asks about missing blocks when opened without it.
+    [ "$GTNH" = 1 ] && run_args=(-PgtnhRecipes "${run_args[@]}" "--mcJvmArgs=-Dplannh.dev.world=plannh-dev-gtnh")
     # JetBrains Runtime + HotswapAgent + a JDWP port so `mc.sh swap` can push recompiled classes into the game.
     [ "$HOTSWAP" = 1 ] && run_args+=(--hotswap
         "--mcJvmArgs=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:$JDWP_PORT")

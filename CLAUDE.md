@@ -15,6 +15,12 @@ is ELK (`layout/`), recipe sources per mod are in `data/provider/`.
 - Dev tooling lives in `src/main/java/com/sbancuz/plannh/dev/`, `tools/dev/` and `docs/`; it is wired in through
   `DevHarness.initIfDev()` in `ClientProxy#init`.
 
+## The rebuild
+
+- `docs/design/board-solve-mode.md` is the spec for the new planner: Solve mode only, Factory Flow's recipe card
+  and drawers with NEI parts, what every control does, what we keep from the engine, and the porting order.
+- Mockups live on the design canvas linked from that file (row 4, "Hybrid", is the chosen direction).
+
 ## Build and test
 
 - Gradle provisions the JDKs (25 for the build, JetBrains Runtime 25 for `runClient25`). Keep the checkout at a
@@ -38,6 +44,9 @@ tools/dev/mc.sh stop
 tools/dev/mc.sh smoke      # automated launch/open/screenshot/log-scan check
 ```
 
+- `PLANNH_GTNH=1 tools/dev/mc.sh start` loads GregTech and the pack's recipes through the GTNH core mod (72 mods,
+  about 30s once the jars are cached) in its own test world, `plannh-dev-gtnh`. Use it whenever real GT recipes,
+  machines or items are needed; the plain start (29 mods, no GT) is enough for anything else.
 - Input endpoints take GUI coordinates. Find targets with `call widgets` and check `hovered`/`focused` in
   `call status` rather than estimating from screenshots.
 - PlanNH text fields need a double-click (`click?x&y&count=2`) before `type` works.
