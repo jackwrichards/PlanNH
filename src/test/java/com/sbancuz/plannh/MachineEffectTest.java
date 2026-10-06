@@ -14,6 +14,7 @@ import com.sbancuz.plannh.data.RecipeContext;
 import com.sbancuz.plannh.data.Settings;
 import com.sbancuz.plannh.data.effect.EffectComputer;
 import com.sbancuz.plannh.data.effect.EffectResult;
+import com.sbancuz.plannh.data.effect.steps.GTHeat;
 import com.sbancuz.plannh.data.flowchart.Node;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceMode;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceResult;
@@ -87,6 +88,13 @@ class MachineEffectTest {
                 / 160.0,
             1e-3,
             "light fuel follows");
+    }
+
+    @Test
+    void heatOverclockUsesTheRecipesCoilHeatWhenNoOverrideIsSet() {
+        assertEquals(1800, GTHeat.recipeHeat(0, 1800, 4500), "the recipe's own heat, not the machine's");
+        assertEquals(2700, GTHeat.recipeHeat(2700, 1800, 4500), "the player's override wins");
+        assertEquals(4500, GTHeat.recipeHeat(0, 0, 4500), "no stated heat: no bonus, no penalty");
     }
 
     private static void registerParallelProfile() {
