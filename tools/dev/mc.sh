@@ -2,11 +2,12 @@
 # Drive the PlanNH dev client from a shell, headless-agent friendly. See docs/dev-harness.md.
 #
 #   tools/dev/mc.sh start [timeout_s]   build + launch the client, block until the test world is loaded
-#   tools/dev/mc.sh stop                ask the client to quit, kill it if it does not
+#   tools/dev/mc.sh stop                kill the client (a graceful quit can hang on a confirm dialog)
 #   tools/dev/mc.sh restart             stop + start
 #   tools/dev/mc.sh status              harness status JSON (exit 1 if the client is not up)
 #   tools/dev/mc.sh shot [name.png] [x=..&y=..&w=..&h=..]   screenshot (optional GUI-coord crop), prints the path
 #   tools/dev/mc.sh call 'click?x=10&y=20'   any harness endpoint, prints the JSON reply
+#   tools/dev/mc.sh part 1 TIER [click|move|scroll] ['button=1']   act on card 1's tier chip (names from /board)
 #   tools/dev/mc.sh swap [--reopen]     recompile and hot-swap changed classes into the running client
 #                                       (exit 2: some changed classes weren't loaded yet, restart for those)
 #   tools/dev/mc.sh smoke               start, open the flowchart, screenshot, stop; non-zero on failure
@@ -117,24 +118,23 @@ start() {
     done
 }
 
+# Force-kills the game. A graceful quit can raise a "really close?" dialog (GTNH) that blocks the client until
+# someone clicks it; plans save on every edit and the dev worlds are disposable, so nothing is lost by killing.
 stop() {
-    if is_up; then
-        call quit >/dev/null 2>&1
-        for _ in $(seq 1 75); do
-            gradle_alive || break
-            sleep 1
-        done
-    fi
-    if gradle_alive || [ -f "$GAME_PIDFILE" ]; then
-        # Killing gradle alone orphans the game process, so kill the game by the PID the harness wrote.
-        if [ -f "$GAME_PIDFILE" ]; then
-            echo "client did not quit cleanly, killing game pid $(cat "$GAME_PIDFILE")" >&2
-            taskkill //PID "$(cat "$GAME_PIDFILE")" //F >/dev/null 2>&1 || kill -9 "$(cat "$GAME_PIDFILE")" 2>/dev/null
-            rm -f "$GAME_PIDFILE"
+    if [ -f "$GAME_PIDFILE" ]; then
+        local pid
+        pid="$(cat "$GAME_PIDFILE")"
+        # Only a java process: after a crash the PID file is stale and the number may belong to something else.
+        if tasklist //FI "PID eq $pid" 2>/dev/null | grep -qi java; then
+            taskkill //PID "$pid" //F >/dev/null 2>&1 || kill -9 "$pid" 2>/dev/null
         fi
-        gradle_alive && kill "$(cat "$PIDFILE")" 2>/dev/null
-        sleep 3
+        rm -f "$GAME_PIDFILE"
     fi
+    gradle_alive && kill "$(cat "$PIDFILE")" 2>/dev/null
+    for _ in $(seq 1 15); do
+        is_up || gradle_alive || break
+        sleep 1
+    done
     rm -f "$PIDFILE"
     is_up && die "something still answers on port $PORT"
     echo "stopped"
@@ -185,6 +185,18 @@ smoke() {
     return $fail
 }
 
+# Acts on a card control by name, using /board for its GUI centre: part <card index> <PART> [click|move|scroll] [extra query].
+part() {
+    [ $# -ge 2 ] || die "usage: $0 part <card> <ACTIONS|MACHINE|AMPS|TIER|COIL|MACHINES|BODY> [click|move|scroll] ['button=1&count=2' | 'amount=-1']"
+    local card="$1" name="$2" action="${3:-click}" extra="${4:-}" xy
+    xy="$(call board | node -e '
+        let s = ""; process.stdin.on("data", d => s += d).on("end", () => {
+            const b = JSON.parse(s), c = (b.cards || [])[+process.argv[1]], p = c && c.parts && c.parts[process.argv[2]];
+            if (!p) { console.error(b.error || "no such card or part"); process.exit(1); }
+            console.log("x=" + p.cx + "&y=" + p.cy);
+        });' "$card" "$name")" || die "part $card $name not found"
+    call "$action?$xy${extra:+&$extra}"
+}
 cmd="${1:-}"
 shift || true
 case "$cmd" in
@@ -196,5 +208,6 @@ case "$cmd" in
     call) [ $# -ge 1 ] || die "usage: $0 call 'endpoint?args'"; call "$1" ;;
     swap) swap "$@" ;;
     smoke) smoke ;;
+    part) part "$@" ;;
     *) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 2 ;;
 esac

@@ -51,6 +51,7 @@ final class DevRecipes {
             for (int i = 0; i < handler.numRecipes(); i++) {
                 if (!inf.isEmpty() && !hasIngredient(handler, i, inf)) continue;
                 final Node node = new Node(handler, i, x, y);
+                com.sbancuz.plannh.ui.card.CardDefaults.apply(node);
                 final Graph graph = Plan.getActiveGraph();
                 PlanAPI.recordEdit(graph, () -> graph.addNode(node));
                 PlanAPI.save();

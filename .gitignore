@@ -38,3 +38,6 @@ layout.json
 /.deps/
 /renderdoc*
 *.rdc
+
+# Agent worktrees
+/.claude/worktrees/

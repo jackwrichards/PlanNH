@@ -22,6 +22,7 @@ import com.sbancuz.plannh.data.flowchart.Graph;
 import com.sbancuz.plannh.ui.BoardSession;
 import com.sbancuz.plannh.ui.card.CardModel;
 import com.sbancuz.plannh.ui.card.RecipeCard;
+import com.sbancuz.plannh.ui.popup.Popup;
 import com.sbancuz.plannh.ui.theme.Hyb;
 
 /**
@@ -56,6 +57,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     public void onUpdate() {
         super.onUpdate();
         session.tick();
+        Popup.openPending();
         boolean rebuild = builtStructure != session.structure();
         for (final RecipeCard card : cards.values()) rebuild |= card.shapeChanged();
         if (rebuild) rebuildCards();
@@ -76,6 +78,24 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     public Map<UUID, RecipeCard> cards() {
         return cards;
+    }
+
+    /** Screen x of a board (world) x, through pan and zoom. */
+    public int screenX(final float worldX) {
+        return Math.round(getArea().x + graph().getPanX() + worldX * graph().getZoom());
+    }
+
+    public int screenY(final float worldY) {
+        return Math.round(getArea().y + graph().getPanY() + worldY * graph().getZoom());
+    }
+
+    /** Board (world) x under a screen x. */
+    public float worldX(final int screenX) {
+        return (screenX - getArea().x - graph().getPanX()) / graph().getZoom();
+    }
+
+    public float worldY(final int screenY) {
+        return (screenY - getArea().y - graph().getPanY()) / graph().getZoom();
     }
 
     // region Drawing

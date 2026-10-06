@@ -39,6 +39,7 @@ Use the dev harness; full reference in `docs/dev-harness.md`.
 tools/dev/mc.sh start      # build, launch, auto-load the creative test world; blocks until ready
 tools/dev/mc.sh call open  # open the flowchart
 tools/dev/mc.sh shot x.png ['x=..&y=..&w=..&h=..']   # screenshot (optionally cropped), then Read the PNG
+tools/dev/mc.sh part 1 TIER     # click card 1's tier chip by name (also: move, scroll 'amount=-1')
 tools/dev/mc.sh swap --reopen   # hot-swap code changes into the running game (~12s, no restart)
 tools/dev/mc.sh stop
 tools/dev/mc.sh smoke      # automated launch/open/screenshot/log-scan check
@@ -47,8 +48,10 @@ tools/dev/mc.sh smoke      # automated launch/open/screenshot/log-scan check
 - `PLANNH_GTNH=1 tools/dev/mc.sh start` loads GregTech and the pack's recipes through the GTNH core mod (72 mods,
   about 30s once the jars are cached) in its own test world, `plannh-dev-gtnh`. Use it whenever real GT recipes,
   machines or items are needed; the plain start (29 mods, no GT) is enough for anything else.
-- Input endpoints take GUI coordinates. Find targets with `call widgets` and check `hovered`/`focused` in
-  `call status` rather than estimating from screenshots.
+- Input endpoints and `shot` crops take GUI coordinates (960x540), not screen pixels. On the board, act on a card
+  control by name: `mc.sh part 1 MACHINES` (from `call board`, which also returns each card's state). Elsewhere
+  find targets with `call widgets` and check `hovered`/`focused` in `call status` rather than estimating.
+- `mc.sh stop` kills the game on purpose: a clean quit with GT loaded hangs on a "really close?" dialog.
 - PlanNH text fields need a double-click (`click?x&y&count=2`) before `type` works.
 - After changing mod code: `tools/dev/mc.sh swap --reopen`. Restart instead (`mc.sh restart`, ~30s) when swap
   exits 2 (new or not-yet-loaded classes) or for mixins, resources and startup-only code.

@@ -61,12 +61,14 @@ public final class CardModel {
     public final double machines;
     public final boolean pinned;
     public final ItemStack circuit;
+    /** The recipe's minimum coil heat (K), 0 when it needs none. */
+    public final int recipeHeat;
 
     private CardModel(final Node node, final String machineName, final List<ItemStack> catalysts,
         final ItemStack machineStack, final boolean gregtech, final String tier, final int amps,
         final boolean multiblock, final int coilHeat, final boolean usesHeat, final int parallels,
         final List<PortView> inputs, final List<PortView> outputs, final int durationTicks, final long euPerTick,
-        final double machines, final boolean pinned, final ItemStack circuit) {
+        final double machines, final boolean pinned, final ItemStack circuit, final int recipeHeat) {
         this.node = node;
         this.machineName = machineName;
         this.catalysts = catalysts;
@@ -85,6 +87,7 @@ public final class CardModel {
         this.machines = machines;
         this.pinned = pinned;
         this.circuit = circuit;
+        this.recipeHeat = recipeHeat;
     }
 
     /** Average EU/t for the solved count (the board's power key may show it as amps). */
@@ -100,7 +103,14 @@ public final class CardModel {
 
         final RecipeHandlerRef ref = RecipeHandlerRef.of(node.recipeId);
         final List<ItemStack> catalysts = catalysts(ref);
-        final ItemStack machineStack = catalysts.isEmpty() ? null : catalysts.get(0);
+        ItemStack chosen = null;
+        for (final ItemStack s : catalysts) {
+            if (CardDefaults.matches(s, node.machineName)) {
+                chosen = s;
+                break;
+            }
+        }
+        final ItemStack machineStack = chosen != null ? chosen : catalysts.isEmpty() ? null : catalysts.get(0);
         final String machineName = machineStack != null ? machineStack.getDisplayName() : node.machineName;
 
         final double machines = balance == null ? 0 : balance.operations();
@@ -122,19 +132,20 @@ public final class CardModel {
             catalysts,
             machineStack,
             gregtech,
-            gregtech ? cfg.getString("voltage") : "",
-            gregtech ? cfg.getInt("amp") : 1,
-            gregtech && cfg.getBoolean("gt_multiblock"),
-            gregtech ? cfg.getInt("machine_heat") : 0,
+            gregtech ? CardDefaults.stringSetting(cfg, "voltage") : "",
+            gregtech ? Math.max(1, CardDefaults.intSetting(cfg, "amp")) : 1,
+            gregtech && CardDefaults.boolSetting(cfg, "gt_multiblock"),
+            gregtech ? CardDefaults.intSetting(cfg, "machine_heat") : 0,
             gregtech && (node.properties.containsKey(com.sbancuz.plannh.data.provider.GTProvider.COIL_HEAT)),
-            gregtech ? cfg.getInt("parallels") : 1,
+            gregtech ? Math.max(1, CardDefaults.intSetting(cfg, "parallels")) : 1,
             inputs,
             outputs,
             duration,
             effect.energyPerT(),
             machines,
             node.isMachineCountFixed(),
-            circuit(ref));
+            circuit(ref),
+            node.properties.get(com.sbancuz.plannh.data.provider.GTProvider.COIL_HEAT) instanceof final Number h ? h.intValue() : 0);
     }
 
     private static List<PortView> ports(final List<Port<?>> ports, final boolean output,

@@ -1,29 +1,66 @@
 package com.sbancuz.plannh.ui.card;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import net.minecraft.item.ItemStack;
+
 import org.jetbrains.annotations.Nullable;
 
+import com.cleanroommc.modularui.api.UpOrDown;
 import com.cleanroommc.modularui.api.widget.IDraggable;
 import com.cleanroommc.modularui.api.widget.Interactable;
+import com.cleanroommc.modularui.drawable.GuiDraw;
 import com.cleanroommc.modularui.screen.viewport.ModularGuiContext;
 import com.cleanroommc.modularui.theme.WidgetThemeEntry;
 import com.cleanroommc.modularui.widget.ParentWidget;
 import com.cleanroommc.modularui.widget.sizer.Area;
 import com.sbancuz.plannh.api.PlanAPI;
+import com.sbancuz.plannh.data.MachineConfig;
+import com.sbancuz.plannh.data.RecipeContext;
+import com.sbancuz.plannh.data.SettingDef;
 import com.sbancuz.plannh.data.flowchart.Node;
+import com.sbancuz.plannh.data.provider.GTProvider;
 import com.sbancuz.plannh.ui.BoardSession;
+import com.sbancuz.plannh.ui.canvas.BoardCanvas;
 import com.sbancuz.plannh.ui.gt.GtCoils;
+import com.sbancuz.plannh.ui.gt.GtMachines;
+import com.sbancuz.plannh.ui.popup.NumberPopup;
+import com.sbancuz.plannh.ui.popup.PickList;
+import com.sbancuz.plannh.ui.popup.Popup;
 import com.sbancuz.plannh.ui.theme.Fmt;
 import com.sbancuz.plannh.ui.theme.Hyb;
 
 /**
  * One recipe on the board, drawn as Factory Flow's recipe card in Solve mode: head (actions, machine, amps, tier),
  * rails of NEI slots with names and rates, the machine, settings, and a footer with power and the solved machine
- * count. Lives in world space inside the canvas; dragging it moves the recipe.
+ * count. Lives in world space inside the canvas; dragging its body moves the recipe, its controls edit it.
  */
 public final class RecipeCard extends ParentWidget<RecipeCard> implements Interactable, IDraggable {
+
+    /** The parts of a card that react to the mouse. */
+    public enum Part {
+        ACTIONS,
+        MACHINE,
+        AMPS,
+        TIER,
+        COIL,
+        MACHINES,
+        BODY
+    }
+
+    private static final int CHIP_Y = CardLayout.PAD + 2;
+    private static final int KEY_X = CardLayout.PAD + 2;
+    private static final int TIER_W = 26;
+    private static final int AMPS_W = 28;
+    private static final int TIER_X = CardLayout.W - CardLayout.PAD - 2 - TIER_W;
+    private static final int AMPS_X = TIER_X - 2 - AMPS_W;
+    private static final int BAR_X = KEY_X + 16 + 4;
+    private static final int COIL_X = CardLayout.PAD + 40;
+    private static final int COIL_W = CardLayout.W - 2 * CardLayout.PAD - 42;
+    private static final int MACHINES_X = CardLayout.PAD + 154;
+    private static final int MACHINES_W = 128;
 
     private final BoardSession session;
     public final UUID nodeId;
@@ -84,7 +121,87 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     public void onUpdate() {
         super.onUpdate();
         if (session.model(nodeId) != model) refresh();
+        if (reopenSettingsAfter != null && model != reopenSettingsAfter) {
+            reopenSettingsAfter = null;
+            openSettings();
+        }
     }
+
+    /** ModularUI only counts a parent widget as hovered when it has a background or tooltip; the card draws itself. */
+    @Override
+    public boolean canHover() {
+        return true;
+    }
+
+    // region Geometry and hit testing
+
+    private int barRight() {
+        return (model != null && model.multiblock ? AMPS_X : TIER_X) - 4;
+    }
+
+    private BoardCanvas canvas() {
+        return getParent() instanceof final BoardCanvas c ? c : null;
+    }
+
+    /** The mouse in card coordinates (GUI pixels at zoom 1), from the absolute mouse. */
+    private float localX() {
+        final BoardCanvas c = canvas();
+        return c == null ? -1 : c.worldX(getContext().getAbsMouseX()) - model.node.x;
+    }
+
+    private float localY() {
+        final BoardCanvas c = canvas();
+        return c == null ? -1 : c.worldY(getContext().getAbsMouseY()) - model.node.y;
+    }
+
+    private static boolean in(final float x, final float y, final int rx, final int ry, final int rw, final int rh) {
+        return x >= rx && y >= ry && x < rx + rw && y < ry + rh;
+    }
+
+    public Part partAt(final float x, final float y) {
+        if (model == null) return null;
+        if (in(x, y, KEY_X, CHIP_Y, 16, 16)) return Part.ACTIONS;
+        if (in(x, y, TIER_X, CHIP_Y, TIER_W, 16)) return Part.TIER;
+        if (model.multiblock && in(x, y, AMPS_X, CHIP_Y, AMPS_W, 16)) return Part.AMPS;
+        if (in(x, y, BAR_X, CHIP_Y, barRight() - BAR_X, 16)) return Part.MACHINE;
+        if (layout.settingRows > 0 && in(x, y, COIL_X, layout.settingsY + 1, COIL_W, 16)) return Part.COIL;
+        if (in(x, y, MACHINES_X, layout.footY, MACHINES_W, CardLayout.FOOT)) return Part.MACHINES;
+        return Part.BODY;
+    }
+
+    /** The part under the mouse, or null when the mouse is off the card. */
+    public Part partUnderMouse() {
+        if (model == null) return null;
+        final float x = localX(), y = localY();
+        return x < 0 || y < 0 || x >= CardLayout.W || y >= layout.height ? null : partAt(x, y);
+    }
+
+    /** Card-local rectangle {x, y, w, h} of a part, or null when this card has none (no amps on a single block). */
+    public int[] partRect(final Part part) {
+        if (model == null) return null;
+        return switch (part) {
+            case ACTIONS -> new int[] { KEY_X, CHIP_Y, 16, 16 };
+            case TIER -> new int[] { TIER_X, CHIP_Y, TIER_W, 16 };
+            case AMPS -> model.multiblock ? new int[] { AMPS_X, CHIP_Y, AMPS_W, 16 } : null;
+            case MACHINE -> new int[] { BAR_X, CHIP_Y, barRight() - BAR_X, 16 };
+            case COIL -> layout.settingRows > 0 ? new int[] { COIL_X, layout.settingsY + 1, COIL_W, 16 } : null;
+            case MACHINES -> new int[] { MACHINES_X, layout.footY, MACHINES_W, CardLayout.FOOT };
+            case BODY -> new int[] { 0, 0, CardLayout.W, layout.height };
+        };
+    }
+
+    /** Screen point of a card-local point, for anchoring popups. */
+    private int screenX(final int localX) {
+        final BoardCanvas c = canvas();
+        return c == null ? 0 : c.screenX(model.node.x + localX);
+    }
+
+    private int screenY(final int localY) {
+        final BoardCanvas c = canvas();
+        return c == null ? 0 : c.screenY(model.node.y + localY);
+    }
+
+    // endregion
 
     // region Drawing
 
@@ -92,49 +209,57 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     public void draw(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
         final CardModel m = model;
         if (m == null) return;
-        final int w = CardLayout.W, h = layout.height;
         final float z = context.getCurrentDrawingZ();
-        Hyb.cardFrame(0, 0, w, h);
-        drawHead(m);
+        final Part hover = isHovering() ? partAt(localX(), localY()) : null;
+        Hyb.cardFrame(0, 0, CardLayout.W, layout.height);
+        drawHead(m, hover);
         drawRail(m.inputs, false, z);
         drawRail(m.outputs, true, z);
         drawPicture(m, z);
-        if (layout.settingRows > 0) drawCoil(m, z);
-        drawFooter(m, z);
+        if (layout.settingRows > 0) drawCoil(m, z, hover == Part.COIL);
+        drawFooter(m, z, hover == Part.MACHINES);
     }
 
-    private void drawHead(final CardModel m) {
-        final int y = CardLayout.PAD + 2;
-        // Card actions key: a hamburger in Factory Flow's bevelled key.
-        final int kx = CardLayout.PAD + 2;
-        Hyb.bevel(kx, y, 16, 16, Hyb.KEY, Hyb.KEY_HI, Hyb.KEY_LO, Hyb.KEY_EDGE, 1);
-        for (int i = 0; i < 3; i++) Hyb.rect(kx + 3, y + 4 + i * 3, 10, 2, Hyb.INK);
+    private void drawHead(final CardModel m, final Part hover) {
+        final int y = CHIP_Y;
+        Hyb.bevel(
+            KEY_X,
+            y,
+            16,
+            16,
+            hover == Part.ACTIONS ? Hyb.KEY_HOVER : Hyb.KEY,
+            Hyb.KEY_HI,
+            Hyb.KEY_LO,
+            Hyb.KEY_EDGE,
+            1);
+        for (int i = 0; i < 3; i++) Hyb.rect(KEY_X + 3, y + 4 + i * 3, 10, 2, Hyb.INK);
 
-        // Chips from the right: tier, then amps on multiblocks.
-        final int tierX = CardLayout.W - CardLayout.PAD - 2 - 26;
-        chip(tierX, y, 26, Hyb.tier(m.tier));
-        int barRight = tierX - 4;
+        chip(TIER_X, y, TIER_W, Hyb.tier(m.tier), hover == Part.TIER);
         if (m.multiblock) {
-            final int ampsX = tierX - 2 - 28;
-            Hyb.bevel(ampsX, y, 28, 16, Hyb.WELL, 0xFF5A5C65, Hyb.SHADOW, Hyb.KEY_EDGE, 1);
-            Hyb.textCentered(Fmt.compact(m.amps) + "A", ampsX + 14, y + 4, Hyb.INK);
-            barRight = ampsX - 4;
+            Hyb.bevel(
+                AMPS_X,
+                y,
+                AMPS_W,
+                16,
+                hover == Part.AMPS ? 0xFF5A5C65 : Hyb.WELL,
+                0xFF5A5C65,
+                Hyb.SHADOW,
+                Hyb.KEY_EDGE,
+                1);
+            Hyb.textCentered(Fmt.compact(m.amps) + "A", AMPS_X + AMPS_W / 2f, y + 4, Hyb.INK);
         }
 
-        // Machine switch: the name bar, chevron on the left.
-        final int bx = kx + 16 + 4;
-        final int bw = barRight - bx;
-        Hyb.rect(bx - 1, y - 1, bw + 2, 18, Hyb.SHADOW);
-        Hyb.rect(bx, y, bw, 16, Hyb.NAMEBAR);
-        Hyb.rect(bx, y, bw, 1, Hyb.KEY_HI);
-        Hyb.rect(bx, y, 1, 16, Hyb.KEY_HI);
-        chevron(bx + 4, y + 6, Hyb.MUTED);
-        final String name = Hyb.fit(m.machineName, bw - 20);
-        Hyb.textCentered(name, bx + 8 + (bw - 8) / 2f, y + 4, 0xFFFFFFFF);
+        final int bw = barRight() - BAR_X;
+        Hyb.rect(BAR_X - 1, y - 1, bw + 2, 18, Hyb.SHADOW);
+        Hyb.rect(BAR_X, y, bw, 16, hover == Part.MACHINE ? 0xFF34363C : Hyb.NAMEBAR);
+        Hyb.rect(BAR_X, y, bw, 1, Hyb.KEY_HI);
+        Hyb.rect(BAR_X, y, 1, 16, Hyb.KEY_HI);
+        chevron(BAR_X + 4, y + 6, Hyb.MUTED);
+        Hyb.textCentered(Hyb.fit(m.machineName, bw - 20), BAR_X + 8 + (bw - 8) / 2f, y + 4, 0xFFFFFFFF);
     }
 
-    private static void chip(final int x, final int y, final int w, final Hyb.Tier tier) {
-        Hyb.rect(x - 1, y - 1, w + 2, 18, tier.border());
+    private static void chip(final int x, final int y, final int w, final Hyb.Tier tier, final boolean hover) {
+        Hyb.rect(x - 1, y - 1, w + 2, 18, hover ? 0xFFFFFFFF : tier.border());
         Hyb.rect(x, y, w, 16, tier.bg());
         Hyb.rect(x, y, w, 1, 0x8CFFFFFF);
         Hyb.rect(x, y, 1, 16, 0x8CFFFFFF);
@@ -142,7 +267,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         Hyb.rect(x + w - 1, y, 1, 16, 0x73000000);
         final int tw = Hyb.width(tier.name());
         final float tx = x + (w - tw) / 2f;
-        com.cleanroommc.modularui.drawable.GuiDraw.drawText(tier.name(), tx, y + 4, 1f, tier.text(), false);
+        GuiDraw.drawText(tier.name(), tx, y + 4, 1f, tier.text(), false);
         if (tier.underline()) Hyb.rect(tx, y + 13, tw, 1, tier.text());
     }
 
@@ -176,40 +301,45 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         if (m.machineStack != null) Hyb.item(m.machineStack, x + (w - 64) / 2f, y + (h - 64) / 2f, 64, z);
     }
 
-    private void drawCoil(final CardModel m, final float z) {
+    private void drawCoil(final CardModel m, final float z, final boolean hover) {
         final int x = CardLayout.PAD, y = layout.settingsY, w = CardLayout.W - 2 * CardLayout.PAD;
         Hyb.tile(x, y, w, CardLayout.SETTING_ROW);
         Hyb.text("COIL", x + 4, y + 5, Hyb.MUTED);
-        final int wx = x + 40, ww = w - 42;
-        Hyb.well(wx, y + 1, ww, 16, Hyb.WELL, 0xFF282A2F, 0xFF5A5C65);
+        Hyb.well(COIL_X, y + 1, COIL_W, 16, hover ? Hyb.TILE_HI : Hyb.WELL, 0xFF282A2F, 0xFF5A5C65);
         final GtCoils.Coil coil = m.coilHeat > 0 ? GtCoils.forHeat(m.coilHeat) : null;
         final String label = coil == null ? "Pick a coil" : coil.name();
         final int lw = Hyb.width(label) + (coil == null ? 0 : 20);
-        final float lx = wx + (ww - lw) / 2f;
+        final float lx = COIL_X + (COIL_W - lw) / 2f;
         if (coil != null) Hyb.item(coil.stack(), lx, y + 1, 16, z);
-        Hyb.text(label, lx + (coil == null ? 0 : 20), y + 5, coil == null ? Hyb.MUTED : Hyb.INK);
-        chevron(wx + ww - 12, y + 7, Hyb.MUTED);
+        final boolean tooCold = coil != null && m.recipeHeat > coil.heat();
+        Hyb.text(
+            label,
+            lx + (coil == null ? 0 : 20),
+            y + 5,
+            coil == null ? Hyb.MUTED : tooCold ? Hyb.RED_INK : Hyb.INK);
+        chevron(COIL_X + COIL_W - 12, y + 7, Hyb.MUTED);
     }
 
-    private void drawFooter(final CardModel m, final float z) {
+    private void drawFooter(final CardModel m, final float z, final boolean hoverMachines) {
         final int y = layout.footY;
         final int x = CardLayout.PAD;
 
         Hyb.tile(x, y, 150, CardLayout.FOOT);
         Hyb.text("POWER", x + 4, y + 3, Hyb.MUTED);
-        final String power = Fmt.power(m.powerEuPerTick());
-        Hyb.text(power, x + 4, y + 13, 2f, Hyb.INK);
-        Hyb.text("EU/t", x + 6 + Hyb.width(power) * 2, y + 20, Hyb.MUTED);
+        final boolean tooLow = tierTooLow(m);
+        final String power = tooLow ? "TIER!" : Fmt.power(m.powerEuPerTick());
+        Hyb.text(power, x + 4, y + 13, 2f, tooLow ? Hyb.RED_INK : Hyb.INK);
+        if (!tooLow) Hyb.text("EU/t", x + 6 + Hyb.width(power) * 2, y + 20, Hyb.MUTED);
 
-        final int mx = x + 154;
-        Hyb.tile(mx, y, 128, CardLayout.FOOT);
-        Hyb.text("MACHINES", mx + 4, y + 3, Hyb.MUTED);
+        if (hoverMachines) Hyb.rect(MACHINES_X, y, MACHINES_W, CardLayout.FOOT, Hyb.TILE_HI);
+        else Hyb.tile(MACHINES_X, y, MACHINES_W, CardLayout.FOOT);
+        Hyb.text("MACHINES", MACHINES_X + 4, y + 3, Hyb.MUTED);
         final String count = "x" + Fmt.machines(m.machines);
         final int color = m.pinned ? Hyb.GOLD : m.machines <= 0 ? Hyb.MUTED : Hyb.INK;
-        Hyb.text(count, mx + 4, y + 13, 2f, color);
+        Hyb.text(count, MACHINES_X + 4, y + 13, 2f, color);
         final int cw = Hyb.width(count) * 2;
-        for (int dx = 0; dx < cw; dx += 3) Hyb.rect(mx + 4 + dx, y + 29, 1, 1, Hyb.MUTED);
-        pencil(mx + 8 + cw, y + 18, Hyb.MUTED);
+        for (int dx = 0; dx < cw; dx += 3) Hyb.rect(MACHINES_X + 4 + dx, y + 29, 1, 1, Hyb.MUTED);
+        for (int i = 0; i < 6; i++) Hyb.rect(MACHINES_X + 8 + cw + i, y + 24 - i, 2, 2, Hyb.MUTED);
 
         final int cx = CardLayout.W - CardLayout.PAD - 30;
         if (m.circuit != null) {
@@ -220,8 +350,303 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         }
     }
 
-    private static void pencil(final int x, final int y, final int color) {
-        for (int i = 0; i < 6; i++) Hyb.rect(x + i, y + 6 - i, 2, 2, color);
+    /** A GregTech recipe set below its own tier cannot run. */
+    private static boolean tierTooLow(final CardModel m) {
+        if (!m.gregtech || !(m.node.properties.get(GTProvider.EU_PER_TICK) instanceof final Number eut)) return false;
+        final int t = CardDefaults.tierIndex(m.tier);
+        return t >= 0 && eut.longValue() > (8L << (2 * t)) * (m.multiblock ? Math.max(1, m.amps) : 1);
+    }
+
+    /** Tooltip lines for the part under the mouse, Factory Flow style: what it is, then what the mouse does. */
+    public List<String> hoverLines() {
+        if (model == null || !isHovering()) return null;
+        final Part part = partAt(localX(), localY());
+        if (part == null) return null;
+        final List<String> lines = new ArrayList<>();
+        final String hint = "§7";
+        switch (part) {
+            case ACTIONS -> {
+                lines.add("Card actions");
+                lines.add(hint + "Click: clone, replace, settings, delete");
+            }
+            case MACHINE -> {
+                lines.add("Machine: " + model.machineName);
+                lines.add(hint + "Click: machines that run this recipe");
+                lines.add(hint + "Wheel: next machine");
+            }
+            case TIER -> {
+                lines.add("Voltage tier: " + model.tier);
+                lines.add(hint + "Left click: up  Right click: down  Wheel: step");
+            }
+            case AMPS -> {
+                lines.add("Energy hatch amps: " + model.amps);
+                lines.add(hint + "Click: type  Right click: -1  Wheel: +/-1");
+            }
+            case COIL -> {
+                final GtCoils.Coil coil = GtCoils.forHeat(model.coilHeat);
+                lines.add("Coil: " + (coil == null ? "none" : coil.name() + " (" + coil.heat() + " K)"));
+                if (model.recipeHeat > 0) lines.add("Recipe needs " + model.recipeHeat + " K");
+                lines.add(hint + "Click: pick  Wheel: step");
+            }
+            case MACHINES -> {
+                lines
+                    .add("Machines: x" + Fmt.machines(model.machines) + (model.pinned ? " (pinned)" : " (worked out)"));
+                lines.add(hint + "Click: type a count to pin it  Empty: unpin");
+                lines.add(hint + "Wheel: +/-1");
+            }
+            default -> {
+                return null;
+            }
+        }
+        return lines;
+    }
+
+    // endregion
+
+    // region Controls
+
+    @Override
+    public Result onMousePressed(final int mouseButton) {
+        if (model == null) return Result.IGNORE;
+        final Part part = partAt(localX(), localY());
+        final Node node = model.node;
+        switch (part) {
+            case ACTIONS -> {
+                if (mouseButton == 0) openActions();
+            }
+            case MACHINE -> {
+                if (mouseButton == 0) openMachines();
+            }
+            case TIER -> stepTier(mouseButton == 1 ? -1 : 1);
+            case AMPS -> {
+                if (mouseButton == 1) session.setSetting(node, "amp", Math.max(1, model.amps - 1));
+                else openAmps();
+            }
+            case COIL -> {
+                if (mouseButton == 0) openCoils();
+            }
+            case MACHINES -> {
+                if (mouseButton == 0) openPin();
+            }
+            default -> {
+                return mouseButton == 0 ? Result.ACCEPT : Result.IGNORE;
+            }
+        }
+        return Result.SUCCESS;
+    }
+
+    @Override
+    public boolean onMouseScroll(final UpOrDown direction, final int amount) {
+        if (model == null) return false;
+        final int step = direction == UpOrDown.UP ? 1 : -1;
+        final Node node = model.node;
+        switch (partAt(localX(), localY())) {
+            case TIER -> stepTier(step);
+            case AMPS -> session.setSetting(node, "amp", Math.max(1, Math.min(64, model.amps + step)));
+            case COIL -> stepCoil(step);
+            case MACHINE -> stepMachine(step);
+            case MACHINES -> session.pin(node, Math.max(1, Math.round(model.machines) + step));
+            default -> {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void stepTier(final int step) {
+        if (!model.gregtech) return;
+        int i = CardDefaults.tierIndex(model.tier);
+        if (i < 0) i = CardDefaults.recipeTier(model.euPerTick);
+        else i = Math.max(0, Math.min(CardDefaults.TIERS.length - 1, i + step));
+        session.setVoltage(model.node, CardDefaults.TIERS[i]);
+    }
+
+    private void stepCoil(final int step) {
+        final List<GtCoils.Coil> coils = GtCoils.all();
+        if (coils.isEmpty()) return;
+        final GtCoils.Coil now = GtCoils.forHeat(model.coilHeat);
+        int i = now == null ? -1 : coils.indexOf(now);
+        i = Math.max(0, Math.min(coils.size() - 1, i + step));
+        setCoil(coils.get(i));
+    }
+
+    private void setCoil(final GtCoils.Coil coil) {
+        session.edit(() -> {
+            final MachineConfig cfg = model.node.machineConfig;
+            cfg.setBoolean("gt_multiblock", true);
+            cfg.setInt("machine_heat", coil.heat());
+        });
+    }
+
+    private void stepMachine(final int step) {
+        final List<ItemStack> machines = model.catalysts;
+        if (machines.size() < 2) return;
+        int i = 0;
+        for (int k = 0; k < machines.size(); k++) if (machines.get(k) == model.machineStack) i = k;
+        i = (i + step + machines.size()) % machines.size();
+        session.chooseMachine(model.node, machines.get(i), model.gregtech);
+    }
+
+    private void openActions() {
+        final Node node = model.node;
+        final List<PickList.Entry> rows = new ArrayList<>();
+        rows.add(PickList.Entry.of("Clone node", () -> session.cloneNode(node)));
+        rows.add(
+            PickList.Entry.of(
+                "Replace the recipe",
+                () -> session.beginReplace(
+                    node,
+                    model.outputs.isEmpty() ? null
+                        : model.outputs.get(0)
+                            .lookupStack())));
+        rows.add(PickList.Entry.of("Machine settings", this::openSettings));
+        rows.add(new PickList.Entry(null, "Delete node", "", Hyb.RED_INK, false, () -> session.delete(node)));
+        Popup.open(
+            getPanel(),
+            PickList.popup("plannh_actions", null, rows, false, 150),
+            screenX(KEY_X),
+            screenY(CHIP_Y + 18));
+    }
+
+    private void openMachines() {
+        final List<PickList.Entry> rows = new ArrayList<>();
+        for (final ItemStack machine : model.catalysts) {
+            String detail = "";
+            if (model.gregtech) {
+                final GtMachines.Kind kind = GtMachines.of(machine);
+                if (kind != null) detail = kind.multiblock() ? "multi"
+                    : kind.tier() >= 0 && kind.tier() < CardDefaults.TIERS.length ? CardDefaults.TIERS[kind.tier()]
+                        : "";
+            }
+            rows.add(
+                new PickList.Entry(
+                    machine,
+                    machine.getDisplayName(),
+                    detail,
+                    Hyb.INK,
+                    machine == model.machineStack,
+                    () -> session.chooseMachine(model.node, machine, model.gregtech)));
+        }
+        if (rows.isEmpty()) return;
+        Popup.open(
+            getPanel(),
+            PickList.popup("plannh_machines", "MACHINES THAT RUN THIS RECIPE", rows, rows.size() > 8, 240),
+            screenX(BAR_X),
+            screenY(CHIP_Y + 18));
+    }
+
+    private void openCoils() {
+        final List<PickList.Entry> rows = new ArrayList<>();
+        final GtCoils.Coil now = GtCoils.forHeat(model.coilHeat);
+        for (final GtCoils.Coil coil : GtCoils.all()) {
+            if (coil.heat() < model.recipeHeat) continue;
+            rows.add(
+                new PickList.Entry(
+                    coil.stack(),
+                    coil.name(),
+                    coil.heat() + " K",
+                    Hyb.INK,
+                    coil == now,
+                    () -> setCoil(coil)));
+        }
+        if (rows.isEmpty()) return;
+        Popup.open(
+            getPanel(),
+            PickList.popup("plannh_coils", null, rows, true, 200),
+            screenX(COIL_X),
+            screenY(layout.settingsY + 18));
+    }
+
+    private void openAmps() {
+        Popup.open(
+            getPanel(),
+            NumberPopup.create(
+                "Energy hatch amps",
+                "1 to 64",
+                model.amps,
+                1,
+                64,
+                v -> session.setSetting(model.node, "amp", (int) Math.max(1, Math.min(64, Math.round(v))))),
+            screenX(AMPS_X),
+            screenY(CHIP_Y + 18));
+    }
+
+    private void openPin() {
+        Popup.open(
+            getPanel(),
+            NumberPopup.create(
+                "Pin the machine count (empty unpins)",
+                "machines",
+                model.pinned ? model.machines : 0,
+                0,
+                100_000,
+                v -> session.pin(model.node, v)),
+            screenX(MACHINES_X),
+            screenY(layout.footY + CardLayout.FOOT + 2));
+    }
+
+    /** Every setting the machine's profile offers, as rows: toggles flip, lists step, numbers ask. */
+    private void openSettings() {
+        final Node node = model.node;
+        final MachineConfig cfg = node.machineConfig;
+        if (cfg.getProfile() == null) return;
+        final List<PickList.Entry> rows = new ArrayList<>();
+        for (final SettingDef<?> def : cfg.getProfile()
+            .visibleSettings(new RecipeContext(node.properties), cfg.settings)) {
+            final String key = def.key;
+            if ("machines".equals(key)) continue;
+            if (def.type == Boolean.class) {
+                final boolean on = CardDefaults.boolSetting(cfg, key);
+                rows.add(new PickList.Entry(null, def.label, on ? "on" : "off", Hyb.INK, on, () -> {
+                    session.setSetting(node, key, !on);
+                    reopenSettingsNextTick();
+                }));
+            } else if (def.type == Integer.class) {
+                final int value = CardDefaults.intSetting(cfg, key);
+                rows.add(
+                    new PickList.Entry(
+                        null,
+                        def.label,
+                        Integer.toString(value),
+                        Hyb.INK,
+                        false,
+                        () -> Popup.open(
+                            getPanel(),
+                            NumberPopup.create(
+                                def.label,
+                                def.minInt + " to " + def.maxInt,
+                                value,
+                                def.minInt,
+                                def.maxInt,
+                                v -> session.setSetting(
+                                    node,
+                                    key,
+                                    (int) Math.max(def.minInt, Math.min(def.maxInt, Math.round(v))))),
+                            screenX(KEY_X),
+                            screenY(CHIP_Y + 18))));
+            } else if (def.options != null && !def.options.isEmpty()) {
+                final String value = CardDefaults.stringSetting(cfg, key);
+                rows.add(new PickList.Entry(null, def.label, value, Hyb.INK, false, () -> {
+                    final int i = def.options.indexOf(value);
+                    session.setSetting(node, key, def.options.get((i + 1) % def.options.size()));
+                    reopenSettingsNextTick();
+                }));
+            }
+        }
+        if (rows.isEmpty()) return;
+        Popup.open(
+            getPanel(),
+            PickList.popup("plannh_settings", "MACHINE SETTINGS", rows, false, 260),
+            screenX(KEY_X),
+            screenY(CHIP_Y + 18));
+    }
+
+    /** The model shown when a setting was toggled; once a newer one arrives the settings list opens again. */
+    private CardModel reopenSettingsAfter;
+
+    /** Toggling closes the list (it is a pick list); bring it back, re-solved, so settings can be changed in a row. */
+    private void reopenSettingsNextTick() {
+        reopenSettingsAfter = model;
     }
 
     // endregion
@@ -229,13 +654,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     // region Moving the card
 
     @Override
-    public Result onMousePressed(final int mouseButton) {
-        return mouseButton == 0 ? Result.ACCEPT : Result.IGNORE;
-    }
-
-    @Override
     public boolean onDragStart(final int button) {
-        if (button != 0 || model == null) return false;
+        if (button != 0 || model == null || partAt(localX(), localY()) != Part.BODY) return false;
         final Node node = model.node;
         dragStartX = node.x;
         dragStartY = node.y;
@@ -248,7 +668,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
     @Override
     public void onDrag(final int mouseButton, final long timeSinceLastClick) {
-        if (model == null) return;
+        if (model == null || dragUndo == null) return;
         final float zoom = session.graph()
             .getZoom();
         final Node node = model.node;

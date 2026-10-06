@@ -21,6 +21,7 @@ import com.sbancuz.plannh.PlanNH;
 import com.sbancuz.plannh.ui.canvas.BoardCanvas;
 import com.sbancuz.plannh.ui.card.CardModel;
 import com.sbancuz.plannh.ui.card.PortSlot;
+import com.sbancuz.plannh.ui.card.RecipeCard;
 import com.sbancuz.plannh.ui.theme.Fmt;
 import com.sbancuz.plannh.ui.theme.Hyb;
 
@@ -123,13 +124,21 @@ public final class BoardScreen extends ModularScreen {
      * hovered, so the board draws it in the foreground pass.
      */
     private void drawPortTooltip() {
-        if (!(getContext().getHovered() instanceof final PortSlot slot)) return;
-        final ItemStack stack = slot.stack();
-        final CardModel.PortView view = slot.view();
-        if (stack == null || view == null) return;
-        final List<String> lines = new ArrayList<>(GuiContainerManager.itemDisplayNameMultiline(stack, null, true));
-        if (lines.isEmpty()) lines.add(view.name());
-        lines.add("§7" + Fmt.rate(view.perSecond(), session.rateUnit(), view.isFluid()));
+        final Object hovered = getContext().getHovered();
+        final List<String> lines;
+        if (hovered instanceof final RecipeCard card) {
+            lines = card.hoverLines();
+            if (lines == null) return;
+        } else if (hovered instanceof final PortSlot slot) {
+            final ItemStack stack = slot.stack();
+            final CardModel.PortView view = slot.view();
+            if (stack == null || view == null) return;
+            lines = new ArrayList<>(GuiContainerManager.itemDisplayNameMultiline(stack, null, true));
+            if (lines.isEmpty()) lines.add(view.name());
+            lines.add("§7" + Fmt.rate(view.perSecond(), session.rateUnit(), view.isFluid()));
+        } else {
+            return;
+        }
         GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_DEPTH_BUFFER_BIT);
         GL11.glDisable(GL11.GL_DEPTH_TEST);
         drawMultilineTip(getContext().getAbsMouseX() + 12, getContext().getAbsMouseY() - 12, lines);

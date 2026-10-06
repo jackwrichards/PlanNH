@@ -1,10 +1,13 @@
 package com.sbancuz.plannh.ui;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import net.minecraft.item.ItemStack;
 
 import com.sbancuz.plannh.PlanNH;
 import com.sbancuz.plannh.api.PlanAPI;
@@ -17,11 +20,15 @@ import com.sbancuz.plannh.data.flowchart.balancer.BalanceMode;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceResult;
 import com.sbancuz.plannh.data.flowchart.balancer.Balancer;
 import com.sbancuz.plannh.nei.NodeLookupContext;
+import com.sbancuz.plannh.ui.card.CardDefaults;
 import com.sbancuz.plannh.ui.card.CardLayout;
 import com.sbancuz.plannh.ui.card.CardModel;
+import com.sbancuz.plannh.ui.gt.GtMachines;
 import com.sbancuz.plannh.ui.theme.Fmt;
 
+import codechicken.nei.recipe.GuiCraftingRecipe;
 import codechicken.nei.recipe.IRecipeHandler;
+import codechicken.nei.recipe.RecipeHandlerRef;
 
 /**
  * The open board: which plan slot is shown, its latest solve, and the card models built from it. Every edit goes
@@ -39,6 +46,7 @@ public final class BoardSession {
     private int structure;
     private Fmt.RateUnit rateUnit = Fmt.RateUnit.SECOND;
     private NodeLookupContext pendingLookup;
+    private UUID pendingReplace;
 
     BoardSession() {
         graph = Plan.getActiveGraph();
@@ -108,7 +116,15 @@ public final class BoardSession {
     public Node addRecipe(final IRecipeHandler handler, final int recipeIndex) {
         final NodeLookupContext origin = pendingLookup;
         pendingLookup = null;
+        final UUID replacing = pendingReplace;
+        pendingReplace = null;
         final Node node = new Node(handler, recipeIndex, 0, 0);
+        CardDefaults.apply(node);
+        final Node old = replacing == null ? null : graph.nodes.get(replacing);
+        if (old != null) {
+            edit(() -> replaceNode(old, node));
+            return node;
+        }
         edit(() -> {
             graph.addNode(node);
             final Node from = origin == null ? null : graph.nodes.get(origin.nodeId());
@@ -154,6 +170,108 @@ public final class BoardSession {
         node.x = right == Integer.MIN_VALUE ? 40 : right + GAP;
         node.y = top == Integer.MAX_VALUE ? 40 : top;
     }
+
+    // region Card edits (each one undoable, saved, re-solved)
+
+    public void setVoltage(final Node node, final String tier) {
+        edit(() -> node.machineConfig.setString("voltage", tier));
+    }
+
+    public void setSetting(final Node node, final String key, final Object value) {
+        edit(() -> {
+            if (value instanceof final Boolean b) node.machineConfig.setBoolean(key, b);
+            else if (value instanceof final Integer i) node.machineConfig.setInt(key, i);
+            else node.machineConfig.setString(key, String.valueOf(value));
+        });
+    }
+
+    /** Picks which machine runs the recipe; GregTech single blocks bring their tier, multiblocks their options. */
+    public void chooseMachine(final Node node, final ItemStack machine, final boolean gregtech) {
+        edit(() -> {
+            node.machineName = CardDefaults.itemKey(machine);
+            if (!gregtech) return;
+            final GtMachines.Kind kind = GtMachines.of(machine);
+            if (kind == null) return;
+            node.machineConfig.setBoolean("gt_multiblock", kind.multiblock());
+            if (!kind.multiblock() && kind.tier() >= 0 && kind.tier() < CardDefaults.TIERS.length) {
+                node.machineConfig.setString("voltage", CardDefaults.TIERS[kind.tier()]);
+            }
+        });
+    }
+
+    /** Pins the machine count (gold on the card); zero or less unpins and lets the plan decide. */
+    public void pin(final Node node, final double count) {
+        edit(() -> {
+            if (count <= 0) {
+                node.setMachineCountFixed(false);
+                return;
+            }
+            node.machineConfig.setMachineCount(Math.max(1, (int) Math.round(count)));
+            node.setMachineCountFixed(true);
+        });
+    }
+
+    public void delete(final Node node) {
+        edit(() -> graph.removeNode(node.id));
+    }
+
+    /** A copy of the card beside it, with the same machine and settings, not wired. */
+    public void cloneNode(final Node node) {
+        final RecipeHandlerRef ref = RecipeHandlerRef.of(node.recipeId);
+        if (ref == null) return;
+        final Node copy = new Node(ref.handler, ref.recipeIndex, node.x + 24, node.y + 24);
+        edit(() -> {
+            copy.machineConfig.copySettingsFrom(node.machineConfig);
+            copy.machineName = node.machineName;
+            graph.addNode(copy);
+        });
+    }
+
+    /**
+     * Opens NEI on what makes the card's main output; the recipe added from there with + takes this card's place and
+     * keeps every wire that still fits.
+     */
+    public void beginReplace(final Node node, final ItemStack lookup) {
+        pendingReplace = node.id;
+        pendingLookup = null;
+        if (lookup != null) GuiCraftingRecipe.openRecipeGui("item", lookup);
+    }
+
+    private void replaceNode(final Node old, final Node added) {
+        added.x = old.x;
+        added.y = old.y;
+        // The tier is a choice about the line, so it carries over; machine, amps and coil come from the new recipe.
+        if (CardModel.GT_PROFILE.equals(added.machineConfig.profileId)
+            && CardModel.GT_PROFILE.equals(old.machineConfig.profileId)) {
+            added.machineConfig.setString("voltage", CardDefaults.stringSetting(old.machineConfig, "voltage"));
+        }
+        if (old.isMachineCountFixed()) added.machineConfig.setMachineCount(old.machineConfig.getMachineCount());
+        added.setMachineCountFixed(old.isMachineCountFixed());
+        graph.addNode(added);
+        for (final Edge e : new ArrayList<>(graph.getEdges())) {
+            if (e.sourceNodeId.equals(old.id) && e.sourceOutputIndex < old.outputs.size()) {
+                final Port<?> was = old.outputs.get(e.sourceOutputIndex);
+                for (int out = 0; out < added.outputs.size(); out++) {
+                    if (added.outputs.get(out)
+                        .canConnect(was)) {
+                        graph.addEdge(new Edge(UUID.randomUUID(), added.id, e.targetNodeId, out, e.targetInputIndex));
+                        break;
+                    }
+                }
+            } else if (e.targetNodeId.equals(old.id) && e.targetInputIndex < old.inputs.size()) {
+                final Port<?> was = old.inputs.get(e.targetInputIndex);
+                for (int in = 0; in < added.inputs.size(); in++) {
+                    if (was.canConnect(added.inputs.get(in))) {
+                        graph.addEdge(new Edge(UUID.randomUUID(), e.sourceNodeId, added.id, e.sourceOutputIndex, in));
+                        break;
+                    }
+                }
+            }
+        }
+        graph.removeNode(old.id);
+    }
+
+    // endregion
 
     /** Called every client tick while the board is open. Never from drawing. */
     @SuppressWarnings("deprecation")

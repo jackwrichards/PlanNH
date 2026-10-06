@@ -40,6 +40,7 @@ import org.lwjgl.input.Mouse;
 
 import com.cleanroommc.modularui.api.IMuiScreen;
 import com.cleanroommc.modularui.api.widget.IWidget;
+import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.ModularScreen;
 import com.cleanroommc.modularui.screen.viewport.LocatedWidget;
 import com.cleanroommc.modularui.widget.sizer.Area;
@@ -246,6 +247,45 @@ public final class DevHarness {
                         q.getOrDefault("input", ""),
                         intArg(q, "x", 200),
                         intArg(q, "y", 200)));
+            case "/frame":
+                return onClient(() -> {
+                    final ModularScreen mui = muiScreen();
+                    final Map<String, Object> r = new LinkedHashMap<>();
+                    if (mui == null) return error("no ModularUI screen");
+                    try {
+                        mui.onFrameUpdate();
+                    } catch (final Throwable t) {
+                        PlanNH.LOG.warn("[dev] frame update failed", t);
+                        r.put("error", t.toString());
+                    }
+                    final IWidget hovered = mui.getContext()
+                        .getHovered();
+                    r.put("hovered", hovered == null ? null : describe(hovered));
+                    final List<String> below = new ArrayList<>();
+                    for (final IWidget w : mui.getContext()
+                        .getAllBelowMouse()) below.add(describe(w));
+                    r.put("belowMouse", below);
+                    final List<String> panelList = new ArrayList<>();
+                    for (final ModularPanel p : mui.getPanelManager()
+                        .getOpenPanels()) {
+                        for (final com.cleanroommc.modularui.screen.viewport.LocatedWidget lw : p
+                            .getAllHoveringList(false)) {
+                            panelList.add(p.getName() + ": " + describe((IWidget) lw.getElement()));
+                        }
+                    }
+                    r.put("panelHovering", panelList);
+                    return r;
+                });
+            case "/board":
+                return onClient(DevBoard::board);
+            case "/view":
+                return onClient(() -> {
+                    DevBoard.view(
+                        Float.parseFloat(q.getOrDefault("zoom", "1")),
+                        Float.parseFloat(q.getOrDefault("panX", "0")),
+                        Float.parseFloat(q.getOrDefault("panY", "0")));
+                    return ok();
+                });
             case "/clearplan":
                 requireWorld();
                 return onClient(DevRecipes::clearPlan);
@@ -271,7 +311,9 @@ public final class DevHarness {
                 "/cmd?c=/time set day - run a command as the player",
                 "/addrecipe?output=dustRutile[&handler=blast][&input=ilmenite][&x&y] - put a real recipe on the board",
                 "/clearplan - empty the active board (one undoable edit)",
-                "/quit - shut the client down"));
+                "/board - open board as data: view, and per card its state and every control's GUI rect (cx, cy)",
+                "/view?zoom&panX&panY - set the board view (defaults 1, 0, 0)",
+                "/quit - ask the client to quit (may hang on a confirm dialog with GT; mc.sh stop kills)"));
         return m;
     }
 
@@ -302,7 +344,28 @@ public final class DevHarness {
                 .getFocusedWidget();
             m.put("hovered", hovered == null ? null : describe(hovered));
             m.put("focused", focused == null || focused.getElement() == null ? null : describe(focused.getElement()));
+            final List<Object> panels = new ArrayList<>();
+            for (final ModularPanel p : mui.getPanelManager()
+                .getOpenPanels()) {
+                panels.add(
+                    p.getName() + " enabled="
+                        + p.isEnabled()
+                        + " anyHovered="
+                        + p.isAnyHovered()
+                        + " valid="
+                        + p.isValid());
+            }
+            m.put("panels", panels);
+            m.put(
+                "muiMouseX",
+                mui.getContext()
+                    .getAbsMouseX());
+            m.put(
+                "muiMouseY",
+                mui.getContext()
+                    .getAbsMouseY());
         }
+        m.put("windowActive", org.lwjgl.opengl.Display.isActive());
         m.put("displayWidth", mc.displayWidth);
         m.put("displayHeight", mc.displayHeight);
         m.put("guiWidth", sr.getScaledWidth());
