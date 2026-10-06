@@ -182,13 +182,6 @@ public class CanvasWidget extends ParentWidget<CanvasWidget> implements Interact
 
     @Nullable
     private NodeLookupContext pendingLookup = null;
-    @Setter
-    @Nullable
-    private Menu<?> targetEditorMenu = null;
-    @Nullable
-    private Node targetEditNode;
-    private int targetEditOutput = -1;
-    private boolean targetFocusPending;
 
     @Nullable
     @Getter
@@ -373,62 +366,6 @@ public class CanvasWidget extends ParentWidget<CanvasWidget> implements Interact
             .set(plan.getActiveIndex(), restored);
         setGraph(restored);
         PlanAPI.save();
-    }
-
-    // ── Target-rate editor ──
-    // The node config panel is immediate-mode drawing, so it cannot host a text widget; the
-    // editor is a screen-level menu (same pattern as the context menu) that this widget opens
-    // and positions, with the value bridged through the two methods below.
-    // TODO rework
-    public boolean isTargetEditorOpen() {
-        return targetEditNode != null;
-    }
-
-    public void openTargetEditor(final Node node, final int outputIndex) {
-        targetEditNode = node;
-        targetEditOutput = outputIndex;
-        if (targetEditorMenu != null) {
-            targetEditorMenu.pos(getContext().getAbsMouseX(), getContext().getAbsMouseY());
-        }
-        targetFocusPending = true;
-    }
-
-    /**
-     * True exactly once per editor opening, and only while the editor is still open.
-     */
-    public boolean consumeTargetEditorFocus() {
-        if (!targetFocusPending || targetEditNode == null) return false;
-        targetFocusPending = false;
-        return true;
-    }
-
-    public void closeTargetEditor() {
-        targetEditNode = null;
-        targetEditOutput = -1;
-    }
-
-    public double editedTargetRate() {
-        if (targetEditNode == null) return 0;
-        return targetEditNode.getTargetOutputRates()
-            .getOrDefault(targetEditOutput, 0.0);
-    }
-
-    /**
-     * Commits the typed rate as one undo step and closes the editor; 0 clears the pin.
-     */
-    public void setEditedTargetRate(final double rate) {
-        final Node node = targetEditNode;
-        final int out = targetEditOutput;
-        if (node == null) return;
-        PlanAPI.recordEdit(graph, () -> {
-            if (rate <= 0) node.getTargetOutputRates()
-                .remove(out);
-            else node.getTargetOutputRates()
-                .put(out, rate);
-        });
-        graph.bumpVersion();
-        PlanAPI.save();
-        closeTargetEditor();
     }
 
     // todo redo

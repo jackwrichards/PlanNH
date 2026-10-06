@@ -279,6 +279,7 @@ public final class Serializer {
 
         if (root.has("nodes")) {
             for (final JsonElement elem : root.getAsJsonArray("nodes")) {
+                migrateNodeTargets(elem.getAsJsonObject());
                 final Node node = GSON.fromJson(elem, Node.class);
 
                 if (node.invalid()) {
@@ -307,6 +308,42 @@ public final class Serializer {
         }
 
         return graph;
+    }
+
+    /**
+     * Moves a save's node-level targets into the machine config, which is where they live now.
+     *
+     * <p>
+     * A node's count, rates and target kind used to be its own fields, where the reflective
+     * serializer wrote them for free. They belong to {@link MachineConfig} now, and that has a
+     * hand-written adapter - so a save written before the move has all three one level too high,
+     * where nothing reads them and every pin in the plan silently comes back unpinned.
+     */
+    static void migrateNodeTargets(final JsonObject node) {
+        final JsonElement config = node.get("machineConfig");
+        if (config == null || !config.isJsonObject()) return;
+        final JsonObject target = config.getAsJsonObject();
+
+        moveTarget(node, target, "targetKind", null);
+
+        // The count was an object either way, so it moves as it stands.
+        final JsonElement count = node.remove("count");
+        if (count != null && count.isJsonObject()) moveTarget(node, target, "count", count);
+
+        // The rates were written as the target object, so the map sat under its own field name.
+        final JsonElement rates = node.remove("rates");
+        if (rates != null && rates.isJsonObject()) {
+            final JsonObject wrapper = rates.getAsJsonObject();
+            moveTarget(node, target, "rates", wrapper.has("rates") ? wrapper.get("rates") : wrapper);
+        }
+    }
+
+    /** Puts a legacy value on the config, unless the config already carries that field itself. */
+    private static void moveTarget(final JsonObject node, final JsonObject config, final String key,
+        @Nullable final JsonElement unwrapped) {
+        final JsonElement value = unwrapped != null ? unwrapped : node.remove(key);
+        if (value == null || value.isJsonNull() || config.has(key)) return;
+        config.add(key, value);
     }
 
     // ── Mermaid helpers ──

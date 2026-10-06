@@ -19,11 +19,18 @@ import com.sbancuz.plannh.gui.GuiHelper;
 import com.sbancuz.plannh.gui.PlannhColors;
 import com.sbancuz.plannh.gui.common.FlowchartWidget;
 import com.sbancuz.plannh.gui.node.NodeWidget;
+import com.sbancuz.plannh.gui.tooltips.TooltipBuilder;
 
 public class MachineGroupWidget extends GroupWidget<MachineGroup> {
 
     @Nullable
     private Node mainNode;
+
+    /** The load label, kept so its tooltip can be invalidated without rebuilding the header. */
+    private TextWidget<?> loadLabel;
+
+    private double lastLoad = Double.NaN;
+    private String lastName = "";
 
     public MachineGroupWidget(CanvasWidget canvas, MachineGroup data) {
         super(canvas, data);
@@ -128,21 +135,41 @@ public class MachineGroupWidget extends GroupWidget<MachineGroup> {
      * there. Empty for a group with no solved nodes, which collapses the widget away.
      */
     private TextWidget<?> loadLabel() {
-        return new TextWidget<>(IKey.dynamic(() -> {
-            final double load = machineLoad();
+        loadLabel = new TextWidget<>(IKey.dynamic(() -> {
+            final double load = copyLoad();
             if (load <= 0) return "";
             final String used = "×" + GuiHelper.formatCount(load);
             return data.getMachineCapacity() > 0 ? used + " / " + data.getMachineCapacity() : used;
         })).color(PlannhColors.SUMMARY_TEXT_MUTED.getColor())
             .textAlign(Alignment.CenterRight)
             .tooltipPos(RichTooltip.Pos.BELOW)
-            .tooltipAutoUpdate(true)
-            .tooltipDynamic(tooltip -> {
-                final double load = machineLoad();
-                if (load <= 0) return;
-                tooltip.add("×" + GuiHelper.formatCount(load) + " " + machineName())
-                    .newLine();
-            });
+            .tooltipBuilder(
+                tooltip -> TooltipBuilder.create(tooltip)
+                    .langRow("plannh.gui.group.load", GuiHelper.formatCount(copyLoad()), machineName())
+                    .flush());
+        lastLoad = copyLoad();
+        lastName = machineName();
+        return loadLabel;
+    }
+
+    /**
+     * Keeps the load label's tooltip from going stale under the cursor.
+     *
+     * <p>
+     * The tooltip restates the load and names the machine, and both can move while the label stays
+     * exactly where it is - a re-solve moves the first, the name field the second. Neither rebuilds
+     * this widget, so the tooltip is what has to be told. Two comparisons a tick, and ModularUI only
+     * asks for them at all once the tooltip is on screen.
+     */
+    @Override
+    public void onUpdate() {
+        super.onUpdate();
+        final double load = copyLoad();
+        final String name = machineName();
+        if (load == lastLoad && name.equals(lastName)) return;
+        lastLoad = load;
+        lastName = name;
+        if (loadLabel != null) loadLabel.markTooltipDirty();
     }
 
     /**
@@ -160,7 +187,7 @@ public class MachineGroupWidget extends GroupWidget<MachineGroup> {
      * under the same settings, which is what makes the sum a single machine's worth of work rather
      * than an addition of unlike things.
      */
-    private double machineLoad() {
+    private double copyLoad() {
         // todo after balancer connection
         /*
          * final Graph graph = canvas.getGraph();
