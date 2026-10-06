@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import net.minecraft.item.ItemStack;
+import net.minecraftforge.fluids.FluidStack;
 
 import com.sbancuz.plannh.Compat;
 import com.sbancuz.plannh.api.RecipePropertyAPI;
@@ -323,19 +324,22 @@ public class GTProvider implements PropertyProvider {
         node.inputs.clear();
         node.outputs.clear();
 
+        // Copies, never GT's own stacks: Node.deduplicate merges ports by writing the summed amount
+        // into the first one, which on an aliased stack rewrites the recipe itself (and grows it
+        // again on every refresh).
         for (int i = 0; i < r.mInputs.length; i++) {
             if (r.mInputs[i].stackSize <= 0) continue;
             node.inputs.add(
                 new Port<>(
                     RecipePropertyAPI.ITEM,
-                    r.mInputs[i],
+                    copyOf(r.mInputs[i]),
                     r.mInputChances != null ? r.mInputChances[i] / GT_CHANCE_SCALE : 1.f));
         }
         for (int i = 0; i < r.mOutputs.length; i++) {
             node.outputs.add(
                 new Port<>(
                     RecipePropertyAPI.ITEM,
-                    r.mOutputs[i],
+                    copyOf(r.mOutputs[i]),
                     r.mOutputChances != null ? r.mOutputChances[i] / GT_CHANCE_SCALE : 1.f));
         }
         for (int i = 0; i < r.mFluidInputs.length; i++) {
@@ -343,14 +347,14 @@ public class GTProvider implements PropertyProvider {
             node.inputs.add(
                 new Port<>(
                     RecipePropertyAPI.FLUID,
-                    r.mFluidInputs[i],
+                    copyOf(r.mFluidInputs[i]),
                     r.mFluidInputChances != null ? r.mFluidInputChances[i] / GT_CHANCE_SCALE : 1.f));
         }
         for (int i = 0; i < r.mFluidOutputs.length; i++) {
             node.outputs.add(
                 new Port<>(
                     RecipePropertyAPI.FLUID,
-                    r.mFluidOutputs[i],
+                    copyOf(r.mFluidOutputs[i]),
                     r.mFluidOutputChances != null ? r.mFluidOutputChances[i] / GT_CHANCE_SCALE : 1.f));
         }
 
@@ -358,6 +362,16 @@ public class GTProvider implements PropertyProvider {
         node.outputs.removeIf(p -> p.getValue() instanceof ItemStack stack && stack.getItem() instanceof ItemFluidDisplay);
 
         return props;
+    }
+
+    @Nullable
+    private static ItemStack copyOf(@Nullable final ItemStack stack) {
+        return stack == null ? null : stack.copy();
+    }
+
+    @Nullable
+    private static FluidStack copyOf(@Nullable final FluidStack stack) {
+        return stack == null ? null : stack.copy();
     }
 
 }
