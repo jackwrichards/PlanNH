@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nullable;
 
@@ -66,12 +67,17 @@ public class Graph {
      */
     private List<BalanceView.Boundary> boundaryView = null;
 
+    /** Shared by every graph, so a version names one state of one graph across the whole client. */
+    private static final AtomicLong VERSIONS = new AtomicLong();
+
     /**
-     * Monotonic counter bumped on every mutation; derived caches (the solve, the summary, the
-     * boundary view) each compare against it to know when they are stale. Transient because
-     * a loaded plan starts cold and re-derives everything on first ask.
+     * Moves on every mutation; derived caches (the solve, the summary, the boundary view) each
+     * compare against it to know when they are stale. Drawn from one client-wide counter, so it
+     * only ever grows and no two graphs - a slot and the graph an undo put in its place, say - ever
+     * share a value: equal versions mean the same graph in the same state. Transient because a
+     * loaded plan starts cold and re-derives everything on first ask.
      */
-    private transient long version = 0;
+    private transient long version = VERSIONS.incrementAndGet();
 
     /** The graph version the solve caches above were built from. */
     private transient long solvedAt = -1;
@@ -89,7 +95,7 @@ public class Graph {
     }
 
     private void bumpVersion() {
-        version++;
+        version = VERSIONS.incrementAndGet();
     }
 
     /**

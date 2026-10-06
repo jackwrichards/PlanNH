@@ -10,8 +10,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.sbancuz.plannh.Config;
-import com.sbancuz.plannh.data.flowchart.Node;
-import com.sbancuz.plannh.data.flowchart.Port;
 
 /**
  * The whole solve's answer, shaped for the GUI: per-node extents and machine counts, per-edge
@@ -51,8 +49,8 @@ public final class SolutionView {
             * ctx.solutionScale(ctx.extents(), ctx.flows(), ctx.externals());
         for (int m = 0; m < model.machines.size(); m++) {
             final ModelData.Machine md = model.machines.get(m);
-            extentsPerSecond.put(md.node.id, ctx.extents()[m]);
-            machineCounts.put(md.node.id, ctx.extents()[m] * md.durTicks / (double) Numerics.TICKS_PER_SECOND);
+            extentsPerSecond.put(md.spec.id(), ctx.extents()[m]);
+            machineCounts.put(md.spec.id(), ctx.extents()[m] * md.durTicks / (double) Numerics.TICKS_PER_SECOND);
         }
         for (int e = 0; e < model.edges.size(); e++) {
             edgeFlowsPerSecond.put(
@@ -115,7 +113,7 @@ public final class SolutionView {
             if (model.portLookup.containsKey(key)) continue; // connected, not a terminal
             final double rate = ctx.extents()[m] * qty;
             if (rate <= tol) continue;
-            out.add(new External(new PortRef(md.node.id, i, input), rate));
+            out.add(new External(new PortRef(md.spec.id(), i, input), rate));
         }
     }
 
@@ -132,7 +130,8 @@ public final class SolutionView {
      * Severities differ because the two smells do: importing from outside while the chart also
      * makes some is routine, so smell 1 is an observation. Two unlinked islands of the SAME
      * ingredient is a chart that does not describe one factory, so smell 2 is a warning.
-     * Ingredients the pack gives away are filtered out of both - see {@link Config#isFreeIngredient}.
+     * Ingredients the pack gives away are filtered out of both - see {@link Config#isFreeIngredient}, read
+     * when the snapshot was taken.
      */
     private List<Note> wiringDiagnostics(final SolveContext ctx, final double tol, final List<External> terminalIn) {
         final ModelData model = ctx.model;
@@ -147,11 +146,11 @@ public final class SolutionView {
         }
         for (final External in : terminalIn) {
             if (supplied.contains(in.port())) continue;
-            final String ingredient = ingredientNameOf(ctx, in);
-            if (Config.isFreeIngredient(ingredient)) continue;
+            final SolveInput.PortIn ingredient = portOf(ctx, in);
+            if (ingredient.free()) continue;
             final String match = findProduction(ctx, in, -1);
             if (match != null) {
-                result.add(new Note(SolverMessage.WIRING_IMPORT, machineNameOf(ctx, in), ingredient, match));
+                result.add(new Note(SolverMessage.WIRING_IMPORT, machineNameOf(ctx, in), ingredient.name(), match));
             }
         }
         for (int p = 0; p < model.connectedPorts.size(); p++) {
@@ -159,11 +158,11 @@ public final class SolutionView {
             if (!port.input() || ctx.externals()[p] <= tol) continue;
             final External src = new External(ctx.refOf(p), ctx.externals()[p]);
             if (supplied.contains(src.port())) continue;
-            final String ingredient = ingredientNameOf(ctx, src);
-            if (Config.isFreeIngredient(ingredient)) continue;
+            final SolveInput.PortIn ingredient = portOf(ctx, src);
+            if (ingredient.free()) continue;
             final String match = findProduction(ctx, src, model.portComponent[p]);
             if (match != null) {
-                result.add(new Note(SolverMessage.WIRING_UNLINKED, machineNameOf(ctx, src), ingredient, match));
+                result.add(new Note(SolverMessage.WIRING_UNLINKED, machineNameOf(ctx, src), ingredient.name(), match));
             }
         }
         return List.copyOf(result);
@@ -176,51 +175,47 @@ public final class SolutionView {
      */
     private String findProduction(final SolveContext ctx, final External consumer, final int excludeComponent) {
         final ModelData model = ctx.model;
-        final Port<?> want = portOf(ctx, consumer);
+        final int want = portOf(ctx, consumer).resource();
         for (int p = 0; p < model.connectedPorts.size(); p++) {
             final ModelData.ConnectedPort port = model.connectedPorts.get(p);
             if (port.input() || model.portComponent[p] == excludeComponent) continue;
             final ModelData.Machine md = model.machines.get(port.machine());
-            if (want.canConnect(md.node.outputs.get(port.portIndex()))) {
-                return md.node.machineName;
+            if (md.port(port.portIndex(), false)
+                .resource() == want) {
+                return md.spec.name();
             }
         }
         for (int m = 0; m < model.machines.size(); m++) {
             final ModelData.Machine md = model.machines.get(m);
             for (int i = 0; i < md.outQty.length; i++) {
                 if (md.outQty[i] <= 0) continue;
-                final long key = ((long) m << 32) | ((long) i << 1);
-                if (model.portLookup.containsKey(key)) continue; // connected, handled above
-                if (want.canConnect(md.node.outputs.get(i))) {
-                    return md.node.machineName;
+                if (model.portLookup.containsKey(ModelData.portKey(m, i, false))) continue; // connected, handled above
+                if (md.port(i, false)
+                    .resource() == want) {
+                    return md.spec.name();
                 }
             }
         }
         return null;
     }
 
-    private Port<?> portOf(final SolveContext ctx, final External external) {
+    private SolveInput.PortIn portOf(final SolveContext ctx, final External external) {
         final ModelData model = ctx.model;
-        final Node node = model.machines.get(
+        return model.machines.get(
             model.machineIndex.get(
                 external.port()
-                    .nodeId())).node;
-        final List<Port<?>> ports = external.port()
-            .input() ? node.inputs : node.outputs;
-        return ports.get(
-            external.port()
-                .portIndex());
+                    .nodeId()))
+            .port(
+                external.port()
+                    .portIndex(),
+                external.port()
+                    .input());
     }
 
     private String machineNameOf(final SolveContext ctx, final External external) {
         return ctx.model.machines.get(
             ctx.model.machineIndex.get(
                 external.port()
-                    .nodeId())).node.machineName;
-    }
-
-    /** The ingredient at a port, named the way the rest of the GUI names it. */
-    private String ingredientNameOf(final SolveContext ctx, final External external) {
-        return portOf(ctx, external).getDisplayName();
+                    .nodeId())).spec.name();
     }
 }

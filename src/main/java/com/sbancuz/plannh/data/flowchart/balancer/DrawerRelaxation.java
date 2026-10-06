@@ -109,8 +109,8 @@ final class DrawerRelaxation {
                 try {
                     if (keptWithout(ctx, d)) {
                         final ModelData.Machine md = ctx.model.machines.get(m);
-                        nodes.add(md.node.id);
-                        limits.add(new Note(SolverMessage.LIMIT_PIN, md.node.machineName, ctx.pinKind[m].toNote()));
+                        nodes.add(md.spec.id());
+                        limits.add(new Note(SolverMessage.LIMIT_PIN, md.spec.name(), ctx.pinKind[m].toNote()));
                     }
                 } finally {
                     ctx.pinnedExtent[m] = saved;

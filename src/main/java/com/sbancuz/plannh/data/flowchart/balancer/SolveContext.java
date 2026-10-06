@@ -13,7 +13,6 @@ import java.util.UUID;
 import javax.annotation.Nullable;
 
 import com.sbancuz.plannh.data.flowchart.Drawer;
-import com.sbancuz.plannh.data.flowchart.Graph;
 
 /**
  * The shared, mutable state of one solve run - the "threaded" half of the zero-copy pipeline.
@@ -99,10 +98,10 @@ public final class SolveContext {
     /** Stage notes produced by the pass currently running (cleared on every pass). */
     public final List<Note> stageNotes = new ArrayList<>();
 
-    SolveContext(final Graph graph, final Heuristics heuristics, final Budget budget,
+    SolveContext(final SolveInput input, final Heuristics heuristics, final Budget budget,
         final Map<UUID, Double> extraExtentPins, final Set<Pin> pins, final boolean bindsExternals,
         final Profiler profiler) {
-        this.model = new ModelData(graph, heuristics);
+        this.model = new ModelData(input, heuristics);
         this.heuristics = heuristics;
         this.budget = budget;
         this.pins = Set.copyOf(pins);
@@ -115,7 +114,7 @@ public final class SolveContext {
         boolean any = false;
         for (int m = 0; m < n; m++) {
             final ModelData.Machine md = model.machines.get(m);
-            final Double extra = extraExtentPins.get(md.node.id);
+            final Double extra = extraExtentPins.get(md.spec.id());
             if (pins.contains(Pin.EXTENT) && extra != null) {
                 pinnedExtent[m] = extra;
                 pinKind[m] = SolverMessage.PIN_EXTENT;
@@ -241,7 +240,8 @@ public final class SolveContext {
     private void noteOvershotTargets(final int m, final double chosenExtent) {
         final ModelData.Machine md = model.machines.get(m);
         final double tieRel = heuristics.numerics().tieRel;
-        for (final Map.Entry<Integer, Double> t : md.node.targetOutputRates.entrySet()) {
+        for (final Map.Entry<Integer, Double> t : md.spec.targetOutputRates()
+            .entrySet()) {
             if (t.getValue() == null || t.getValue() <= 0) continue;
             final int i = t.getKey();
             if (i < 0 || i >= md.outQty.length || md.outQty[i] <= 0) continue;
@@ -250,9 +250,9 @@ public final class SolveContext {
                 notes.add(
                     new Note(
                         SolverMessage.OVERSHOOTS_TARGET,
-                        md.node.machineName,
-                        md.node.outputs.get(i)
-                            .getDisplayName(),
+                        md.spec.name(),
+                        md.port(i, false)
+                            .name(),
                         actual,
                         t.getValue()));
             }
@@ -353,7 +353,7 @@ public final class SolveContext {
 
     public PortRef refOf(final int port) {
         final ModelData.ConnectedPort p = model.connectedPorts.get(port);
-        return new PortRef(model.machines.get(p.machine()).node.id, p.portIndex(), p.input());
+        return new PortRef(model.machines.get(p.machine()).spec.id(), p.portIndex(), p.input());
     }
 
     public @Nullable PortRef anchorOf(final int gate) {
@@ -430,7 +430,7 @@ public final class SolveContext {
                     + "["
                     + port.portIndex()
                     + "] of '"
-                    + model.machines.get(port.machine()).node.machineName
+                    + model.machines.get(port.machine()).spec.name()
                     + "' residual "
                     + residual;
             }
@@ -462,7 +462,7 @@ public final class SolveContext {
                 if (saved.size() == pinned.size() - 1) return null; // one pin left: not a conflict
                 saved.put(m, pinnedExtent[m]);
                 pinnedExtent[m] = Double.NaN;
-                dropped.add("'" + model.machines.get(m).node.machineName + "' (" + pinKind[m].describe() + ")");
+                dropped.add("'" + model.machines.get(m).spec.name() + "' (" + pinKind[m].describe() + ")");
             }
         } finally {
             saved.forEach((m, value) -> pinnedExtent[m] = value);

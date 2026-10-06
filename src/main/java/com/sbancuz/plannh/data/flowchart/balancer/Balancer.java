@@ -11,9 +11,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.sbancuz.plannh.PlanNH;
-import com.sbancuz.plannh.data.MachineConfig;
 import com.sbancuz.plannh.data.flowchart.Graph;
-import com.sbancuz.plannh.data.flowchart.Node;
 import com.sbancuz.plannh.data.flowchart.balancer.alternatives.Alternatives;
 import com.sbancuz.plannh.data.flowchart.balancer.alternatives.Enumerator;
 import com.sbancuz.plannh.data.properties.RecipeProperty;
@@ -22,8 +20,15 @@ import com.sbancuz.plannh.data.properties.RecipeProperty;
  * The single entry point of the balancer package. Every {@link BalanceMode} is a {@link Chain}:
  * NONE is an empty chain that leaves the point untested, OUTPUT / INPUT are each one
  * {@code ExtentMinStage} pick, and AUTO is the full lexicographic chain plus its pass-2 replay.
- * The chain is the whole difference between the modes; {@link #balance} is the GUI-facing read-out
+ * The chain is the whole difference between the modes; {@link #solve(SolveInput)} is the read-out
  * over that machinery.
+ *
+ * <p>
+ * Everything runs on a {@link SolveInput}, the plain-data snapshot of a chart: the entry points
+ * that take a {@link Graph} take the snapshot first, on the calling thread, and are kept for the
+ * callers and tests written against the graph. Only {@link SolveInput#of} touches the graph, the
+ * machine effects and the ingredient names, so every {@code SolveInput} entry here is safe on any
+ * thread.
  *
  * <p>
  * Drawers ride on every mode: their rules are rows in every model, an at-least or exactly drawer
@@ -35,23 +40,30 @@ public final class Balancer {
 
     private Balancer() {}
 
+    // ── Runs (the chain and its settlement, for tests and the profiler) ──
+
     /**
      * Runs the mode's chain against the chart and returns the context plus its {@link Settlement}
-     * (a point, or the reason there is none). Callers that want a fresh budget hand one rebuilt per
-     * call; {@link Graph#balance()} thunks the mode here.
+     * (a point, or the reason there is none). Each call builds its own budget.
      */
     public static RunContext run(final BalanceMode mode, final Graph graph) {
         return run(mode, graph, Profiler.disabled());
     }
 
+    /** {@link #run(SolveInput, Profiler)} on a snapshot of the graph in {@code mode}. */
+    public static RunContext run(final BalanceMode mode, final Graph graph, final Profiler profiler) {
+        return run(SolveInput.of(graph, mode, null), profiler);
+    }
+
     /**
-     * The same run with an instrumentation hook attached. The profiler's {@code runStarted} event
+     * The run with an instrumentation hook attached. The profiler's {@code runStarted} event
      * fires with the model's size, each chain element reports through it, and {@code runFinished}
      * hands back a {@link SolutionView} - only ever built here, when a profiler is actually
-     * attached, so the default path never constructs it.
+     * attached, so the default path never constructs it. The input's stored choice is not applied.
      */
-    public static RunContext run(final BalanceMode mode, final Graph graph, final Profiler profiler) {
-        final Supplier<SolveContext> fresh = () -> ctxOf(mode, graph, Map.of(), profiler);
+    public static RunContext run(final SolveInput input, final Profiler profiler) {
+        final BalanceMode mode = input.mode();
+        final Supplier<SolveContext> fresh = () -> ctxOf(input, profiler);
         final SolveContext ctx = fresh.get();
         profiler.runStarted(
             mode,
@@ -102,25 +114,22 @@ public final class Balancer {
                 .run(retry));
     }
 
-    private static SolveContext ctxOf(final BalanceMode mode, final Graph graph,
-        final Map<UUID, Double> extraExtentPins) {
-        return ctxOf(mode, graph, extraExtentPins, Profiler.disabled());
-    }
-
     /** The shared context each entry point runs its mode's chain under; see {@link #run}. */
-    private static SolveContext ctxOf(final BalanceMode mode, final Graph graph,
-        final Map<UUID, Double> extraExtentPins, final Profiler profiler) {
+    private static SolveContext ctxOf(final SolveInput input, final Profiler profiler) {
+        final BalanceMode mode = input.mode();
         final long budgetMillis = mode.heuristics()
             .numerics().solveBudgetMillis;
         return new SolveContext(
-            graph,
+            input,
             mode.heuristics(),
             Budget.of(budgetMillis),
-            extraExtentPins,
+            input.extentPins(),
             mode.pins(),
             mode == BalanceMode.AUTO,
             profiler);
     }
+
+    // ── Alternatives ──
 
     /**
      * Runs the mode's chain against the chart and then, when the mode has a choices surface
@@ -136,9 +145,15 @@ public final class Balancer {
      * As above, but with a stored {@link ChoiceKey} to honour (applied between the solve and the
      * enumeration) and per-machine extent pins.
      */
-    public static Alternatives alternatives(final BalanceMode mode, final Graph graph,
-        @Nullable final ChoiceKey choice, final Map<UUID, Double> extraExtentPins) {
-        final Supplier<SolveContext> fresh = () -> ctxOf(mode, graph, extraExtentPins);
+    public static Alternatives alternatives(final BalanceMode mode, final Graph graph, @Nullable final ChoiceKey choice,
+        final Map<UUID, Double> extraExtentPins) {
+        return alternatives(SolveInput.of(graph, mode, choice, extraExtentPins));
+    }
+
+    /** The alternatives search over a snapshot, honouring its stored choice. */
+    public static Alternatives alternatives(final SolveInput input) {
+        final BalanceMode mode = input.mode();
+        final Supplier<SolveContext> fresh = () -> ctxOf(input, Profiler.disabled());
         final SolveContext first = fresh.get();
         if (mode == BalanceMode.AUTO && !first.anchored || first.model.machines.isEmpty()) {
             return new Alternatives(null, List.of(), true, List.of());
@@ -153,17 +168,16 @@ public final class Balancer {
             // so the panel renders nothing rather than a broken promise.
             return new Alternatives(ctx.keyOf(ctx.support()), List.of(), true, List.of());
         }
-        if (choice != null) {
-            ctx.commit(Enumerator.applyChoice(ctx, choice));
+        if (input.choice() != null) {
+            ctx.commit(Enumerator.applyChoice(ctx, input.choice()));
         }
         return Enumerator.enumerate(ctx);
     }
 
+    // ── Solve and enumerate ──
+
     /**
-     * The GUI entry: solves and enumerates in one pass, so the panel does not pay for the whole
-     * pipeline twice - once to draw the chart and again to ask what else it could have been. Unlike
-     * {@link #run}, the {@link SolutionView} is always built: the panel is a real consumer of it
-     * (the boundary, the open-gate count, the solver notes), not just the profiler.
+     * {@link #solveWithAlternatives(SolveInput)} on a snapshot of the graph.
      *
      * @param choice          a stored {@link ChoiceKey} to honour between the solve and the
      *                        enumeration, or null for the solver's own answer.
@@ -171,7 +185,18 @@ public final class Balancer {
      */
     public static Answer solveWithAlternatives(final BalanceMode mode, final Graph graph,
         @Nullable final ChoiceKey choice, final Map<UUID, Double> extraExtentPins) {
-        final Supplier<SolveContext> fresh = () -> ctxOf(mode, graph, extraExtentPins);
+        return solveWithAlternatives(SolveInput.of(graph, mode, choice, extraExtentPins));
+    }
+
+    /**
+     * Solves and enumerates in one pass, so a reader does not pay for the whole pipeline twice -
+     * once to draw the chart and again to ask what else it could have been. Unlike {@link #run},
+     * the {@link SolutionView} is always built: it is what the board reads (the boundary, the drawer
+     * read-out, the solver notes). Any thread.
+     */
+    public static Answer solveWithAlternatives(final SolveInput input) {
+        final BalanceMode mode = input.mode();
+        final Supplier<SolveContext> fresh = () -> ctxOf(input, Profiler.disabled());
         final SolveContext first = fresh.get();
         final long start = System.currentTimeMillis();
         if (first.model.machines.isEmpty()) {
@@ -195,8 +220,8 @@ public final class Balancer {
                 ctx.notes,
                 DrawerReadout.unsolved(ctx));
         }
-        if (choice != null && mode.supportsAlternatives()) {
-            ctx.commit(Enumerator.applyChoice(ctx, choice));
+        if (input.choice() != null && mode.supportsAlternatives()) {
+            ctx.commit(Enumerator.applyChoice(ctx, input.choice()));
         }
         // The independent conservation check is AUTO's contract - the extent-flow family's positive
         // "at least" residuals (OUTPUT / INPUT) legitimately fail it, so those modes never route
@@ -242,27 +267,41 @@ public final class Balancer {
         }
     }
 
+    // ── The read-out ──
+
     /**
-     * The GUI dispatcher: every solving mode runs the SAME engine - build a context, run the
-     * mode's own {@link Chain}, and derive the result from the committed point's {@link SolutionView}
-     * - so a new balancer is a new {@link BalanceMode} constant and nothing else. Only NONE is a
-     * separate branch, because it never solves: the chart's configured counts as-is, which the chain
-     * cannot express (an empty chain stalls rather than succeeding-without-a-point).
+     * The graph's balance in {@code mode}, honouring the stored excess choice: a snapshot taken
+     * here, on the calling thread, then {@link #solve(SolveInput)}. Client thread only (the
+     * snapshot computes machine effects and the excess choice lives on the {@code Plan}).
      */
     @Nonnull
     public static BalanceResult balance(final Graph graph, final BalanceMode mode) {
+        return solve(SolveInput.of(graph, mode, graph.getExcessChoice()));
+    }
+
+    /**
+     * The read-out every board number comes from: per-node counts and rates, the solved view and
+     * its alternatives, the drawer read-out and the notes. Every solving mode runs the SAME engine -
+     * build a context, run the mode's own {@link Chain}, and derive the result from the committed
+     * point's {@link SolutionView} - so a new balancer is a new {@link BalanceMode} constant and
+     * nothing else. Only NONE is a separate branch, because it never solves: the configured counts
+     * as-is. Touches nothing but the snapshot, so it is safe on any thread.
+     */
+    @Nonnull
+    public static BalanceResult solve(final SolveInput input) {
+        final BalanceMode mode = input.mode();
         if (mode == BalanceMode.NONE) {
-            return buildResultFractional(graph, configuredCounts(graph), List.of(), null, null, DrawerReadout.NONE);
+            return buildResultFractional(input, configuredCounts(input), List.of(), null, null, DrawerReadout.NONE);
         }
         // One pass produces both the chart and the answers it could have had: the panel shows the
         // alternatives unconditionally now, and re-deriving them would mean solving twice per edit.
-        final Answer answer = solveWithAlternatives(mode, graph, graph.getExcessChoice(), Map.of());
+        final Answer answer = solveWithAlternatives(input);
         if (answer instanceof final Answer.Failed failed) {
             final Note reason = failed.failure();
             if (reason != null && reason.message() == SolverMessage.NO_PIN) {
                 // Expected state, not an error: an unpinned chart is just wiring, so it gets no
                 // quantities at all rather than numbers derived from an anchor nobody set.
-                PlanNH.LOG.info("{} balance idle: {}", mode, reason.describe());
+                PlanNH.LOG.debug("{} balance idle: {}", mode, reason.describe());
             } else {
                 PlanNH.LOG.warn(
                     "{} balance failed ({}); showing the chart without solve-derived quantities",
@@ -275,21 +314,19 @@ public final class Balancer {
             if (reason != null) failureNotes.add(reason);
             failureNotes.addAll(failed.notes());
             return mode == BalanceMode.AUTO
-                ? buildResultFractional(graph, Map.of(), failureNotes, null, null, failed.drawers())
-                : buildResultFractional(graph, configuredCounts(graph), failureNotes, null, null, failed.drawers());
+                ? buildResultFractional(input, Map.of(), failureNotes, null, null, failed.drawers())
+                : buildResultFractional(input, configuredCounts(input), failureNotes, null, null, failed.drawers());
         }
         final Answer.Solved solved = (Answer.Solved) answer;
         final SolutionView view = solved.solution();
-        for (final Note note : view.notes) {
-            PlanNH.LOG.info("{} balance: {}", mode, note.describe());
-        }
-        PlanNH.LOG.info(
-            "{} balance: {} machines, {} open gates, {}ms",
+        PlanNH.LOG.debug(
+            "{} balance: {} machines, {} open gates, {}ms, notes {}",
             mode,
             view.machineCounts.size(),
             view.openGates,
-            view.wallMillis);
-        return buildResultFractional(graph, view.machineCounts, view.notes, view, solved.alternatives(), view.drawers);
+            view.wallMillis,
+            view.notes);
+        return buildResultFractional(input, view.machineCounts, view.notes, view, solved.alternatives(), view.drawers);
     }
 
     /**
@@ -297,10 +334,10 @@ public final class Balancer {
      * is refused. A chart with no solve-derived quantities reads its own configuration.
      */
     @Nonnull
-    private static Map<UUID, Double> configuredCounts(final Graph graph) {
+    private static Map<UUID, Double> configuredCounts(final SolveInput input) {
         final Map<UUID, Double> counts = new HashMap<>();
-        for (final Node node : graph.getNodes()) {
-            counts.put(node.id, (double) node.machineConfig.getMachineCount());
+        for (final SolveInput.Machine machine : input.machines()) {
+            counts.put(machine.id(), (double) machine.machineCount());
         }
         return counts;
     }
@@ -312,7 +349,7 @@ public final class Balancer {
      * solve-derived quantities is presented.
      */
     @Nonnull
-    private static BalanceResult buildResultFractional(final Graph graph, final Map<UUID, Double> machineCounts,
+    private static BalanceResult buildResultFractional(final SolveInput input, final Map<UUID, Double> machineCounts,
         final List<Note> notes, @Nullable final SolutionView auto, @Nullable final Alternatives alternatives,
         final DrawerReadout drawers) {
         final Map<UUID, NodeBalance> nodeBalances = new HashMap<>();
@@ -320,49 +357,55 @@ public final class Balancer {
         double totalOps = 0;
         int totalDuration = 0;
 
-        for (final Node node : graph.getNodes()) {
-            final double count = machineCounts.getOrDefault(node.id, 0.0);
+        for (final SolveInput.Machine machine : input.machines()) {
+            final double count = machineCounts.getOrDefault(machine.id(), 0.0);
             totalOps += count;
 
-            final MachineConfig cfg = node.machineConfig;
-            final var eff = cfg.computeEffect(node.properties);
-            final long eutPerOp = eff.energyPerT();
-            final int durPerOp = eff.durationTicks();
-            final int throughputFactor = eff.throughputFactor();
+            final long eutPerOp = machine.energyPerTick();
+            final int durPerOp = machine.durationTicks();
+            final int throughputFactor = machine.throughputFactor();
 
             final long totalEnergy = Math.round(eutPerOp * durPerOp * count);
             if (durPerOp > totalDuration) totalDuration = durPerOp;
 
-            final Map<Integer, Float> effOuts = new HashMap<>(node.outputs.size());
-            for (int i = 0; i < node.outputs.size(); i++) {
-                final var outStack = node.outputs.get(i);
-                final int stackSize = outStack.getAmount();
+            final Map<Integer, Float> effOuts = new HashMap<>(
+                machine.outputs()
+                    .size());
+            for (int i = 0; i < machine.outputs()
+                .size(); i++) {
+                final SolveInput.PortIn out = machine.outputs()
+                    .get(i);
+                final int stackSize = out.amount();
                 if (stackSize <= 0) continue;
-                final float total = (float) (count * stackSize * outStack.getChance()
-                    * cfg.outputMultiplier(i)
-                    * throughputFactor);
+                final float total = (float) (count * stackSize * out.chance() * out.multiplier() * throughputFactor);
                 if (total <= 0) continue;
                 effOuts.put(i, total);
             }
 
-            final Map<Integer, Float> effIns = new HashMap<>(node.inputs.size());
-            for (int i = 0; i < node.inputs.size(); i++) {
-                final var inStack = node.inputs.get(i);
-                final int stackSize = inStack.getAmount();
+            final Map<Integer, Float> effIns = new HashMap<>(
+                machine.inputs()
+                    .size());
+            for (int i = 0; i < machine.inputs()
+                .size(); i++) {
+                final SolveInput.PortIn in = machine.inputs()
+                    .get(i);
+                final int stackSize = in.amount();
                 if (stackSize <= 0) continue;
-                final float total = (float) (count * stackSize * inStack.getChance()
-                    * cfg.inputMultiplier(i)
-                    * throughputFactor);
+                final float total = (float) (count * stackSize * in.chance() * in.multiplier() * throughputFactor);
                 if (total <= 0) continue;
                 effIns.put(i, total);
             }
 
-            nodeBalances.put(node.id, new NodeBalance(count, durPerOp, totalEnergy, durPerOp, effOuts, effIns));
+            nodeBalances.put(machine.id(), new NodeBalance(count, durPerOp, totalEnergy, durPerOp, effOuts, effIns));
 
-            for (final Map.Entry<RecipeProperty<?>, Object> entry : node.properties.entrySet()) {
-                if (entry.getValue() instanceof final Number num) {
-                    propertyTotals.merge(entry.getKey(), Math.round(num.longValue() * count), Long::sum);
-                }
+            for (final Map.Entry<RecipeProperty<?>, Number> entry : machine.properties()
+                .entrySet()) {
+                propertyTotals.merge(
+                    entry.getKey(),
+                    Math.round(
+                        entry.getValue()
+                            .longValue() * count),
+                    Long::sum);
             }
         }
 
