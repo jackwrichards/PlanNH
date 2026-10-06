@@ -1,4 +1,4 @@
-package com.sbancuz.plannh.gui;
+package com.sbancuz.plannh.client;
 
 import com.cleanroommc.modularui.utils.Color;
 import com.gtnewhorizon.gtnhlib.color.ColorResource;

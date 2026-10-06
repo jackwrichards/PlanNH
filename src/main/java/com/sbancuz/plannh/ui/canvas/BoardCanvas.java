@@ -26,6 +26,7 @@ import com.sbancuz.plannh.data.flowchart.Drawer;
 import com.sbancuz.plannh.data.flowchart.Edge;
 import com.sbancuz.plannh.data.flowchart.Graph;
 import com.sbancuz.plannh.data.flowchart.Node;
+import com.sbancuz.plannh.layout.AutoLayout;
 import com.sbancuz.plannh.nei.NodeLookupContext;
 import com.sbancuz.plannh.ui.BoardSession;
 import com.sbancuz.plannh.ui.card.CardLayout;
@@ -134,6 +135,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     @Override
     public void draw(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
+        session.setHoverKey(hoveredResource());
         final Area a = getArea();
         Hyb.rect(0, 0, a.width, a.height, Hyb.CANVAS);
         final float zoom = graph().getZoom();
@@ -145,6 +147,23 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
                 for (float y = oy; y < a.height; y += step) Hyb.rect(x, y, dot, dot, Hyb.CANVAS_DOT);
             }
         }
+    }
+
+    /** The resource under the mouse: a port, a drawer, or a wire. Every place it flows then glows. */
+    private String hoveredResource() {
+        final com.cleanroommc.modularui.api.widget.IWidget hovered = getContext().getHovered();
+        if (hovered instanceof final com.sbancuz.plannh.ui.card.PortSlot slot) {
+            return slot.view() == null ? null
+                : slot.view()
+                    .key();
+        }
+        if (hovered instanceof final DrawerCard drawer) {
+            return drawer.model() == null ? null
+                : drawer.model().drawer.getResourceKey();
+        }
+        if (hovered != null && hovered != this) return null;
+        final WireLayer.Wire wire = wires.hit(worldX(getContext().getAbsMouseX()), worldY(getContext().getAbsMouseY()));
+        return wire == null ? null : wire.resource();
     }
 
     private static float mod(final float v, final float m) {
@@ -165,7 +184,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             return;
         }
         // World space, under the cards.
-        wires.draw(wires.wires(cards, drawers));
+        wires.draw(wires.wires(cards, drawers), session.hoverKey());
         if (portDrag != null) drawPortDrag();
     }
 
@@ -357,6 +376,95 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         else if (right > w - m) g.setPanX(g.getPanX() - Math.min(right - (w - m), left - m));
         if (top < m) g.setPanY(g.getPanY() + m - top);
         else if (bottom > h - m) g.setPanY(g.getPanY() - Math.min(bottom - (h - m), top - m));
+    }
+
+    /** A card or drawer as the layered layout sees it; drawers have one port, at their anchor. */
+    private record LayoutItem(UUID id, String machineName, int worldWidth, int worldHeight, int inputCount,
+        int outputCount, boolean drawer) implements AutoLayout.LayoutNode {
+
+        @Override
+        public int portY(final boolean output, final int index) {
+            return drawer ? DrawerCard.ANCHOR_Y : CardLayout.anchorY(index);
+        }
+    }
+
+    /**
+     * Lays the plan out left to right with the layered layout (sources, then the cards in flow order, then products),
+     * keeps it where it was on the board, and frames it. One undoable step.
+     */
+    public void arrange() {
+        final Graph g = graph();
+        final List<LayoutItem> items = new ArrayList<>();
+        final List<Edge> links = new ArrayList<>(g.getEdges());
+        for (final RecipeCard card : cards.values()) {
+            if (card.model() == null || card.layout() == null) continue;
+            final CardModel m = card.model();
+            items.add(
+                new LayoutItem(
+                    m.node.id,
+                    m.machineName,
+                    CardLayout.W,
+                    card.layout().height,
+                    m.inputs.size(),
+                    m.outputs.size(),
+                    false));
+        }
+        for (final Drawer d : g.getDrawers()) {
+            final boolean source = d.getKind()
+                .linksInputs();
+            items.add(
+                new LayoutItem(
+                    d.getId(),
+                    d.getResourceKey(),
+                    DrawerCard.W,
+                    DrawerCard.H,
+                    source ? 0 : 1,
+                    source ? 1 : 0,
+                    true));
+            for (final Drawer.Link link : d.getLinks()) {
+                if (!cards.containsKey(link.nodeId())) continue;
+                final UUID id = UUID.nameUUIDFromBytes(
+                    (d.getId() + ":" + link.nodeId() + ":" + link.portIndex())
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                links.add(
+                    source ? new Edge(id, d.getId(), link.nodeId(), 0, link.portIndex())
+                        : new Edge(id, link.nodeId(), d.getId(), link.portIndex(), 0));
+            }
+        }
+        if (items.isEmpty()) return;
+        final java.util.Map<UUID, int[]> placed = AutoLayout.layout(items, links);
+        if (placed.isEmpty()) return;
+        int x0 = Integer.MAX_VALUE, y0 = Integer.MAX_VALUE, px0 = Integer.MAX_VALUE, py0 = Integer.MAX_VALUE;
+        for (final Node n : g.getNodes()) {
+            x0 = Math.min(x0, n.x);
+            y0 = Math.min(y0, n.y);
+        }
+        for (final Drawer d : g.getDrawers()) {
+            x0 = Math.min(x0, d.getX());
+            y0 = Math.min(y0, d.getY());
+        }
+        for (final int[] p : placed.values()) {
+            px0 = Math.min(px0, p[0]);
+            py0 = Math.min(py0, p[1]);
+        }
+        final int dx = x0 - px0, dy = y0 - py0;
+        session.editLayout(() -> {
+            for (final Node n : g.getNodes()) {
+                final int[] p = placed.get(n.id);
+                if (p == null) continue;
+                n.x = p[0] + dx;
+                n.y = p[1] + dy;
+            }
+            for (final Drawer d : g.getDrawers()) {
+                final int[] p = placed.get(d.getId());
+                if (p == null) continue;
+                d.setX(p[0] + dx);
+                d.setY(p[1] + dy);
+            }
+        });
+        for (final RecipeCard card : cards.values()) card.refresh();
+        for (final DrawerCard drawer : drawers.values()) drawer.refresh();
+        frameAll();
     }
 
     /** Frames every card and drawer on the board. */

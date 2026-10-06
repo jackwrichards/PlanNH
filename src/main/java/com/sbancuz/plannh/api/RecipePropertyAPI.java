@@ -14,14 +14,14 @@ import net.minecraftforge.oredict.OreDictionary;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.sbancuz.plannh.Compat;
+import com.sbancuz.plannh.client.GuiHelper;
+import com.sbancuz.plannh.client.IngredientColors;
+import com.sbancuz.plannh.client.PlannhColors;
 import com.sbancuz.plannh.data.properties.PropertyProvider;
 import com.sbancuz.plannh.data.properties.RecipeProperty;
 import com.sbancuz.plannh.data.properties.ResourceProperty;
 import com.sbancuz.plannh.data.provider.DefaultProvider;
 import com.sbancuz.plannh.data.provider.gregtech.GTHooks;
-import com.sbancuz.plannh.gui.GuiHelper;
-import com.sbancuz.plannh.gui.IngredientColors;
-import com.sbancuz.plannh.gui.PlannhColors;
 
 public final class RecipePropertyAPI {
 

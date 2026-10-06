@@ -1,4 +1,4 @@
-package com.sbancuz.plannh.gui;
+package com.sbancuz.plannh.layout;
 
 import java.util.ArrayList;
 import java.util.Arrays;

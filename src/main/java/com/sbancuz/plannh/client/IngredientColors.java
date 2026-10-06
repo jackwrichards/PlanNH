@@ -1,4 +1,4 @@
-package com.sbancuz.plannh.gui;
+package com.sbancuz.plannh.client;
 
 import java.awt.image.BufferedImage;
 import java.io.InputStream;

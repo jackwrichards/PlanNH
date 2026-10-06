@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import org.junit.jupiter.api.Test;
 
-import com.sbancuz.plannh.gui.GuiHelper;
+import com.sbancuz.plannh.client.GuiHelper;
 
 /**
  * The two display rules that mean something rather than merely describe the formatter: a running

@@ -1,4 +1,4 @@
-package com.sbancuz.plannh.gui;
+package com.sbancuz.plannh.layout;
 
 /**
  * Pin placement, the single authority for everything that draws or measures ports: pin

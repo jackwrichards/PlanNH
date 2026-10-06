@@ -114,6 +114,8 @@ public final class BoardScreen extends ModularScreen {
                 "Power: average (solved machines) or peak (every machine running)",
                 28,
                 session::togglePeakPower));
+        topBar
+            .child(key(() -> "Arrange", () -> true, "Lay the plan out left to right (undoable)", 42, canvas::arrange));
         topBar.child(key(() -> "Fit", () -> true, "Fit the whole plan in view", 24, canvas::frameAll));
         topBar.child(key(() -> "Totals", () -> true, "What the plan takes in and gives out", 38, rail::toggle));
 

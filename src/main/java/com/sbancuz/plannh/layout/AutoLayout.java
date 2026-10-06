@@ -32,7 +32,6 @@ import org.eclipse.elk.graph.ElkPort;
 import org.eclipse.elk.graph.util.ElkGraphUtil;
 
 import com.sbancuz.plannh.data.flowchart.Edge;
-import com.sbancuz.plannh.gui.PortGeometry;
 
 /**
  * Deterministic layered auto-layout over the machine digraph.
@@ -72,6 +71,11 @@ public final class AutoLayout {
         int inputCount();
 
         int outputCount();
+
+        /** Y of a port relative to the node's top edge; the old card's pin spacing unless the node says otherwise. */
+        default int portY(final boolean output, final int index) {
+            return PortGeometry.portY(index);
+        }
     }
 
     /** Above this count ELK's model-order tie-breaking is enabled to keep big charts stable. */
@@ -244,7 +248,7 @@ public final class AutoLayout {
                 final ElkPort p = ElkGraphUtil.createPort(n);
                 p.setProperty(CoreOptions.PORT_SIDE, PortSide.EAST);
                 p.setX(pad[0] + node.worldWidth());
-                p.setY(PortGeometry.portY(i));
+                p.setY(node.portY(true, i));
                 outs[i] = p;
             }
             outPorts.put(node.id(), outs);
@@ -254,7 +258,7 @@ public final class AutoLayout {
                 final ElkPort p = ElkGraphUtil.createPort(n);
                 p.setProperty(CoreOptions.PORT_SIDE, PortSide.WEST);
                 p.setX(pad[0]);
-                p.setY(PortGeometry.portY(i));
+                p.setY(node.portY(false, i));
                 ins[i] = p;
             }
             inPorts.put(node.id(), ins);

@@ -1,8 +1,9 @@
 # PlanNH (jackwrichards fork)
 
 In-game, NEI-driven flowchart production planner for GT New Horizons: Minecraft 1.7.10, Forge 10.13.4.1614,
-client-side only. UI is ModularUI2 (`gui/`), the balancer is an ojAlgo ILP (`data/flowchart/balancer/`), auto-layout
-is ELK (`layout/`), recipe sources per mod are in `data/provider/`.
+client-side only. The planner UI is ModularUI2 in `ui/` (the Solve-mode board), the balancer is an ojAlgo ILP
+solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layout and wire routing are in
+`layout/`, recipe sources per mod are in `data/provider/`, and the NEI glue is in `nei/`.
 
 ## Remotes and branches
 
@@ -20,15 +21,19 @@ is ELK (`layout/`), recipe sources per mod are in `data/provider/`.
 - `docs/design/board-solve-mode.md` is the spec for the new planner: Solve mode only, Factory Flow's recipe card
   and drawers with NEI parts, what every control does, what we keep from the engine, and the porting order.
 - Mockups live on the design canvas linked from that file (row 4, "Hybrid", is the chosen direction).
+- All six porting steps are on `main` (2026-10-06) and the old `gui/` package is gone. `ui/` map: `BoardScreen`
+  (top bar, notices, totals rail), `BoardSession` (the open plan: every edit, undo, slots, solve hookup, notices,
+  totals), `canvas/` (board, wires, port drags, arrange), `card/` (recipe card), `drawer/`, `popup/` (menus, number
+  and text boxes, the recipe picker). Known gaps and next steps are at the top of `docs/design/build-prompt.md`.
 
 ## Build and test
 
 - Gradle provisions the JDKs (25 for the build, JetBrains Runtime 25 for `runClient25`). Keep the checkout at a
   short path: deep Windows paths break the clone and the Minecraft dev setup (MAX_PATH).
 - `./gradlew test`: 180 headless JUnit tests (balancer, drawers, solve service, routing, layout, serialization),
-  many over gtnh-flow YAML charts in `src/test/resources/gtnh-flow/`. About 40s, no Minecraft. `addon.gradle` opts `test` out of the configuration
-  cache; without that a clean build reports `:test NO-SOURCE` and silently runs nothing, so if you ever see
-  NO-SOURCE, check the count in `build/test-results/test/*.xml`.
+  many over gtnh-flow YAML charts in `src/test/resources/gtnh-flow/`. About 40s, no Minecraft. `addon.gradle`
+  opts `test` out of the configuration cache; without that a clean build reports `:test NO-SOURCE` and silently
+  runs nothing, so if you ever see NO-SOURCE, check the count in `build/test-results/test/*.xml`.
 - `./gradlew spotlessApply` before committing; CI checks formatting.
 
 ## Running and seeing the game
@@ -61,4 +66,5 @@ tools/dev/mc.sh smoke      # automated launch/open/screenshot/log-scan check
   the newest file in `run/client/screenshots/`. Harness screenshots land there too, under the names you gave them.
 - UI feedback loop: change code, `swap --reopen`, check with a cropped `shot`, then tell the user it's live in
   their window. They can interact with the game at the same time; just don't send synthetic input while they are
-  mid-action.
+  mid-action. `call status` shows `"windowActive": true` while they have the game window focused: hold
+  off on input and restarts until it goes false.

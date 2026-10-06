@@ -30,7 +30,7 @@ public final class CardModel {
 
     /** One port as drawn; {@code wired} when a wire or drawer is on it (or it needs none: nothing is used up). */
     public record PortView(int index, boolean output, ItemStack item, FluidStack fluid, String name, float chance,
-        double perSecond, boolean wired) {
+        double perSecond, boolean wired, String key) {
 
         public boolean isFluid() {
             return fluid != null;
@@ -164,7 +164,8 @@ public final class CardModel {
                     port.getDisplayName(),
                     port.getChance(),
                     perSecond,
-                    port.getAmount() == 0 || wired.test(output, i)));
+                    port.getAmount() == 0 || wired.test(output, i),
+                    com.sbancuz.plannh.ui.Resources.key(port)));
         }
         return views;
     }

@@ -13,8 +13,8 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
-import com.sbancuz.plannh.gui.ArrowRouter;
-import com.sbancuz.plannh.gui.PortGeometry;
+import com.sbancuz.plannh.layout.ArrowRouter;
+import com.sbancuz.plannh.layout.PortGeometry;
 
 /**
  * Boundary chips sit in the corridor edges run down, so the router is given them as obstacles.

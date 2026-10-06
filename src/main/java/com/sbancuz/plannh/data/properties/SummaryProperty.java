@@ -2,7 +2,7 @@ package com.sbancuz.plannh.data.properties;
 
 import java.util.function.Function;
 
-import com.sbancuz.plannh.gui.GuiHelper;
+import com.sbancuz.plannh.client.GuiHelper;
 
 import lombok.experimental.SuperBuilder;
 

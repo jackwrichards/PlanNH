@@ -163,7 +163,8 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         if (m == null) return;
         final float z = context.getCurrentDrawingZ();
         final Part hover = isHovering() ? partAt(localX(), localY()) : null;
-        final int ring = frameColor(m.kind);
+        final int ring = m.drawer.getResourceKey()
+            .equals(session.hoverKey()) ? Hyb.GOLD : frameColor(m.kind);
 
         Hyb.rect(0, 0, W, H, ring);
         Hyb.rect(1, 1, W - 2, H - 2, Hyb.FRAME);

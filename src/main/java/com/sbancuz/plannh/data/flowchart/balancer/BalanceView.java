@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.sbancuz.plannh.client.GuiHelper;
 import com.sbancuz.plannh.data.MachineConfig;
 import com.sbancuz.plannh.data.flowchart.Edge;
 import com.sbancuz.plannh.data.flowchart.Graph;
@@ -16,7 +17,6 @@ import com.sbancuz.plannh.data.flowchart.Port;
 import com.sbancuz.plannh.data.flowchart.Summary;
 import com.sbancuz.plannh.data.flowchart.balancer.alternatives.Alternative;
 import com.sbancuz.plannh.data.flowchart.balancer.alternatives.Alternatives;
-import com.sbancuz.plannh.gui.GuiHelper;
 
 /**
  * What the balancer's answer looks like to a reader, as data rather than as pixels. Everything the

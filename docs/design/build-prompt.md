@@ -3,6 +3,25 @@
 This is a complete brief for an engineer (human, Claude, or any other LLM agent) to build the new PlanNH planner
 from this repository. Read all of it before writing code. It is written to be pasted as a prompt.
 
+## Status (2026-10-06)
+
+All six steps below are built and on `main`, each checked in the GregTech dev client through the harness
+(`mc.sh part`, `/board`). The old `gui/` package is deleted. If you are picking this up, the brief below is still
+the reference for how things are meant to work; what is left is this list.
+
+Known gaps:
+- **Dragging an item from NEI's list onto the board** does not work yet. The drop is wired through NEI's
+  `handleDragNDrop` (`FlowchartGuiHandler`) and `BoardCanvas.dropNeiItem`, but on ModularUI screens NEI consumes the
+  click that drops a carried item without calling GUI handlers, input handlers or ModularUI. Needs a look at how
+  ModularUI's NEI integration routes mouse input (`ClientScreenHandler`, `ModularUIContainerInputHandler`).
+  Drawers can be made by dragging a port onto empty board, and recipes added with P or the port picker.
+- Not built: "Add another recipe to this machine", hop bumps where wires cross, card selection (cyan ring),
+  the greyed "recipe missing" card, short-ladder [-] value [+] settings on the card (settings live in the
+  actions menu's Machine settings list), Shift-wheel amps steps, previewing a machine on hover in the switch list.
+- The solver does not flag a GregTech card set below its recipe's tier; the card shows a red ring and TIER!.
+- AUTO can still balance a wired port through a gated import or surplus no drawer allows (see the engine notes).
+- Undo history is per session (not saved), as before.
+
 ---
 
 ## Your job

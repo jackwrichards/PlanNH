@@ -15,7 +15,7 @@ import com.sbancuz.plannh.data.flowchart.Node;
 import com.sbancuz.plannh.data.flowchart.Port;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceResult;
 import com.sbancuz.plannh.data.flowchart.balancer.Balancer;
-import com.sbancuz.plannh.gui.ArrowRouter;
+import com.sbancuz.plannh.layout.ArrowRouter;
 import com.sbancuz.plannh.ui.BoardSession;
 import com.sbancuz.plannh.ui.Resources;
 import com.sbancuz.plannh.ui.card.CardLayout;
@@ -38,7 +38,7 @@ final class WireLayer {
     }
 
     record Wire(UUID key, Kind kind, @Nullable Edge edge, @Nullable Drawer drawer, @Nullable Drawer.Link link,
-        int color, float width, double perSecond, List<int[]> path) {}
+        int color, float width, double perSecond, List<int[]> path, String resource) {}
 
     private static final ArrowRouter ROUTER = new ArrowRouter(6, 12);
     private static final int CHEVRON_EVERY = 64;
@@ -99,7 +99,18 @@ final class WireLayer {
                     src.y + CardLayout.anchorY(e.sourceOutputIndex),
                     dst.x,
                     dst.y + CardLayout.anchorY(e.targetInputIndex)));
-            pending.add(new Wire(e.id, Kind.EDGE, e, null, null, colorOf(port), width(flow, port), flow, null));
+            pending.add(
+                new Wire(
+                    e.id,
+                    Kind.EDGE,
+                    e,
+                    null,
+                    null,
+                    colorOf(port),
+                    width(flow, port),
+                    flow,
+                    null,
+                    Resources.key(port)));
         }
         for (final Drawer d : graph.getDrawers()) {
             final boolean source = d.getKind()
@@ -131,7 +142,18 @@ final class WireLayer {
                             d.getY() + DrawerCard.ANCHOR_Y));
                 }
                 final double flow = linkFlow(result, n, source, link.portIndex());
-                pending.add(new Wire(key, Kind.LINK, null, d, link, colorOf(port), width(flow, port), flow, null));
+                pending.add(
+                    new Wire(
+                        key,
+                        Kind.LINK,
+                        null,
+                        d,
+                        link,
+                        colorOf(port),
+                        width(flow, port),
+                        flow,
+                        null,
+                        Resources.key(port)));
             }
         }
 
@@ -142,7 +164,17 @@ final class WireLayer {
             List<int[]> path = routes.get(w.key());
             if (path == null || path.size() < 2) path = elbow(requests.get(i));
             built.add(
-                new Wire(w.key(), w.kind(), w.edge(), w.drawer(), w.link(), w.color(), w.width(), w.perSecond(), path));
+                new Wire(
+                    w.key(),
+                    w.kind(),
+                    w.edge(),
+                    w.drawer(),
+                    w.link(),
+                    w.color(),
+                    w.width(),
+                    w.perSecond(),
+                    path,
+                    w.resource()));
         }
         return built;
     }
@@ -199,7 +231,15 @@ final class WireLayer {
 
     // region Drawing
 
-    void draw(final List<Wire> wires) {
+    /** Draws every wire; those carrying {@code glow} (the resource under the mouse) get a gold halo first. */
+    void draw(final List<Wire> wires, @Nullable final String glow) {
+        if (glow != null && !glow.isEmpty()) {
+            for (final Wire w : wires) {
+                if (!glow.equals(w.resource())) continue;
+                final List<int[]> path = w.path();
+                for (int i = 1; i < path.size(); i++) segment(path.get(i - 1), path.get(i), w.width() + 6, 0x80FFD257);
+            }
+        }
         for (final Wire w : wires) drawWire(w.path(), w.color(), w.width(), w.perSecond() > 0);
     }
 

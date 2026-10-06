@@ -15,7 +15,6 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL20;
 
 import com.sbancuz.plannh.PlanNH;
-import com.sbancuz.plannh.gui.CanvasWidget;
 
 public enum GPUProgram {
 
@@ -109,7 +108,7 @@ public enum GPUProgram {
     }
 
     private static @Nullable String loadShaderSource(final String path) {
-        final InputStream in = CanvasWidget.class.getResourceAsStream(path);
+        final InputStream in = GPUProgram.class.getResourceAsStream(path);
         if (in == null) return null;
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(in))) {
             final StringBuilder sb = new StringBuilder();

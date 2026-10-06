@@ -154,7 +154,7 @@ arrange; fit; help. A totals rail (folded by default) lists inputs, outputs, pow
 | NEI hooks: the "+" overlay, R/U lookups, auto-wire context | Card widget and its menus, machine switch, tier and amps chips |
 | Per-mod recipe providers and machine profiles (settings) | Drawers with rules, and their place in the save format |
 | GregTech's real overclock calculator | Wire renderer (FF look), hover glow, notices |
-| The ojAlgo balancer and its 131 tests | "What makes / uses this?" picker |
+| The ojAlgo balancer and its tests (180 now) | "What makes / uses this?" picker |
 | Save / share encoding, undo, auto-layout, wire router | Totals rail, board controls |
 
 Engine work the UI needs:
@@ -175,8 +175,11 @@ Engine work the UI needs:
 
 ## 9. Open questions
 
+As built (2026-10-06), pending the owner's call:
+
 1. Card actions: always the [≡] menu (as drawn), or FF's separate keys (−, clone, replace, +) on single-block
-   machines?
-2. "Add another recipe to this machine" (shared machines): first version or later?
+   machines? **Built: the [≡] menu everywhere.**
+2. "Add another recipe to this machine" (shared machines): first version or later? **Later; not built.**
 3. When a card's output has nowhere to go, auto-create a byproduct drawer, or leave it unwired and flag it?
-4. Chanced outputs: show the chance on the port, or only in the tooltip?
+   **Flagged: dashed slot plus the "Not wired up" notice.**
+4. Chanced outputs: show the chance on the port, or only in the tooltip? **On the port, after the rate.**

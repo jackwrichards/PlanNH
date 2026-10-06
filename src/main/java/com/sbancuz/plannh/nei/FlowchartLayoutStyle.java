@@ -71,6 +71,13 @@ public class FlowchartLayoutStyle extends LayoutStyleMinecraft {
 
         LayoutManager.bookmarkPanel.resize(gui);
         LayoutManager.itemZoom.resize(gui);
+        // NEI's item zoom draws a big copy of the hovered item left of the GUI, which in the planner is on the board.
+        // It draws only when the space it measured is wide enough, so tell it there is none.
+        try {
+            final java.lang.reflect.Field area = codechicken.nei.ItemZoom.class.getDeclaredField("availableAreaWidth");
+            area.setAccessible(true);
+            area.setInt(LayoutManager.itemZoom, 0);
+        } catch (final ReflectiveOperationException ignored) {}
 
         final ModularScreen screen = ((GuiContainerWrapper) gui).getScreen();
         screen.getMainPanel()

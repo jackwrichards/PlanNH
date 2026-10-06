@@ -76,17 +76,18 @@ final class NoticeBar extends Widget<NoticeBar> implements Interactable {
         for (int i = 0; i < Math.min(notices.size(), MAX_ROWS); i++) {
             final Notice n = notices.get(i);
             final int y = i * ROW;
-            Hyb.rect(0, y, w, ROW - 1, 0xE0181A1F);
+            final int rw = rowWidth(n, w);
+            Hyb.rect(0, y, rw, ROW - 1, 0xE0181A1F);
             Hyb.rect(0, y, 3, ROW - 1, stripe(n.severity()));
             final boolean canShow = !n.focus()
                 .isEmpty();
-            final int textRoom = w - 10 - (canShow ? showW + 10 : 0);
+            final int textRoom = rw - 10 - (canShow ? showW + 10 : 0);
             Hyb.text(Hyb.fit(n.text(), textRoom), 7, y + 3, Hyb.INK);
             if (canShow) {
-                final boolean hot = hoverRow == i && localX() >= w - showW - 8;
+                final boolean hot = hoverRow == i && localX() >= rw - showW - 8 && localX() < rw;
                 final int color = hot ? 0xFFFFFFFF : Hyb.SELECTION;
-                Hyb.text(SHOW_ME, w - showW - 5, y + 3, color);
-                Hyb.rect(w - showW - 5, y + 12, showW, 1, color);
+                Hyb.text(SHOW_ME, rw - showW - 5, y + 3, color);
+                Hyb.rect(rw - showW - 5, y + 12, showW, 1, color);
             }
         }
         if (notices.size() > MAX_ROWS) {
@@ -96,6 +97,13 @@ final class NoticeBar extends Widget<NoticeBar> implements Interactable {
         }
     }
 
+    /** A row is as wide as its sentence and "Show me", so the board stays visible beside it. */
+    private static int rowWidth(final Notice n, final int max) {
+        final int show = n.focus()
+            .isEmpty() ? 0 : Hyb.width(SHOW_ME) + 10;
+        return Math.min(max, 7 + Hyb.width(n.text()) + 8 + show);
+    }
+
     @Override
     public Result onMousePressed(final int mouseButton) {
         if (mouseButton != 0) return Result.IGNORE;
@@ -103,8 +111,10 @@ final class NoticeBar extends Widget<NoticeBar> implements Interactable {
         final List<Notice> notices = session.notices();
         if (row < 0 || row >= Math.min(notices.size(), MAX_ROWS)) return Result.IGNORE;
         final Notice n = notices.get(row);
+        final int rw = rowWidth(n, getArea().width);
+        if (localX() >= rw) return Result.IGNORE;
         if (n.focus()
-            .isEmpty() || localX() < getArea().width - Hyb.width(SHOW_ME) - 8) return Result.SUCCESS;
+            .isEmpty() || localX() < rw - Hyb.width(SHOW_ME) - 8) return Result.SUCCESS;
         canvas.frame(n.focus());
         return Result.SUCCESS;
     }

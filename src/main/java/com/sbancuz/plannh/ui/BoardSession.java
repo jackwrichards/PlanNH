@@ -107,6 +107,17 @@ public final class BoardSession {
         return structure;
     }
 
+    private String hoverKey;
+
+    /** The resource under the mouse (a port, drawer or wire), so everything carrying it can glow; null for none. */
+    public String hoverKey() {
+        return hoverKey;
+    }
+
+    public void setHoverKey(final String key) {
+        hoverKey = key == null || key.isEmpty() ? null : key;
+    }
+
     public Fmt.RateUnit rateUnit() {
         return rateUnit;
     }
@@ -123,6 +134,14 @@ public final class BoardSession {
     public void edit(final Runnable change) {
         PlanAPI.recordEdit(graph, change);
         graph.touch();
+        PlanAPI.save();
+    }
+
+    /** An undoable change that only moves things: saved, but no re-solve. */
+    @SuppressWarnings("deprecation")
+    public void editLayout(final Runnable change) {
+        PlanAPI.recordEdit(graph, change);
+        graph.touchLayout();
         PlanAPI.save();
     }
 

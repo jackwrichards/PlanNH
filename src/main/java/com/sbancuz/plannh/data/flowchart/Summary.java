@@ -11,6 +11,7 @@ import java.util.UUID;
 
 import javax.annotation.Nullable;
 
+import com.sbancuz.plannh.client.GuiHelper;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceResult;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceView;
 import com.sbancuz.plannh.data.flowchart.balancer.Balancer;
@@ -19,7 +20,6 @@ import com.sbancuz.plannh.data.flowchart.balancer.Note;
 import com.sbancuz.plannh.data.flowchart.balancer.alternatives.Alternatives;
 import com.sbancuz.plannh.data.properties.ResourceProperty;
 import com.sbancuz.plannh.data.properties.SummaryProperty;
-import com.sbancuz.plannh.gui.GuiHelper;
 
 import lombok.Getter;
 import lombok.Setter;
