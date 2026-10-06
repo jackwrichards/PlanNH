@@ -4,6 +4,8 @@ import java.util.Locale;
 
 import net.minecraft.util.StatCollector;
 
+import com.sbancuz.plannh.data.flowchart.Drawer;
+
 /**
  * The single authority for what the balancer says. Every note, error, preference name, rank reason
  * and boundary label is one constant here - the {@link Severity} the panel colours it by and the key
@@ -51,6 +53,32 @@ public enum SolverMessage {
     SOLVER_INEXACT_RESIDUAL(Severity.ERROR, "plannh.solver.inexact_residual"),
     SOLVER_UNDER_SUPPLY(Severity.ERROR, "plannh.solver.under_supply"),
     GATE_COUNT_NOT_CERTIFIED(Severity.INFO, "plannh.solver.gate_count_not_certified"),
+    /** A worker-thread solve threw; the argument is the exception's own message. */
+    SOLVE_CRASHED(Severity.ERROR, "plannh.solver.solve_crashed"),
+
+    // -----------------------------------------------------------------------------------------
+    // Drawers - rules the plan cannot keep, and why
+    // -----------------------------------------------------------------------------------------
+    /** Args: drawer label, the rule (a nested RULE_* note), the rate asked for, the rate reachable. */
+    DRAWER_UNMET(Severity.WARN, "plannh.solver.drawer_unmet"),
+    /** Args: drawer label, what holds it back (a nested LIMIT_* note). One note per limit. */
+    DRAWER_LIMITED_BY(Severity.INFO, "plannh.solver.drawer_limited_by"),
+    /** Args: drawer label. The drawer asks for flow but is linked to nothing that carries any. */
+    DRAWER_NOT_CONNECTED(Severity.WARN, "plannh.solver.drawer_not_connected"),
+    /** Args: drawer label. OUTPUT / INPUT count unwired links only; this drawer has none. */
+    DRAWER_WIRED_IGNORED(Severity.WARN, "plannh.solver.drawer_wired_ignored"),
+    /** No args. Nothing sets the plan's size: the only drawer rules are upper limits. */
+    DRAWER_ONLY_UPPER_BOUNDS(Severity.INFO, "plannh.solver.drawer_only_upper_bounds"),
+    /** Args: machine name, the pin kind (a nested PIN_* note). */
+    LIMIT_PIN(Severity.INFO, "plannh.solver.limit_pin"),
+    /** Args: drawer label. */
+    LIMIT_DRAWER(Severity.INFO, "plannh.solver.limit_drawer"),
+    /** Args: machine group capacity. */
+    LIMIT_GROUP(Severity.INFO, "plannh.solver.limit_group"),
+    RULE_ANY(Severity.INFO, "plannh.solver.rule_any"),
+    RULE_AT_LEAST(Severity.INFO, "plannh.solver.rule_at_least"),
+    RULE_EXACTLY(Severity.INFO, "plannh.solver.rule_exactly"),
+    RULE_AT_MOST(Severity.INFO, "plannh.solver.rule_at_most"),
 
     // -----------------------------------------------------------------------------------------
     // Names - pin kinds and the preferences that rank answers
@@ -98,6 +126,16 @@ public enum SolverMessage {
     /** The {@code plannh.solver.*} language-file key. */
     public String key() {
         return key;
+    }
+
+    /** The name of a drawer rule, as a message so it localizes with the note it sits in. */
+    public static SolverMessage ruleName(final Drawer.Rule rule) {
+        return switch (rule) {
+            case ANY -> RULE_ANY;
+            case AT_LEAST -> RULE_AT_LEAST;
+            case EXACTLY -> RULE_EXACTLY;
+            case AT_MOST -> RULE_AT_MOST;
+        };
     }
 
     /** One utterance of this message: the constant plus the data it was said about. */

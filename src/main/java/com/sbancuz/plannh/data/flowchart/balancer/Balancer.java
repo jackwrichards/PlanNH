@@ -1,9 +1,11 @@
 package com.sbancuz.plannh.data.flowchart.balancer;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -22,6 +24,12 @@ import com.sbancuz.plannh.data.properties.RecipeProperty;
  * {@code ExtentMinStage} pick, and AUTO is the full lexicographic chain plus its pass-2 replay.
  * The chain is the whole difference between the modes; {@link #balance} is the GUI-facing read-out
  * over that machinery.
+ *
+ * <p>
+ * Drawers ride on every mode: their rules are rows in every model, an at-least or exactly drawer
+ * anchors AUTO the way a pin does, and a run that stalls with drawers in the model gets one more
+ * try with the drawers that cannot be kept loosened to what the chart can do
+ * ({@link DrawerRelaxation}), so the plan keeps its numbers and says which drawers fall short.
  */
 public final class Balancer {
 
@@ -43,7 +51,8 @@ public final class Balancer {
      * attached, so the default path never constructs it.
      */
     public static RunContext run(final BalanceMode mode, final Graph graph, final Profiler profiler) {
-        final SolveContext ctx = ctxOf(mode, graph, Map.of(), profiler);
+        final Supplier<SolveContext> fresh = () -> ctxOf(mode, graph, Map.of(), profiler);
+        final SolveContext ctx = fresh.get();
         profiler.runStarted(
             mode,
             ctx.model.machines.size(),
@@ -53,30 +62,52 @@ public final class Balancer {
         final long start = System.currentTimeMillis();
         // Unpinned chart = wiring, not a problem to solve: AUTO reports the NO_PIN idle answer.
         // The OUTPUT / INPUT modes solve regardless - their "fewest machines" LP needs no scale anchor.
-        if (mode == BalanceMode.AUTO && !ctx.anyPin) {
+        if (mode == BalanceMode.AUTO && !ctx.anchored) {
             profiler.runFinished(null, SolverMessage.NO_PIN.describe());
             return new RunContext(ctx, new Settlement.Stalled(SolverMessage.NO_PIN.toNote()));
         }
-        final Settlement settlement = mode.chain()
-            .run(ctx);
-        final SolutionView view = profiler.enabled() && ctx.point() != null
-            ? SolutionView.of(ctx, System.currentTimeMillis() - start)
+        final RunContext settled = settle(mode, ctx, fresh);
+        final SolveContext done = settled.ctx();
+        final SolutionView view = profiler.enabled() && done.point() != null
+            ? SolutionView.of(done, System.currentTimeMillis() - start)
             : null;
         profiler.runFinished(
             view,
-            settlement instanceof Settlement.Stalled(Note reason) ? reason.describe() : null);
-        return new RunContext(ctx, settlement);
+            settled.settlement() instanceof Settlement.Stalled(Note reason) ? reason.describe() : null);
+        return settled;
     }
 
     /** The context after a run plus how it ended: a point, or the reason it stalled. */
     public record RunContext(SolveContext ctx, Settlement settlement) {}
 
-    /** The shared context each entry point runs its mode's chain under; see {@link #run}. */
+    /**
+     * Runs the mode's chain on {@code ctx}; when it stalls with drawer bounds in the model, relaxes
+     * the drawers that cannot be kept and runs once more on a {@code fresh} context under the
+     * loosened bounds. The context returned is the one the settlement belongs to.
+     */
+    private static RunContext settle(final BalanceMode mode, final SolveContext ctx,
+        final Supplier<SolveContext> fresh) {
+        final Settlement first = mode.chain()
+            .run(ctx);
+        if (!(first instanceof Settlement.Stalled) || !ctx.hasDrawerBounds()) {
+            return new RunContext(ctx, first);
+        }
+        final DrawerRelaxation.Outcome relaxed = DrawerRelaxation.run(ctx);
+        if (relaxed == null) return new RunContext(ctx, first);
+        final SolveContext retry = fresh.get();
+        relaxed.applyTo(retry);
+        return new RunContext(
+            retry,
+            mode.chain()
+                .run(retry));
+    }
+
     private static SolveContext ctxOf(final BalanceMode mode, final Graph graph,
         final Map<UUID, Double> extraExtentPins) {
         return ctxOf(mode, graph, extraExtentPins, Profiler.disabled());
     }
 
+    /** The shared context each entry point runs its mode's chain under; see {@link #run}. */
     private static SolveContext ctxOf(final BalanceMode mode, final Graph graph,
         final Map<UUID, Double> extraExtentPins, final Profiler profiler) {
         final long budgetMillis = mode.heuristics()
@@ -87,6 +118,7 @@ public final class Balancer {
             Budget.of(budgetMillis),
             extraExtentPins,
             mode.pins(),
+            mode == BalanceMode.AUTO,
             profiler);
     }
 
@@ -105,14 +137,15 @@ public final class Balancer {
      * enumeration) and per-machine extent pins.
      */
     public static Alternatives alternatives(final BalanceMode mode, final Graph graph,
-                                            @Nullable final ChoiceKey choice, final Map<UUID, Double> extraExtentPins) {
-        final SolveContext ctx = ctxOf(mode, graph, extraExtentPins);
-        if (mode == BalanceMode.AUTO && !ctx.anyPin || ctx.model.machines.isEmpty()) {
+        @Nullable final ChoiceKey choice, final Map<UUID, Double> extraExtentPins) {
+        final Supplier<SolveContext> fresh = () -> ctxOf(mode, graph, extraExtentPins);
+        final SolveContext first = fresh.get();
+        if (mode == BalanceMode.AUTO && !first.anchored || first.model.machines.isEmpty()) {
             return new Alternatives(null, List.of(), true, List.of());
         }
-        final Settlement settlement = mode.chain()
-            .run(ctx);
-        if (settlement instanceof final Settlement.Stalled stalled || ctx.point() == null) {
+        final RunContext settled = settle(mode, first, fresh);
+        final SolveContext ctx = settled.ctx();
+        if (settled.settlement() instanceof final Settlement.Stalled stalled || ctx.point() == null) {
             return new Alternatives(null, List.of(), true, List.of());
         }
         if (!mode.supportsAlternatives()) {
@@ -138,21 +171,29 @@ public final class Balancer {
      */
     public static Answer solveWithAlternatives(final BalanceMode mode, final Graph graph,
         @Nullable final ChoiceKey choice, final Map<UUID, Double> extraExtentPins) {
-        final SolveContext ctx = ctxOf(mode, graph, extraExtentPins);
+        final Supplier<SolveContext> fresh = () -> ctxOf(mode, graph, extraExtentPins);
+        final SolveContext first = fresh.get();
         final long start = System.currentTimeMillis();
-        if (ctx.model.machines.isEmpty()) {
+        if (first.model.machines.isEmpty()) {
             return new Answer.Failed(SolverMessage.EMPTY_GRAPH.toNote());
         }
-        if (mode == BalanceMode.AUTO && !ctx.anyPin) {
-            return new Answer.Failed(SolverMessage.NO_PIN.toNote());
+        if (mode == BalanceMode.AUTO && !first.anchored) {
+            // Idle, not broken. Rules that only cap (at most) or drawers asking for nothing size
+            // nothing, which is worth saying when the player has set some.
+            final List<Note> notes = new ArrayList<>(first.notes);
+            if (first.hasDrawerBounds()) notes.add(SolverMessage.DRAWER_ONLY_UPPER_BOUNDS.toNote());
+            return new Answer.Failed(SolverMessage.NO_PIN.toNote(), notes, DrawerReadout.unsolved(first));
         }
-        final Settlement settlement = mode.chain()
-            .run(ctx);
-        if (settlement instanceof final Settlement.Stalled stalled) {
-            return new Answer.Failed(stalled.reason());
+        final RunContext settled = settle(mode, first, fresh);
+        final SolveContext ctx = settled.ctx();
+        if (settled.settlement() instanceof final Settlement.Stalled stalled) {
+            return new Answer.Failed(stalled.reason(), ctx.notes, DrawerReadout.unsolved(ctx));
         }
         if (ctx.point() == null) {
-            return new Answer.Failed(SolverMessage.BALANCE_FAILED.toNote(ctx.rejection));
+            return new Answer.Failed(
+                SolverMessage.BALANCE_FAILED.toNote(ctx.rejection),
+                ctx.notes,
+                DrawerReadout.unsolved(ctx));
         }
         if (choice != null && mode.supportsAlternatives()) {
             ctx.commit(Enumerator.applyChoice(ctx, choice));
@@ -163,7 +204,10 @@ public final class Balancer {
         if (mode == BalanceMode.AUTO) {
             final String residualError = ctx.validate(ctx.extents(), ctx.flows(), ctx.externals());
             if (residualError != null) {
-                return new Answer.Failed(SolverMessage.VALIDATION_FAILED.toNote(residualError));
+                return new Answer.Failed(
+                    SolverMessage.VALIDATION_FAILED.toNote(residualError),
+                    ctx.notes,
+                    DrawerReadout.unsolved(ctx));
             }
         }
         final SolutionView view = SolutionView.of(ctx, System.currentTimeMillis() - start);
@@ -175,11 +219,27 @@ public final class Balancer {
     /** A solved chart plus the other answers it could have had, or the failure that prevented both. */
     public sealed interface Answer permits Answer.Solved,Answer.Failed {
 
-        /** The solve committed a usable point and the enumeration that goes with it. */
+        /**
+         * The solve committed a usable point and the enumeration that goes with it. The drawer
+         * read-out is on the view: {@code solution().drawers}.
+         */
         record Solved(SolutionView solution, Alternatives alternatives) implements Answer {}
 
-        /** The solve committed no point; {@code failure} is why. */
-        record Failed(Note failure) implements Answer {}
+        /**
+         * The solve committed no point; {@code failure} is why. {@code notes} are what the run said
+         * besides (drawers not connected, drawers that cannot be met), and {@code drawers} what it
+         * learned about the drawers without a point: which are unmet, never their rates.
+         */
+        record Failed(Note failure, List<Note> notes, DrawerReadout drawers) implements Answer {
+
+            public Failed {
+                notes = List.copyOf(notes);
+            }
+
+            public Failed(final Note failure) {
+                this(failure, List.of(), DrawerReadout.NONE);
+            }
+        }
     }
 
     /**
@@ -192,7 +252,7 @@ public final class Balancer {
     @Nonnull
     public static BalanceResult balance(final Graph graph, final BalanceMode mode) {
         if (mode == BalanceMode.NONE) {
-            return buildResultFractional(graph, configuredCounts(graph), List.of(), null, null);
+            return buildResultFractional(graph, configuredCounts(graph), List.of(), null, null, DrawerReadout.NONE);
         }
         // One pass produces both the chart and the answers it could have had: the panel shows the
         // alternatives unconditionally now, and re-deriving them would mean solving twice per edit.
@@ -211,9 +271,12 @@ public final class Balancer {
             }
             // A stalled AUTO shows the chart without quantities and the reason; the simple modes
             // keep the configured counts - their solve is a refinement that may be refused.
-            final List<Note> failureNotes = reason == null ? List.of() : List.of(reason);
-            return mode == BalanceMode.AUTO ? buildResultFractional(graph, Map.of(), failureNotes, null, null)
-                : buildResultFractional(graph, configuredCounts(graph), failureNotes, null, null);
+            final List<Note> failureNotes = new ArrayList<>();
+            if (reason != null) failureNotes.add(reason);
+            failureNotes.addAll(failed.notes());
+            return mode == BalanceMode.AUTO
+                ? buildResultFractional(graph, Map.of(), failureNotes, null, null, failed.drawers())
+                : buildResultFractional(graph, configuredCounts(graph), failureNotes, null, null, failed.drawers());
         }
         final Answer.Solved solved = (Answer.Solved) answer;
         final SolutionView view = solved.solution();
@@ -226,7 +289,7 @@ public final class Balancer {
             view.machineCounts.size(),
             view.openGates,
             view.wallMillis);
-        return buildResultFractional(graph, view.machineCounts, view.notes, view, solved.alternatives());
+        return buildResultFractional(graph, view.machineCounts, view.notes, view, solved.alternatives(), view.drawers);
     }
 
     /**
@@ -250,7 +313,8 @@ public final class Balancer {
      */
     @Nonnull
     private static BalanceResult buildResultFractional(final Graph graph, final Map<UUID, Double> machineCounts,
-        final List<Note> notes, @Nullable final SolutionView auto, @Nullable final Alternatives alternatives) {
+        final List<Note> notes, @Nullable final SolutionView auto, @Nullable final Alternatives alternatives,
+        final DrawerReadout drawers) {
         final Map<UUID, NodeBalance> nodeBalances = new HashMap<>();
         final Map<RecipeProperty<?>, Long> propertyTotals = new HashMap<>();
         double totalOps = 0;
@@ -303,9 +367,17 @@ public final class Balancer {
         }
 
         if (auto == null) {
-            return new BalanceResult.Fallback(nodeBalances, propertyTotals, totalOps, totalDuration, notes);
+            return new BalanceResult.Fallback(nodeBalances, propertyTotals, totalOps, totalDuration, notes, drawers);
         }
-        return new BalanceResult.Solved(nodeBalances, propertyTotals, totalOps, totalDuration, notes, auto, alternatives);
+        return new BalanceResult.Solved(
+            nodeBalances,
+            propertyTotals,
+            totalOps,
+            totalDuration,
+            notes,
+            auto,
+            alternatives,
+            drawers);
     }
 
     /** One machine's share of a solved balance, for the node widget and the machine-count panel. */

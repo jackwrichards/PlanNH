@@ -1,6 +1,7 @@
 package com.sbancuz.plannh.data.flowchart.balancer;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -41,6 +42,8 @@ public final class SolutionView {
     public final long wallMillis;
     public final List<Note> notes;
     public final ChoiceKey key;
+    /** Every drawer's total at this point, and which drawers' rules it does not keep. */
+    public final DrawerReadout drawers;
 
     private SolutionView(final SolveContext ctx, final long wallMillis) {
         final ModelData model = ctx.model;
@@ -78,6 +81,7 @@ public final class SolutionView {
         this.floorsUsed = ctx.floorsUsed;
         this.wallMillis = wallMillis;
         this.key = ctx.keyOf(ctx.support());
+        this.drawers = DrawerReadout.of(ctx, ctx.extents(), ctx.externals());
         final List<Note> allNotes = new ArrayList<>();
         allNotes.addAll(ctx.notes);
         allNotes.addAll(ctx.stageNotes);
@@ -135,7 +139,14 @@ public final class SolutionView {
         // A set: the same ingredient imported at two ports of one machine is one wiring mistake to
         // the reader, and the message that describes it is identical either way.
         final Set<Note> result = new LinkedHashSet<>();
+        // A port a source drawer supplies is imported on purpose: the player said where it comes from.
+        final Set<PortRef> supplied = new HashSet<>();
+        for (final ModelData.DrawerRow row : model.drawers) {
+            if (row.kind()
+                .linksInputs()) supplied.addAll(row.links());
+        }
         for (final External in : terminalIn) {
+            if (supplied.contains(in.port())) continue;
             final String ingredient = ingredientNameOf(ctx, in);
             if (Config.isFreeIngredient(ingredient)) continue;
             final String match = findProduction(ctx, in, -1);
@@ -147,6 +158,7 @@ public final class SolutionView {
             final ModelData.ConnectedPort port = model.connectedPorts.get(p);
             if (!port.input() || ctx.externals()[p] <= tol) continue;
             final External src = new External(ctx.refOf(p), ctx.externals()[p]);
+            if (supplied.contains(src.port())) continue;
             final String ingredient = ingredientNameOf(ctx, src);
             if (Config.isFreeIngredient(ingredient)) continue;
             final String match = findProduction(ctx, src, model.portComponent[p]);

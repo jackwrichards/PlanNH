@@ -4,11 +4,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
 
 import com.sbancuz.plannh.data.MachineConfig;
+import com.sbancuz.plannh.data.flowchart.Drawer;
 import com.sbancuz.plannh.data.flowchart.Edge;
 import com.sbancuz.plannh.data.flowchart.Graph;
 import com.sbancuz.plannh.data.flowchart.Group;
@@ -105,6 +107,27 @@ public final class ModelData {
      */
     public record Pool(List<Integer> machines, int capacity) {}
 
+    /**
+     * A drawer as the solver sees it: who it is, the rule it asks for, and the terms of the total
+     * that rule applies to. A linked port with no drawn edge sends its whole rate to the drawer, so
+     * it contributes {@code extent * qty} of its machine ({@link #extentMachines}/{@link #extentQty},
+     * summed per machine). A linked port that is also wired contributes its external variable
+     * ({@link #externalPorts}): what crosses the boundary there, which is an output's surplus or an
+     * input's import. Built for every drawer, rule or not, so the read-out covers byproducts too.
+     *
+     * @param rule  the rule the solver applies ({@link Drawer#effectiveRule()}): ANY for byproducts
+     *              and trash whatever they store.
+     * @param links every linked port that made it into the row, wired or not, in link order.
+     */
+    public record DrawerRow(UUID id, String label, Drawer.Kind kind, Drawer.Rule rule, double rate,
+        int[] extentMachines, double[] extentQty, int[] externalPorts, List<PortRef> links) {
+
+        /** Whether anything at all can flow through the drawer in a model that binds externals or not. */
+        public boolean hasTerms(final boolean bindsExternals) {
+            return extentMachines.length > 0 || bindsExternals && externalPorts.length > 0;
+        }
+    }
+
     public final List<Machine> machines = new ArrayList<>();
     public final Map<UUID, Integer> machineIndex = new HashMap<>();
     public final List<EdgeData> edges = new ArrayList<>();
@@ -112,6 +135,7 @@ public final class ModelData {
     public final Map<Long, Integer> portLookup = new HashMap<>();
     public final List<Gate> gates = new ArrayList<>();
     public final List<Pool> pools = new ArrayList<>();
+    public final List<DrawerRow> drawers = new ArrayList<>();
     public int[] portGate;
     public int[] portComponent;
     /** Packed lexicographic per-gate weights from the type's heuristics. */
@@ -149,6 +173,7 @@ public final class ModelData {
         }
 
         buildPools(graph);
+        buildDrawers(graph);
         buildGates();
         final boolean[] gateInput = new boolean[gates.size()];
         for (int g = 0; g < gates.size(); g++) {
@@ -174,6 +199,64 @@ public final class ModelData {
             if (members.isEmpty()) continue;
             pools.add(new Pool(List.copyOf(members), machineGroup.getMachineCapacity()));
         }
+    }
+
+    /**
+     * Every drawer as a {@link DrawerRow}. Links are checked the way edges are: a link to a node that
+     * left the chart, to a port index past the node's ports, or to a port that carries nothing is
+     * skipped, so a stale link costs that link and not the solve. Must run after the edges are
+     * interned: whether a linked port is wired is whether it was interned.
+     */
+    private void buildDrawers(final Graph graph) {
+        for (final Drawer drawer : graph.getDrawers()) {
+            final boolean input = drawer.getKind()
+                .linksInputs();
+            final Map<Integer, Double> perMachine = new TreeMap<>();
+            final List<Integer> ports = new ArrayList<>();
+            final List<PortRef> refs = new ArrayList<>();
+            for (final Drawer.Link link : drawer.getLinks()) {
+                final Integer m = machineIndex.get(link.nodeId());
+                if (m == null) continue;
+                final Machine md = machines.get(m);
+                if (!md.hasPort(link.portIndex(), input)) continue;
+                final double qty = md.qty(link.portIndex(), input);
+                if (qty <= 0) continue;
+                refs.add(new PortRef(link.nodeId(), link.portIndex(), input));
+                final Integer port = portLookup.get(portKey(m, link.portIndex(), input));
+                if (port != null) {
+                    if (!ports.contains(port)) ports.add(port);
+                } else {
+                    perMachine.merge(m, qty, Double::sum);
+                }
+            }
+            final int[] extentMachines = new int[perMachine.size()];
+            final double[] extentQty = new double[perMachine.size()];
+            int i = 0;
+            for (final Map.Entry<Integer, Double> e : perMachine.entrySet()) {
+                extentMachines[i] = e.getKey();
+                extentQty[i++] = e.getValue();
+            }
+            final String label = drawer.getLabel()
+                .isEmpty() ? drawer.getResourceKey() : drawer.getLabel();
+            drawers.add(
+                new DrawerRow(
+                    drawer.getId(),
+                    label,
+                    drawer.getKind(),
+                    drawer.effectiveRule(),
+                    drawer.getRate(),
+                    extentMachines,
+                    extentQty,
+                    ports.stream()
+                        .mapToInt(Integer::intValue)
+                        .toArray(),
+                    List.copyOf(refs)));
+        }
+    }
+
+    /** The {@link #portLookup} key of a machine's port. */
+    public static long portKey(final int machine, final int portIndex, final boolean input) {
+        return ((long) machine << 32) | ((long) portIndex << 1) | (input ? 1 : 0);
     }
 
     /**
@@ -212,7 +295,7 @@ public final class ModelData {
     }
 
     private int internPort(final int machine, final int portIndex, final boolean input) {
-        final long key = ((long) machine << 32) | ((long) portIndex << 1) | (input ? 1 : 0);
+        final long key = portKey(machine, portIndex, input);
         return portLookup.computeIfAbsent(key, k -> {
             connectedPorts.add(
                 new ConnectedPort(
