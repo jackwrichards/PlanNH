@@ -71,15 +71,20 @@ public class Graph {
     private static final AtomicLong VERSIONS = new AtomicLong();
 
     /**
-     * Moves on every mutation; derived caches (the solve, the summary, the boundary view) each
-     * compare against it to know when they are stale. Drawn from one client-wide counter, so it
-     * only ever grows and no two graphs - a slot and the graph an undo put in its place, say - ever
-     * share a value: equal versions mean the same graph in the same state. Transient because a
-     * loaded plan starts cold and re-derives everything on first ask.
+     * Moves on every change, layout included. Drawn from one client-wide counter, so it only ever
+     * grows and no two graphs - a slot and the graph an undo put in its place, say - ever share a
+     * value: equal versions mean the same graph in the same state. Transient because a loaded plan
+     * starts cold and re-derives everything on first ask.
      */
     private transient long version = VERSIONS.incrementAndGet();
 
-    /** The graph version the solve caches above were built from. */
+    /**
+     * Moves on every change that can change the solve - not on a move or a resize. The solve caches
+     * (and a {@code SolveService} request) key on this, so dragging a card never re-solves.
+     */
+    private transient long solveVersion = version;
+
+    /** The solve version the solve caches above were built from. */
     private transient long solvedAt = -1;
 
     public Graph() {
@@ -90,22 +95,44 @@ public class Graph {
         this.name = name;
     }
 
+    /** Every change moves this, layout included; equal values mean the same graph, unchanged. */
     public long version() {
         return version;
     }
 
+    /** Every change that can change the solve moves this; layout-only edits do not. */
+    public long solveVersion() {
+        return solveVersion;
+    }
+
     private void bumpVersion() {
         version = VERSIONS.incrementAndGet();
+        solveVersion = version;
     }
 
     /**
-     * @deprecated Mutations bump the graph version internally; callers that change solve-relevant
-     *             state should route through the graph's own methods instead. This is closely related to the maps at
-     *             the beginning which should have proper accessors
+     * Records an edit the graph cannot see for itself that may change the solve: a machine setting,
+     * a pinned machine count or a target rate, a drawer's rule, rate, kind or label, a machine
+     * group's capacity or members, a node's recipe. Moves both {@link #version()} and
+     * {@link #solveVersion()}. Edits made through the graph's own methods (nodes, edges, drawers,
+     * links, balance mode, excess choice) already do this.
      */
+    public void touch() {
+        bumpVersion();
+    }
+
+    /**
+     * Records a layout-only edit: something moved or was resized, a note's text changed. Moves
+     * {@link #version()} but not {@link #solveVersion()}, so nothing is re-solved.
+     */
+    public void touchLayout() {
+        version = VERSIONS.incrementAndGet();
+    }
+
+    /** @deprecated Use {@link #touch()} (or {@link #touchLayout()} for a layout-only edit). */
     @Deprecated
     public void markDirty() {
-        bumpVersion();
+        touch();
     }
 
     public ChoiceKey getExcessChoice() {
@@ -206,12 +233,17 @@ public class Graph {
         }
     }
 
+    /**
+     * The balance, solved on the calling thread when the solve version moved since the last ask.
+     * The legacy canvas reads this; the board solves through a {@code SolveService} instead.
+     */
     public BalanceResult balance() {
-        if (solvedAt != version) {
+        if (solvedAt != solveVersion) {
             Plan.getInstance()
                 .getSummary()
                 .recompute(this);
-            solvedAt = version;
+            solvedAt = solveVersion;
+            boundaryView = null;
         }
         return Plan.getInstance()
             .getSummary()
@@ -271,8 +303,10 @@ public class Graph {
         return -1;
     }
 
+    /** Removes a group; a machine group's capacity is a solve constraint, so this moves the version. */
     public void removeGroup(final UUID id) {
         groups.remove(id);
+        bumpVersion();
     }
 
     public Collection<Group> getGroups() {

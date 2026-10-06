@@ -25,8 +25,8 @@ import com.sbancuz.plannh.PlanNH;
  * plan tab whose version is lower than the last one submitted still publishes.</li>
  * </ul>
  * {@code latest()} therefore lags the graph while a solve runs: compare {@link Result#version()}
- * with the graph's version to know whether what is on screen is current, and {@link #busy()} to
- * say "solving".
+ * with the graph's {@code solveVersion()} to know whether what is on screen is current, and
+ * {@link #busy()} to say "solving".
  *
  * <p>
  * A solve that throws is published as a {@link Result} with its {@link Result#error()} set and no
@@ -99,7 +99,8 @@ public final class SolveService implements AutoCloseable {
 
     /**
      * Queues a snapshot to solve, replacing any request that has not started. {@code version} is
-     * echoed on the {@link Result}; use the graph's {@code version()}.
+     * echoed on the {@link Result}; use the graph's {@code solveVersion()}, which moves on every edit
+     * that can change the answer and not on a move.
      */
     public void submit(final long version, final SolveInput input) {
         Objects.requireNonNull(input, "input");

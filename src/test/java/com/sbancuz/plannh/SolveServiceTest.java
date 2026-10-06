@@ -152,7 +152,7 @@ class SolveServiceTest {
         try (SolveService service = new SolveService(solver)) {
             service.request(
                 chart.graph()
-                    .version(),
+                    .solveVersion(),
                 () -> SolveInput.of(chart.graph(), BalanceMode.AUTO, null));
             assertTrue(service.awaitIdle(WAIT));
 
@@ -160,7 +160,7 @@ class SolveServiceTest {
             assertNotNull(result);
             assertEquals(
                 chart.graph()
-                    .version(),
+                    .solveVersion(),
                 result.version(),
                 "the board can tell the answer is current");
             assertTrue(result.balance() instanceof BalanceResult.Solved);
