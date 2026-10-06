@@ -1,6 +1,7 @@
 package com.sbancuz.plannh.data.setting;
 
 import java.util.Arrays;
+import java.util.function.Consumer;
 
 import com.cleanroommc.modularui.api.drawable.IKey;
 import com.cleanroommc.modularui.api.widget.IWidget;
@@ -32,11 +33,11 @@ public class EnumSettingDef<E extends Enum<E>> extends SettingDef<E> {
     }
 
     @Override
-    public IWidget settingsWidget(final MachineConfig config, final SettingEdit edit) {
+    public IWidget settingsWidget(final MachineConfig config, final Consumer<Runnable> edit) {
         final CycleButtonWidget button = new CycleButtonWidget().value(new EnumValue.Dynamic<>(type, () -> {
             E val = config.get(this);
             return val != null ? val : type.getEnumConstants()[0];
-        }, val -> edit.apply(() -> config.set(this, val))))
+        }, val -> edit.accept(() -> config.set(this, val))))
             .width(getMaxWidth());
         for (final E constant : type.getEnumConstants()) {
             button.stateOverlay(constant, IKey.str(constant.name()));

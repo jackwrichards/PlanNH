@@ -1,5 +1,7 @@
 package com.sbancuz.plannh.data.setting;
 
+import java.util.function.Consumer;
+
 import net.minecraft.util.EnumChatFormatting;
 
 import com.cleanroommc.modularui.api.widget.IWidget;
@@ -37,9 +39,9 @@ public class IntegerSettingDef extends SettingDef<Integer> {
     }
 
     @Override
-    public IWidget settingsWidget(final MachineConfig config, final SettingEdit edit) {
+    public IWidget settingsWidget(final MachineConfig config, final Consumer<Runnable> edit) {
         return new TextFieldWidget().width(getMaxWidth())
-            .value(new IntValue.Dynamic(() -> config.get(this), val -> edit.apply(() -> config.set(this, val))))
+            .value(new IntValue.Dynamic(() -> config.get(this), val -> edit.accept(() -> config.set(this, val))))
             .numbersInt(min, max)
             .formatAsInteger(true);
     }

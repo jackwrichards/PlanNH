@@ -1,5 +1,7 @@
 package com.sbancuz.plannh.data.setting;
 
+import java.util.function.Consumer;
+
 import com.cleanroommc.modularui.api.drawable.IKey;
 import com.cleanroommc.modularui.api.widget.IWidget;
 import com.cleanroommc.modularui.value.BoolValue;
@@ -15,13 +17,13 @@ public class BooleanSettingDef extends SettingDef<Boolean> {
 
     @Override
     public String tooltip(final Boolean value) {
-        return Boolean.TRUE.equals(value) ? TooltipStyle.flag(getLabel()) : null;
+        return value ? TooltipStyle.flag(getLabel()) : null;
     }
 
     @Override
-    public IWidget settingsWidget(final MachineConfig config, final SettingEdit edit) {
+    public IWidget settingsWidget(final MachineConfig config, final Consumer<Runnable> edit) {
         return new ToggleButton()
-            .value(new BoolValue.Dynamic(() -> config.get(this), val -> edit.apply(() -> config.set(this, val))))
+            .value(new BoolValue.Dynamic(() -> config.get(this), val -> edit.accept(() -> config.set(this, val))))
             .overlay(false, IKey.str("[ ]"))
             .overlay(true, IKey.str("[✓]"));
     }

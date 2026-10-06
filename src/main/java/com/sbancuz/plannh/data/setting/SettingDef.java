@@ -1,6 +1,7 @@
 package com.sbancuz.plannh.data.setting;
 
 import java.lang.reflect.Type;
+import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
 
@@ -42,7 +43,17 @@ public abstract class SettingDef<T> implements JsonSerializer<Object>, JsonDeser
         return TooltipStyle.IDENTITY;
     }
 
-    public abstract IWidget settingsWidget(MachineConfig config, SettingEdit edit);
+    /**
+     * Builds the widget that edits this setting's value.
+     *
+     * <p>
+     * The widget holds the value and the config, but not the chart the setting belongs to - and a
+     * setting is a solve input, not a widget-local preference: the machine count, the overclock tier
+     * and the heat all decide what the balancer comes back with. So the panel owns the consequence
+     * and the widget hands {@code edit} the change itself: the panel runs it (so undo reaches it),
+     * re-solves, saves, and rebuilds the rows, because a value can decide what else is on offer.
+     */
+    public abstract IWidget settingsWidget(MachineConfig config, Consumer<Runnable> edit);
 
     @Override
     public final JsonElement serialize(final Object value, final Type typeOfSrc,
