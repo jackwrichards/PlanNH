@@ -1,0 +1,646 @@
+package com.sbancuz.plannh.dev;
+
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+
+import javax.imageio.ImageIO;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.audio.SoundCategory;
+import net.minecraft.client.gui.GuiMainMenu;
+import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.gui.ScaledResolution;
+import net.minecraft.launchwrapper.Launch;
+import net.minecraft.util.ScreenShotHelper;
+import net.minecraft.world.WorldSettings;
+import net.minecraft.world.WorldType;
+import net.minecraftforge.client.ClientCommandHandler;
+import net.minecraftforge.client.event.GuiOpenEvent;
+import net.minecraftforge.common.MinecraftForge;
+
+import org.lwjgl.input.Mouse;
+
+import com.cleanroommc.modularui.api.IMuiScreen;
+import com.cleanroommc.modularui.api.widget.IWidget;
+import com.cleanroommc.modularui.screen.GuiContainerWrapper;
+import com.cleanroommc.modularui.screen.ModularContainer;
+import com.cleanroommc.modularui.screen.ModularScreen;
+import com.cleanroommc.modularui.screen.viewport.LocatedWidget;
+import com.cleanroommc.modularui.widget.sizer.Area;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.sbancuz.plannh.PlanNH;
+import com.sbancuz.plannh.gui.FlowchartScreen;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+
+import cpw.mods.fml.common.FMLCommonHandler;
+import cpw.mods.fml.common.eventhandler.SubscribeEvent;
+import cpw.mods.fml.common.gameevent.TickEvent;
+
+/**
+ * Dev-only automation so the client can be driven from a shell: auto-loads a creative test world and serves a
+ * localhost HTTP endpoint for screenshots, synthetic input and widget dumps. Only active in a deobfuscated dev
+ * environment (override with {@code -Dplannh.dev=true|false}). See {@code docs/dev-harness.md}.
+ */
+public final class DevHarness {
+
+    private static final int PORT = Integer.getInteger("plannh.dev.port", 25599);
+    private static final String WORLD = System.getProperty("plannh.dev.world", "plannh-dev");
+    private static final long REQUEST_TIMEOUT_SECONDS = 30;
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting()
+        .disableHtmlEscaping()
+        .create();
+
+    private final Minecraft mc = Minecraft.getMinecraft();
+    /** Input steps, one per client tick, so the game sees each as a separate event batch. */
+    private final Queue<Runnable> tickActions = new ConcurrentLinkedQueue<>();
+    /** Work that needs a fully drawn frame, run at the end of the render tick. */
+    private final Queue<Runnable> frameActions = new ConcurrentLinkedQueue<>();
+    private boolean worldRequested;
+    private volatile boolean ready;
+
+    private DevHarness() {}
+
+    public static void initIfDev() {
+        if (!isEnabled()) return;
+        final DevHarness harness = new DevHarness();
+        FMLCommonHandler.instance()
+            .bus()
+            .register(harness);
+        MinecraftForge.EVENT_BUS.register(harness);
+        harness.startServer();
+    }
+
+    private static boolean isEnabled() {
+        final String prop = System.getProperty("plannh.dev");
+        if (prop != null) return Boolean.parseBoolean(prop);
+        return Boolean.TRUE.equals(Launch.blackboard.get("fml.deobfuscatedEnvironment"));
+    }
+
+    // region Game hooks
+
+    @SubscribeEvent
+    public void onGuiOpen(final GuiOpenEvent event) {
+        if (!(event.gui instanceof GuiMainMenu) || worldRequested) return;
+        worldRequested = true;
+        // The harness drives an unfocused window; a pause menu would steal every screen.
+        mc.gameSettings.pauseOnLostFocus = false;
+        // Dev runs share a desk with a person: silent unless asked for (-Dplannh.dev.sound=true).
+        if (!Boolean.getBoolean("plannh.dev.sound")) mc.gameSettings.setSoundLevel(SoundCategory.MASTER, 0.0F);
+        if (WORLD.isEmpty()) {
+            ready = true;
+            return;
+        }
+        tickActions.add(this::loadWorld);
+    }
+
+    @SubscribeEvent
+    public void onClientTick(final TickEvent.ClientTickEvent event) {
+        if (event.phase != TickEvent.Phase.START) return;
+        if (!ready && mc.theWorld != null && mc.thePlayer != null) ready = true;
+        final Runnable action = tickActions.poll();
+        if (action != null) action.run();
+    }
+
+    @SubscribeEvent
+    public void onRenderTick(final TickEvent.RenderTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) return;
+        // Only what was queued before this frame; actions may re-queue themselves for the next one.
+        for (int i = frameActions.size(); i > 0; i--) {
+            final Runnable action = frameActions.poll();
+            if (action != null) action.run();
+        }
+    }
+
+    private void loadWorld() {
+        WorldSettings settings = null;
+        if (mc.getSaveLoader()
+            .getWorldInfo(WORLD) == null) {
+            settings = new WorldSettings(0L, WorldSettings.GameType.CREATIVE, false, false, WorldType.FLAT);
+            settings.enableCommands();
+        }
+        PlanNH.LOG.info("[dev] Loading test world '{}'", WORLD);
+        mc.displayGuiScreen(null);
+        mc.launchIntegratedServer(WORLD, WORLD, settings);
+    }
+
+    // endregion
+
+    // region HTTP server
+
+    private void startServer() {
+        try {
+            final HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", PORT), 0);
+            server.setExecutor(Executors.newSingleThreadExecutor(r -> {
+                final Thread t = new Thread(r, "PlanNH-DevHarness");
+                t.setDaemon(true);
+                return t;
+            }));
+            server.createContext("/", this::handle);
+            server.start();
+            PlanNH.LOG.info("[dev] Harness listening on http://127.0.0.1:{}/", PORT);
+            // Killing the gradle run task does not kill the game; tools/dev/mc.sh uses this as a fallback.
+            final File pidFile = new File(mc.mcDataDir, "plannh-dev.pid");
+            Files.writeString(
+                pidFile.toPath(),
+                Long.toString(
+                    ProcessHandle.current()
+                        .pid()));
+            pidFile.deleteOnExit();
+        } catch (final IOException e) {
+            PlanNH.LOG.error("[dev] Harness failed to start on port {}", PORT, e);
+        }
+    }
+
+    private void handle(final HttpExchange exchange) throws IOException {
+        int code = 200;
+        Object body;
+        try {
+            final Map<String, String> q = query(exchange);
+            body = route(
+                exchange.getRequestURI()
+                    .getPath(),
+                q);
+        } catch (final IllegalArgumentException e) {
+            code = 400;
+            body = error(e.getMessage());
+        } catch (final Exception e) {
+            code = 500;
+            body = error(e.toString());
+            PlanNH.LOG.warn("[dev] Request failed", e);
+        }
+        final byte[] bytes = GSON.toJson(body)
+            .getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders()
+            .set("Content-Type", "application/json; charset=utf-8");
+        exchange.sendResponseHeaders(code, bytes.length);
+        try (OutputStream out = exchange.getResponseBody()) {
+            out.write(bytes);
+        }
+    }
+
+    private Object route(final String path, final Map<String, String> q) throws Exception {
+        switch (path) {
+            case "/":
+            case "/help":
+                return help();
+            case "/status":
+                return onClient(this::status);
+            case "/open":
+                requireWorld();
+                return onClient(() -> {
+                    openFlowchart();
+                    return ok();
+                });
+            case "/close":
+                return onClient(() -> {
+                    mc.displayGuiScreen(null);
+                    return ok();
+                });
+            case "/screenshot":
+                return screenshot(q.getOrDefault("name", "harness-" + System.currentTimeMillis() + ".png"), q);
+            case "/widgets":
+                return onClient(this::widgets);
+            case "/move":
+                return input(List.of(() -> moveTo(intArg(q, "x"), intArg(q, "y"))));
+            case "/click":
+                return click(q);
+            case "/drag":
+                return drag(q);
+            case "/scroll":
+                return scroll(q);
+            case "/key":
+                return key(q);
+            case "/type":
+                return type(q);
+            case "/cmd":
+                requireWorld();
+                return onClient(() -> {
+                    final String cmd = arg(q, "c");
+                    final int handled = ClientCommandHandler.instance.executeCommand(mc.thePlayer, cmd);
+                    if (handled == 0) mc.thePlayer.sendChatMessage(cmd);
+                    return ok();
+                });
+            case "/quit":
+                frameActions.add(mc::shutdown);
+                return ok();
+            default:
+                throw new IllegalArgumentException("unknown endpoint " + path + ", see /help");
+        }
+    }
+
+    private static Map<String, Object> help() {
+        final Map<String, Object> m = new LinkedHashMap<>();
+        m.put(
+            "endpoints",
+            List.of(
+                "/status - ready flag, current screen, display and GUI sizes, mouse position (GUI coords)",
+                "/open - open the PlanNH flowchart; /close - close the current screen",
+                "/screenshot?name=x.png[&x&y&w&h] - save the next frame (optionally a GUI-coord crop), returns the path",
+                "/widgets - dump the ModularUI widget tree with GUI-coordinate areas",
+                "/move?x&y, /click?x&y&button&count, /drag?x1&y1&x2&y2&steps&button, /scroll?x&y&amount - GUI coords",
+                "/key?code[&char] - LWJGL2 key code, /type?text - text into the focused field",
+                "/cmd?c=/time set day - run a command as the player",
+                "/quit - shut the client down"));
+        return m;
+    }
+
+    // endregion
+
+    // region Endpoint implementations
+
+    private Map<String, Object> status() {
+        final Map<String, Object> m = new LinkedHashMap<>();
+        final ScaledResolution sr = scaled();
+        m.put("ready", ready);
+        m.put("inWorld", mc.theWorld != null);
+        m.put(
+            "screen",
+            mc.currentScreen == null ? null
+                : mc.currentScreen.getClass()
+                    .getName());
+        final ModularScreen mui = muiScreen();
+        m.put(
+            "muiScreen",
+            mui == null ? null
+                : mui.getClass()
+                    .getName());
+        if (mui != null) {
+            final IWidget hovered = mui.getContext()
+                .getHovered();
+            final LocatedWidget focused = mui.getContext()
+                .getFocusedWidget();
+            m.put("hovered", hovered == null ? null : describe(hovered));
+            m.put("focused", focused == null || focused.getElement() == null ? null : describe(focused.getElement()));
+        }
+        m.put("displayWidth", mc.displayWidth);
+        m.put("displayHeight", mc.displayHeight);
+        m.put("guiWidth", sr.getScaledWidth());
+        m.put("guiHeight", sr.getScaledHeight());
+        m.put("guiScale", sr.getScaleFactor());
+        m.put("mouseX", Mouse.getX() * sr.getScaledWidth() / mc.displayWidth);
+        m.put("mouseY", sr.getScaledHeight() - Mouse.getY() * sr.getScaledHeight() / mc.displayHeight - 1);
+        return m;
+    }
+
+    /** Full frame, or with x/y/w/h (GUI coordinates) just that region, at native resolution. */
+    private Object screenshot(final String name, final Map<String, String> q) throws Exception {
+        if (!name.matches("[A-Za-z0-9._-]+\\.png")) throw new IllegalArgumentException("name must be like foo.png");
+        final boolean crop = q.containsKey("x");
+        final int cx = crop ? intArg(q, "x") : 0, cy = crop ? intArg(q, "y") : 0;
+        final int cw = crop ? intArg(q, "w") : 0, ch = crop ? intArg(q, "h") : 0;
+        // Skip one frame so anything queued just before this request has been drawn.
+        final CompletableFuture<Object> done = new CompletableFuture<>();
+        frameActions.add(() -> frameActions.add(() -> {
+            try {
+                ScreenShotHelper
+                    .saveScreenshot(mc.mcDataDir, name, mc.displayWidth, mc.displayHeight, mc.getFramebuffer());
+                final File file = new File(new File(mc.mcDataDir, "screenshots"), name);
+                if (crop) {
+                    final int s = scaled().getScaleFactor();
+                    final BufferedImage full = ImageIO.read(file);
+                    final int x = Math.max(0, cx * s), y = Math.max(0, cy * s);
+                    final int w = Math.min(full.getWidth() - x, cw * s), h = Math.min(full.getHeight() - y, ch * s);
+                    ImageIO.write(full.getSubimage(x, y, w, h), "png", file);
+                }
+                final Map<String, Object> m = ok();
+                m.put("path", file.getCanonicalPath());
+                done.complete(m);
+            } catch (final Throwable t) {
+                done.completeExceptionally(t);
+            }
+        }));
+        return done.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+    }
+
+    private Object widgets() {
+        final ModularScreen screen = muiScreen();
+        if (screen == null) throw new IllegalArgumentException("current screen is not a ModularUI screen");
+        return dumpWidget(screen.getMainPanel(), 0);
+    }
+
+    private static String describe(final IWidget widget) {
+        final Area a = widget.getArea();
+        return widget.getClass()
+            .getSimpleName() + " @"
+            + a.x()
+            + ","
+            + a.y()
+            + " "
+            + a.w()
+            + "x"
+            + a.h();
+    }
+
+    private static Map<String, Object> dumpWidget(final IWidget widget, final int depth) {
+        final Map<String, Object> m = new LinkedHashMap<>();
+        final Area a = widget.getArea();
+        m.put(
+            "type",
+            widget.getClass()
+                .getSimpleName());
+        if (widget.getName() != null) m.put("name", widget.getName());
+        m.put("x", a.x());
+        m.put("y", a.y());
+        m.put("w", a.w());
+        m.put("h", a.h());
+        if (!widget.isEnabled()) m.put("enabled", false);
+        final List<IWidget> children = widget.getChildren();
+        if (!children.isEmpty() && depth < 32) {
+            final List<Object> out = new ArrayList<>();
+            for (final IWidget child : children) out.add(dumpWidget(child, depth + 1));
+            m.put("children", out);
+        }
+        return m;
+    }
+
+    private void openFlowchart() {
+        final ModularContainer container = new ModularContainer();
+        container.constructClientOnly();
+        mc.displayGuiScreen(new GuiContainerWrapper(container, FlowchartScreen.create()));
+    }
+
+    private Object click(final Map<String, String> q) throws Exception {
+        final int x = intArg(q, "x"), y = intArg(q, "y"), button = intArg(q, "button", 0);
+        final int count = Math.max(1, intArg(q, "count", 1));
+        final List<Runnable> actions = new ArrayList<>();
+        actions.add(() -> moveTo(x, y));
+        // Consecutive ticks are 50ms apart, well inside any double-click window.
+        for (int i = 0; i < count; i++) {
+            actions.add(() -> SyntheticInput.button(button, true));
+            actions.add(() -> SyntheticInput.button(button, false));
+        }
+        return input(actions);
+    }
+
+    private Object drag(final Map<String, String> q) throws Exception {
+        final int x1 = intArg(q, "x1"), y1 = intArg(q, "y1"), x2 = intArg(q, "x2"), y2 = intArg(q, "y2");
+        final int steps = Math.max(1, intArg(q, "steps", 10)), button = intArg(q, "button", 0);
+        final List<Runnable> actions = new ArrayList<>();
+        actions.add(() -> moveTo(x1, y1));
+        actions.add(() -> SyntheticInput.button(button, true));
+        for (int i = 1; i <= steps; i++) {
+            final int sx = x1 + (x2 - x1) * i / steps, sy = y1 + (y2 - y1) * i / steps;
+            actions.add(() -> moveTo(sx, sy));
+        }
+        actions.add(() -> SyntheticInput.button(button, false));
+        return input(actions);
+    }
+
+    private Object scroll(final Map<String, String> q) throws Exception {
+        final int x = intArg(q, "x"), y = intArg(q, "y"), amount = intArg(q, "amount", 1);
+        return input(List.of(() -> moveTo(x, y), () -> SyntheticInput.wheel(amount)));
+    }
+
+    private Object key(final Map<String, String> q) throws Exception {
+        final int code = intArg(q, "code");
+        final String ch = q.getOrDefault("char", "");
+        final int codepoint = ch.isEmpty() ? 0 : ch.codePointAt(0);
+        return input(
+            List.of(() -> SyntheticInput.key(code, codepoint, true), () -> SyntheticInput.key(code, codepoint, false)));
+    }
+
+    private Object type(final Map<String, String> q) throws Exception {
+        final String text = arg(q, "text");
+        return input(List.of(() -> SyntheticInput.text(text)));
+    }
+
+    /** Converts GUI coordinates to window pixels and injects a motion event there. */
+    private void moveTo(final int guiX, final int guiY) {
+        final int scale = scaled().getScaleFactor();
+        // Aim at the middle of the GUI pixel so integer division in the game lands back on guiX/guiY.
+        SyntheticInput.moveTo(guiX * scale + scale / 2, guiY * scale + scale / 2);
+    }
+
+    // endregion
+
+    // region Helpers
+
+    private Object input(final List<Runnable> steps) throws Exception {
+        if (!SyntheticInput.available()) {
+            throw new IllegalStateException("synthetic input needs lwjgl3ify: launch with runClient25");
+        }
+        final CompletableFuture<Object> done = new CompletableFuture<>();
+        for (final Runnable step : steps) tickActions.add(() -> {
+            try {
+                step.run();
+            } catch (final Throwable t) {
+                done.completeExceptionally(t);
+            }
+        });
+        tickActions.add(() -> done.complete(ok()));
+        return done.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+    }
+
+    private <T> T onClient(final Supplier<T> task) throws Exception {
+        final CompletableFuture<T> done = new CompletableFuture<>();
+        tickActions.add(() -> {
+            try {
+                done.complete(task.get());
+            } catch (final Throwable t) {
+                done.completeExceptionally(t);
+            }
+        });
+        return done.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+    }
+
+    private void requireWorld() {
+        if (mc.thePlayer == null) throw new IllegalArgumentException("not in a world yet, poll /status for ready");
+    }
+
+    private ModularScreen muiScreen() {
+        final GuiScreen screen = mc.currentScreen;
+        return screen instanceof IMuiScreen muiScreen ? muiScreen.getScreen() : null;
+    }
+
+    private ScaledResolution scaled() {
+        return new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
+    }
+
+    private static Map<String, String> query(final HttpExchange exchange) throws IOException {
+        final Map<String, String> out = new LinkedHashMap<>();
+        final String raw = exchange.getRequestURI()
+            .getRawQuery();
+        if (raw == null) return out;
+        for (final String part : raw.split("&")) {
+            final int eq = part.indexOf('=');
+            final String k = eq < 0 ? part : part.substring(0, eq);
+            final String v = eq < 0 ? "" : part.substring(eq + 1);
+            out.put(URLDecoder.decode(k, "UTF-8"), URLDecoder.decode(v, "UTF-8"));
+        }
+        return out;
+    }
+
+    private static String arg(final Map<String, String> q, final String name) {
+        final String v = q.get(name);
+        if (v == null) throw new IllegalArgumentException("missing parameter '" + name + "'");
+        return v;
+    }
+
+    private static int intArg(final Map<String, String> q, final String name) {
+        try {
+            return Integer.parseInt(arg(q, name));
+        } catch (final NumberFormatException e) {
+            throw new IllegalArgumentException("parameter '" + name + "' must be an integer");
+        }
+    }
+
+    private static int intArg(final Map<String, String> q, final String name, final int fallback) {
+        return q.containsKey(name) ? intArg(q, name) : fallback;
+    }
+
+    private static Map<String, Object> ok() {
+        final Map<String, Object> m = new LinkedHashMap<>();
+        m.put("ok", true);
+        return m;
+    }
+
+    private static Map<String, Object> error(final String message) {
+        final Map<String, Object> m = new LinkedHashMap<>();
+        m.put("ok", false);
+        m.put("error", message);
+        return m;
+    }
+
+    // endregion
+
+    /**
+     * Feeds events into lwjgl3ify's emulated LWJGL2 input queues, the same path real SDL input takes, so the game
+     * cannot tell them apart and the user's real cursor is never touched. Reflection only: lwjgl3ify and LWJGL's SDL
+     * bindings exist on the Java 17+ run classpath, not the compile classpath.
+     */
+    private static final class SyntheticInput {
+
+        private static boolean resolved;
+        private static Class<?> motionEventClass;
+        private static Method addMoveEvent, addButtonEvent, addWheelEvent, lwjglToSdlButton, pixelScale;
+        private static Method addRawKeyEvent, addCharEvent, injectTextEvent;
+        private static java.lang.reflect.Constructor<?> keyEventCtor, textEventCtor;
+        private static Object keyPress, keyRelease;
+        private static Field buttonFlags;
+        private static int lastX, lastY;
+
+        static synchronized boolean available() {
+            if (!resolved) {
+                resolved = true;
+                try {
+                    final Class<?> mouse = Class.forName("org.lwjglx.input.Mouse");
+                    final Class<?> keyboard = Class.forName("org.lwjglx.input.Keyboard");
+                    final Class<?> keyEvent = Class.forName("org.lwjglx.input.Keyboard$KeyEvent");
+                    final Class<?> keyState = Class.forName("org.lwjglx.input.Keyboard$KeyState");
+                    motionEventClass = Class.forName("org.lwjgl.sdl.SDL_MouseMotionEvent");
+                    addMoveEvent = mouse.getMethod("addMoveEvent", motionEventClass);
+                    addButtonEvent = mouse.getMethod("addButtonEvent", int.class, boolean.class);
+                    addWheelEvent = mouse.getMethod("addWheelEvent", double.class);
+                    lwjglToSdlButton = mouse.getMethod("lwjglToSdlMouseButton", int.class);
+                    buttonFlags = mouse.getField("sdlMouseButtonFlags");
+                    pixelScale = Class.forName("org.lwjglx.opengl.Display")
+                        .getMethod("getPixelScaleFactor");
+                    addRawKeyEvent = keyboard.getMethod("addRawKeyEvent", keyEvent);
+                    final Class<?> inputEvents = Class.forName("me.eigenraven.lwjgl3ify.api.InputEvents");
+                    final Class<?> textEvent = Class.forName("me.eigenraven.lwjgl3ify.api.InputEvents$TextEvent");
+                    injectTextEvent = inputEvents.getMethod("injectTextEvent", textEvent);
+                    addCharEvent = keyboard.getMethod("addCharEvent", int.class, int.class);
+                    textEventCtor = textEvent.getConstructor(String.class);
+                    keyEventCtor = keyEvent.getConstructor(int.class, int.class, int.class, keyState, long.class);
+                    keyPress = keyState.getField("PRESS")
+                        .get(null);
+                    keyRelease = keyState.getField("RELEASE")
+                        .get(null);
+                } catch (final ReflectiveOperationException e) {
+                    PlanNH.LOG.warn("[dev] Synthetic input unavailable: {}", e.toString());
+                    addMoveEvent = null;
+                }
+            }
+            return addMoveEvent != null;
+        }
+
+        /** @param px window pixels from the left, @param py window pixels from the top */
+        static void moveTo(final int px, final int py) {
+            try {
+                final float scale = (float) pixelScale.invoke(null);
+                final Object event = motionEventClass.getMethod("calloc")
+                    .invoke(null);
+                motionEventClass.getMethod("x", float.class)
+                    .invoke(event, px / scale);
+                motionEventClass.getMethod("y", float.class)
+                    .invoke(event, py / scale);
+                motionEventClass.getMethod("xrel", float.class)
+                    .invoke(event, (px - lastX) / scale);
+                motionEventClass.getMethod("yrel", float.class)
+                    .invoke(event, (py - lastY) / scale);
+                addMoveEvent.invoke(null, event);
+                motionEventClass.getMethod("free")
+                    .invoke(event);
+                lastX = px;
+                lastY = py;
+            } catch (final ReflectiveOperationException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        static void button(final int button, final boolean down) {
+            try {
+                // isButtonDown() reads the SDL button mask rather than the event queue, so keep both in step.
+                final int sdl = (byte) lwjglToSdlButton.invoke(null, button);
+                final int mask = 1 << (sdl - 1);
+                final int flags = buttonFlags.getInt(null);
+                buttonFlags.setInt(null, down ? flags | mask : flags & ~mask);
+                addButtonEvent.invoke(null, button, down);
+            } catch (final ReflectiveOperationException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        static void wheel(final int amount) {
+            try {
+                addWheelEvent.invoke(null, (double) amount);
+            } catch (final ReflectiveOperationException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        static void key(final int code, final int codepoint, final boolean down) {
+            try {
+                addRawKeyEvent.invoke(
+                    null,
+                    keyEventCtor.newInstance(code, code, codepoint, down ? keyPress : keyRelease, System.nanoTime()));
+            } catch (final ReflectiveOperationException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        /**
+         * Mirrors Lwjgl3ifyEventLoop#handleTextEvent: an lwjgl3ify text event (vanilla text fields listen for these)
+         * followed by one LWJGL2 char event per character (GuiScreen#keyTyped and ModularUI read those).
+         */
+        static void text(final String text) {
+            try {
+                injectTextEvent.invoke(null, textEventCtor.newInstance(text));
+                for (final int c : text.chars()
+                    .toArray()) addCharEvent.invoke(null, c, c);
+            } catch (final ReflectiveOperationException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+    }
+}

@@ -13,6 +13,7 @@ import com.sbancuz.plannh.client.ChatHandler;
 import com.sbancuz.plannh.client.GPUProgram;
 import com.sbancuz.plannh.client.ImportCommand;
 import com.sbancuz.plannh.client.WorldHandler;
+import com.sbancuz.plannh.dev.DevHarness;
 import com.sbancuz.plannh.gui.FlowchartScreen;
 import com.sbancuz.plannh.layout.AutoLayout;
 
@@ -61,6 +62,8 @@ public class ClientProxy extends CommonProxy {
             .func_152344_a(AutoLayout::warmup);
         Minecraft.getMinecraft()
             .func_152344_a(GPUProgram.BLUR::compile);
+
+        DevHarness.initIfDev();
     }
 
     @SubscribeEvent
