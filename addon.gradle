@@ -2,6 +2,9 @@
 
 test {
     useJUnitPlatform()
+    // GTNHGradle points this task at the downgraded test classes. On a clean build the configuration cache
+    // captures that directory while it is still empty, and the task then reports NO-SOURCE and runs nothing.
+    notCompatibleWithConfigurationCache('downgraded test classes are captured empty on clean builds')
     testLogging {
         events 'passed', 'skipped', 'failed'
         exceptionFormat 'short'
