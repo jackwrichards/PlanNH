@@ -4,6 +4,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import com.cleanroommc.modularui.widget.sizer.Area;
+
+import it.unimi.dsi.fastutil.ints.IntIntPair;
+
 /**
  * Chart fixtures for the layout tests.
  *
@@ -59,6 +63,11 @@ public final class Charts {
         for (int i = 0; i < length; i++) machines.add(machine(i + 1));
         for (int i = 0; i + 1 < length; i++) relations.add(relation(1000 + i, i + 1, i + 2));
         return new LayoutRequest(machines, relations, List.of(), List.of());
+    }
+
+    /** The box a placed thing occupies, for the overlap assertions. */
+    public static Area box(final IntIntPair at, final int width, final int height) {
+        return new Area(at.leftInt(), at.rightInt(), width, height);
     }
 
     /** Settings with generous spacings, so a test's assertions are about the contract and not the packing. */

@@ -9,16 +9,18 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.cleanroommc.modularui.widget.sizer.Area;
 import com.sbancuz.plannh.data.flowchart.Group;
 import com.sbancuz.plannh.gui.ArrowRouter;
 import com.sbancuz.plannh.gui.CanvasWidget;
-import com.sbancuz.plannh.gui.layout.Box;
 import com.sbancuz.plannh.gui.layout.ElkLayoutStrategy;
 import com.sbancuz.plannh.gui.layout.LayoutMachine;
 import com.sbancuz.plannh.gui.layout.LayoutPlan;
 import com.sbancuz.plannh.gui.layout.LayoutRelation;
 import com.sbancuz.plannh.gui.layout.LayoutRequest;
 import com.sbancuz.plannh.gui.layout.LayoutSettings;
+
+import it.unimi.dsi.fastutil.ints.IntIntPair;
 
 /**
  * The spacing contract between the layout engine and the arrow router.
@@ -49,25 +51,13 @@ public class LayoutMarginTest {
 
     /** The clear gap between the two machines, measured at their boxes rather than at their origins. */
     private static int corridor(final LayoutPlan plan) {
-        final Box a = new Box(
-            plan.machines()
-                .get(A)
-                .x(),
-            plan.machines()
-                .get(A)
-                .y(),
-            100,
-            60);
-        final Box b = new Box(
-            plan.machines()
-                .get(B)
-                .x(),
-            plan.machines()
-                .get(B)
-                .y(),
-            100,
-            60);
-        return Math.max(b.x() - a.right(), a.x() - b.right());
+        final IntIntPair a = plan.machines()
+            .get(A);
+        final IntIntPair b = plan.machines()
+            .get(B);
+        final Area left = new Area(a.leftInt(), a.rightInt(), 100, 60);
+        final Area right = new Area(b.leftInt(), b.rightInt(), 100, 60);
+        return Math.max(right.x - left.ex(), left.x - right.ex());
     }
 
     @Test

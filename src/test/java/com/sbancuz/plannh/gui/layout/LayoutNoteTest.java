@@ -1,5 +1,6 @@
 package com.sbancuz.plannh.gui.layout;
 
+import static com.sbancuz.plannh.gui.layout.Charts.box;
 import static com.sbancuz.plannh.gui.layout.Charts.group;
 import static com.sbancuz.plannh.gui.layout.Charts.id;
 import static com.sbancuz.plannh.gui.layout.Charts.machine;
@@ -17,6 +18,10 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import com.cleanroommc.modularui.widget.sizer.Area;
+
+import it.unimi.dsi.fastutil.ints.IntIntPair;
 
 /**
  * A note's space, and what a note does to the machine it belongs to.
@@ -59,20 +64,20 @@ public class LayoutNoteTest {
     public void theNoteLandsExactlyOneGapAway() {
         for (final LayoutNote.Side side : LayoutNote.Side.values()) {
             final LayoutPlan plan = engine.layout(withNote(side), settings());
-            final Point machineAt = plan.machines()
+            final IntIntPair machineAt = plan.machines()
                 .get(id(1));
-            final Point noteAt = plan.notes()
+            final IntIntPair noteAt = plan.notes()
                 .get(id(20));
 
             assertNotNull(noteAt, "the note was not placed at all: " + side);
             switch (side) {
-                case ABOVE -> assertEquals(machineAt.y() - NOTE_H - GAP, noteAt.y(), side + " gap");
-                case BELOW -> assertEquals(machineAt.y() + H + GAP, noteAt.y(), side + " gap");
-                case LEFT -> assertEquals(machineAt.x() - NOTE_W - GAP, noteAt.x(), side + " gap");
-                case RIGHT -> assertEquals(machineAt.x() + W + GAP, noteAt.x(), side + " gap");
+                case ABOVE -> assertEquals(machineAt.rightInt() - NOTE_H - GAP, noteAt.rightInt(), side + " gap");
+                case BELOW -> assertEquals(machineAt.rightInt() + H + GAP, noteAt.rightInt(), side + " gap");
+                case LEFT -> assertEquals(machineAt.leftInt() - NOTE_W - GAP, noteAt.leftInt(), side + " gap");
+                case RIGHT -> assertEquals(machineAt.leftInt() + W + GAP, noteAt.leftInt(), side + " gap");
             }
             assertFalse(
-                new Box(machineAt.x(), machineAt.y(), W, H).overlaps(new Box(noteAt.x(), noteAt.y(), NOTE_W, NOTE_H)),
+                box(machineAt, W, H).intersects(box(noteAt, NOTE_W, NOTE_H)),
                 side + ": the note overlaps the machine it is attached to");
         }
     }
@@ -84,17 +89,17 @@ public class LayoutNoteTest {
         // out of the way, or the note lands on top of it.
         final LayoutPlan plan = engine.layout(withNote(LayoutNote.Side.BELOW), settings());
 
-        final Point machineAt = plan.machines()
+        final IntIntPair machineAt = plan.machines()
             .get(id(1));
-        final Point neighbourAt = plan.machines()
+        final IntIntPair neighbourAt = plan.machines()
             .get(id(2));
-        final Point noteAt = plan.notes()
+        final IntIntPair noteAt = plan.notes()
             .get(id(20));
 
         assertFalse(
-            new Box(neighbourAt.x(), neighbourAt.y(), W, H).overlaps(new Box(noteAt.x(), noteAt.y(), NOTE_W, NOTE_H)),
+            box(neighbourAt, W, H).intersects(box(noteAt, NOTE_W, NOTE_H)),
             "the note at " + noteAt + " landed on the neighbouring machine at " + neighbourAt);
-        assertTrue(machineAt.x() < neighbourAt.x(), "the chain lost its direction");
+        assertTrue(machineAt.leftInt() < neighbourAt.leftInt(), "the chain lost its direction");
     }
 
     @Test
@@ -109,20 +114,20 @@ public class LayoutNoteTest {
                 note(21, NOTE_W, NOTE_H, LayoutNote.Side.BELOW, id(1))));
 
         final LayoutPlan plan = engine.layout(request, settings());
-        final Point first = plan.notes()
+        final IntIntPair first = plan.notes()
             .get(id(20));
-        final Point second = plan.notes()
+        final IntIntPair second = plan.notes()
             .get(id(21));
-        final Point machineAt = plan.machines()
+        final IntIntPair machineAt = plan.machines()
             .get(id(1));
 
         assertNotNull(first);
         assertNotNull(second);
         assertFalse(
-            new Box(first.x(), first.y(), NOTE_W, NOTE_H).overlaps(new Box(second.x(), second.y(), NOTE_W, NOTE_H)),
+            box(first, NOTE_W, NOTE_H).intersects(box(second, NOTE_W, NOTE_H)),
             "the two notes are on top of each other");
-        assertTrue(second.y() >= first.y() + NOTE_H, "the second note is not stacked below the first");
-        assertTrue(first.y() >= machineAt.y() + H, "the first note is not clear of the machine");
+        assertTrue(second.rightInt() >= first.rightInt() + NOTE_H, "the second note is not stacked below the first");
+        assertTrue(first.rightInt() >= machineAt.rightInt() + H, "the first note is not clear of the machine");
     }
 
     @Test
@@ -158,7 +163,7 @@ public class LayoutNoteTest {
             List.of(note(20, NOTE_W, NOTE_H, LayoutNote.Side.BELOW, id(2))));
 
         final LayoutPlan plan = engine.layout(request, settings());
-        final Box frame = plan.groupFrames()
+        final Area frame = plan.groupFrames()
             .get(id(90));
 
         assertNotNull(frame);
@@ -166,14 +171,14 @@ public class LayoutNoteTest {
             plan.notes()
                 .get(id(20)),
             "a grouped note was dropped");
-        final Point machineAt = plan.machines()
+        final IntIntPair machineAt = plan.machines()
             .get(id(2));
-        final Point noteAt = plan.notes()
+        final IntIntPair noteAt = plan.notes()
             .get(id(20));
         assertFalse(
-            new Box(machineAt.x(), machineAt.y(), W, H).overlaps(new Box(noteAt.x(), noteAt.y(), NOTE_W, NOTE_H)),
+            box(machineAt, W, H).intersects(box(noteAt, NOTE_W, NOTE_H)),
             "the grouped note overlaps its machine");
-        assertTrue(frame.y() <= machineAt.y(), "the grouped machine escaped its frame");
+        assertTrue(frame.y <= machineAt.rightInt(), "the grouped machine escaped its frame");
     }
 
     @Test
@@ -195,7 +200,7 @@ public class LayoutNoteTest {
         final LayoutPlan barePlan = engine.layout(bare, settings());
         final LayoutPlan notedPlan = engine.layout(withDanglingNote, settings());
 
-        assertEquals(barePlan.machines(), notedPlan.machines());
+        assertEquals(barePlan.machines(), notedPlan.machines(), "a note that reserves nothing moved a machine");
         assertTrue(
             notedPlan.notes()
                 .isEmpty());
@@ -214,7 +219,7 @@ public class LayoutNoteTest {
             List.of(),
             notes);
 
-        final Map<UUID, Point> placed = engine.layout(request, settings())
+        final Map<UUID, IntIntPair> placed = engine.layout(request, settings())
             .notes();
 
         for (final LayoutNote note : notes) {

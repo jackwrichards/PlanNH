@@ -28,6 +28,9 @@ import org.eclipse.elk.core.util.NullElkProgressMonitor;
 import org.eclipse.elk.graph.ElkNode;
 import org.eclipse.elk.graph.util.ElkGraphUtil;
 
+import com.cleanroommc.modularui.widget.sizer.Area;
+
+import it.unimi.dsi.fastutil.ints.IntIntPair;
 import lombok.SneakyThrows;
 
 public final class ElkLayoutStrategy implements LayoutStrategy {
@@ -362,9 +365,9 @@ public final class ElkLayoutStrategy implements LayoutStrategy {
      * Turns ELK's coordinates into world coordinates.
      */
     private LayoutPlan extract(final Graph graph, final LayoutSettings settings) {
-        final Map<UUID, Point> machines = new LinkedHashMap<>();
-        final Map<UUID, Box> frames = new LinkedHashMap<>();
-        final Map<UUID, Point> notes = new LinkedHashMap<>();
+        final Map<UUID, IntIntPair> machines = new LinkedHashMap<>();
+        final Map<UUID, Area> frames = new LinkedHashMap<>();
+        final Map<UUID, IntIntPair> notes = new LinkedHashMap<>();
 
         // The root sits at the origin with no padding, so its children are already world.
         descend(graph.root, 0, 0, graph, settings, machines, frames, notes);
@@ -377,8 +380,8 @@ public final class ElkLayoutStrategy implements LayoutStrategy {
      * @param parentX world x of {@code parent}'s own origin, which is also its frame's top-left
      */
     private void descend(final ElkNode parent, final int parentX, final int parentY, final Graph graph,
-        final LayoutSettings settings, final Map<UUID, Point> machines, final Map<UUID, Box> frames,
-        final Map<UUID, Point> notes) {
+        final LayoutSettings settings, final Map<UUID, IntIntPair> machines, final Map<UUID, Area> frames,
+        final Map<UUID, IntIntPair> notes) {
 
         for (final ElkNode child : parent.getChildren()) {
             // A plain addition. The padding between the parent's origin and its contents is already
@@ -397,7 +400,7 @@ public final class ElkLayoutStrategy implements LayoutStrategy {
             final UUID machineId = graph.idOfMachine.get(child);
             if (machineId == null) continue;
             final int[] inset = graph.machineInset.get(machineId);
-            machines.put(machineId, new Point(boxX + inset[0], boxY + inset[1]));
+            machines.put(machineId, IntIntPair.of(boxX + inset[0], boxY + inset[1]));
 
             // A single-member group's frame is its member's grown box, so it is reported from here rather
             // than from a compound that does not exist.
@@ -407,7 +410,7 @@ public final class ElkLayoutStrategy implements LayoutStrategy {
                 final LayoutGroup spec = graph.groupSpecs.get(entry.getKey());
                 frames.put(
                     entry.getKey(),
-                    new Box(
+                    new Area(
                         boxX,
                         boxY,
                         Math.max((int) Math.round(child.getWidth()), settings.groupMinWidth() + 2 * spec.pad()),
@@ -417,12 +420,14 @@ public final class ElkLayoutStrategy implements LayoutStrategy {
             }
             for (final LayoutNote note : graph.notesByAnchor.getOrDefault(machineId, List.of())) {
                 final int[] noteInset = graph.noteInset.get(note.id());
-                if (noteInset != null) notes.put(note.id(), new Point(boxX + noteInset[0], boxY + noteInset[1]));
+                if (noteInset != null) {
+                    notes.put(note.id(), IntIntPair.of(boxX + noteInset[0], boxY + noteInset[1]));
+                }
             }
         }
     }
 
-    private Box frameOf(final ElkNode compound, final int boxX, final int boxY, final Graph graph,
+    private Area frameOf(final ElkNode compound, final int boxX, final int boxY, final Graph graph,
         final LayoutSettings settings) {
 
         final LayoutGroup spec = graph.groupSpecs.get(graph.idOfGroup.get(compound));
@@ -432,7 +437,7 @@ public final class ElkLayoutStrategy implements LayoutStrategy {
         final int width = Math.max((int) Math.round(compound.getWidth()), settings.groupMinWidth() + 2 * pad);
         final int height = Math
             .max((int) Math.round(compound.getHeight()), settings.groupMinHeight() + 2 * pad + header);
-        return new Box(boxX, boxY, width, height);
+        return new Area(boxX, boxY, width, height);
     }
 
     public static void warmUp() {

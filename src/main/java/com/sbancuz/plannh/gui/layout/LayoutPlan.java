@@ -5,7 +5,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
-public record LayoutPlan(Map<UUID, Point> machines, Map<UUID, Box> groupFrames, Map<UUID, Point> notes) {
+import com.cleanroommc.modularui.widget.sizer.Area;
+
+import it.unimi.dsi.fastutil.ints.IntIntPair;
+
+public record LayoutPlan(Map<UUID, IntIntPair> machines, Map<UUID, Area> groupFrames, Map<UUID, IntIntPair> notes) {
 
     public LayoutPlan {
         machines = Collections.unmodifiableMap(new LinkedHashMap<>(machines));

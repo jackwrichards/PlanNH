@@ -1,5 +1,6 @@
 package com.sbancuz.plannh.gui.layout;
 
+import static com.sbancuz.plannh.gui.layout.Charts.box;
 import static com.sbancuz.plannh.gui.layout.Charts.chain;
 import static com.sbancuz.plannh.gui.layout.Charts.group;
 import static com.sbancuz.plannh.gui.layout.Charts.id;
@@ -19,17 +20,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-import com.sbancuz.plannh.gui.layout.Box;
-import com.sbancuz.plannh.gui.layout.ElkLayoutStrategy;
-import com.sbancuz.plannh.gui.layout.LayoutMachine;
-import com.sbancuz.plannh.gui.layout.LayoutPlan;
-import com.sbancuz.plannh.gui.layout.LayoutRelation;
-import com.sbancuz.plannh.gui.layout.LayoutRequest;
-import com.sbancuz.plannh.gui.layout.LayoutSettings;
-import com.sbancuz.plannh.gui.layout.LayoutStrategy;
-import com.sbancuz.plannh.gui.layout.Point;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import com.cleanroommc.modularui.widget.sizer.Area;
+
+import it.unimi.dsi.fastutil.ints.IntIntPair;
 
 /**
  * The engine's contract with the chart model: everything gets placed, nothing lands on anything else,
@@ -48,16 +44,19 @@ public class LayoutEngineTest {
     public void chainRunsLeftToRight() {
         final LayoutPlan plan = engine.layout(chain(5), settings());
 
-        assertEquals(5, plan.machines()
-            .size());
+        assertEquals(
+            5,
+            plan.machines()
+                .size());
         for (int i = 1; i <= 4; i++) {
-            final Point producer = plan.machines()
+            final IntIntPair producer = plan.machines()
                 .get(id(i));
-            final Point consumer = plan.machines()
+            final IntIntPair consumer = plan.machines()
                 .get(id(i + 1));
             assertNotNull(producer, "machine " + i + " was dropped");
             assertNotNull(consumer, "machine " + (i + 1) + " was dropped");
-            assertTrue(producer.x() < consumer.x(),
+            assertTrue(
+                producer.leftInt() < consumer.leftInt(),
                 "a producer must sit left of its consumer, got " + producer + " then " + consumer);
         }
     }
@@ -81,18 +80,24 @@ public class LayoutEngineTest {
         final List<LayoutMachine> machines = new ArrayList<>();
         for (int i = 1; i <= 14; i++) machines.add(machine(i));
         final List<LayoutRelation> relations = List.of(
-            relation(101, 1, 2), relation(102, 2, 3), relation(103, 4, 5), relation(104, 5, 6),
-            relation(105, 7, 8), relation(106, 3, 9), relation(107, 9, 10), relation(108, 2, 11),
+            relation(101, 1, 2),
+            relation(102, 2, 3),
+            relation(103, 4, 5),
+            relation(104, 5, 6),
+            relation(105, 7, 8),
+            relation(106, 3, 9),
+            relation(107, 9, 10),
+            relation(108, 2, 11),
             relation(109, 12, 13));
 
-        final LayoutPlan reference = engine.layout(new LayoutRequest(machines, relations, List.of(), List.of()),
-            settings());
+        final LayoutPlan reference = engine
+            .layout(new LayoutRequest(machines, relations, List.of(), List.of()), settings());
 
         for (int seed = 0; seed < 20; seed++) {
             final List<LayoutMachine> shuffled = new ArrayList<>(machines);
             Collections.shuffle(shuffled, new java.util.Random(seed));
-            final LayoutPlan actual = engine.layout(
-                new LayoutRequest(shuffled, relations, List.of(), List.of()), settings());
+            final LayoutPlan actual = engine
+                .layout(new LayoutRequest(shuffled, relations, List.of(), List.of()), settings());
             assertEquals(reference, actual, "shuffle " + seed + " moved something");
         }
     }
@@ -102,15 +107,17 @@ public class LayoutEngineTest {
     public void machinesDoNotOverlap() {
         final LayoutPlan plan = engine.layout(chain(16), settings());
 
-        final List<UUID> ids = new ArrayList<>(plan.machines()
-            .keySet());
+        final List<UUID> ids = new ArrayList<>(
+            plan.machines()
+                .keySet());
         for (int i = 0; i < ids.size(); i++) {
             for (int j = i + 1; j < ids.size(); j++) {
-                final Point a = plan.machines()
+                final IntIntPair a = plan.machines()
                     .get(ids.get(i));
-                final Point b = plan.machines()
+                final IntIntPair b = plan.machines()
                     .get(ids.get(j));
-                assertFalse(new Box(a.x(), a.y(), 100, 80).overlaps(new Box(b.x(), b.y(), 100, 80)),
+                assertFalse(
+                    box(a, 100, 80).intersects(box(b, 100, 80)),
                     ids.get(i) + " at " + a + " overlaps " + ids.get(j) + " at " + b);
             }
         }
@@ -136,8 +143,10 @@ public class LayoutEngineTest {
 
         final LayoutPlan plan = assertDoesNotThrow(() -> engine.layout(request, settings()));
 
-        assertEquals(3, plan.machines()
-            .size());
+        assertEquals(
+            3,
+            plan.machines()
+                .size());
     }
 
     // ---------------------------------------------------------------------------------------
@@ -154,17 +163,19 @@ public class LayoutEngineTest {
             List.of());
 
         final LayoutPlan plan = engine.layout(request, settings());
-        final Box frame = plan.groupFrames()
+        final Area frame = plan.groupFrames()
             .get(id(90));
 
         assertNotNull(frame, "the group got no frame");
         for (final int member : new int[] { 2, 3 }) {
-            final Point at = plan.machines()
+            final IntIntPair at = plan.machines()
                 .get(id(member));
             assertNotNull(at, "group member " + member + " was dropped");
-            assertTrue(frame.x() <= at.x() && at.x() + 100 <= frame.right(),
+            assertTrue(
+                frame.x <= at.leftInt() && at.leftInt() + 100 <= frame.ex(),
                 "member " + member + " at " + at + " hangs off the left or right of " + frame);
-            assertTrue(frame.y() <= at.y() && at.y() + 80 <= frame.bottom(),
+            assertTrue(
+                frame.y <= at.rightInt() && at.rightInt() + 80 <= frame.ey(),
                 "member " + member + " at " + at + " hangs off the top or bottom of " + frame);
         }
     }
@@ -183,12 +194,13 @@ public class LayoutEngineTest {
             List.of(group(90, 1)),
             List.of());
 
-        final Box frame = engine.layout(request, tight).groupFrames()
+        final Area frame = engine.layout(request, tight)
+            .groupFrames()
             .get(id(90));
 
         assertNotNull(frame);
-        assertTrue(frame.width() >= 300 + 2 * 12, "frame is " + frame.width() + " wide, minimum is 324");
-        assertTrue(frame.height() >= 200 + 2 * 12 + 20, "frame is " + frame.height() + " tall, minimum is 244");
+        assertTrue(frame.width >= 300 + 2 * 12, "frame is " + frame.width + " wide, minimum is 324");
+        assertTrue(frame.height >= 200 + 2 * 12 + 20, "frame is " + frame.height + " tall, minimum is 244");
     }
 
     @Test
@@ -205,14 +217,15 @@ public class LayoutEngineTest {
         final LayoutRequest request = new LayoutRequest(machines, relations, List.of(group(90, 5, 6)), List.of());
 
         final LayoutPlan plan = engine.layout(request, settings());
-        final Box frame = plan.groupFrames()
+        final Area frame = plan.groupFrames()
             .get(id(90));
 
         assertNotNull(frame);
         for (final int loose : new int[] { 1, 2, 3, 4, 7, 8, 9, 10, 11, 12 }) {
-            final Point at = plan.machines()
+            final IntIntPair at = plan.machines()
                 .get(id(loose));
-            assertFalse(new Box(at.x(), at.y(), 100, 80).overlaps(frame),
+            assertFalse(
+                box(at, 100, 80).intersects(frame),
                 "loose machine " + loose + " at " + at + " landed inside the frame " + frame);
         }
     }
@@ -230,9 +243,9 @@ public class LayoutEngineTest {
             List.of());
 
         final LayoutPlan plan = engine.layout(request, settings());
-        final Box outer = plan.groupFrames()
+        final Area outer = plan.groupFrames()
             .get(id(90));
-        final Box inner = plan.groupFrames()
+        final Area inner = plan.groupFrames()
             .get(id(91));
 
         assertNotNull(outer, "the outer group got no frame");
@@ -240,21 +253,23 @@ public class LayoutEngineTest {
 
         // A parent-relative inner frame would sit at or near the origin regardless of where the outer
         // group actually ended up.
-        assertTrue(inner.x() > outer.x(), "inner at " + inner + " is not inside outer at " + outer);
-        assertTrue(inner.y() > outer.y(), "inner at " + inner + " is not inside outer at " + outer);
-        assertTrue(inner.right() <= outer.right() && inner.bottom() <= outer.bottom(),
+        assertTrue(inner.x > outer.x, "inner at " + inner + " is not inside outer at " + outer);
+        assertTrue(inner.y > outer.y, "inner at " + inner + " is not inside outer at " + outer);
+        assertTrue(
+            inner.ex() <= outer.ex() && inner.ey() <= outer.ey(),
             "inner " + inner + " is not enclosed by outer " + outer);
 
         for (final int member : new int[] { 3, 4 }) {
-            final Point at = plan.machines()
+            final IntIntPair at = plan.machines()
                 .get(id(member));
-            assertTrue(at.x() >= inner.x() && at.x() + 100 <= inner.right(),
+            assertTrue(
+                at.leftInt() >= inner.x && at.leftInt() + 100 <= inner.ex(),
                 "nested member " + member + " at " + at + " is outside the inner frame " + inner);
         }
         // And the loose machine must not have been dragged inside either frame.
-        final Point loose = plan.machines()
+        final IntIntPair loose = plan.machines()
             .get(id(1));
-        assertFalse(new Box(loose.x(), loose.y(), 100, 80).overlaps(outer));
+        assertFalse(box(loose, 100, 80).intersects(outer));
     }
 
     @Test
@@ -271,8 +286,11 @@ public class LayoutEngineTest {
 
         final LayoutPlan plan = assertDoesNotThrow(() -> engine.layout(request, settings()));
 
-        assertEquals(3, plan.machines()
-            .size(), "a relation crossing a group boundary lost an endpoint");
+        assertEquals(
+            3,
+            plan.machines()
+                .size(),
+            "a relation crossing a group boundary lost an endpoint");
     }
 
     /**
@@ -310,17 +328,25 @@ public class LayoutEngineTest {
 
         for (final int[] pair : new int[][] { { 1, 2 }, { 2, 3 }, { 2, 4 } }) {
             final int from = plan.machines()
-                .get(id(pair[0])).x();
+                .get(id(pair[0]))
+                .leftInt();
             final int to = plan.machines()
-                .get(id(pair[1])).x();
-            assertTrue(from < to,
-                "relation " + pair[0] + " -> " + pair[1] + " does not run left to right (" + from + " -> " + to
+                .get(id(pair[1]))
+                .leftInt();
+            assertTrue(
+                from < to,
+                "relation " + pair[0]
+                    + " -> "
+                    + pair[1]
+                    + " does not run left to right ("
+                    + from
+                    + " -> "
+                    + to
                     + "); a shared column means the arrow is drawn straight down");
         }
 
         // Three columns for a three-step chain: the producer, the grouped machine, the two consumers.
-        assertEquals(3, columns(plan, 1, 2, 3, 4),
-            "expected three distinct columns, got " + columns(plan, 1, 2, 3, 4));
+        assertEquals(3, columns(plan, 1, 2, 3, 4), "expected three distinct columns, got " + columns(plan, 1, 2, 3, 4));
     }
 
     @Test
@@ -333,26 +359,26 @@ public class LayoutEngineTest {
             List.of());
 
         final LayoutPlan plan = engine.layout(request, settings());
-        final Box frame = plan.groupFrames()
+        final Area frame = plan.groupFrames()
             .get(id(90));
 
         assertNotNull(frame, "a one-machine group lost its frame");
-        assertTrue(frame.width() >= 324 && frame.height() >= 244,
-            "the frame minimum was not applied: " + frame);
+        assertTrue(frame.width >= 324 && frame.height >= 244, "the frame minimum was not applied: " + frame);
 
-        final Point member = plan.machines()
+        final IntIntPair member = plan.machines()
             .get(id(2));
-        assertTrue(frame.x() <= member.x() && member.x() + 100 <= frame.right(),
+        assertTrue(
+            frame.x <= member.leftInt() && member.leftInt() + 100 <= frame.ex(),
             "the member at " + member + " hangs out of " + frame);
-        assertTrue(frame.y() <= member.y() && member.y() + 80 <= frame.bottom(),
+        assertTrue(
+            frame.y <= member.rightInt() && member.rightInt() + 80 <= frame.ey(),
             "the member at " + member + " hangs out of " + frame);
 
         // And nothing loose may end up inside it.
         for (final int loose : new int[] { 1, 3 }) {
-            final Point at = plan.machines()
+            final IntIntPair at = plan.machines()
                 .get(id(loose));
-            assertFalse(new Box(at.x(), at.y(), 100, 80).overlaps(frame),
-                "loose machine " + loose + " landed inside the frame");
+            assertFalse(box(at, 100, 80).intersects(frame), "loose machine " + loose + " landed inside the frame");
         }
     }
 
@@ -368,14 +394,15 @@ public class LayoutEngineTest {
             List.of());
 
         final LayoutPlan plan = engine.layout(request, settings());
-        final Box frame = plan.groupFrames()
+        final Area frame = plan.groupFrames()
             .get(id(90));
 
         assertNotNull(frame);
         for (final int member : new int[] { 4, 5 }) {
-            final Point at = plan.machines()
+            final IntIntPair at = plan.machines()
                 .get(id(member));
-            assertTrue(frame.x() <= at.x() && at.x() + 100 <= frame.right(),
+            assertTrue(
+                frame.x <= at.leftInt() && at.leftInt() + 100 <= frame.ex(),
                 "member " + member + " at " + at + " is outside " + frame);
         }
     }
@@ -383,8 +410,10 @@ public class LayoutEngineTest {
     /** How many distinct columns the given machine seeds occupy. */
     private static int columns(final LayoutPlan plan, final int... seeds) {
         final Set<Integer> seen = new HashSet<>();
-        for (final int seed : seeds) seen.add(plan.machines()
-            .get(id(seed)).x());
+        for (final int seed : seeds) seen.add(
+            plan.machines()
+                .get(id(seed))
+                .leftInt());
         return seen.size();
     }
 
@@ -403,14 +432,14 @@ public class LayoutEngineTest {
             List.of());
 
         final LayoutPlan plan = assertDoesNotThrow(() -> engine.layout(request, settings()));
-        final Box frame = plan.groupFrames()
+        final Area frame = plan.groupFrames()
             .get(id(90));
 
         assertNotNull(frame, "an empty group was dropped");
-        assertTrue(frame.width() >= 324 && frame.height() >= 244, "the minimum was not applied: " + frame);
-        for (final Point at : plan.machines()
+        assertTrue(frame.width >= 324 && frame.height >= 244, "the minimum was not applied: " + frame);
+        for (final IntIntPair at : plan.machines()
             .values()) {
-            assertFalse(new Box(at.x(), at.y(), 100, 80).overlaps(frame), "a machine landed inside " + frame);
+            assertFalse(box(at, 100, 80).intersects(frame), "a machine landed inside " + frame);
         }
     }
 }

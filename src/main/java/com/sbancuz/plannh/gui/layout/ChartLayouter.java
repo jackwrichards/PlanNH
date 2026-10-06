@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import javax.annotation.Nullable;
 
+import com.cleanroommc.modularui.widget.sizer.Area;
 import com.sbancuz.plannh.Config;
 import com.sbancuz.plannh.PlanNH;
 import com.sbancuz.plannh.api.PlanAPI;
@@ -22,6 +23,8 @@ import com.sbancuz.plannh.gui.common.HeaderTextWidget;
 import com.sbancuz.plannh.gui.group.GroupWidget;
 import com.sbancuz.plannh.gui.node.NodeWidget;
 import com.sbancuz.plannh.gui.note.NoteWidget;
+
+import it.unimi.dsi.fastutil.ints.IntIntPair;
 
 /**
  * Handles the lifecycle of a layout request
@@ -190,10 +193,10 @@ private int[] noteSize(final Note note) {
 }
 
     private void apply(final LayoutPlan plan) {
-        final Point current = chartCorner();
-        final Point planned = planCorner(plan);
-        final int shiftX = current.x() - planned.x();
-        final int shiftY = current.y() - planned.y();
+        final IntIntPair current = chartCorner();
+        final IntIntPair planned = planCorner(plan);
+        final int shiftX = current.leftInt() - planned.leftInt();
+        final int shiftY = current.rightInt() - planned.rightInt();
 
         // One edit around the whole move. It sits outside the early-out above, so a failed layout leaves
         // neither the chart nor the undo history disturbed - an empty-result edit would leave a phantom
@@ -209,24 +212,24 @@ private int[] noteSize(final Note note) {
     }
 
     private void writeGroups(final LayoutPlan plan, final int shiftX, final int shiftY) {
-        for (final Map.Entry<UUID, Box> entry : plan.groupFrames()
+        for (final Map.Entry<UUID, Area> entry : plan.groupFrames()
             .entrySet()) {
             final Group group = canvas.getGraph()
                 .getGroups()
                 .get(entry.getKey());
             if (group == null) continue;
 
-            final Box frame = entry.getValue();
+            final Area frame = entry.getValue();
             final int header = headerOf(group);
-            group.setX(snap(frame.x() + shiftX));
-            group.setY(snap(frame.y() + shiftY));
-            group.setWidth(frame.width());
-            group.setHeight(frame.height() - header);
+            group.setX(snap(frame.x + shiftX));
+            group.setY(snap(frame.y + shiftY));
+            group.setWidth(frame.width);
+            group.setHeight(frame.height - header);
         }
     }
 
     private void writeChildren(final LayoutPlan plan, final int shiftX, final int shiftY) {
-        for (final Map.Entry<UUID, Point> entry : plan.machines()
+        for (final Map.Entry<UUID, IntIntPair> entry : plan.machines()
             .entrySet()) {
             final GraphData data = dataOf(entry.getKey());
             if (data == null) continue;
@@ -234,7 +237,7 @@ private int[] noteSize(final Note note) {
             data.setX(at[0]);
             data.setY(at[1]);
         }
-        for (final Map.Entry<UUID, Point> entry : plan.notes()
+        for (final Map.Entry<UUID, IntIntPair> entry : plan.notes()
             .entrySet()) {
             final GraphData data = dataOf(entry.getKey());
             if (data == null) continue;
@@ -247,9 +250,9 @@ private int[] noteSize(final Note note) {
     /**
      * A world position, snapped, converted into whatever the model stores for that thing.
      */
-    private int[] toStored(final Point world, final UUID id, final int shiftX, final int shiftY) {
-        final int x = snap(world.x() + shiftX);
-        final int y = snap(world.y() + shiftY);
+    private int[] toStored(final IntIntPair world, final UUID id, final int shiftX, final int shiftY) {
+        final int x = snap(world.leftInt() + shiftX);
+        final int y = snap(world.rightInt() + shiftY);
 
         final UUID groupId = parentOf.get(id);
         final Group group = groupId == null ? null
@@ -286,7 +289,7 @@ private int[] noteSize(final Note note) {
     // ===========================================================================================
 
     /** The chart's current top-left, over the same set the new corner is measured over. */
-    private Point chartCorner() {
+    private IntIntPair chartCorner() {
         int minX = Integer.MAX_VALUE;
         int minY = Integer.MAX_VALUE;
         for (final Node node : canvas.getGraph()
@@ -302,7 +305,7 @@ private int[] noteSize(final Note note) {
             minY = Math.min(minY, group.getY());
         }
         // Nothing loose and nothing framed: anchor on the origin rather than on MAX_VALUE.
-        return minX == Integer.MAX_VALUE ? new Point(0, 0) : new Point(minX, minY);
+        return minX == Integer.MAX_VALUE ? IntIntPair.of(0, 0) : IntIntPair.of(minX, minY);
     }
 
     /**
@@ -315,27 +318,27 @@ private int[] noteSize(final Note note) {
      * anything is grouped - which is what made an earlier attempt walk the chart further off screen on
      * every press.
      */
-    private Point planCorner(final LayoutPlan plan) {
+    private IntIntPair planCorner(final LayoutPlan plan) {
         int minX = Integer.MAX_VALUE;
         int minY = Integer.MAX_VALUE;
-        for (final Map.Entry<UUID, Point> entry : plan.machines()
+        for (final Map.Entry<UUID, IntIntPair> entry : plan.machines()
             .entrySet()) {
             if (parentOf.containsKey(entry.getKey())) continue;
             minX = Math.min(
                 minX,
                 entry.getValue()
-                    .x());
+                    .leftInt());
             minY = Math.min(
                 minY,
                 entry.getValue()
-                    .y());
+                    .rightInt());
         }
-        for (final Box frame : plan.groupFrames()
+        for (final Area frame : plan.groupFrames()
             .values()) {
-            minX = Math.min(minX, frame.x());
-            minY = Math.min(minY, frame.y());
+            minX = Math.min(minX, frame.x);
+            minY = Math.min(minY, frame.y);
         }
-        return minX == Integer.MAX_VALUE ? new Point(0, 0) : new Point(minX, minY);
+        return minX == Integer.MAX_VALUE ? IntIntPair.of(0, 0) : IntIntPair.of(minX, minY);
     }
 
     // ===========================================================================================
