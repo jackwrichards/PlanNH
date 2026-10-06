@@ -423,8 +423,31 @@ public final class Balancer {
             drawers);
     }
 
-    /** One machine's share of a solved balance, for the node widget and the machine-count panel. */
+    /**
+     * One machine's share of a solved balance, for the node widget and the machine-count panel.
+     *
+     * @param operations       the machine count (fractional in AUTO).
+     * @param effectiveOutputs per output index, units per cycle ({@code durationPerOp} ticks) across
+     *                         all {@code operations} machines; see {@link #outputPerSecond}.
+     * @param effectiveInputs  the same for inputs.
+     */
     public record NodeBalance(double operations, int totalDurationTicks, long totalEnergy, int durationPerOp,
-        Map<Integer, Float> effectiveOutputs, Map<Integer, Float> effectiveInputs) {}
+        Map<Integer, Float> effectiveOutputs, Map<Integer, Float> effectiveInputs) {
+
+        /** Units per second through output {@code index} (0 when it carries nothing). */
+        public double outputPerSecond(final int index) {
+            return perSecond(effectiveOutputs.get(index));
+        }
+
+        /** Units per second through input {@code index} (0 when it carries nothing). */
+        public double inputPerSecond(final int index) {
+            return perSecond(effectiveInputs.get(index));
+        }
+
+        private double perSecond(@Nullable final Float perCycle) {
+            if (perCycle == null) return 0;
+            return perCycle * (double) Numerics.TICKS_PER_SECOND / Math.max(1, durationPerOp);
+        }
+    }
 
 }

@@ -88,6 +88,14 @@ class MachineEffectTest {
                 / 160.0,
             1e-3,
             "light fuel follows");
+        assertEquals(
+            150.0,
+            result.nodeBalances()
+                .get(chart.machine(0).id)
+                .outputPerSecond(1),
+            1e-3,
+            "and reads per second without the arithmetic");
+        assertEquals(150.0, balance.inputPerSecond(0), 1e-3);
     }
 
     @Test
