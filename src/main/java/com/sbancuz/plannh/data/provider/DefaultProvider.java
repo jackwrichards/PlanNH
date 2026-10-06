@@ -40,6 +40,7 @@ public final class DefaultProvider implements PropertyProvider {
             final Object dur = ctx.properties().get(RecipePropertyAPI.DURATION_TICKS);
             d = dur instanceof final Number n ? n.intValue() : 0;
         }
-        return new EffectResult(d, 0, MachineProfile.getInt(s, Settings.MACHINES.key(), 1));
+        // One craft at a time per machine: the machine count is the solved extent, not throughput.
+        return new EffectResult(d, 0, 1);
     }
 }

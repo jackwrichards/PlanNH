@@ -1,0 +1,104 @@
+package com.sbancuz.plannh;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.junit.jupiter.api.Test;
+
+import com.sbancuz.plannh.data.MachineProfile;
+import com.sbancuz.plannh.data.MachineProfileRegistry;
+import com.sbancuz.plannh.data.RecipeContext;
+import com.sbancuz.plannh.data.Settings;
+import com.sbancuz.plannh.data.effect.EffectComputer;
+import com.sbancuz.plannh.data.effect.EffectResult;
+import com.sbancuz.plannh.data.flowchart.Node;
+import com.sbancuz.plannh.data.flowchart.balancer.BalanceMode;
+import com.sbancuz.plannh.data.flowchart.balancer.BalanceResult;
+import com.sbancuz.plannh.data.flowchart.balancer.Balancer;
+import com.sbancuz.plannh.data.provider.DefaultProvider;
+import com.sbancuz.plannh.harness.GtnhFlowLoader;
+import com.sbancuz.plannh.harness.GtnhFlowLoader.LoadedChart;
+
+/** What a machine's settings do to its effect: parallels multiply throughput, the count does not. */
+class MachineEffectTest {
+
+    private static final String PARALLEL_PROFILE = "test:parallel";
+
+    @Test
+    void parallelismIsParallelsOnly() {
+        final EffectComputer base = (s, ctx) -> new EffectResult(100, 0, 1);
+        final Map<String, Object> settings = new HashMap<>();
+        settings.put(Settings.MACHINES.key(), 4);
+        settings.put(Settings.PARALLELS.key(), 2);
+
+        final EffectResult effect = base.applyParallelism()
+            .compute(settings, new RecipeContext(new HashMap<>()));
+
+        assertEquals(2, effect.throughputFactor(), "four machines of two parallels each run 2 crafts per machine");
+    }
+
+    @Test
+    void theDefaultProfileRunsOneCraftPerMachine() {
+        final Map<String, Object> settings = new HashMap<>();
+        settings.put(Settings.MACHINES.key(), 3);
+        settings.put(Settings.DURATION_TICKS.key(), 40);
+
+        final EffectResult effect = DefaultProvider.noopEffect(settings, new RecipeContext(new HashMap<>()));
+
+        assertEquals(1, effect.throughputFactor());
+        assertEquals(40, effect.durationTicks());
+    }
+
+    @Test
+    void aPinnedCountRunsAtTheCountNotItsSquare() {
+        // The distillery makes 25 SLF from 25 oil in 1 s. Pinned at 3 machines of 2 parallels:
+        // 3 machines x 2 crafts x 25 = 150 oil/s. Before the fix the count also went into the
+        // throughput factor and the same pin ran 3 x (3 x 2) x 25 = 450 oil/s.
+        registerParallelProfile();
+        final LoadedChart chart = GtnhFlowLoader.load("light_fuel");
+        final Node distillery = chart.machine(1);
+        distillery.machineConfig.profileId = PARALLEL_PROFILE;
+        distillery.machineConfig.settings.put(Settings.PARALLELS.key(), 2);
+        distillery.machineConfig.setMachineCount(3);
+        distillery.setMachineCountFixed(true);
+
+        final BalanceResult result = Balancer.balance(chart.graph(), BalanceMode.AUTO);
+
+        final var balance = result.nodeBalances()
+            .get(distillery.id);
+        assertEquals(3.0, balance.operations(), 1e-6, "the count is the pin");
+        // Effective rates are per cycle; the distillery's cycle is one second.
+        assertEquals(
+            150.0,
+            balance.effectiveInputs()
+                .get(0),
+            1e-3,
+            "oil in per second");
+        // The reactor's cycle is 160 ticks: per cycle times 20/160 is per second.
+        assertEquals(
+            150.0,
+            result.nodeBalances()
+                .get(chart.machine(0).id)
+                .effectiveOutputs()
+                .get(1) * 20.0
+                / 160.0,
+            1e-3,
+            "light fuel follows");
+    }
+
+    private static void registerParallelProfile() {
+        GtnhFlowLoader.ensureDefaultMachineProfile();
+        if (MachineProfileRegistry.get(PARALLEL_PROFILE) != null) return;
+        final EffectComputer base = (s,
+            ctx) -> new EffectResult(ctx.getOrDefault(GtnhFlowLoader.DURATION_TICKS, 1), 0, 1);
+        MachineProfileRegistry.register(
+            new MachineProfile(
+                PARALLEL_PROFILE,
+                "Parallel",
+                List.of(Settings.MACHINES.def(), Settings.PARALLELS.def()),
+                base.applyParallelism()));
+    }
+}
