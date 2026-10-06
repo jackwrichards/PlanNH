@@ -1,5 +1,7 @@
 package com.sbancuz.plannh.data.setting;
 
+import java.util.function.Consumer;
+
 import javax.annotation.Nullable;
 
 import net.minecraft.util.StatCollector;
@@ -45,7 +47,7 @@ public final class CopyCountTarget implements TargetKind {
     }
 
     @Override
-    public IWidget widget(final NodeWidget parent, final SettingEdit edit) {
+    public IWidget widget(final NodeWidget parent, final Consumer<Runnable> edit) {
         final IWidget label = new FlowchartTextWidget(IKey.lang(LANG + "copies"), parent).tooltipDynamic(
             t -> t.addLine(IKey.lang(LANG + "solved"))
                 .addLine(solved(parent)));
@@ -58,7 +60,7 @@ public final class CopyCountTarget implements TargetKind {
             .child(label)
             .child(
                 new TextFieldWidget().width(IntegerSettingDef.fieldWidth(MIN, MAX))
-                    .value(new IntValue.Dynamic(() -> copies, typed -> edit.apply(() -> copies = typed)))
+                    .value(new IntValue.Dynamic(() -> copies, typed -> edit.accept(() -> copies = typed)))
                     .numbersInt(MIN, MAX)
                     .formatAsInteger(true));
 

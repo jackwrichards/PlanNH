@@ -1,5 +1,7 @@
 package com.sbancuz.plannh.data.setting;
 
+import java.util.function.Consumer;
+
 import javax.annotation.Nullable;
 
 import com.cleanroommc.modularui.api.widget.IWidget;
@@ -10,7 +12,7 @@ import com.sbancuz.plannh.gui.tooltips.TooltipBuilder;
 
 public interface TargetKind {
 
-    IWidget widget(NodeWidget parent, SettingEdit edit);
+    IWidget widget(NodeWidget parent, Consumer<Runnable> edit);
 
     void tooltip(TooltipBuilder out, NodeWidget parent);
 

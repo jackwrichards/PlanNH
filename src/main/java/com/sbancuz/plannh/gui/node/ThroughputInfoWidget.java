@@ -103,7 +103,8 @@ public class ThroughputInfoWidget extends ParentWidget<ThroughputInfoWidget> imp
         final IKey copies;
         if (operations < 0) copies = IKey.lang(LANG + "unbalanced");
         else if (operations <= 0) copies = IKey.lang(LANG + "unplanned");
-        else copies = IKey.comp(IKey.lang(LANG + "copies_needed"), IKey.lang(LANG + "ops", GuiHelper.formatCount(operations)));
+        else copies = IKey
+            .comp(IKey.lang(LANG + "copies_needed"), IKey.lang(LANG + "ops", GuiHelper.formatCount(operations)));
 
         lines.removeAll();
 

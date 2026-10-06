@@ -3,6 +3,7 @@ package com.sbancuz.plannh.data.setting;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import com.cleanroommc.modularui.api.drawable.IKey;
 import com.cleanroommc.modularui.api.widget.IWidget;
@@ -69,7 +70,7 @@ public final class OutputRateTarget implements TargetKind {
     }
 
     @Override
-    public IWidget widget(final NodeWidget parent, final SettingEdit edit) {
+    public IWidget widget(final NodeWidget parent, final Consumer<Runnable> edit) {
         final Flow column = FlowchartFlow.col(parent)
             .fullWidth()
             .coverChildrenHeight()
@@ -117,7 +118,7 @@ public final class OutputRateTarget implements TargetKind {
         }
     }
 
-    private Flow row(final NodeWidget parent, final Port<?> port, final int index, final SettingEdit edit) {
+    private Flow row(final NodeWidget parent, final Port<?> port, final int index, final Consumer<Runnable> edit) {
         final IWidget label = new FlowchartTextWidget(
             IKey.str(port.getDisplayName())
                 .color(rate(index) > 0 ? PlannhColors.SETTING_ON.getColor() : PlannhColors.TEXT_DIM.getColor()),
@@ -131,7 +132,7 @@ public final class OutputRateTarget implements TargetKind {
             .child(label)
             .child(
                 new TextFieldWidget().width(fieldWidth())
-                    .value(new DoubleValue.Dynamic(() -> rate(index), typed -> edit.apply(() -> {
+                    .value(new DoubleValue.Dynamic(() -> rate(index), typed -> edit.accept(() -> {
                         if (typed <= 0) rates.remove(index);
                         else rates.put(index, typed);
                     })))
