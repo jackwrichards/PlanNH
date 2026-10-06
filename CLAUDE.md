@@ -7,8 +7,9 @@ is ELK (`layout/`), recipe sources per mod are in `data/provider/`.
 ## Remotes and branches
 
 - `origin` = github.com/jackwrichards/PlanNH (our fork), `upstream` = github.com/sbancuz/PlanNH.
-- We started from upstream `dev`. The plan is to gut and rebuild the codebase in our own image, so upstream's
-  branches, bugs and CI are not our concern; don't spend effort on them.
+- `main` is our trunk and the fork's default branch; it started from upstream `dev` (a0896df). The other branches
+  on the fork are untouched copies of upstream's. The plan is to gut and rebuild the codebase in our own image, so
+  upstream's branches, bugs and CI are not our concern; don't spend effort on them.
 - Changing the mod is fine when it makes developing or testing easier (hooks, debug output, testability
   refactors). Don't do end-user work yet (UX polish, features, user-facing bug fixes): it is all going to change.
 - Dev tooling lives in `src/main/java/com/sbancuz/plannh/dev/`, `tools/dev/` and `docs/`; it is wired in through
@@ -43,4 +44,9 @@ tools/dev/mc.sh smoke      # automated launch/open/screenshot/log-scan check
 - After changing mod code: `tools/dev/mc.sh swap --reopen`. Restart instead (`mc.sh restart`, ~30s) when swap
   exits 2 (new or not-yet-loaded classes) or for mixins, resources and startup-only code.
 - The game window opens on the user's desktop. It is muted and 1920x1080 at GUI scale 2 by design; keep it that
-  way, and stop the client when done.
+  way. Leave it running while the user is iterating on the UI with you; stop it when the work is done.
+- The user can press F2 in game to screenshot what they see; when they refer to "this" or "my screenshot", Read
+  the newest file in `run/client/screenshots/`. Harness screenshots land there too, under the names you gave them.
+- UI feedback loop: change code, `swap --reopen`, check with a cropped `shot`, then tell the user it's live in
+  their window. They can interact with the game at the same time; just don't send synthetic input while they are
+  mid-action.
