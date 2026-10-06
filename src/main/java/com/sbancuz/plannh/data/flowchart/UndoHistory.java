@@ -44,16 +44,24 @@ public final class UndoHistory {
         return !redoStack.isEmpty();
     }
 
-    /** Camera fields come back at defaults. */
+    /**
+     * The graph before the last edit, to put in {@code current}'s place. It takes over
+     * {@code current}'s slot, so it keeps this history ({@link UndoHistories}). Camera fields come
+     * back at defaults.
+     */
     public Graph undo(final Graph current) {
         redoStack.push(encodeNormalized(current));
-        return Serializer.decode(undoStack.pop());
+        final Graph restored = Serializer.decode(undoStack.pop());
+        restored.takeSlotOf(current);
+        return restored;
     }
 
-    /** Camera fields come back at defaults. */
+    /** The graph the last undo went back from; as {@link #undo}, it takes over the slot. */
     public Graph redo(final Graph current) {
         undoStack.push(encodeNormalized(current));
-        return Serializer.decode(redoStack.pop());
+        final Graph restored = Serializer.decode(redoStack.pop());
+        restored.takeSlotOf(current);
+        return restored;
     }
 
     /**

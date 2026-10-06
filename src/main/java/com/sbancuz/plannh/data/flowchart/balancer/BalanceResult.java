@@ -2,6 +2,7 @@ package com.sbancuz.plannh.data.flowchart.balancer;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
@@ -28,16 +29,30 @@ public sealed interface BalanceResult permits BalanceResult.Solved,BalanceResult
 
     List<Note> notes();
 
+    /** What flows through each drawer and which drawers' rules the plan does not keep. */
+    DrawerReadout drawers();
+
+    /** Per drawer id, the total through it in units per second; empty when nothing was solved. */
+    default Map<UUID, Double> drawerRates() {
+        return drawers().rates();
+    }
+
+    /** Drawers whose rule the plan does not keep; may be non-empty on a fallback too. */
+    default Set<UUID> unmetDrawers() {
+        return drawers().unmet();
+    }
+
     /**
      * Every display number plus the solve's {@link SolutionView} and its alternatives.
      */
     record Solved(Map<UUID, Balancer.NodeBalance> nodeBalances, Map<RecipeProperty<?>, Long> propertyTotals,
         double totalOperations, int totalDurationTicks, List<Note> notes, SolutionView auto,
-        @Nullable Alternatives alternatives) implements BalanceResult {}
+        @Nullable Alternatives alternatives, DrawerReadout drawers) implements BalanceResult {}
 
     /**
      * NONE mode or a stalled solve: the configured counts and any notes, with no solved view.
      */
     record Fallback(Map<UUID, Balancer.NodeBalance> nodeBalances, Map<RecipeProperty<?>, Long> propertyTotals,
-        double totalOperations, int totalDurationTicks, List<Note> notes) implements BalanceResult {}
+        double totalOperations, int totalDurationTicks, List<Note> notes, DrawerReadout drawers)
+        implements BalanceResult {}
 }

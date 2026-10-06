@@ -13,6 +13,7 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -268,6 +269,10 @@ public final class Serializer {
         for (Group group : graph.getGroups()) groupsArray.add(GSON.toJsonTree(group));
         root.add("groups", groupsArray);
 
+        final JsonArray drawersArray = new JsonArray();
+        for (final Drawer drawer : graph.getDrawers()) drawersArray.add(GSON.toJsonTree(drawer, Drawer.class));
+        root.add("drawers", drawersArray);
+
         return root;
     }
 
@@ -387,7 +392,24 @@ public final class Serializer {
             graph.groups.put(group.getId(), group);
         }
 
+        // Absent from saves written before drawers existed; those load with none.
+        if (root.has("drawers")) {
+            for (final JsonElement elem : root.getAsJsonArray("drawers")) {
+                final Drawer drawer = readDrawer(elem);
+                if (drawer != null) graph.addDrawer(drawer);
+            }
+        }
+
         return graph;
+    }
+
+    /** One saved drawer, repaired; null when the entry is not a drawer at all (no id). */
+    @Nullable
+    static Drawer readDrawer(final JsonElement elem) {
+        final Drawer drawer = GSON.fromJson(elem, Drawer.class);
+        if (drawer == null || drawer.getId() == null) return null;
+        drawer.sanitize();
+        return drawer;
     }
 
     // ── Port helpers ──

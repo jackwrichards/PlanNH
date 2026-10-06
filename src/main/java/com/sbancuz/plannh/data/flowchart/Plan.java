@@ -28,7 +28,15 @@ public class Plan {
     @Setter
     private Summary summary = new Summary();
 
+    /** The slots' undo histories; transient, so a loaded plan starts with none. */
+    private final transient UndoHistories histories = new UndoHistories();
+
     private Plan() {}
+
+    /** The undo history of the slot {@code graph} is; it survives undo and redo swapping the graph. */
+    public UndoHistory history(final Graph graph) {
+        return histories.of(graph);
+    }
 
     public static Plan getInstance() {
         if (INSTANCE == null) {

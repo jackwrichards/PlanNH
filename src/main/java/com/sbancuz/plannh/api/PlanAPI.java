@@ -36,13 +36,20 @@ public final class PlanAPI {
         return Plan.getActiveGraph();
     }
 
+    /** The active slot's undo history. */
     public static UndoHistory undoHistory() {
-        return getActiveGraph().undoHistory;
+        return undoHistory(getActiveGraph());
+    }
+
+    /** The undo history of the slot {@code graph} is; see {@link Plan#history(Graph)}. */
+    public static UndoHistory undoHistory(final Graph graph) {
+        return Plan.getInstance()
+            .history(graph);
     }
 
     /** Runs {@code edit} as one undo step; no-op edits leave no trace. */
     public static void recordEdit(final Graph graph, final Runnable edit) {
-        final UndoHistory history = graph.undoHistory;
+        final UndoHistory history = undoHistory(graph);
         final String before = history.beginEdit(graph);
         edit.run();
         history.commitEdit(before, graph);

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -11,7 +12,7 @@ import java.util.UUID;
 
 import javax.annotation.Nullable;
 
-import com.sbancuz.plannh.data.flowchart.Graph;
+import com.sbancuz.plannh.data.flowchart.Drawer;
 
 /**
  * The shared, mutable state of one solve run - the "threaded" half of the zero-copy pipeline.
@@ -36,6 +37,31 @@ public final class SolveContext {
      */
     public Budget budget;
     public final boolean anyPin;
+    /**
+     * Whether anything sets the chart's scale: a pin, or a drawer that asks for a positive amount
+     * (at least or exactly) and is connected to something. AUTO has nothing to solve without one.
+     */
+    public final boolean anchored;
+    /**
+     * Whether drawer rows bind the externals of wired linked ports. True for the conservation
+     * family (AUTO), where a wired port's external is exactly what crosses the boundary there; the
+     * OUTPUT / INPUT models have no such variable on their claimed rows, so there a drawer counts
+     * its unwired links only.
+     */
+    public final boolean bindsExternals;
+    /**
+     * Per drawer row ({@link ModelData#drawers}), the bounds its rule puts on the drawer's total;
+     * NaN for none. Mutable: the drawer relaxation loosens a rule that cannot be met to what the
+     * chart can do, and the re-run solves under those.
+     */
+    public final double[] drawerLower;
+    public final double[] drawerUpper;
+    /** Drawers whose rule this run cannot meet, in the order they were found; read into the result. */
+    public final Set<UUID> unmetDrawers = new LinkedHashSet<>();
+    /** What each unmet drawer can reach and what holds it back, as found by the relaxation. */
+    public final List<DrawerReadout.Shortfall> shortfalls = new ArrayList<>();
+    /** Pool rows ({@link ModelData#pools}) left out of the models built now; the relaxation's probes only. */
+    final Set<Integer> droppedPools = new HashSet<>();
     /** The instrumentation hook for this run; {@link Profiler#disabled()} unless a test attaches one. */
     public final Profiler profiler;
     /** Per-machine declared extent (crafts/s), NaN = free (a 0-count pin is a real pin). */
@@ -72,18 +98,15 @@ public final class SolveContext {
     /** Stage notes produced by the pass currently running (cleared on every pass). */
     public final List<Note> stageNotes = new ArrayList<>();
 
-    SolveContext(final Graph graph, final Heuristics heuristics, final Budget budget,
-        final Map<UUID, Double> extraExtentPins, final Set<Pin> pins) {
-        this(graph, heuristics, budget, extraExtentPins, pins, Profiler.disabled());
-    }
-
-    SolveContext(final Graph graph, final Heuristics heuristics, final Budget budget,
-        final Map<UUID, Double> extraExtentPins, final Set<Pin> pins, final Profiler profiler) {
-        this.model = new ModelData(graph, heuristics);
+    SolveContext(final SolveInput input, final Heuristics heuristics, final Budget budget,
+        final Map<UUID, Double> extraExtentPins, final Set<Pin> pins, final boolean bindsExternals,
+        final Profiler profiler) {
+        this.model = new ModelData(input, heuristics);
         this.heuristics = heuristics;
         this.budget = budget;
         this.pins = Set.copyOf(pins);
         this.profiler = profiler;
+        this.bindsExternals = bindsExternals;
 
         final int n = model.machines.size();
         this.pinnedExtent = new double[n];
@@ -91,7 +114,7 @@ public final class SolveContext {
         boolean any = false;
         for (int m = 0; m < n; m++) {
             final ModelData.Machine md = model.machines.get(m);
-            final Double extra = extraExtentPins.get(md.node.id);
+            final Double extra = extraExtentPins.get(md.spec.id());
             if (pins.contains(Pin.EXTENT) && extra != null) {
                 pinnedExtent[m] = extra;
                 pinKind[m] = SolverMessage.PIN_EXTENT;
@@ -112,6 +135,102 @@ public final class SolveContext {
             }
         }
         this.anyPin = any;
+
+        final int d = model.drawers.size();
+        this.drawerLower = new double[d];
+        this.drawerUpper = new double[d];
+        boolean anchor = false;
+        for (int i = 0; i < d; i++) {
+            final ModelData.DrawerRow row = model.drawers.get(i);
+            drawerLower[i] = Double.NaN;
+            drawerUpper[i] = Double.NaN;
+            if (row.rule() == Drawer.Rule.ANY) continue;
+            final boolean asksForFlow = row.rule() != Drawer.Rule.AT_MOST && row.rate() > 0;
+            if (!row.hasTerms(bindsExternals)) {
+                // Nothing reaches this drawer, so its total is zero: a rule asking for flow cannot
+                // be met and would only make the whole chart infeasible, so it is reported and left
+                // out of the model; a rule zero satisfies needs no row at all.
+                if (asksForFlow) {
+                    unmetDrawers.add(row.id());
+                    notes.add(
+                        new Note(
+                            row.externalPorts().length > 0 ? SolverMessage.DRAWER_WIRED_IGNORED
+                                : SolverMessage.DRAWER_NOT_CONNECTED,
+                            row.label()));
+                }
+                continue;
+            }
+            switch (row.rule()) {
+                case AT_LEAST -> drawerLower[i] = row.rate();
+                case AT_MOST -> drawerUpper[i] = row.rate();
+                case EXACTLY -> {
+                    drawerLower[i] = row.rate();
+                    drawerUpper[i] = row.rate();
+                }
+                default -> {}
+            }
+            if (asksForFlow) anchor = true;
+        }
+        this.anchored = any || anchor;
+    }
+
+    /** Whether any drawer puts a bound in the model. */
+    public boolean hasDrawerBounds() {
+        for (int i = 0; i < drawerLower.length; i++) {
+            if (!Double.isNaN(drawerLower[i]) || !Double.isNaN(drawerUpper[i])) return true;
+        }
+        return false;
+    }
+
+    /**
+     * A drawer's total at a point: its unwired links' machine rates plus, where this model binds
+     * them, its wired links' externals.
+     */
+    public double drawerTotal(final int drawer, final double[] extents, final double[] externals) {
+        final ModelData.DrawerRow row = model.drawers.get(drawer);
+        double total = 0;
+        for (int i = 0; i < row.extentMachines().length; i++) {
+            total += extents[row.extentMachines()[i]] * row.extentQty()[i];
+        }
+        if (bindsExternals) {
+            for (final int p : row.externalPorts()) {
+                total += externals[p];
+            }
+        }
+        return total;
+    }
+
+    /** Whether a total keeps within a drawer's bounds, to the validation tolerance. */
+    public boolean drawerHolds(final int drawer, final double total) {
+        final double lower = drawerLower[drawer];
+        final double upper = drawerUpper[drawer];
+        final double tol = heuristics.numerics().validateTol;
+        if (!Double.isNaN(lower) && total < lower - tol * Math.max(1.0, Math.abs(lower))) return false;
+        return Double.isNaN(upper) || total <= upper + tol * Math.max(1.0, Math.abs(upper));
+    }
+
+    /**
+     * The machines a drawer that sets the scale reaches: they anchor their component for the
+     * "every machine runs" floors just as a pinned machine does.
+     */
+    private Set<Integer> anchorMachines() {
+        final Set<Integer> out = new HashSet<>();
+        for (int i = 0; i < model.drawers.size(); i++) {
+            final ModelData.DrawerRow row = model.drawers.get(i);
+            final boolean asksForFlow = !Double.isNaN(drawerLower[i]) && drawerLower[i] > 0;
+            if (!asksForFlow) continue;
+            for (final int m : row.extentMachines()) {
+                out.add(m);
+            }
+            if (bindsExternals) {
+                for (final int p : row.externalPorts()) {
+                    out.add(
+                        model.connectedPorts.get(p)
+                            .machine());
+                }
+            }
+        }
+        return out;
     }
 
     /**
@@ -121,7 +240,8 @@ public final class SolveContext {
     private void noteOvershotTargets(final int m, final double chosenExtent) {
         final ModelData.Machine md = model.machines.get(m);
         final double tieRel = heuristics.numerics().tieRel;
-        for (final Map.Entry<Integer, Double> t : md.node.targetOutputRates.entrySet()) {
+        for (final Map.Entry<Integer, Double> t : md.spec.targetOutputRates()
+            .entrySet()) {
             if (t.getValue() == null || t.getValue() <= 0) continue;
             final int i = t.getKey();
             if (i < 0 || i >= md.outQty.length || md.outQty[i] <= 0) continue;
@@ -130,9 +250,9 @@ public final class SolveContext {
                 notes.add(
                     new Note(
                         SolverMessage.OVERSHOOTS_TARGET,
-                        md.node.machineName,
-                        md.node.outputs.get(i)
-                            .getDisplayName(),
+                        md.spec.name(),
+                        md.port(i, false)
+                            .name(),
                         actual,
                         t.getValue()));
             }
@@ -233,7 +353,7 @@ public final class SolveContext {
 
     public PortRef refOf(final int port) {
         final ModelData.ConnectedPort p = model.connectedPorts.get(port);
-        return new PortRef(model.machines.get(p.machine()).node.id, p.portIndex(), p.input());
+        return new PortRef(model.machines.get(p.machine()).spec.id(), p.portIndex(), p.input());
     }
 
     public @Nullable PortRef anchorOf(final int gate) {
@@ -310,7 +430,7 @@ public final class SolveContext {
                     + "["
                     + port.portIndex()
                     + "] of '"
-                    + model.machines.get(port.machine()).node.machineName
+                    + model.machines.get(port.machine()).spec.name()
                     + "' residual "
                     + residual;
             }
@@ -342,7 +462,7 @@ public final class SolveContext {
                 if (saved.size() == pinned.size() - 1) return null; // one pin left: not a conflict
                 saved.put(m, pinnedExtent[m]);
                 pinnedExtent[m] = Double.NaN;
-                dropped.add("'" + model.machines.get(m).node.machineName + "' (" + pinKind[m].describe() + ")");
+                dropped.add("'" + model.machines.get(m).spec.name() + "' (" + pinKind[m].describe() + ")");
             }
         } finally {
             saved.forEach((m, value) -> pinnedExtent[m] = value);
@@ -369,6 +489,9 @@ public final class SolveContext {
         final Set<Integer> pinnedComponents = new HashSet<>();
         for (int m = 0; m < n; m++) {
             if (!Double.isNaN(pinnedExtent[m])) pinnedComponents.add(find(root, m));
+        }
+        for (final int m : anchorMachines()) {
+            pinnedComponents.add(find(root, m));
         }
         if (pinnedComponents.isEmpty()) return new double[0];
 

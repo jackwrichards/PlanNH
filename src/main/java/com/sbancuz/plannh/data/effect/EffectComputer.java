@@ -99,12 +99,16 @@ public interface EffectComputer {
         };
     }
 
+    /**
+     * Multiplies the throughput by the parallels setting: how many crafts ONE machine runs at once.
+     * The machine count is deliberately not in it - the count is the solved (or pinned) extent, and
+     * folding it in here as well ran a pinned node with machines = N at N squared.
+     */
     default EffectComputer applyParallelism() {
         return (s, ctx) -> {
             final EffectResult res = this.compute(s, ctx);
-            final int machines = MachineProfile.getInt(s, Settings.MACHINES.key(), 1);
             final int parallels = MachineProfile.getInt(s, Settings.PARALLELS.key(), 1);
-            res.throughputFactor(res.throughputFactor() * machines * parallels);
+            res.throughputFactor(res.throughputFactor() * parallels);
             return res;
         };
     }

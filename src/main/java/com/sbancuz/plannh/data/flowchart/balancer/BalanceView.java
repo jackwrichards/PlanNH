@@ -63,7 +63,15 @@ public final class BalanceView {
      * frame want {@link Graph#boundary()} rather than this.
      */
     public static List<Boundary> boundary(final Graph graph) {
-        final BalanceResult balance = graph.balance();
+        return boundary(graph, graph.balance());
+    }
+
+    /**
+     * The boundary of a balance already in hand - e.g. a {@link SolveService} result - read
+     * against the graph it was solved from (for ingredient names and the configured fallback).
+     * Client thread: it names ingredients.
+     */
+    public static List<Boundary> boundary(final Graph graph, final BalanceResult balance) {
         if (!(balance instanceof final BalanceResult.Solved solved)) return configuredBoundary(graph);
         final SolutionView auto = solved.auto();
         final List<Boundary> out = new ArrayList<>();

@@ -77,6 +77,7 @@ public final class Solver {
             .flows()
             .externals()
             .conservation()
+            .drawers()
             .handles();
         closeGatesOutside(ctx, h, open);
         if (!open.isEmpty()) holdQuantity(ctx, h, qtyCap);
@@ -95,6 +96,7 @@ public final class Solver {
             .flows()
             .externals()
             .conservation()
+            .drawers()
             .handles();
         for (int p = 0; p < ctx.model.connectedPorts.size(); p++) {
             // null open = the permissive probe (every gate open, every external free):
@@ -128,6 +130,7 @@ public final class Solver {
                 .externals()
                 .gates(bigM)
                 .conservation()
+                .drawers()
                 .nodeBudget(n.milpCertNodeBudget)
                 .handles();
             final Expression ub = h.model()
@@ -172,6 +175,7 @@ public final class Solver {
             .flows()
             .externals()
             .conservation()
+            .drawers()
             .handles();
         closeGatesOutside(ctx, h, open);
         for (int p = 0; p < ctx.model.connectedPorts.size(); p++) {
@@ -200,6 +204,7 @@ public final class Solver {
                 .externals()
                 .gates(bigM)
                 .conservation()
+                .drawers()
                 .handles();
             final Expression cap = h.model()
                 .addExpression("count_cap");
@@ -261,6 +266,7 @@ public final class Solver {
             .flows()
             .externals()
             .conservation()
+            .drawers()
             .handles();
         final Expression qty = open.isEmpty() ? null
             : h.model()
@@ -479,7 +485,8 @@ public final class Solver {
             .pools()
             .extentsWeighted(i -> 1.0)
             .flows()
-            .portRows(inputPriority);
+            .portRows(inputPriority)
+            .drawers();
         final Optimisation.Result naturalResult = natural.solve("extent-min");
         if (naturalResult.getState()
             .isFeasible()) {
@@ -499,7 +506,8 @@ public final class Solver {
             .flows()
             .externals()
             .importsWeighted(IMPORT_WEIGHT)
-            .portRows(inputPriority);
+            .portRows(inputPriority)
+            .drawers();
         final Optimisation.Result rescueResult = rescue.solve("extent-min rescue");
         if (!rescueResult.getState()
             .isFeasible()) {

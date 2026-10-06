@@ -43,14 +43,13 @@ public class GTSteamOverclockStep implements EffectStep, EffectComputer {
         final int eutDiscount = MachineProfile.getInt(s, Settings.STEAM_EUT_DISCOUNT.key(), 100);
         final int durationModifier = MachineProfile.getInt(s, Settings.STEAM_DURATION_MODIFIER.key(), 100);
         final int parallels = MachineProfile.getInt(s, Settings.PARALLELS.key(), 1);
-        final int machines = MachineProfile.getInt(s, Settings.MACHINES.key(), 1);
 
         final long steamPerTick = recipeEUt * eutDiscount / 100;
         final int duration = Math.max(1, recipeDuration * durationModifier / 100);
 
         current.energyPerT(steamPerTick);
         current.durationTicks(duration);
-        current.throughputFactor(parallels * machines);
+        current.throughputFactor(parallels);
 
         ctx.properties()
             .putIfAbsent(STEAM_EU_PERT, steamPerTick);

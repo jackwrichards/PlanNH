@@ -2,6 +2,8 @@ package com.sbancuz.plannh.data.flowchart.balancer;
 
 import java.util.function.IntToDoubleFunction;
 
+import javax.annotation.Nullable;
+
 import org.ojalgo.optimisation.Expression;
 import org.ojalgo.optimisation.ExpressionsBasedModel;
 import org.ojalgo.optimisation.Optimisation;
@@ -41,15 +43,22 @@ public final class ModelBuilder {
     private boolean extents;
     private boolean flows;
     private boolean externals;
+    private boolean conserved;
     private boolean countsSpace;
+    /** Per drawer row, the slack that lets the total fall short of / run over its bounds (relaxed rows only). */
+    private Variable[] drawerUnder = new Variable[0];
+    private Variable[] drawerOver = new Variable[0];
 
     private ModelBuilder(final SolveContext ctx) {
         this.ctx = ctx;
         final Numerics numerics = ctx.heuristics.numerics();
         // Never longer than what the whole solve has left. The floor matters as much as the
-        // ceiling: a model handed a millisecond aborts into whatever point it is holding.
-        final long limit = Math
-            .clamp(numerics.effort(numerics.stageTimeLimitMillis), numerics.minModelMillis, ctx.budget.remaining());
+        // ceiling: a model handed a millisecond aborts into whatever point it is holding, so the
+        // floor wins once the budget is nearly spent. Not Math.clamp: that throws when the floor is
+        // above the remaining budget, which is exactly the case the floor is for.
+        final long limit = Math.max(
+            numerics.minModelMillis,
+            Math.min(numerics.effort(numerics.stageTimeLimitMillis), ctx.budget.remaining()));
         m.options.time_abort = limit;
         m.options.time_suffice = limit;
         // One branch-and-bound worker, so the node order is a property of the model, not of thread
@@ -132,6 +141,7 @@ public final class ModelBuilder {
         require(extents, "extents() or extentCounts()");
         final ModelData model = ctx.model;
         for (int p = 0; p < model.pools.size(); p++) {
+            if (ctx.droppedPools.contains(p)) continue;
             final ModelData.Pool pool = model.pools.get(p);
             final Expression row = m.addExpression("pool_" + p);
             for (final int machine : pool.machines()) {
@@ -205,7 +215,89 @@ public final class ModelBuilder {
             row.set(extentVars[port.machine()], -port.qtyPerCraft() * scale * extentFactor(port.machine()));
             row.level(0);
         }
+        conserved = true;
         return this;
+    }
+
+    /**
+     * One row per drawer whose rule bounds it: the drawer's total - its unwired links' machine rates
+     * plus, in the conservation family, its wired links' externals - held {@code >=}, {@code =} or
+     * {@code <=} the rate the rule names ({@link SolveContext#drawerLower}/{@link SolveContext#drawerUpper}).
+     * Scaled by {@code 1/max(1, rate)} so a big target does not dwarf the rest of the model.
+     *
+     * <p>
+     * Externals are bound only after {@link #conservation()}: that is the family where a wired
+     * port's external is what crosses the boundary there. The OUTPUT / INPUT rows have no such
+     * variable on their claimed side, so their drawers count unwired links only. Nothing is added
+     * when the chart has no bounded drawer. Requires {@link #extents(double[])} or
+     * {@link #extentCounts()}.
+     */
+    public ModelBuilder drawers() {
+        return drawerRows(false);
+    }
+
+    /**
+     * The same rows with a nonnegative slack on each bound, so a rule may be missed at a price: the
+     * drawer relaxation weighs every unit of slack by {@code 1/max(1, rate)} and minimizes the sum,
+     * which finds how close the chart can come. Read the slacks back with {@link #drawerSlack}.
+     */
+    public ModelBuilder drawersRelaxed() {
+        return drawerRows(true);
+    }
+
+    /** The slack a relaxed drawer row used at the solved point: shortfall plus overshoot, 0 when held. */
+    public double drawerSlack(final int drawer) {
+        return value(drawerUnder[drawer]) + value(drawerOver[drawer]);
+    }
+
+    private ModelBuilder drawerRows(final boolean relaxed) {
+        require(extents, "extents() or extentCounts()");
+        final ModelData model = ctx.model;
+        final boolean bind = conserved && externals && ctx.bindsExternals;
+        drawerUnder = new Variable[model.drawers.size()];
+        drawerOver = new Variable[model.drawers.size()];
+        for (int d = 0; d < model.drawers.size(); d++) {
+            final double lower = ctx.drawerLower[d];
+            final double upper = ctx.drawerUpper[d];
+            if (Double.isNaN(lower) && Double.isNaN(upper)) continue;
+            final ModelData.DrawerRow drawer = model.drawers.get(d);
+            final double bound = Math.max(Double.isNaN(lower) ? 0 : lower, Double.isNaN(upper) ? 0 : upper);
+            final double scale = 1.0 / Math.max(1.0, bound);
+            final Expression row = m.addExpression("drawer_" + d);
+            for (int i = 0; i < drawer.extentMachines().length; i++) {
+                final int machine = drawer.extentMachines()[i];
+                row.set(extentVars[machine], drawer.extentQty()[i] * extentFactor(machine) * scale);
+            }
+            if (bind) {
+                for (final int p : drawer.externalPorts()) {
+                    row.set(extVars[p], scale);
+                }
+            }
+            if (relaxed) {
+                final double weight = 1.0 / Math.max(1.0, bound);
+                if (!Double.isNaN(lower)) {
+                    drawerUnder[d] = m.addVariable("drawer_under_" + d)
+                        .lower(0)
+                        .weight(weight);
+                    row.set(drawerUnder[d], scale);
+                }
+                if (!Double.isNaN(upper)) {
+                    drawerOver[d] = m.addVariable("drawer_over_" + d)
+                        .lower(0)
+                        .weight(weight);
+                    row.set(drawerOver[d], -scale);
+                }
+            }
+            if (!Double.isNaN(lower)) row.lower(lower * scale);
+            if (!Double.isNaN(upper)) row.upper(upper * scale);
+        }
+        return this;
+    }
+
+    private static double value(@Nullable final Variable v) {
+        if (v == null) return 0;
+        final Number n = v.getValue();
+        return n == null ? 0 : n.doubleValue();
     }
 
     /**

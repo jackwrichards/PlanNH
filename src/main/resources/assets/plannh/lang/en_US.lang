@@ -154,6 +154,20 @@ plannh.solver.negative_flow=Returned a negative edge flow %s
 plannh.solver.inexact_residual=Returned an inexact port residual %s
 plannh.solver.under_supply=Returned a port that under-supplies: residual %s
 plannh.solver.gate_count_not_certified=Gate count %d is minimal but not certified optimal (exact search over budget)
+plannh.solver.solve_crashed=The solver stopped with an error: %s
+
+plannh.solver.drawer_unmet=%1$s can't be held at %2$s %3$s/s: the plan reaches %4$s/s
+plannh.solver.drawer_limited_by=%1$s is held back by %2$s
+plannh.solver.drawer_not_connected=%s asks for a rate but is linked to nothing that carries any
+plannh.solver.drawer_wired_ignored=%s is linked only to wired ports, which this balance mode does not count
+plannh.solver.drawer_only_upper_bounds=Drawers only set upper limits: set a product's rate, or pin a machine count, to give the plan a size
+plannh.solver.limit_pin='%s' (%s)
+plannh.solver.limit_drawer=%s
+plannh.solver.limit_group=a machine group of %s machines
+plannh.solver.rule_any=any
+plannh.solver.rule_at_least=at least
+plannh.solver.rule_exactly=exactly
+plannh.solver.rule_at_most=at most
 ## Names
 plannh.solver.pin_extent=extent pin
 plannh.solver.pin_target=target rate

@@ -1,5 +1,6 @@
 package com.sbancuz.plannh.data.effect.steps;
 
+import static com.sbancuz.plannh.data.provider.GTProvider.COIL_HEAT;
 import static com.sbancuz.plannh.data.provider.GTProvider.EU_PER_TICK;
 import static com.sbancuz.plannh.data.provider.GTProvider.RECIPE_MAP;
 import static com.sbancuz.plannh.data.provider.GTProvider.TOTAL_EU;
@@ -127,7 +128,6 @@ public class GTOverclockStep implements EffectStep, EffectComputer {
         } else {
             parallels = MachineProfile.getInt(s, Settings.PARALLELS.key(), 1);
         }
-        final int machines = MachineProfile.getInt(s, Settings.MACHINES.key(), 1);
 
         final long eut = recipeEUt(ctx, current);
         final int recipeDuration = current.durationTicks();
@@ -137,7 +137,7 @@ public class GTOverclockStep implements EffectStep, EffectComputer {
                 .equals("OFF")) {
             current.durationTicks(recipeDuration);
             current.energyPerT(eut);
-            current.throughputFactor(parallels * machines);
+            current.throughputFactor(parallels);
             return current;
         }
 
@@ -149,8 +149,9 @@ public class GTOverclockStep implements EffectStep, EffectComputer {
             final int machineHeat = MachineProfile.getInt(s, Settings.MACHINE_HEAT.key(), 0);
             if (MachineProfile.getBool(s, Settings.HEAT_OC.key(), true) && machineHeat > 0) {
                 final int recipeHeat = MachineProfile.getInt(s, Settings.RECIPE_HEAT.key(), 0);
+                final Integer coilHeat = ctx.getOrDefault(COIL_HEAT, 0);
                 calc.setHeatOC(true)
-                    .setRecipeHeat(recipeHeat > 0 ? recipeHeat : machineHeat)
+                    .setRecipeHeat(GTHeat.recipeHeat(recipeHeat, coilHeat == null ? 0 : coilHeat, machineHeat))
                     .setMachineHeat(machineHeat);
                 if (MachineProfile.getBool(s, Settings.HEAT_DISCOUNT.key(), false)) calc.setHeatDiscount(true);
                 final int hdMult = MachineProfile.getInt(s, Settings.HEAT_DISCOUNT_MULT.key(), 100);
@@ -161,7 +162,7 @@ public class GTOverclockStep implements EffectStep, EffectComputer {
         calc.calculate();
         current.durationTicks(calc.getDuration());
         current.energyPerT(calc.getConsumption());
-        current.throughputFactor(parallels * machines);
+        current.throughputFactor(parallels);
         return current;
     }
 
