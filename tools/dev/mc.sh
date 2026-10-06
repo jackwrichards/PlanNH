@@ -117,7 +117,7 @@ start() {
 stop() {
     if is_up; then
         call quit >/dev/null 2>&1
-        for _ in $(seq 1 30); do
+        for _ in $(seq 1 75); do
             gradle_alive || break
             sleep 1
         done

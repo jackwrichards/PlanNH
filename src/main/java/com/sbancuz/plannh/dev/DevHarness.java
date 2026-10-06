@@ -240,6 +240,18 @@ public final class DevHarness {
                     if (handled == 0) mc.thePlayer.sendChatMessage(cmd);
                     return ok();
                 });
+            case "/addrecipe":
+                requireWorld();
+                return onClient(
+                    () -> DevRecipes.addRecipe(
+                        arg(q, "output"),
+                        q.getOrDefault("handler", ""),
+                        q.getOrDefault("input", ""),
+                        intArg(q, "x", 200),
+                        intArg(q, "y", 200)));
+            case "/clearplan":
+                requireWorld();
+                return onClient(DevRecipes::clearPlan);
             case "/quit":
                 frameActions.add(mc::shutdown);
                 return ok();
@@ -260,6 +272,8 @@ public final class DevHarness {
                 "/move?x&y, /click?x&y&button&count, /drag?x1&y1&x2&y2&steps&button, /scroll?x&y&amount - GUI coords",
                 "/key?code[&char] - LWJGL2 key code, /type?text - text into the focused field",
                 "/cmd?c=/time set day - run a command as the player",
+                "/addrecipe?output=dustRutile[&handler=blast][&input=ilmenite][&x&y] - put a real recipe on the board",
+                "/clearplan - empty the active board (one undoable edit)",
                 "/quit - shut the client down"));
         return m;
     }

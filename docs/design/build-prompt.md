@@ -1,0 +1,151 @@
+# Build prompt: the PlanNH rebuild, start to finish
+
+This is a complete brief for an engineer (human, Claude, or any other LLM agent) to build the new PlanNH planner
+from this repository. Read all of it before writing code. It is written to be pasted as a prompt.
+
+---
+
+## Your job
+
+You are rebuilding the user interface of **PlanNH**, an in-game production planner for the GT New Horizons modpack
+(Minecraft 1.7.10, Forge, client-side only). The new planner is a port of the recipe board from the owner's web
+app **GTNH Factory Flow** (gtnhplanner.com, source at `C:\Users\jack\gtnh-factory-flow`), restricted to its
+**Solve mode**, dressed in NEI and GregTech's own GUI parts, and driving PlanNH's existing solver engine.
+
+Deliver it in the six milestones below. Each milestone ends with: tests green, the feature verified in the running
+game with the dev harness (screenshots you have looked at), a commit on `main`, and a short note to the owner.
+
+## Ground rules
+
+- Repo: `C:\Users\jack\PlanNH`, branch `main`, remote `origin` = the owner's fork. Commit and push finished work.
+- Read `CLAUDE.md` (working rules, build, dev loop) and `docs/design/board-solve-mode.md` (the design spec; it
+  is the source of truth for what the board does). The mockups are on the design canvas linked from that spec;
+  row 4 "Hybrid" is the chosen look.
+- Solve mode only. No Build mode, no "usage %" or "reason" words on cards.
+- Everything must work in the game's limits: one pixel font (the vanilla FontRenderer, 9 px line, ~6 px per
+  character, only whole-number scales), 16 px item icons, a 960 x 540 GUI at scale 2 that must still work at
+  640 x 360, NEI's item list on the right. Names that do not fit are cut, never shrunk.
+- Never freeze the render thread: solving and layout run in the background.
+- Player-facing text: plain and short; the number, the rule, the consequence. No em dashes.
+- Don't do work for the old UI (`gui/`): it is being replaced and is deleted in milestone 6.
+
+## The dev loop (use it constantly)
+
+```bash
+PLANNH_GTNH=1 tools/dev/mc.sh start   # launch with GregTech + pack recipes (~30 s), loads a creative test world
+tools/dev/mc.sh call open             # open the planner (F8 in game)
+tools/dev/mc.sh call widgets          # ModularUI widget tree with GUI-coordinate rectangles
+tools/dev/mc.sh call 'click?x=..&y=..'  # also: move, drag, scroll, key, type, cmd, status
+tools/dev/mc.sh shot name.png 'x=..&y=..&w=..&h=..'   # screenshot (crop optional), then look at it
+tools/dev/mc.sh swap --reopen         # hot-swap changed classes into the running game (~12 s)
+tools/dev/mc.sh restart               # when swap exits 2 (new classes), or for mixins/resources/startup code
+./gradlew test                        # headless engine tests, no Minecraft
+```
+
+Full reference: `docs/dev-harness.md`. The game window is on the owner's desktop: muted, 1920x1080, GUI scale 2.
+Don't send synthetic input while the owner is using it.
+
+## What exists and what you keep
+
+Engine (keep, extend): `data/` model (`Graph`, `Node`, `Port`, `Edge`, `Plan`), per-mod recipe providers and
+machine profiles (`data/provider`, `MachineProfile`, `SettingDef`, `MachineConfig`), GregTech's real overclock
+calculator (`GTOverclockStep`), the ojAlgo balancer (`data/flowchart/balancer`, ~131 tests), `Serializer`,
+`PlanAPI` (save, share, clipboard), `AutoLayout` (ELK), `ArrowRouter` (grid A*), and the NEI glue in `nei/`
+(the "+" overlay on NEI recipe pages, R/U lookup context, NEI layout so its item list sits on the right).
+
+UI (replace): everything in `gui/`. Its mechanics are worth reading (pan/zoom canvas, NEI integration), its look
+and structure are not.
+
+Engine facts that matter (from a code survey):
+- Recipes come from NEI live: `new Node(IRecipeHandler handler, int recipeIndex, x, y)`; client thread only.
+  Programmatic lookup: `GuiCraftingRecipe.getCraftingHandlers("item", stack)` (what makes X) and
+  `GuiUsageRecipe.getUsageHandlers("item", stack)` (what uses X); iterate `numRecipes()`.
+- "Machines that run this recipe" = NEI's catalysts: `RecipeCatalysts.getRecipeCatalysts(handler)`.
+- Settings: `cfg.getProfile().visibleSettings(new RecipeContext(node.properties), cfg.settings)`; values via
+  `MachineConfig.getInt/getBoolean/getString` and setters (setters re-extract ports through NEI).
+  GregTech "unified" profile keys: voltage (OFF, ULV..MAX), amp, speed, parallels, machines, perfect_oc,
+  gt_multiblock, laser_oc, eut_discount, ..., heat_oc, machine_heat, recipe_heat, heat_discount. Coil choices map
+  to heat via GregTech's `HeatingCoilLevel` (`getHeat()`, `getName()`).
+- Effects after settings and overclocking: `node.machineConfig.computeEffect(node.properties)` ->
+  duration ticks, EU/t, throughput factor. Per-craft quantity of a port = amount * chance * multipliers * tf.
+- GregTech overclocking itself: `gregtech.api.util.OverclockCalculator` (wrapped by `GTOverclockStep`).
+
+Engine work being done (milestone 3 depends on it; if it is not on `main` yet, it is your first job):
+- Drawers in the model: `Drawer` (kind SOURCE / PRODUCT / BYPRODUCT / TRASH, rule ANY / AT_LEAST / EXACTLY /
+  AT_MOST, rate per second, links to node ports), saved with the graph.
+- Drawer rules as balancer constraints; EXACTLY and AT_LEAST count as anchors; per-drawer achieved rate and
+  unmet flag in the result.
+- `SolveInput` (pure-data snapshot, effects precomputed on the client thread) and `SolveService` (one worker
+  thread, newest-wins).
+- Fixes: `machines` no longer multiplies throughput (the count is the solved or pinned machine count); GT recipe
+  heat uses the recipe's COIL_HEAT; GT ports copy stacks; `Graph.touch()` bumps the version on every edit; undo
+  history lives per slot outside the Graph.
+
+## Architecture of the new UI
+
+New package `com.sbancuz.plannh.ui`. One ModularUI2 screen, opened like the old one (F8 and NEI's "FC" button):
+`new GuiContainerWrapper(new ModularContainer().constructClientOnly(), BoardScreen.create())`, so NEI keeps its
+item list on the right through the existing `FlowchartGuiHandler` / `FlowchartLayoutStyle` (point them at the new
+screen).
+
+```
+ui/
+  BoardScreen        screen + root panel: top bar, totals rail, canvas, notice bar
+  BoardSession       the open plan slot: graph, undo, edits API (every edit: undo record + touch + save),
+                     solve service hookup, the latest solve result, selection, hover resource
+  canvas/            BoardCanvas (pan, zoom at whole steps, world-space children), WireLayer, HoverGlow
+  card/              RecipeCard and its parts: CardHead (actions key, machine switch, amps chip, tier chip),
+                     PortRail, MachinePicture, SettingsPanel + tiles, CardFooter (power, machines, parallel,
+                     circuit); CardModel = view model built from Node + effect + solve result
+  drawer/            DrawerWidget (source / product / byproduct / trash), RuleButton, RateBox
+  popup/             Menu (card actions), MachineSwitchList, DropdownList (coils etc.), RecipePicker
+                     ("what makes / uses this?"), all anchored to the widget that opened them
+  chrome/            TopBar (plan tabs, undo/redo, unit key, power key, arrange, help), TotalsRail, NoticeBar
+  theme/             Hyb: palette, bevels, slots, text helpers, number formats
+```
+
+Rules for the UI code:
+- Draw with immediate GL inside widgets (rects, bevels, the vanilla font, `RenderItem` for items, fluid icons
+  tinted by `Fluid.getColor()`); use ModularUI2 widgets for input handling, text fields, popups and tooltips.
+- Sizes on a 2 px grid in GUI pixels. Card width 320; head 20; port rows 22; settings rows 16; footer ~36.
+- NEI slots: grey item slot (#8B8B8B with #373737 top-left and #FFFFFF bottom-right edges), dark fluid slot.
+- Colours: Factory Flow's card ramp (frame #3c3e45 with #52545c ring, #5a5c65 highlight, #1d1f23 shadow; tiles
+  #36383f; ink #e8e9ee; muted #9a9ca4), GregTech tier colours (LV #00AA00, MV #FFAA00, HV #FFFF55, EV #555555,
+  IV #5555FF, LuV #FF55FF, ZPM #55FFFF, UV #00AA00 underlined, ...), selection #22d3ee, hover glow #ffd257,
+  pinned gold #ffd257, sources red (#9d6c70 frame, #493539 fill), products green (#45937b frame, #23463e fill).
+- Rates use the board's unit key (/t, /s, /min, /hr); fluids add L. Compact numbers (12.5k, 1.2M).
+- The view model is rebuilt only when the graph version or the solve result changes, never per frame.
+- Every interaction is reachable by click or key, not hover alone.
+
+## Milestones
+
+1. **The card, static.** `BoardScreen` with the canvas and one `RecipeCard` per node of the active graph, drawn
+   exactly per the spec: head, rails with NEI slots, names and rates, machine picture (machine block at 4x),
+   settings, footer with power and the machine count. Numbers from the effect (after overclocking) and the solve
+   result. Verify on the EBF Ilmenite recipe (Ilmenite + Carbon -> Cast Iron + Rutile + Carbon Monoxide) added via
+   NEI's "+".
+2. **Card controls.** Tier chip (click up, right-click down, wheel), amps chip (multiblocks), machine switch list
+   (NEI catalysts; picking a single-block sets its tier, picking a multiblock turns on the multiblock options),
+   settings tiles (coil dropdown with filter, short ladders, toggles, typed numbers), actions menu (Clone, Replace
+   the recipe, Delete; "Add another recipe" later), machine count click-to-type pin (gold), unpin. Each edit goes
+   through `BoardSession` (undo + touch + save) and re-solves.
+3. **Drawers, wires, solving.** Drawer widgets with rule button and rate box and the product reading; drag from
+   an unwired port to empty board creates a drawer; right-click board menu; wires drawn Factory Flow style
+   (resource colour, width by flow, arrowheads, hops, routed with `ArrowRouter`); auto-wiring on add; solve in the
+   background with a "working" indicator; notices with Show me.
+4. **Getting recipes in.** NEI "+" (existing overlay, pointed at the new screen), P over any item to start a plan,
+   R/U on ports, and the in-planner "what makes / uses this?" picker (machine filter, tier ceiling, add wires only
+   that resource into the origin card).
+5. **Around the board.** Totals rail (inputs, outputs, power, machine shopping list), plan tabs (rename, new,
+   close), undo/redo that works across many steps, save/load/share with drawers, unit and power keys.
+6. **Polish and cleanup.** Auto-arrange, hover glow across ports and wires, zoomed-out glance view (big icons
+   instead of tiny text), tooltips with gesture hints, delete the old `gui/` package and its references, update
+   `CLAUDE.md` and the docs.
+
+## Definition of done (every milestone)
+
+- `./gradlew test` green, `./gradlew spotlessApply` clean.
+- `tools/dev/mc.sh smoke` passes (and no PlanNH exception in the log).
+- You looked at screenshots of every new or changed element in the running game, with GregTech loaded.
+- Committed on `main` with a message that says what changed and why; pushed.
+- A short note to the owner: what works now, what to try, what is not done.
