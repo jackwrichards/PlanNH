@@ -13,7 +13,8 @@ It is dev-only: `DevHarness.initIfDev()` does nothing outside a deobfuscated dev
 tools/dev/mc.sh start            # build + launch runClient25, block until the test world is loaded (~20s warm)
 tools/dev/mc.sh call open        # open the PlanNH flowchart
 tools/dev/mc.sh shot look.png    # -> run/client/screenshots/look.png
-tools/dev/mc.sh part 1 TIER      # click card 1's tier chip, found by name via /board (also: move, scroll 'amount=-1', 'button=1')
+tools/dev/mc.sh part 1 TIER      # click card 1's tier chip, found by name via /board (also: move, scroll 'amount=-1', 'button=1');
+                                 # d0 RATE = drawer 0's rate box; ports are IN0, OUT1... (drag them with /drag)
 tools/dev/mc.sh stop             # kills the game (a clean quit can hang on a confirm dialog)
 tools/dev/mc.sh smoke            # all of the above as a pass/fail check
 ```
@@ -53,7 +54,7 @@ is a thin curl wrapper. Every request waits until the game has processed it, so 
 | `/key?code[&char]` | press + release an LWJGL2 key code (`Keyboard.KEY_*`: 1 Esc, 28 Enter, 14 Backspace, 20 T, 66 F8) |
 | `/type?text` | type text into the focused field |
 | `/cmd?c=/time%20set%20day` | run a command as the player (client commands first, then chat) |
-| `/board` | the open board as data: zoom/pan, and per card its state (tier, amps, coil, machines, pinned, ports) and the GUI rect of each control (`parts.TIER.cx/cy` etc.) |
+| `/board` | the open board as data: zoom/pan, per card its state (tier, amps, coil, machines, pinned, ports) and the GUI rect of each control and port (`parts.TIER`, `parts.OUT1`, with `cx/cy`), per drawer its kind, rule, target, rate, unmet flag and parts, the edge count, `solving`, and the notices |
 | `/view?zoom&panX&panY` | set the board view (defaults 1, 0, 0) so tests start from a known place |
 | `/frame` | run one ModularUI frame update and report what is hovered and below the mouse (hover debugging) |
 | `/quit` | ask the game to quit (with GT this can stop on a "really close?" dialog; `mc.sh stop` kills instead) |

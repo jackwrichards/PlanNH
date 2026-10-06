@@ -284,6 +284,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         for (final CardModel.PortView p : ports) {
             final int y = CardLayout.portRowY(p.index());
             Hyb.slot(x, y + 1, p.isFluid());
+            if (!p.wired()) Hyb.dashed(x - 2, y - 1, 22, 22, Hyb.AMBER_INK);
             if (p.isFluid()) Hyb.fluid(p.fluid(), x + 1, y + 2, 16, z);
             else Hyb.item(p.item(), x + 1, y + 2, 16, z);
             final int textX = x + 21;

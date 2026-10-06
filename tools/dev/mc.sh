@@ -187,11 +187,13 @@ smoke() {
 
 # Acts on a card control by name, using /board for its GUI centre: part <card index> <PART> [click|move|scroll] [extra query].
 part() {
-    [ $# -ge 2 ] || die "usage: $0 part <card> <ACTIONS|MACHINE|AMPS|TIER|COIL|MACHINES|BODY> [click|move|scroll] ['button=1&count=2' | 'amount=-1']"
+    [ $# -ge 2 ] || die "usage: $0 part <card | dN for drawer N> <ACTIONS|MACHINE|AMPS|TIER|COIL|MACHINES|BODY|IN0|OUT0 | DELETE|CYCLE|RULE|RATE|BODY> [click|move|scroll] ['button=1&count=2' | 'amount=-1']"
     local card="$1" name="$2" action="${3:-click}" extra="${4:-}" xy
     xy="$(call board | node -e '
         let s = ""; process.stdin.on("data", d => s += d).on("end", () => {
-            const b = JSON.parse(s), c = (b.cards || [])[+process.argv[1]], p = c && c.parts && c.parts[process.argv[2]];
+            const b = JSON.parse(s), which = process.argv[1];
+            const c = which.startsWith("d") ? (b.drawers || [])[+which.slice(1)] : (b.cards || [])[+which];
+            const p = c && c.parts && c.parts[process.argv[2]];
             if (!p) { console.error(b.error || "no such card or part"); process.exit(1); }
             console.log("x=" + p.cx + "&y=" + p.cy);
         });' "$card" "$name")" || die "part $card $name not found"

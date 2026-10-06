@@ -22,6 +22,7 @@ import com.sbancuz.plannh.ui.canvas.BoardCanvas;
 import com.sbancuz.plannh.ui.card.CardModel;
 import com.sbancuz.plannh.ui.card.PortSlot;
 import com.sbancuz.plannh.ui.card.RecipeCard;
+import com.sbancuz.plannh.ui.drawer.DrawerCard;
 import com.sbancuz.plannh.ui.theme.Fmt;
 import com.sbancuz.plannh.ui.theme.Hyb;
 
@@ -87,6 +88,13 @@ public final class BoardScreen extends ModularScreen {
                             .next());
                     return true;
                 }));
+        topBar.child(
+            new TextWidget<>(
+                IKey.dynamic(
+                    () -> session.solving() ? "Solving" + ".".repeat((int) (System.currentTimeMillis() / 400 % 4))
+                        : "")).color(Hyb.MUTED)
+                            .shadow(true)
+                            .heightRel(1f));
 
         final Flow column = Flow.column()
             .widthRel(1f)
@@ -96,6 +104,10 @@ public final class BoardScreen extends ModularScreen {
             canvas.widthRel(1f)
                 .expanded());
         panel.child(column);
+        panel.child(
+            new NoticeBar(session, canvas).left(6)
+                .right(6)
+                .top(TOP_BAR + 4));
         return new BoardScreen(panel, session, canvas);
     }
 
@@ -128,6 +140,9 @@ public final class BoardScreen extends ModularScreen {
         final List<String> lines;
         if (hovered instanceof final RecipeCard card) {
             lines = card.hoverLines();
+            if (lines == null) return;
+        } else if (hovered instanceof final DrawerCard drawer) {
+            lines = drawer.hoverLines();
             if (lines == null) return;
         } else if (hovered instanceof final PortSlot slot) {
             final ItemStack stack = slot.stack();

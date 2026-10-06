@@ -57,7 +57,15 @@ public final class PickList extends Widget<PickList> implements Interactable {
      * @param width popup width in GUI pixels; rows show icon, label and a right-aligned detail
      */
     public static Popup popup(final String name, final String title, final List<Entry> entries,
-        final boolean filterable, final int width) {
+        final boolean filterable, final int minWidth) {
+        // Never cut a row: grow to the widest label and detail (the game font has one size).
+        int width = Math.max(minWidth, title == null ? 0 : Hyb.width(title) + 16);
+        for (final Entry e : entries) {
+            final int detail = e.detail() == null || e.detail()
+                .isEmpty() ? 0 : Hyb.width(e.detail()) + 12;
+            width = Math.max(width, (e.icon() == null ? 6 : 26) + Hyb.width(e.label()) + detail + 18);
+        }
+        width = Math.min(width, 360);
         final PickList list = new PickList(entries, width - 8);
         int y = 4;
         final List<com.cleanroommc.modularui.api.widget.IWidget> top = new ArrayList<>();

@@ -130,6 +130,18 @@ public final class Hyb {
         rect(x + 1, y + 1, 1, h - 2, TILE_HI);
     }
 
+    /** A dashed rectangle outline, 2 px on and 2 px off. */
+    public static void dashed(final float x, final float y, final float w, final float h, final int color) {
+        for (float d = 0; d < w; d += 4) {
+            rect(x + d, y, Math.min(2, w - d), 1, color);
+            rect(x + d, y + h - 1, Math.min(2, w - d), 1, color);
+        }
+        for (float d = 0; d < h; d += 4) {
+            rect(x, y + d, 1, Math.min(2, h - d), color);
+            rect(x + w - 1, y + d, 1, Math.min(2, h - d), color);
+        }
+    }
+
     /** NEI's 18x18 slot, grey for items and dark for fluids. */
     public static void slot(final float x, final float y, final boolean fluid) {
         if (fluid) well(x, y, 18, 18, SLOT_FLUID, SLOT_FLUID_TL, SLOT_FLUID_BR);

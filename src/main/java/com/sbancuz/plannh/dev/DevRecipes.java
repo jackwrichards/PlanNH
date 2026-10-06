@@ -50,11 +50,18 @@ final class DevRecipes {
                 .contains(hf)) continue;
             for (int i = 0; i < handler.numRecipes(); i++) {
                 if (!inf.isEmpty() && !hasIngredient(handler, i, inf)) continue;
-                final Node node = new Node(handler, i, x, y);
-                com.sbancuz.plannh.ui.card.CardDefaults.apply(node);
-                final Graph graph = Plan.getActiveGraph();
-                PlanAPI.recordEdit(graph, () -> graph.addNode(node));
-                PlanAPI.save();
+                final Node node;
+                final com.sbancuz.plannh.ui.BoardSession board = com.sbancuz.plannh.ui.BoardSession.current();
+                if (board != null) {
+                    // The board is open: add it the way NEI's "+" does, placed and auto-wired.
+                    node = board.addRecipe(handler, i);
+                } else {
+                    node = new Node(handler, i, x, y);
+                    com.sbancuz.plannh.ui.card.CardDefaults.apply(node);
+                    final Graph graph = Plan.getActiveGraph();
+                    PlanAPI.recordEdit(graph, () -> graph.addNode(node));
+                    PlanAPI.save();
+                }
                 final Map<String, Object> m = new LinkedHashMap<>();
                 m.put("ok", true);
                 m.put("node", node.id.toString());
@@ -72,6 +79,7 @@ final class DevRecipes {
         final Graph graph = Plan.getActiveGraph();
         PlanAPI.recordEdit(graph, () -> {
             for (final UUID id : new ArrayList<>(graph.nodes.keySet())) graph.removeNode(id);
+            for (final UUID id : new ArrayList<>(graph.drawers.keySet())) graph.removeDrawer(id);
             graph.notes.clear();
             graph.groups.clear();
         });

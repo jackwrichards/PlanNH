@@ -28,8 +28,9 @@ public final class CardModel {
 
     public static final String GT_PROFILE = "gregtech:unified";
 
+    /** One port as drawn; {@code wired} when a wire or drawer is on it (or it needs none: nothing is used up). */
     public record PortView(int index, boolean output, ItemStack item, FluidStack fluid, String name, float chance,
-        double perSecond) {
+        double perSecond, boolean wired) {
 
         public boolean isFluid() {
             return fluid != null;
@@ -94,7 +95,13 @@ public final class CardModel {
         return euPerTick * machines;
     }
 
-    public static CardModel of(final Node node, final Balancer.NodeBalance balance) {
+    /** Whether a node's port (output or input, by index) has a wire or drawer on it. */
+    public interface Wired {
+
+        boolean test(boolean output, int index);
+    }
+
+    public static CardModel of(final Node node, final Balancer.NodeBalance balance, final Wired wired) {
         final MachineConfig cfg = node.machineConfig;
         final boolean gregtech = GT_PROFILE.equals(cfg.profileId);
         final EffectResult effect = cfg.computeEffect(node.properties);
@@ -113,8 +120,8 @@ public final class CardModel {
         final String machineName = machineStack != null ? machineStack.getDisplayName() : node.machineName;
 
         final double machines = balance == null ? 0 : balance.operations();
-        final List<PortView> inputs = ports(node.inputs, false, balance);
-        final List<PortView> outputs = ports(node.outputs, true, balance);
+        final List<PortView> inputs = ports(node.inputs, false, balance, wired);
+        final List<PortView> outputs = ports(node.outputs, true, balance, wired);
 
         return new CardModel(
             node,
@@ -139,7 +146,7 @@ public final class CardModel {
     }
 
     private static List<PortView> ports(final List<Port<?>> ports, final boolean output,
-        final Balancer.NodeBalance balance) {
+        final Balancer.NodeBalance balance, final Wired wired) {
         final List<PortView> views = new ArrayList<>(ports.size());
         for (int i = 0; i < ports.size(); i++) {
             final Port<?> port = ports.get(i);
@@ -156,7 +163,8 @@ public final class CardModel {
                     fluid ? (FluidStack) value : null,
                     port.getDisplayName(),
                     port.getChance(),
-                    perSecond));
+                    perSecond,
+                    port.getAmount() == 0 || wired.test(output, i)));
         }
         return views;
     }

@@ -9,10 +9,14 @@ import net.minecraft.client.Minecraft;
 
 import com.sbancuz.plannh.data.flowchart.Graph;
 import com.sbancuz.plannh.ui.BoardScreen;
+import com.sbancuz.plannh.ui.Notice;
 import com.sbancuz.plannh.ui.Planner;
 import com.sbancuz.plannh.ui.canvas.BoardCanvas;
+import com.sbancuz.plannh.ui.card.CardLayout;
 import com.sbancuz.plannh.ui.card.CardModel;
 import com.sbancuz.plannh.ui.card.RecipeCard;
+import com.sbancuz.plannh.ui.drawer.DrawerCard;
+import com.sbancuz.plannh.ui.drawer.DrawerModel;
 import com.sbancuz.plannh.ui.gt.GtCoils;
 
 /**
@@ -76,11 +80,66 @@ final class DevBoard {
                         y1 = canvas.screenY(model.node.y + r[1] + r[3]);
                     parts.put(part.name(), rect(x0, y0, x1 - x0, y1 - y0));
                 }
+                for (final CardModel.PortView p : model.inputs)
+                    parts.put("IN" + p.index(), slot(canvas, model.node.x, model.node.y, false, p.index()));
+                for (final CardModel.PortView p : model.outputs)
+                    parts.put("OUT" + p.index(), slot(canvas, model.node.x, model.node.y, true, p.index()));
                 c.put("parts", parts);
             }
             cards.add(c);
         }
         m.put("cards", cards);
+        final List<Object> drawers = new ArrayList<>();
+        int d = 0;
+        for (final DrawerModel model : screen.session()
+            .drawerModels()
+            .values()) {
+            final Map<String, Object> o = new LinkedHashMap<>();
+            o.put("index", d++);
+            o.put(
+                "id",
+                model.drawer.getId()
+                    .toString());
+            o.put("kind", model.kind.name());
+            o.put("label", model.label);
+            o.put("rule", model.rule.name());
+            o.put("target", model.target);
+            o.put("rate", model.rate);
+            o.put("unmet", model.unmet);
+            o.put(
+                "links",
+                model.drawer.getLinks()
+                    .size());
+            final DrawerCard widget = canvas.drawers()
+                .get(model.drawer.getId());
+            if (widget != null) {
+                final Map<String, Object> parts = new LinkedHashMap<>();
+                for (final DrawerCard.Part part : DrawerCard.Part.values()) {
+                    final int[] r = widget.partRect(part);
+                    if (r == null) continue;
+                    final int x0 = canvas.screenX(model.drawer.getX() + r[0]),
+                        y0 = canvas.screenY(model.drawer.getY() + r[1]);
+                    final int x1 = canvas.screenX(model.drawer.getX() + r[0] + r[2]),
+                        y1 = canvas.screenY(model.drawer.getY() + r[1] + r[3]);
+                    parts.put(part.name(), rect(x0, y0, x1 - x0, y1 - y0));
+                }
+                o.put("parts", parts);
+            }
+            drawers.add(o);
+        }
+        m.put("drawers", drawers);
+        m.put(
+            "edges",
+            graph.getEdges()
+                .size());
+        m.put(
+            "solving",
+            screen.session()
+                .solving());
+        final List<String> notices = new ArrayList<>();
+        for (final Notice n : screen.session()
+            .notices()) notices.add(n.severity() + ": " + n.text());
+        m.put("notices", notices);
         return m;
     }
 
@@ -102,6 +161,14 @@ final class DevBoard {
         m.put("perSecond", p.perSecond());
         if (p.chance() < 0.9999f) m.put("chance", p.chance());
         return m;
+    }
+
+    /** A port's NEI slot on screen. */
+    private static Map<String, Object> slot(final BoardCanvas canvas, final int nx, final int ny, final boolean output,
+        final int index) {
+        final int lx = CardLayout.railX(output), ly = CardLayout.portRowY(index) + 1;
+        final int x0 = canvas.screenX(nx + lx), y0 = canvas.screenY(ny + ly);
+        return rect(x0, y0, canvas.screenX(nx + lx + 18) - x0, canvas.screenY(ny + ly + 18) - y0);
     }
 
     /** {x, y, w, h} plus the centre, which is what a click wants. */

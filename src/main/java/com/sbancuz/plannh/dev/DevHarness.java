@@ -309,7 +309,7 @@ public final class DevHarness {
                 "/move?x&y, /click?x&y&button&count, /drag?x1&y1&x2&y2&steps&button, /scroll?x&y&amount - GUI coords",
                 "/key?code[&char] - LWJGL2 key code, /type?text - text into the focused field",
                 "/cmd?c=/time set day - run a command as the player",
-                "/addrecipe?output=dustRutile[&handler=blast][&input=ilmenite][&x&y] - put a real recipe on the board",
+                "/addrecipe?output=dustRutile[&handler=blast][&input=ilmenite][&x&y] - put a real recipe on the board (with the board open: placed and auto-wired like NEI's +)",
                 "/clearplan - empty the active board (one undoable edit)",
                 "/board - open board as data: view, and per card its state and every control's GUI rect (cx, cy)",
                 "/view?zoom&panX&panY - set the board view (defaults 1, 0, 0)",
