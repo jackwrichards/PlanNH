@@ -6,6 +6,8 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceMode;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceResult;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceView;
@@ -26,6 +28,12 @@ public class Graph {
     public final SortedMap<UUID, Edge> edges = new TreeMap<>();
     public final SortedMap<UUID, Note> notes = new TreeMap<>();
     public final SortedMap<UUID, Group> groups = new TreeMap<>();
+    /**
+     * The board's drawers. Read through {@link #getDrawers()}; change membership and links through
+     * {@link #addDrawer}, {@link #removeDrawer}, {@link #linkDrawer} and {@link #unlinkDrawer} so the
+     * version moves.
+     */
+    public final SortedMap<UUID, Drawer> drawers = new TreeMap<>();
 
     @Getter
     @Setter
@@ -112,11 +120,84 @@ public class Graph {
         bumpVersion();
     }
 
+    /** Removes the node, every edge touching it and every drawer link to it. */
     public void removeNode(final UUID id) {
         nodes.remove(id);
         edges.values()
             .removeIf(e -> e.sourceNodeId.equals(id) || e.targetNodeId.equals(id));
+        for (final Drawer drawer : drawers.values()) {
+            drawer.removeLinksTo(id);
+        }
         bumpVersion();
+    }
+
+    // ── Drawers ──
+
+    public Collection<Drawer> getDrawers() {
+        return drawers.values();
+    }
+
+    @Nullable
+    public Drawer getDrawer(final UUID id) {
+        return drawers.get(id);
+    }
+
+    /**
+     * Adds (or replaces, by id) a drawer. Its links are taken as they are; a port another drawer of
+     * the same direction already holds is taken away from that drawer, as {@link #linkDrawer} does.
+     */
+    public void addDrawer(final Drawer drawer) {
+        drawers.put(drawer.getId(), drawer);
+        for (final Drawer.Link link : drawer.getLinks()) {
+            releasePort(drawer, link);
+        }
+        bumpVersion();
+    }
+
+    public void removeDrawer(final UUID id) {
+        drawers.remove(id);
+        bumpVersion();
+    }
+
+    /**
+     * Attaches a node port to a drawer: an input port for a source, an output port otherwise. A port
+     * belongs to at most one drawer per direction, so any other drawer holding it lets go. Returns
+     * false (and changes nothing) when there is no such drawer.
+     */
+    public boolean linkDrawer(final UUID drawerId, final Drawer.Link link) {
+        final Drawer drawer = drawers.get(drawerId);
+        if (drawer == null) return false;
+        releasePort(drawer, link);
+        drawer.addLink(link);
+        bumpVersion();
+        return true;
+    }
+
+    /** Detaches a node port from a drawer; false when the drawer did not hold it. */
+    public boolean unlinkDrawer(final UUID drawerId, final Drawer.Link link) {
+        final Drawer drawer = drawers.get(drawerId);
+        if (drawer == null || !drawer.removeLink(link)) return false;
+        bumpVersion();
+        return true;
+    }
+
+    /** The drawer holding a node port in the given direction, or null when the port has none. */
+    @Nullable
+    public Drawer drawerAt(final UUID nodeId, final int portIndex, final boolean input) {
+        for (final Drawer drawer : drawers.values()) {
+            if (drawer.holds(nodeId, portIndex, input)) return drawer;
+        }
+        return null;
+    }
+
+    /** Takes {@code link} away from every drawer but {@code keeper} that links the same direction. */
+    private void releasePort(final Drawer keeper, final Drawer.Link link) {
+        final boolean input = keeper.getKind()
+            .linksInputs();
+        for (final Drawer other : drawers.values()) {
+            if (other != keeper && other.getKind()
+                .linksInputs() == input) other.removeLink(link);
+        }
     }
 
     public BalanceResult balance() {
