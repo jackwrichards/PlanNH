@@ -4,7 +4,6 @@ import net.minecraft.client.gui.inventory.GuiContainer;
 
 import com.cleanroommc.modularui.screen.GuiContainerWrapper;
 import com.cleanroommc.modularui.screen.ModularScreen;
-import com.sbancuz.plannh.gui.FlowchartScreen;
 import com.sbancuz.plannh.mixins.GuiContainerAccessor;
 
 import codechicken.nei.ItemsGrid;
@@ -36,8 +35,7 @@ public class FlowchartLayoutStyle extends LayoutStyleMinecraft {
      */
     @Override
     public void layout(final GuiContainer gui, final VisiblityData visibility) {
-        if (!(gui instanceof GuiContainerWrapper
-            && ((GuiContainerWrapper) gui).getScreen() instanceof FlowchartScreen)) {
+        if (!com.sbancuz.plannh.ui.Planner.isPlanner(gui)) {
             super.layout(gui, visibility);
             return;
         }

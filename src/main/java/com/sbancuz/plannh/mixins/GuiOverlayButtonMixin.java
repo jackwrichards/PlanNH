@@ -6,11 +6,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import com.cleanroommc.modularui.screen.GuiContainerWrapper;
 import com.sbancuz.plannh.data.flowchart.Graph;
 import com.sbancuz.plannh.data.flowchart.Node;
 import com.sbancuz.plannh.data.flowchart.Plan;
-import com.sbancuz.plannh.gui.FlowchartScreen;
 
 import codechicken.nei.recipe.GuiOverlayButton;
 import codechicken.nei.recipe.Recipe;
@@ -22,9 +20,7 @@ public class GuiOverlayButtonMixin {
     @Inject(method = "drawItemOverlay", at = @At("HEAD"), cancellable = true, remap = false)
     private void plannh$onDrawItemOverlay(final CallbackInfo ci) {
         final GuiOverlayButton self = (GuiOverlayButton) (Object) this;
-        if (self.firstGui instanceof GuiContainerWrapper
-            && ((GuiContainerWrapper) self.firstGui).getScreen() instanceof FlowchartScreen
-            || planNH$isRecipeInGraph(self.handlerRef)) {
+        if (com.sbancuz.plannh.ui.Planner.isPlanner(self.firstGui) || planNH$isRecipeInGraph(self.handlerRef)) {
             ci.cancel();
         }
     }

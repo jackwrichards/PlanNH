@@ -66,6 +66,9 @@ configure_client() {
     set_option "$opts" guiScale "$GUI_SCALE"
     set_option "$opts" fullscreen false
     set_option "$opts" soundCategory_master "$SOUND"
+    # ModularUI2 turns its debug overlay on in every dev environment; players never see it.
+    local mui="$ROOT/run/client/config/modularui2.cfg"
+    [ -f "$mui" ] && sed -i 's/B:guiDebugMode=true/B:guiDebugMode=false/' "$mui"
 }
 
 start() {

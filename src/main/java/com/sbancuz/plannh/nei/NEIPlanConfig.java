@@ -8,7 +8,6 @@ import com.cleanroommc.modularui.screen.GuiContainerWrapper;
 import com.sbancuz.plannh.Compat;
 import com.sbancuz.plannh.PlanNH;
 import com.sbancuz.plannh.Tags;
-import com.sbancuz.plannh.gui.FlowchartScreen;
 
 import codechicken.nei.NEIClientUtils;
 import codechicken.nei.api.API;
@@ -112,8 +111,7 @@ public class NEIPlanConfig implements IConfigureNEI {
     @SubscribeEvent
     public void onPreButtonUpdate(final UpdateRecipeButtonsEvent.Pre event) {
         final GuiRecipe<?> gui = (GuiRecipe<?>) event.gui;
-        if (!(gui.firstGui instanceof final GuiContainerWrapper wrapper
-            && wrapper.getScreen() instanceof FlowchartScreen)) return;
+        if (!com.sbancuz.plannh.ui.Planner.isPlanner(gui.firstGui)) return;
 
         for (final Object h : gui.currenthandlers) {
             if (!(h instanceof final IRecipeHandler r)) continue;
@@ -128,8 +126,7 @@ public class NEIPlanConfig implements IConfigureNEI {
     @SubscribeEvent
     public void onPostButtonUpdate(final UpdateRecipeButtonsEvent.Post event) {
         final GuiRecipe<?> gui = (GuiRecipe<?>) event.gui;
-        if (!(gui.firstGui instanceof GuiContainerWrapper
-            && ((GuiContainerWrapper) gui.firstGui).getScreen() instanceof FlowchartScreen)) return;
+        if (!com.sbancuz.plannh.ui.Planner.isPlanner(gui.firstGui)) return;
 
         for (final GuiRecipeButton btn : event.buttonList) {
             if (btn instanceof GuiOverlayButton) {

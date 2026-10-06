@@ -1,0 +1,171 @@
+package com.sbancuz.plannh.ui.theme;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.FontRenderer;
+import net.minecraft.item.ItemStack;
+import net.minecraftforge.fluids.FluidStack;
+
+import com.cleanroommc.modularui.drawable.GuiDraw;
+
+/**
+ * The hybrid look: Factory Flow's card palette and bevels, NEI's slots, GregTech's tier colours, the game font.
+ * Every coordinate is in GUI pixels of the current (possibly zoomed) widget space.
+ */
+public final class Hyb {
+
+    // Factory Flow card ramp (globals.css tokens, resolved).
+    public static final int INK = 0xFFE8E9EE;
+    public static final int MUTED = 0xFF9A9CA4;
+    public static final int FRAME = 0xFF3C3E45;
+    public static final int RING = 0xFF52545C;
+    public static final int HIGHLIGHT = 0xFF5A5C65;
+    public static final int SHADOW = 0xFF1D1F23;
+    public static final int TILE = 0xFF36383F;
+    public static final int TILE_EDGE = 0xFF25272C;
+    public static final int TILE_HI = 0xFF4E5058;
+    public static final int KEY = 0xFF26282D;
+    public static final int KEY_HOVER = 0xFF2D2F35;
+    public static final int KEY_EDGE = 0xFF111317;
+    public static final int KEY_HI = 0xFF4A4C54;
+    public static final int KEY_LO = 0xFF17191D;
+    public static final int NAMEBAR = 0xFF2D2F35;
+    public static final int WELL = 0xFF4A4C54;
+    public static final int PICTURE = 0xFF26282C;
+    public static final int CANVAS = 0xFF141414;
+    public static final int CANVAS_DOT = 0xFF26282D;
+    public static final int GOLD = 0xFFFFD257;
+    public static final int SELECTION = 0xFF22D3EE;
+    public static final int MENU = 0xFF3C3E45;
+    public static final int MENU_HOVER = 0xFF4E5058;
+    public static final int RED_INK = 0xFFE05252;
+    public static final int AMBER_INK = 0xFFE0A63A;
+    public static final int SOURCE_INK = 0xFFFFA2A2;
+    public static final int PRODUCT_INK = 0xFF5EE9B5;
+
+    // NEI slots.
+    public static final int SLOT_ITEM = 0xFF8B8B8B;
+    public static final int SLOT_ITEM_TL = 0xFF373737;
+    public static final int SLOT_ITEM_BR = 0xFFFFFFFF;
+    public static final int SLOT_FLUID = 0xFF2B2B2B;
+    public static final int SLOT_FLUID_TL = 0xFF151515;
+    public static final int SLOT_FLUID_BR = 0xFF5A5A5A;
+
+    /** GregTech tier: background, border, text; tiers from UV up are told apart by an underline, as in game. */
+    public record Tier(String name, int bg, int border, int text, boolean underline) {}
+
+    private static final Tier[] TIERS = { new Tier("ULV", 0xFFFF5555, 0xFF8C2F2F, 0xFFFFFFFF, false),
+        new Tier("LV", 0xFF00AA00, 0xFF005E00, 0xFFFFFFFF, false),
+        new Tier("MV", 0xFFFFAA00, 0xFF8C5E00, 0xFF111111, false),
+        new Tier("HV", 0xFFFFFF55, 0xFF8C8C2F, 0xFF111111, false),
+        new Tier("EV", 0xFF555555, 0xFF2F2F2F, 0xFFFFFFFF, false),
+        new Tier("IV", 0xFF5555FF, 0xFF2F2F8C, 0xFFFFFFFF, false),
+        new Tier("LuV", 0xFFFF55FF, 0xFF8C2F8C, 0xFFFFFFFF, false),
+        new Tier("ZPM", 0xFF55FFFF, 0xFF2F8C8C, 0xFF111111, false),
+        new Tier("UV", 0xFF00AA00, 0xFF005E00, 0xFFFFFFFF, true),
+        new Tier("UHV", 0xFFAA0000, 0xFF5E0000, 0xFFFFFFFF, true),
+        new Tier("UEV", 0xFFAA00AA, 0xFF5E005E, 0xFFFFFFFF, true),
+        new Tier("UIV", 0xFF0000AA, 0xFF00005E, 0xFFFFFFFF, true),
+        new Tier("UMV", 0xFFFF5555, 0xFF8C2F2F, 0xFFFFFFFF, true),
+        new Tier("UXV", 0xFFAA0000, 0xFF5E0000, 0xFFFFFFFF, true),
+        new Tier("MAX", 0xFFFFFFFF, 0xFF8C8C8C, 0xFF111111, true) };
+    private static final Tier NO_TIER = new Tier("OFF", 0xFF4A4C54, 0xFF1D1F23, 0xFFE8E9EE, false);
+
+    private Hyb() {}
+
+    public static Tier tier(final String name) {
+        for (final Tier t : TIERS) if (t.name.equalsIgnoreCase(name)) return t;
+        return NO_TIER;
+    }
+
+    public static FontRenderer font() {
+        return Minecraft.getMinecraft().fontRenderer;
+    }
+
+    public static int width(final String s) {
+        return font().getStringWidth(s);
+    }
+
+    public static void rect(final float x, final float y, final float w, final float h, final int argb) {
+        GuiDraw.drawRect(x, y, w, h, argb);
+    }
+
+    /** Raised bevel: fill, light band top-left, dark band bottom-right, optional 1px outer edge. */
+    public static void bevel(final float x, final float y, final float w, final float h, final int fill,
+        final int light, final int dark, final int edge, final int band) {
+        if (edge != 0) {
+            rect(x - 1, y - 1, w + 2, h + 2, edge);
+        }
+        rect(x, y, w, h, fill);
+        rect(x, y, w, band, light);
+        rect(x, y, band, h, light);
+        rect(x, y + h - band, w, band, dark);
+        rect(x + w - band, y, band, h, dark);
+    }
+
+    /** Sunken well: dark top-left, light bottom-right. */
+    public static void well(final float x, final float y, final float w, final float h, final int fill, final int dark,
+        final int light) {
+        rect(x, y, w, h, fill);
+        rect(x, y, w, 1, dark);
+        rect(x, y, 1, h, dark);
+        rect(x, y + h - 1, w, 1, light);
+        rect(x + w - 1, y, 1, h, light);
+    }
+
+    /** Factory Flow's card window: #3c3e45 fill, #52545c ring, 2 px highlight and shadow bands inside it. */
+    public static void cardFrame(final float x, final float y, final float w, final float h) {
+        rect(x, y, w, h, RING);
+        rect(x + 1, y + 1, w - 2, h - 2, FRAME);
+        rect(x + 1, y + 1, w - 2, 1, HIGHLIGHT);
+        rect(x + 1, y + 1, 1, h - 2, HIGHLIGHT);
+        rect(x + 1, y + h - 2, w - 2, 1, SHADOW);
+        rect(x + w - 2, y + 1, 1, h - 2, SHADOW);
+    }
+
+    /** A Factory Flow stat or setting tile: #36383f with a 1 px light and dark inner edge. */
+    public static void tile(final float x, final float y, final float w, final float h) {
+        rect(x, y, w, h, TILE_EDGE);
+        rect(x + 1, y + 1, w - 2, h - 2, TILE);
+        rect(x + 1, y + 1, w - 2, 1, TILE_HI);
+        rect(x + 1, y + 1, 1, h - 2, TILE_HI);
+    }
+
+    /** NEI's 18x18 slot, grey for items and dark for fluids. */
+    public static void slot(final float x, final float y, final boolean fluid) {
+        if (fluid) well(x, y, 18, 18, SLOT_FLUID, SLOT_FLUID_TL, SLOT_FLUID_BR);
+        else well(x, y, 18, 18, SLOT_ITEM, SLOT_ITEM_TL, SLOT_ITEM_BR);
+    }
+
+    public static void item(final ItemStack stack, final float x, final float y, final float size, final float z) {
+        if (stack != null) GuiDraw.drawItem(stack, (int) x, (int) y, size, size, (int) z);
+    }
+
+    public static void fluid(final FluidStack stack, final float x, final float y, final float size, final float z) {
+        if (stack != null) GuiDraw.drawFluidTexture(stack, x, y, size, size, z);
+    }
+
+    public static void text(final String s, final float x, final float y, final int color) {
+        GuiDraw.drawText(s, x, y, 1f, color, true);
+    }
+
+    public static void text(final String s, final float x, final float y, final float scale, final int color) {
+        GuiDraw.drawText(s, x, y, scale, color, true);
+    }
+
+    public static void textRight(final String s, final float right, final float y, final int color) {
+        GuiDraw.drawText(s, right - width(s), y, 1f, color, true);
+    }
+
+    public static void textCentered(final String s, final float cx, final float y, final int color) {
+        GuiDraw.drawText(s, cx - width(s) / 2f, y, 1f, color, true);
+    }
+
+    /** Cuts a string to fit {@code maxWidth}, ending in "..." when it had to. The game font has one size. */
+    public static String fit(final String s, final int maxWidth) {
+        if (width(s) <= maxWidth) return s;
+        final String dots = "...";
+        final int room = maxWidth - width(dots);
+        if (room <= 0) return "";
+        return font().trimStringToWidth(s, room) + dots;
+    }
+}

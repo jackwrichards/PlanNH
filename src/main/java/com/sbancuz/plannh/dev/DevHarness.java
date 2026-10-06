@@ -40,15 +40,12 @@ import org.lwjgl.input.Mouse;
 
 import com.cleanroommc.modularui.api.IMuiScreen;
 import com.cleanroommc.modularui.api.widget.IWidget;
-import com.cleanroommc.modularui.screen.GuiContainerWrapper;
-import com.cleanroommc.modularui.screen.ModularContainer;
 import com.cleanroommc.modularui.screen.ModularScreen;
 import com.cleanroommc.modularui.screen.viewport.LocatedWidget;
 import com.cleanroommc.modularui.widget.sizer.Area;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.sbancuz.plannh.PlanNH;
-import com.sbancuz.plannh.gui.FlowchartScreen;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
@@ -388,9 +385,7 @@ public final class DevHarness {
     }
 
     private void openFlowchart() {
-        final ModularContainer container = new ModularContainer();
-        container.constructClientOnly();
-        mc.displayGuiScreen(new GuiContainerWrapper(container, FlowchartScreen.create()));
+        com.sbancuz.plannh.ui.Planner.open();
     }
 
     private Object click(final Map<String, String> q) throws Exception {

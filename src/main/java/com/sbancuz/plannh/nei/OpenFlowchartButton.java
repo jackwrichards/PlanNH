@@ -9,8 +9,6 @@ import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.inventory.GuiInventory;
 
 import com.cleanroommc.modularui.screen.GuiContainerWrapper;
-import com.cleanroommc.modularui.screen.ModularContainer;
-import com.sbancuz.plannh.gui.FlowchartScreen;
 
 import codechicken.nei.Button;
 
@@ -31,10 +29,7 @@ public class OpenFlowchartButton extends Button {
                 mc.displayGuiScreen(previousScreen != null ? previousScreen : new GuiInventory(mc.thePlayer));
             } else {
                 previousScreen = mc.currentScreen;
-                final FlowchartScreen screen = FlowchartScreen.create();
-                final ModularContainer container = new ModularContainer();
-                container.constructClientOnly();
-                mc.displayGuiScreen(new GuiContainerWrapper(container, screen));
+                com.sbancuz.plannh.ui.Planner.open();
             }
             return true;
         }

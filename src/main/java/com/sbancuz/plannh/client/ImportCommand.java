@@ -1,16 +1,12 @@
 package com.sbancuz.plannh.client;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.StatCollector;
 
-import com.cleanroommc.modularui.screen.GuiContainerWrapper;
-import com.cleanroommc.modularui.screen.ModularContainer;
 import com.sbancuz.plannh.api.PlanAPI;
 import com.sbancuz.plannh.data.flowchart.Graph;
-import com.sbancuz.plannh.gui.FlowchartScreen;
 
 /**
  * Client-side command that processes an incoming PlanNH share.
@@ -47,11 +43,7 @@ public class ImportCommand extends CommandBase {
 
         PlanAPI.importGraph(graph);
 
-        final ModularContainer container = new ModularContainer();
-        container.constructClientOnly();
-        final FlowchartScreen screen = FlowchartScreen.create();
-        Minecraft.getMinecraft()
-            .displayGuiScreen(new GuiContainerWrapper(container, screen));
+        com.sbancuz.plannh.ui.Planner.open();
     }
 
     @Override
