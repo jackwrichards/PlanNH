@@ -27,7 +27,8 @@ pause-on-lost-focus so an unfocused window keeps running.
 
 On first launch it creates a creative superflat world `plannh-dev` (`-Dplannh.dev.world=name`, empty to stay on
 the main menu) and loads it automatically. Plans are saved per world, so notes and nodes persist across runs;
-delete `run/client/saves/plannh-dev` and `run/client/saves/NEI/plannh-dev` for a clean slate.
+with the game stopped, delete `run/client/saves/plannh-dev` (the world) and
+`run/client/saves/NEI/local/plannh-dev` (the plan) for a clean slate.
 
 ## Endpoints
 
