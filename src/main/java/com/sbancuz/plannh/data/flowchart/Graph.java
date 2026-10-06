@@ -57,9 +57,11 @@ public class Graph {
     private BalanceMode balanceMode = BalanceMode.AUTO;
 
     /**
-     * Per-graph undo/redo stack, transient because snapshots are content-encoded and never stored.
+     * Which slot this graph is, for state kept per slot outside the graph (the undo history, see
+     * {@link UndoHistories}). A graph an undo or redo puts in a slot's place takes over the slot of
+     * the graph it replaces; any other graph is a slot of its own.
      */
-    public final transient UndoHistory undoHistory = new UndoHistory();
+    private transient UUID slot = UUID.randomUUID();
 
     /**
      * The display view, built on first ask after a solve rather than with it: the canvas wants the
@@ -103,6 +105,16 @@ public class Graph {
     /** Every change that can change the solve moves this; layout-only edits do not. */
     public long solveVersion() {
         return solveVersion;
+    }
+
+    /** The slot this graph is; see {@link UndoHistories}. */
+    public UUID slot() {
+        return slot;
+    }
+
+    /** This graph takes over {@code replaced}'s slot: it is that slot's state after an undo or redo. */
+    void takeSlotOf(final Graph replaced) {
+        this.slot = replaced.slot;
     }
 
     private void bumpVersion() {
