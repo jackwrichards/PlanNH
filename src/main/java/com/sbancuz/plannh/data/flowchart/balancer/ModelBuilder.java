@@ -53,9 +53,12 @@ public final class ModelBuilder {
         this.ctx = ctx;
         final Numerics numerics = ctx.heuristics.numerics();
         // Never longer than what the whole solve has left. The floor matters as much as the
-        // ceiling: a model handed a millisecond aborts into whatever point it is holding.
-        final long limit = Math
-            .clamp(numerics.effort(numerics.stageTimeLimitMillis), numerics.minModelMillis, ctx.budget.remaining());
+        // ceiling: a model handed a millisecond aborts into whatever point it is holding, so the
+        // floor wins once the budget is nearly spent. Not Math.clamp: that throws when the floor is
+        // above the remaining budget, which is exactly the case the floor is for.
+        final long limit = Math.max(
+            numerics.minModelMillis,
+            Math.min(numerics.effort(numerics.stageTimeLimitMillis), ctx.budget.remaining()));
         m.options.time_abort = limit;
         m.options.time_suffice = limit;
         // One branch-and-bound worker, so the node order is a property of the model, not of thread
