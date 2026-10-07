@@ -680,8 +680,9 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     }
 
     /**
-     * Lays the plan out left to right with the layered layout (sources, then the cards in flow order, then products),
-     * keeps it where it was on the board, and frames it. One undoable step.
+     * Lays the plan out left to right ({@link com.sbancuz.plannh.layout.BoardArrange}: the cards in flow columns, each
+     * with its own drawers lined up down its sides), keeps it where it was on the board, and frames it. One undoable
+     * step.
      */
     public void arrange() {
         final Graph g = graph();
@@ -747,7 +748,13 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             }
         }
         if (items.isEmpty()) return;
-        final java.util.Map<UUID, int[]> placed = AutoLayout.layout(items, links);
+        final List<com.sbancuz.plannh.layout.BoardArrange.Box> boxes = new ArrayList<>();
+        for (final LayoutItem item : items) boxes.add(
+            new com.sbancuz.plannh.layout.BoardArrange.Box(
+                item,
+                item.card() == null,
+                item.outputCount() > 0 && item.inputCount() == 0));
+        final java.util.Map<UUID, int[]> placed = com.sbancuz.plannh.layout.BoardArrange.arrange(boxes, links);
         if (placed.isEmpty()) return;
         int x0 = Integer.MAX_VALUE, y0 = Integer.MAX_VALUE, px0 = Integer.MAX_VALUE, py0 = Integer.MAX_VALUE;
         for (final Node n : g.getNodes()) {

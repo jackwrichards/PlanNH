@@ -173,8 +173,11 @@ public final class AutoLayout {
         return new int[] { credited(margin[0]), credited(margin[1]) };
     }
 
+    /** What a margin is credited for the corridor the layout leaves anyway; see {@link #padOf}. */
+    static final int MARGIN_CREDIT = (int) (LAYER_SPACING / 2);
+
     private static int credited(final int requested) {
-        return requested <= 0 ? 0 : Math.max(0, requested - (int) (LAYER_SPACING / 2));
+        return requested <= 0 ? 0 : Math.max(0, requested - MARGIN_CREDIT);
     }
 
     private static final int[] EMPTY_PAD = { 0, 0 };
