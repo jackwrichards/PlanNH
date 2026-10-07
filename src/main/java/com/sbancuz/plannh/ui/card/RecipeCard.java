@@ -137,6 +137,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     // region Geometry and hit testing
 
     private int barRight() {
+        // A recipe outside GregTech has no voltage: no tier chip, and the name bar runs to the edge.
+        if (model != null && !model.gregtech) return TIER_X + TIER_W;
         return (model != null && model.multiblock ? AMPS_X : TIER_X) - 4;
     }
 
@@ -162,7 +164,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     public Part partAt(final float x, final float y) {
         if (model == null) return null;
         if (in(x, y, KEY_X, CHIP_Y, 16, 16)) return Part.ACTIONS;
-        if (in(x, y, TIER_X, CHIP_Y, TIER_W, 16)) return Part.TIER;
+        if (model.gregtech && in(x, y, TIER_X, CHIP_Y, TIER_W, 16)) return Part.TIER;
         if (model.multiblock && in(x, y, AMPS_X, CHIP_Y, AMPS_W, 16)) return Part.AMPS;
         if (in(x, y, BAR_X, CHIP_Y, barRight() - BAR_X, 16)) return Part.MACHINE;
         if (layout.settingRows > 0 && in(x, y, COIL_X, layout.settingsY + 1, COIL_W, 16)) return Part.COIL;
@@ -284,7 +286,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             1);
         for (int i = 0; i < 3; i++) Hyb.rect(KEY_X + 3, y + 4 + i * 3, 10, 2, Hyb.INK);
 
-        chip(TIER_X, y, TIER_W, Hyb.tier(m.tier), hover == Part.TIER);
+        if (m.gregtech) chip(TIER_X, y, TIER_W, Hyb.tier(m.tier), hover == Part.TIER);
         if (m.multiblock) {
             Hyb.bevel(
                 AMPS_X,
