@@ -1029,13 +1029,26 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     private long wheelAt;
     private static final long WHEEL_COMMIT_MS = 500;
 
-    /** Commits a wheeled count or amps once the wheel has gone still. */
+    /**
+     * The model the card showed when a wheeled value was committed, or null while none is. The value stays on the card
+     * until a newer answer has come back from the solver, so it never flicks back to the old one in between.
+     */
+    private CardModel committedOver;
+
+    /** Commits a wheeled count or amps once the wheel has gone still; lets go of it once the solve has caught up. */
     private void commitWheel() {
+        if (committedOver != null) {
+            if (model != committedOver && !session.solving()) {
+                committedOver = null;
+                pendingCount = 0;
+                pendingAmps = 0;
+            }
+            return;
+        }
         if (pendingCount <= 0 && pendingAmps <= 0 || System.currentTimeMillis() - wheelAt < WHEEL_COMMIT_MS) return;
         if (pendingCount > 0) session.pin(model.node, pendingCount);
         if (pendingAmps > 0) session.setSetting(model.node, "amp", pendingAmps);
-        pendingCount = 0;
-        pendingAmps = 0;
+        committedOver = model;
     }
 
     @Override
@@ -1048,12 +1061,14 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             case AMPS -> {
                 pendingAmps = stepAmps(pendingAmps > 0 ? pendingAmps : model.amps, step);
                 wheelAt = System.currentTimeMillis();
+                committedOver = null;
             }
             case COIL -> stepCoil(step);
             case MACHINE -> stepMachine(step);
             case MACHINES -> {
                 pendingCount = Math.max(1, (pendingCount > 0 ? pendingCount : Math.round(machinesTotal())) + step);
                 wheelAt = System.currentTimeMillis();
+                committedOver = null;
             }
             default -> {
                 return false;
