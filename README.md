@@ -1,43 +1,45 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="src/main/resources/plannhlogo4x.png">
-  <img alt="PlanNH" src="src/main/resources/plannhlogo4x.png" width="606">
-</picture>
+<p align="center">
+  <img alt="GTNH Planner" src="src/main/resources/gtnhplannerlogo.png" width="128">
+</p>
 
-In-game flowchart-based production planner for Minecraft 1.7.10 for the GTNH pack.
+# GTNH Planner
 
-# Disclaimer
+Plan GT New Horizons factories in game. GTNH Planner is the Minecraft side of [gtnhplanner.com](https://gtnhplanner.com):
+a flowchart planner that lives in NEI, builds its cards from NEI's own recipes, and balances itself.
 
-We are currently in the middle of a big rewrite of the UI, master brach has a lot of UI bugs that will be resolved in the rewrite, please do not report any bugs relative do this
+## What it does
 
-## Features
-
-- **Canvas.** Infinite 2D whiteboard to organize complex recipe chain.
-- **NEI Recipes.** Recipes can be added using NEI and are shown through the normal recipe widgets.
-- **Groups.** Collapsible and customizable groups to keep the recipes organized
-- **Sticky notes.** To provide extra context or to just draw a smily face
-- **Production balancer.** You can balance chains for optimal throuput by pinning recipe nodes, uses [ojAlgo](https://github.com/optimatika/ojAlgo) to provide a clean solution 
-- **Summary.** Shows the overall demands and outputs of a recipe chains, ranging from items, fluids, energy and even magic resources like mana
-- **Mod integrations.** GregTech, EnderIO, Thaumcraft, Botania, Forestry, Et Futurum Requiem and many more to come
-- **Machine configuration.** Mod-specific configuration options to calculate recipe throughput like voltage, overcloks or speed modifiers
-- **Share and import.** Share your charts to other players either via the in-game chat or externally via the clipboard
-- **Mermaid export.** Export graphs as Mermaid.js flowcharts for [GuideNH](https://github.com/GTNewHorizons/GuideNH).
-- **Client side only.** No server binary required!
+- **Cards from NEI.** Look an item up with R or U, then press + (or the plan button beside it) to put a recipe on
+  the board. Pick the machine; GregTech tiers, amps, coils and overclocks are worked out for you.
+- **A board that solves itself.** Set a rate on what you want, or pin a machine count, and every card's machine
+  count and every wire's flow follow. Wires route themselves and hop where they cross.
+- **Your plans, and everyone's.** Tabs are your open plans; every plan you make is kept in the Library's My plans.
+  The Library also holds the public setups from gtnhplanner.com: search them, open one as a plan, or right-click
+  something on the overview to see the setups that make it.
+- **The same account as the website.** Sign in with your gtnhplanner.com account to post a plan to the public
+  library, where it shows on the website and in game.
+- **Client side only.** No server mod needed.
 
 ## Dependencies
 
-- Minecraft **1.7.10** with Forge
-- **Not Enough Items**, **ModularUI**, **GTNHLib**, **Mixin**
-
-## Credits
-
-- **[TheYoingLad](https://github.com/TheYoingLad)** for the UI code 
-- **[FlyToSpace](https://github.com/FlyToSpace)** for the logo design
+- Minecraft **1.7.10** with Forge, in the GT New Horizons pack
+- **Not Enough Items** (GTNH's), **ModularUI2**, **GTNHLib**, **Mixin**
 
 ## Building
 
 ```bash
 ./gradlew build
 ```
+
+## Credits
+
+GTNH Planner started as a fork of [PlanNH](https://github.com/sbancuz/PlanNH) by **Sbancuz**, with UI code by
+**[TheYoingLad](https://github.com/TheYoingLad)**. It has since been rebuilt and renamed, so the two never collide.
+
+## Feedback
+
+Bugs and development talk: the GTNH Planner thread on the GT New Horizons Discord (the Discord key in the planner's
+top bar takes you there).
 
 ## License
 

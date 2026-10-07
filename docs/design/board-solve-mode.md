@@ -79,7 +79,7 @@ visual; clicking it does nothing.
 
 ### 2.4 Settings
 
-Only the settings that matter for this machine, from the machine profile PlanNH already has per mod:
+Only the settings that matter for this machine, from the machine profile GTNH Planner already has per mod:
 
 - GregTech: coil (dropdown with a filter box, starting at the recipe's minimum heat: Cupronickel, Kanthal,
   Nichrome, TPV-Alloy, HSS-G, ...), parallels, perfect overclock, other multiblock options.
@@ -146,7 +146,7 @@ product → byproduct → trash. Body: the slot icon and the signed rate in big 
 Plan tabs; undo / redo; unit key (/t, /s, /min, /hr); power key (EU/t or amps at a tier); peak / average;
 arrange; fit; help. A totals rail (folded by default) lists inputs, outputs, power and the machine shopping list.
 
-## 7. What we keep from PlanNH, and what is new
+## 7. What we keep from GTNH Planner, and what is new
 
 | Keep (engine) | New (UI and model) |
 | --- | --- |

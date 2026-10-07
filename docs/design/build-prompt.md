@@ -1,6 +1,6 @@
-# Build prompt: the PlanNH rebuild, start to finish
+# Build prompt: the GTNH Planner rebuild, start to finish
 
-This is a complete brief for an engineer (human, Claude, or any other LLM agent) to build the new PlanNH planner
+This is a complete brief for an engineer (human, Claude, or any other LLM agent) to build the new GTNH Planner planner
 from this repository. Read all of it before writing code. It is written to be pasted as a prompt.
 
 ## Status (2026-10-06)
@@ -36,17 +36,17 @@ Known gaps:
 
 ## Your job
 
-You are rebuilding the user interface of **PlanNH**, an in-game production planner for the GT New Horizons modpack
+You are rebuilding the user interface of **GTNH Planner**, an in-game production planner for the GT New Horizons modpack
 (Minecraft 1.7.10, Forge, client-side only). The new planner is a port of the recipe board from the owner's web
 app **GTNH Factory Flow** (gtnhplanner.com, source at `C:\Users\jack\gtnh-factory-flow`), restricted to its
-**Solve mode**, dressed in NEI and GregTech's own GUI parts, and driving PlanNH's existing solver engine.
+**Solve mode**, dressed in NEI and GregTech's own GUI parts, and driving GTNH Planner's existing solver engine.
 
 Deliver it in the six milestones below. Each milestone ends with: tests green, the feature verified in the running
 game with the dev harness (screenshots you have looked at), a commit on `main`, and a short note to the owner.
 
 ## Ground rules
 
-- Repo: `C:\Users\jack\PlanNH`, branch `main`, remote `origin` = the owner's fork. Commit and push finished work.
+- Repo: `C:\Users\jack\GTNH Planner`, branch `main`, remote `origin` = the owner's fork. Commit and push finished work.
 - Read `CLAUDE.md` (working rules, build, dev loop) and `docs/design/board-solve-mode.md` (the design spec; it
   is the source of truth for what the board does). The mockups are on the design canvas linked from that spec;
   row 4 "Hybrid" is the chosen look.
@@ -133,7 +133,7 @@ ModularUI lessons from steps 1-2 (already handled in `ui/popup/Popup` and `Recip
 
 ## Architecture of the new UI
 
-New package `com.sbancuz.plannh.ui`. One ModularUI2 screen, opened like the old one (F8 and NEI's "FC" button):
+New package `com.gtnhplanner.ui`. One ModularUI2 screen, opened like the old one (F8 and NEI's "FC" button):
 `new GuiContainerWrapper(new ModularContainer().constructClientOnly(), BoardScreen.create())`, so NEI keeps its
 item list on the right through the existing `FlowchartGuiHandler` / `FlowchartLayoutStyle` (point them at the new
 screen).
@@ -195,7 +195,7 @@ Rules for the UI code:
 ## Definition of done (every milestone)
 
 - `./gradlew test` green, `./gradlew spotlessApply` clean.
-- `tools/dev/mc.sh smoke` passes (and no PlanNH exception in the log).
+- `tools/dev/mc.sh smoke` passes (and no GTNH Planner exception in the log).
 - You looked at screenshots of every new or changed element in the running game, with GregTech loaded.
 - Committed on `main` with a message that says what changed and why; pushed.
 - A short note to the owner: what works now, what to try, what is not done.

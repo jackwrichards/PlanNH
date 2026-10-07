@@ -1,17 +1,17 @@
 # Dev harness: driving the client from a shell
 
-The dev harness lets an agent (or a script) run the PlanNH client without anyone at the keyboard: launch it,
+The dev harness lets an agent (or a script) run the GTNH Planner client without anyone at the keyboard: launch it,
 wait until it is in a world, open the flowchart, click/drag/scroll/type, read the widget tree, take screenshots,
 and shut it down. It exists so UI work can be verified the same way logic is verified by `./gradlew test`.
 
 It is dev-only: `DevHarness.initIfDev()` does nothing outside a deobfuscated dev environment (force with
-`-Dplannh.dev=true|false`), so it never runs in a shipped jar.
+`-Dgtnhplanner.dev=true|false`), so it never runs in a shipped jar.
 
 ## Quick start
 
 ```bash
 tools/dev/mc.sh start            # build + launch runClient25, block until the test world is loaded (~20s warm)
-tools/dev/mc.sh call open        # open the PlanNH flowchart
+tools/dev/mc.sh call open        # open the GTNH Planner flowchart
 tools/dev/mc.sh shot look.png    # -> run/client/screenshots/look.png
 tools/dev/mc.sh part 1 TIER      # click card 1's tier chip, found by name via /board (also: move, scroll 'amount=-1', 'button=1');
                                  # d0 RATE = drawer 0's rate box; ports are IN0, OUT1... (drag them with /drag)
@@ -31,14 +31,14 @@ pause-on-lost-focus so an unfocused window keeps running.
 about 30s to the world once the jars are cached). It uses its own world, `plannh-dev-gtnh`, because opening a world
 across mod sets stops on EndlessIDs' "convert this world?" prompt, which the harness cannot get past.
 
-On first launch it creates a creative superflat world `plannh-dev` (`-Dplannh.dev.world=name`, empty to stay on
+On first launch it creates a creative superflat world `plannh-dev` (`-Dgtnhplanner.dev.world=name`, empty to stay on
 the main menu) and loads it automatically. Plans are saved per world, so notes and nodes persist across runs;
 with the game stopped, delete `run/client/saves/plannh-dev` (the world) and
 `run/client/saves/NEI/local/plannh-dev` (the plan) for a clean slate.
 
 ## Endpoints
 
-HTTP on `127.0.0.1:25599` (`-Dplannh.dev.port`), GET with query parameters, JSON replies. `mc.sh call 'path?args'`
+HTTP on `127.0.0.1:25599` (`-Dgtnhplanner.dev.port`), GET with query parameters, JSON replies. `mc.sh call 'path?args'`
 is a thin curl wrapper. Every request waits until the game has processed it, so calls can be chained.
 
 | Endpoint | What it does |
@@ -59,7 +59,7 @@ is a thin curl wrapper. Every request waits until the game has processed it, so 
 | `/slots[?add=name \| switch=i \| delete=i]` | the plan slots (`slots`, `active`); `add` opens a new one, so a check can work without touching the owner's plans |
 | `/importff?file=path \| text=...` | imports a Factory Flow plan (JSON, plan code or link; a relative path is from the repo root) as a new slot and makes it active; returns `name`, `summary` and the `report` lines |
 | `/gtmachines?q&all=1&art=1` | GregTech multiblocks (all=1: every machine) by meta and in-game name; art=1 adds the bundled picture each resolves to |
-| `/recipeinfo?output&handler&input` | what NEI and PlanNH see in a recipe (ingredient, result and other stacks with registry names, catalysts, the ports a card would get), read-only |
+| `/recipeinfo?output&handler&input` | what NEI and GTNH Planner see in a recipe (ingredient, result and other stacks with registry names, catalysts, the ports a card would get), read-only |
 | `/nei?item&uses=1&planner=0&tab` | open NEI's recipes (or uses) for an item: over the planner, as R and U do there, or with `planner=0` from the inventory, the planner closed; `tab` opens on the first tab whose name contains it; returns the tab names |
 | `/library?url=<base>` | the site the Library reads and posts to; `node tools/dev/mock-library.mjs [port]` runs a local stand-in (accounts and posts in memory, posted plans written to `build/dev-client/mock-posts/`), so sign-in and posting never touch gtnhplanner.com; the URL resets on restart |
 | `/structurepic?meta=1000` | GT runs only: (re)build that multiblock controller's recipe-card picture (structure built in BlockRenderer6343's fake world, replaces the cached one so an open board shows it), save it as `screenshots/structure-<meta>.png`; returns `status` (ok, too big, empty, not a multiblock, failed: ...), `size`, `blocks`, timings and `path`. Without `meta`: every constructable controller as `{meta, name}` |
@@ -71,7 +71,7 @@ All coordinates are GUI-scaled (what `GuiScreen` sees as `mouseX`/`mouseY`), not
 
 ## Tips for UI work
 
-- A PlanNH text field that is not focused by the click that opens it takes focus on a double-click:
+- A GTNH Planner text field that is not focused by the click that opens it takes focus on a double-click:
   `click?x&y&count=2`, check `focused` in `/status`, then `type`. Esc (`key?code=1`) ends the edit.
 - The board zooms with the wheel around the cursor; left-drag pans on empty board and moves a card or drawer (with
   the rest of the selection); Shift-drag box-selects. The top bar's `?` lists every gesture.
@@ -80,7 +80,7 @@ All coordinates are GUI-scaled (what `GuiScreen` sees as `mouseX`/`mouseY`), not
   own and deletes it afterwards, and refuses to run while the game window has focus (`FORCE=1` overrides).
 - Cropped screenshots are cheap to inspect and keep native resolution:
   `mc.sh shot detail.png 'x=30&y=50&w=150&h=90'`.
-- `mc.sh smoke` fails on a crash, on any exception with a `com.sbancuz.plannh` frame, or if the flowchart does not
+- `mc.sh smoke` fails on a crash, on any exception with a `com.gtnhplanner` frame, or if the flowchart does not
   open, and lists other logged errors (other mods, ModularUI layout warnings) without failing.
 - Logs: `build/dev-client/client.log` is the full output of the current run (all mods; rewritten on each start).
 
@@ -103,8 +103,8 @@ Needs `mc.sh restart` instead:
 - mixins, resources (lang files, textures), and anything that only runs at startup (static initializers, event and
   keybind registration, config loading).
 
-How it works: the game loads PlanNH from the dev jar (`shadowJar` then `downgradeJar`), which is locked while the
-game runs, but its PlanNH classes are byte-identical to `build/tmp/downgradeMainClasses/main` (checked 435 of 435),
+How it works: the game loads GTNH Planner from the dev jar (`shadowJar` then `downgradeJar`), which is locked while the
+game runs, but its GTNH Planner classes are byte-identical to `build/tmp/downgradeMainClasses/main` (checked 435 of 435),
 where the game uses the `META-INF/versions/21` copies on Java 25. `start` builds both in one Gradle run and, once the
 client is ready, records each class's SHA-1 in `build/dev-client/hotswap.sums`; `swap` rebuilds that folder and
 sends only classes whose hash differs, through JDI `redefineClasses` (`tools/dev/Hotswap.java`). Hashes, not

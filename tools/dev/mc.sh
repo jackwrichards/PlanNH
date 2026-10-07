@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Drive the PlanNH dev client from a shell, headless-agent friendly. See docs/dev-harness.md.
+# Drive the GTNH Planner dev client from a shell, headless-agent friendly. See docs/dev-harness.md.
 #
 #   tools/dev/mc.sh start [timeout_s]   build + launch the client, block until the test world is loaded
 #   tools/dev/mc.sh stop                kill the client (a graceful quit can hang on a confirm dialog)
@@ -96,7 +96,7 @@ start() {
     local run_args=(downgradeMainClasses "$TASK" --console=plain)
     # The GTNH core mod pulls in GregTech and the pack's recipes: ~180 dependencies, a much slower start.
     # Its own world too: a world saved with GregTech asks about missing blocks when opened without it.
-    [ "$GTNH" = 1 ] && run_args=(-PgtnhRecipes "${run_args[@]}" "--mcJvmArgs=-Dplannh.dev.world=plannh-dev-gtnh")
+    [ "$GTNH" = 1 ] && run_args=(-PgtnhRecipes "${run_args[@]}" "--mcJvmArgs=-Dgtnhplanner.dev.world=plannh-dev-gtnh")
     # JetBrains Runtime + HotswapAgent + a JDWP port so `mc.sh swap` can push recompiled classes into the game.
     [ "$HOTSWAP" = 1 ] && run_args+=(--hotswap
         "--mcJvmArgs=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:$JDWP_PORT")
@@ -180,14 +180,14 @@ smoke() {
     local fail=0 game_log="$LOG"
     call open | grep -q '"ok": true' || { echo "open failed" >&2; fail=1; }
     sleep 1
-    call status | grep -q '"muiScreen": "com.sbancuz.plannh.ui.BoardScreen"' ||
+    call status | grep -q '"muiScreen": "com.gtnhplanner.ui.BoardScreen"' ||
         { echo "flowchart screen not showing" >&2; fail=1; }
     shot smoke-flowchart.png || fail=1
     stop
-    # Exceptions from PlanNH code fail the run; other logged errors (other mods, layout warnings) are reported.
-    if grep -qE "^\s+at com\.sbancuz\.plannh" "$game_log"; then
-        echo "PlanNH exception logged:" >&2
-        grep -nE "Exception|^\s+at com\.sbancuz\.plannh" "$game_log" | head -20 >&2
+    # Exceptions from GTNH Planner code fail the run; other logged errors (other mods, layout warnings) are reported.
+    if grep -qE "^\s+at com.gtnhplanner" "$game_log"; then
+        echo "GTNH Planner exception logged:" >&2
+        grep -nE "Exception|^\s+at com.gtnhplanner" "$game_log" | head -20 >&2
         fail=1
     fi
     local errors

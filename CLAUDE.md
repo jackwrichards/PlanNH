@@ -1,4 +1,8 @@
-# PlanNH (jackwrichards fork)
+# GTNH Planner
+
+GTNH Planner, the in-game side of gtnhplanner.com (mod id `gtnhplanner`, package `com.gtnhplanner`). It started as
+a fork of sbancuz/PlanNH and was renamed on 2026-10-07 so the two never collide; saves (`plannh/plannh.dat` in a
+world's NEI folder) and config files from before the rename are still read, then written under the new names.
 
 In-game, NEI-driven flowchart production planner for GT New Horizons: Minecraft 1.7.10, Forge 10.13.4.1614,
 client-side only. The planner UI is ModularUI2 in `ui/` (the Solve-mode board), the balancer is an ojAlgo ILP
@@ -13,7 +17,7 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   upstream's branches, bugs and CI are not our concern; don't spend effort on them.
 - Changing the mod is fine when it makes developing or testing easier (hooks, debug output, testability
   refactors). Don't do end-user work yet (UX polish, features, user-facing bug fixes): it is all going to change.
-- Dev tooling lives in `src/main/java/com/sbancuz/plannh/dev/`, `tools/dev/` and `docs/`; it is wired in through
+- Dev tooling lives in `src/main/java/com/gtnhplanner/dev/`, `tools/dev/` and `docs/`; it is wired in through
   `DevHarness.initIfDev()` in `ClientProxy#init`.
 
 ## The rebuild
@@ -51,7 +55,7 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   (`library/Account`). "Post to library..." (a tab's or a plan tile's menu) sends the plan as Factory Flow project
   JSON (`library/PlanExport`, checked against the website's own schema). Test it all against
   `node tools/dev/mock-library.mjs` (a local stand-in; `call 'library?url=http://127.0.0.1:8789'`), never the real site.
-- Multiblock pictures in `assets/plannh/textures/structures/` are Factory Flow's renders (`public/power-art`: the
+- Multiblock pictures in `assets/gtnhplanner/textures/structures/` are Factory Flow's renders (`public/power-art`: the
   owner's processing multiblocks and the Power Planner workbook's power plants), scaled to 320 px palette PNGs with
   transparency. `ui/card/StructureArt` maps in-game machine names to them; `call 'gtmachines?art=1'` checks coverage.
 
@@ -87,7 +91,7 @@ tools/dev/board-check.sh  # GT runs: end-to-end board check (recipe, port drag, 
   control by name: `mc.sh part 1 MACHINES` (from `call board`, which also returns each card's state). Elsewhere
   find targets with `call widgets` and check `hovered`/`focused` in `call status` rather than estimating.
 - `mc.sh stop` kills the game on purpose: a clean quit with GT loaded hangs on a "really close?" dialog.
-- PlanNH text fields need a double-click (`click?x&y&count=2`) before `type` works.
+- GTNH Planner text fields need a double-click (`click?x&y&count=2`) before `type` works.
 - After changing mod code: `tools/dev/mc.sh swap --reopen`. Restart instead (`mc.sh restart`, ~30s) when swap
   exits 2 (new or not-yet-loaded classes), for mixins, resources and startup-only code, and when you add a field
   with an initialiser: widgets already on screen get it as null, and a draw that touches it crashes out of the world.
