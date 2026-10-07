@@ -32,6 +32,11 @@ public final class ArrowRouter {
     private static final int EARLY_TURN = 1000;
     /** Running into a cell another wire runs through along another line: a crossing. */
     private static final int CROSS = 4000;
+    /**
+     * On top of a crossing: a corner where another wire runs, or a crossing where wires already meet. Three lines
+     * through one point read as a junction, and no hop can be drawn over a corner.
+     */
+    private static final int JUNCTION = CROSS / 2;
     /** Per step, in steps, along a line another wire already runs on: the two would draw as one. */
     private static final int OVERLAP_STEPS = 6;
     /** Per step, in steps, beside another wire, so wires keep a cell apart where there is room. */
@@ -161,7 +166,7 @@ public final class ArrowRouter {
         final int left = r.x, right = r.x + r.w, top = r.y, bottom = r.y + r.h;
         final int cells = (r.w + r.h) / DOCK_GRID;
         final int step = cells > 60 ? 2 * DOCK_GRID : DOCK_GRID;
-        final int keepX = r.w >= 2 * DOCK_GRID ? DOCK_GRID : 0, keepY = r.h >= 2 * DOCK_GRID ? DOCK_GRID : 0;
+        final int keepX = keep(r.w), keepY = keep(r.h);
         final int cx = (left + right) / 2, cy = (top + bottom) / 2;
         final List<Dock> out = new ArrayList<>();
         // From the middle out each way, so the middle itself is always a dock.
@@ -182,8 +187,20 @@ public final class ArrowRouter {
         return out;
     }
 
+    /**
+     * How far a side's docks stay from its corners: a grid cell, half that on a short side (a drawer's ends), so it
+     * still has a dock either side of its middle for wires that cannot get round it.
+     */
+    private static int keep(final int side) {
+        if (side >= 4 * DOCK_GRID) return DOCK_GRID;
+        return side >= DOCK_GRID ? DOCK_GRID / 2 : 0;
+    }
+
     /** What a dock's distance from its side's middle costs, per world px: mid-way out a long side, about a turn. */
     private static final int DOCK_CENTRE_COST = 10;
+
+    /** A dock another wire has taken costs this many steps: a detour of up to that long beats sharing it. */
+    private static final int DOCK_TAKEN_STEPS = 100;
 
     private final int baseCell;
     private final int margin;
@@ -315,7 +332,7 @@ public final class ArrowRouter {
                 && q.dx - q.sx < 2 * stub + 2 * cell
                 && Math.abs(q.dy - q.sy) < 10 * baseCell) continue;
             routes[i] = q.isDocked() ? grid.searchDocks(q, i) : grid.search(q, i);
-            if (routes[i] != null) grid.occupy(routes[i], 1);
+            if (routes[i] != null) grid.occupy(routes[i], q, 1);
         }
 
         // Wires that still cross: route each again around all the others, and keep it when it crosses less. Bounded in
@@ -328,10 +345,10 @@ public final class ArrowRouter {
                 final Route old = routes[i];
                 if (old == null) continue;
                 if (budget <= 0 || System.nanoTime() - started > REROUTE_NANOS) break rounds;
-                grid.occupy(old, -1);
+                grid.occupy(old, requests.get(i), -1);
                 final int before = grid.crossings(old);
                 if (before == 0) {
-                    grid.occupy(old, 1);
+                    grid.occupy(old, requests.get(i), 1);
                     continue;
                 }
                 budget--;
@@ -341,7 +358,7 @@ public final class ArrowRouter {
                     routes[i] = again;
                     improved = true;
                 }
-                grid.occupy(routes[i], 1);
+                grid.occupy(routes[i], requests.get(i), 1);
             }
             if (!improved) break;
         }
@@ -506,7 +523,32 @@ public final class ArrowRouter {
             }
         }
 
-        /** Adds a wire to the board ({@code sign} 1) or takes it off again (-1). */
+        /**
+         * Wires on each dock point (by {@link #dockKey}): a dock is one wire's, as on the website, so two wires never
+         * leave a card from the same spot. Kept with the wires' cells, so a wire being rerouted lets go of its own.
+         */
+        final Map<Long, Integer> dockUse = new HashMap<>();
+
+        /** Adds a wire to the board ({@code sign} 1) or takes it off again (-1), with the docks it took. */
+        void occupy(final Route route, final Request q, final int sign) {
+            if (q.isDocked() && route.source >= 0 && route.target >= 0) {
+                dockUse.merge(dockKey(q.sources.get(route.source)), sign, Integer::sum);
+                dockUse.merge(dockKey(q.targets.get(route.target)), sign, Integer::sum);
+            }
+            occupy(route, sign);
+        }
+
+        static long dockKey(final Dock d) {
+            return (long) d.x << 32 ^ d.y & 0xFFFFFFFFL;
+        }
+
+        /**
+         * What docking where another wire already does costs: enough that it takes another dock unless all are taken.
+         */
+        int dockTaken(final Dock d) {
+            return dockUse.getOrDefault(dockKey(d), 0) > 0 ? DOCK_TAKEN_STEPS * orthStep : 0;
+        }
+
         void occupy(final Route route, final int sign) {
             for (int k = 0; k < route.cells.length; k++) {
                 final int idx = route.cells[k];
@@ -528,8 +570,21 @@ public final class ArrowRouter {
             int n = 0;
             for (int k = 0; k < route.cells.length; k++) {
                 if ((lineMask[route.cells[k]] & ~(1 << LINE[route.headings[k]])) != 0) n++;
+                if (k == 0) continue;
+                final int a = route.cells[k - 1], b = route.cells[k];
+                if (cornerCross(a % cols, a / cols, b % cols, b / cols, route.headings[k]) > 0) n++;
             }
             return n;
+        }
+
+        /**
+         * A diagonal step over another wire's opposite diagonal: the two cross at the cells' shared corner without ever
+         * sharing a cell, so the cell count alone would miss it.
+         */
+        private int cornerCross(final int x, final int y, final int nx, final int ny, final int dir) {
+            if ((dir & 1) == 0) return 0;
+            final int other = 1 << 5 - LINE[dir];
+            return (lineMask[y * cols + nx] & other) != 0 && (lineMask[ny * cols + x] & other) != 0 ? CROSS : 0;
         }
 
         /** What a step into cell {@code idx} heading {@code dir} costs, beyond the turn. */
@@ -539,6 +594,7 @@ public final class ArrowRouter {
             final int mask = lineMask[idx], own = 1 << LINE[dir];
             if ((mask & own) != 0) cost += OVERLAP_STEPS * step;
             if ((mask & ~own) != 0) cost += CROSS;
+            if (Integer.bitCount(mask & ~own) >= 2) cost += JUNCTION;
             if (anchorOwner[idx] != -1 && anchorOwner[idx] != requestIndex) cost += ANCHOR_STEPS * orthStep;
             return cost;
         }
@@ -591,7 +647,7 @@ public final class ArrowRouter {
                     if (nd != dir && straightOnly[idx]) continue;
                     // Onto a diagonal: the whole minimum run at once.
                     final int steps = (nd & 1) == 1 && nd != dir ? DIAGONAL_MIN_STEPS : 1;
-                    int x = cx, y = cy, cost = turn;
+                    int x = cx, y = cy, cost = turn + (nd != dir && lineMask[idx] != 0 ? JUNCTION : 0);
                     boolean ok = true;
                     for (int k = 0; k < steps && ok; k++) {
                         final int nx = x + DX[nd], ny = y + DY[nd];
@@ -601,7 +657,7 @@ public final class ArrowRouter {
                         else if ((nd & 1) == 1 && (blocked[y * cols + nx] || blocked[ny * cols + x])) ok = false;
                         else if (k == 0 && nd != dir && straightOnly[ny * cols + nx]) ok = false;
                         else {
-                            cost += stepCost(ny * cols + nx, nd, requestIndex);
+                            cost += stepCost(ny * cols + nx, nd, requestIndex) + cornerCross(x, y, nx, ny, nd);
                             x = nx;
                             y = ny;
                         }
@@ -753,7 +809,7 @@ public final class ArrowRouter {
                 final int idx = sy[s] * cols + sx[s];
                 if (blocked[idx]) continue;
                 final int state = idx * 8 + sources.get(s).side.outward;
-                final int g = sources.get(s).offCentre * DOCK_CENTRE_COST;
+                final int g = sources.get(s).offCentre * DOCK_CENTRE_COST + dockTaken(sources.get(s));
                 if (g >= score(state, run)) continue;
                 setScore(state, g, -1, run);
                 startOf.put(state, s);
@@ -765,7 +821,7 @@ public final class ArrowRouter {
                 final int idx = ty[t] * cols + tx[t];
                 if (blocked[idx]) continue;
                 final int state = idx * 8 + (targets.get(t).side.outward + 4) % 8;
-                final int cost = targets.get(t).offCentre * DOCK_CENTRE_COST;
+                final int cost = targets.get(t).offCentre * DOCK_CENTRE_COST + dockTaken(targets.get(t));
                 if (cost < goalCost.getOrDefault(state, Integer.MAX_VALUE)) {
                     goalCost.put(state, cost);
                     goalOf.put(state, t);
@@ -793,7 +849,7 @@ public final class ArrowRouter {
                     if (turn < 0 || (nd & 1) == 1 && !diagonals) continue;
                     if (nd != dir && straightOnly[idx]) continue;
                     final int steps = (nd & 1) == 1 && nd != dir ? DIAGONAL_MIN_STEPS : 1;
-                    int x = cx, y = cy, cost = turn;
+                    int x = cx, y = cy, cost = turn + (nd != dir && lineMask[idx] != 0 ? JUNCTION : 0);
                     boolean ok = true;
                     for (int k = 0; k < steps && ok; k++) {
                         final int nx = x + DX[nd], ny = y + DY[nd];
@@ -802,7 +858,7 @@ public final class ArrowRouter {
                         else if ((nd & 1) == 1 && (blocked[y * cols + nx] || blocked[ny * cols + x])) ok = false;
                         else if (k == 0 && nd != dir && straightOnly[ny * cols + nx]) ok = false;
                         else {
-                            cost += stepCost(ny * cols + nx, nd, requestIndex);
+                            cost += stepCost(ny * cols + nx, nd, requestIndex) + cornerCross(x, y, nx, ny, nd);
                             x = nx;
                             y = ny;
                         }

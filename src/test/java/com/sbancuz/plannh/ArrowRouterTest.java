@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -357,5 +358,31 @@ class ArrowRouterTest {
                 }
             }
         }
+    }
+
+    @Test
+    void twoDockedWiresNeverShareADock() {
+        neverShareADock(new Rect(0, 0, 200, 120), new Rect(0, 400, 200, 120));
+        // A drawer in a stack feeding two ports on the card beside it: no way round, so its short side has room for
+        // both.
+        neverShareADock(
+            new Rect(762, 521, 136, 68),
+            new Rect(1002, 380, 320, 400),
+            new Rect(762, 441, 136, 68),
+            new Rect(762, 601, 136, 68));
+    }
+
+    private static void neverShareADock(final Rect a, final Rect b, final Rect... others) {
+        final List<Rect> boxes = new ArrayList<>(List.of(a, b));
+        boxes.addAll(List.of(others));
+        final UUID one = UUID.randomUUID(), two = UUID.randomUUID();
+        final Map<UUID, List<int[]>> paths = new ArrowRouter(10, 12).route(
+            boxes,
+            List.of(
+                ArrowRouter.Request.docked(one, ArrowRouter.perimeterDocks(a), ArrowRouter.perimeterDocks(b), 4),
+                ArrowRouter.Request.docked(two, ArrowRouter.perimeterDocks(a), ArrowRouter.perimeterDocks(b), 4)));
+        final List<int[]> p = paths.get(one), q = paths.get(two);
+        assertFalse(Arrays.equals(p.getFirst(), q.getFirst()), "they leave from different spots");
+        assertFalse(Arrays.equals(p.getLast(), q.getLast()), "and land on different spots");
     }
 }
