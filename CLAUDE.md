@@ -36,6 +36,11 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   `MachineGroup`s with ordered `sections`: each recipe stays a node with its own ports and wires, the group draws as
   one card, its machine settings are copied to every recipe, and a pinned count is an exact solver pool.
 - Saves are backed up to `plannh/backups/` beside the save, once per session and before any save that drops a plan.
+- NEI's recipe pages carry a plan button above + and the star (`nei/PlanButton`, `nei/PlanMenu`, added through NEI's
+  `UpdateRecipeButtonsEvent`): it adds the recipe to the active plan with the planner open or closed, asking which
+  machine when the tab has several (`ui/card/MachineChoices`: GT single blocks are one choice at the recipe's tier).
+  The pick is remembered per tab (`MachinePicks`, `config/plannh-machine-picks.properties`) and NEI's + uses it too;
+  right-click picks the plan. `call 'nei?item=<key>&planner=0&tab=<name>'` opens a recipe page from the inventory.
 - Multiblock pictures in `assets/plannh/textures/structures/` are Factory Flow's renders (`public/power-art`: the
   owner's processing multiblocks and the Power Planner workbook's power plants), scaled to 320 px palette PNGs with
   transparency. `ui/card/StructureArt` maps in-game machine names to them; `call 'gtmachines?art=1'` checks coverage.

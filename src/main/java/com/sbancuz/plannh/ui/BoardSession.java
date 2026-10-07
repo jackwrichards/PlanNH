@@ -32,9 +32,9 @@ import com.sbancuz.plannh.nei.NodeLookupContext;
 import com.sbancuz.plannh.ui.card.CardDefaults;
 import com.sbancuz.plannh.ui.card.CardLayout;
 import com.sbancuz.plannh.ui.card.CardModel;
+import com.sbancuz.plannh.ui.card.MachineChoices;
 import com.sbancuz.plannh.ui.drawer.DrawerCard;
 import com.sbancuz.plannh.ui.drawer.DrawerModel;
-import com.sbancuz.plannh.ui.gt.GtMachines;
 import com.sbancuz.plannh.ui.theme.Fmt;
 
 import codechicken.nei.recipe.IRecipeHandler;
@@ -200,87 +200,39 @@ public final class BoardSession {
     }
 
     /**
-     * Puts an NEI recipe on the board. When it came from a lookup on a port, it lands beside that card and only that
-     * resource is wired; otherwise it lands to the right of everything already there.
+     * Puts an NEI recipe on the board, on the machine last picked for its tab (else NEI's first). When it came from a
+     * lookup on a port, it lands beside that card and only that resource is wired; otherwise it lands beside what it
+     * wires to.
      */
     public Node addRecipe(final IRecipeHandler handler, final int recipeIndex) {
+        return addRecipe(MachineChoices.newNode(handler, recipeIndex, null));
+    }
+
+    /** As above, for a card already set up: the plan button's, on the machine picked in its menu. */
+    public Node addRecipe(final Node node) {
         final NodeLookupContext origin = pendingLookup;
         pendingLookup = null;
         final UUID joinTo = addSectionTo;
         addSectionTo = null;
-        final Node node = new Node(handler, recipeIndex, 0, 0);
-        CardDefaults.apply(node);
         justAdded = joinTo != null && graph.nodes.containsKey(joinTo) ? joinTo : node.id;
         edit(() -> {
             graph.addNode(node);
             // "Add another recipe" on a card: it joins that machine, wired like any add.
             if (joinTo != null && joinArmedCard(node, joinTo)) {
-                autoWire(node);
+                NewCards.autoWire(graph, node);
                 return;
             }
             final Node from = origin == null ? null : graph.nodes.get(origin.nodeId());
             if (from != null && wireToOrigin(node, from, origin)) {
-                node.x = origin.output() ? from.x + CardLayout.W + GAP : from.x - CardLayout.W - GAP;
+                node.x = origin.output() ? from.x + CardLayout.W + NewCards.GAP : from.x - CardLayout.W - NewCards.GAP;
                 node.y = from.y;
-                for (int tries = 0; tries < 50 && overlapsAnything(node); tries++) node.y += 40;
+                for (int tries = 0; tries < 50 && NewCards.overlapsAnything(graph, node); tries++) node.y += 40;
             } else {
-                autoWire(node);
-                placeBesideNeighbours(node);
+                NewCards.autoWire(graph, node);
+                NewCards.place(graph, node);
             }
         });
         return node;
-    }
-
-    /**
-     * Wires a new card to what is already on the board: each input to the first card that makes it (or a source
-     * drawer holding it), each output to a card that uses it and has no supply yet (or a product drawer holding it).
-     */
-    private void autoWire(final Node added) {
-        for (int in = 0; in < added.inputs.size(); in++) {
-            final Port<?> want = added.inputs.get(in);
-            boolean done = false;
-            for (final Node n : graph.getNodes()) {
-                if (n == added || done) continue;
-                for (int out = 0; out < n.outputs.size() && !done; out++) {
-                    if (!n.outputs.get(out)
-                        .canConnect(want)) continue;
-                    graph.addEdge(new Edge(UUID.randomUUID(), n.id, added.id, out, in));
-                    done = true;
-                }
-            }
-            if (!done) linkToDrawer(added, false, in);
-        }
-        for (int out = 0; out < added.outputs.size(); out++) {
-            boolean done = false;
-            for (final Node n : graph.getNodes()) {
-                if (n == added || done) continue;
-                final int in = graph.findCompatibleInput(added, out, n);
-                if (in < 0 || hasSupply(n, in)) continue;
-                graph.addEdge(new Edge(UUID.randomUUID(), added.id, n.id, out, in));
-                done = true;
-            }
-            if (!done) linkToDrawer(added, true, out);
-        }
-    }
-
-    private boolean hasSupply(final Node node, final int input) {
-        for (final Edge e : graph.getEdges()) {
-            if (e.targetNodeId.equals(node.id) && e.targetInputIndex == input) return true;
-        }
-        return graph.drawerAt(node.id, input, true) != null;
-    }
-
-    /** Links a port to a drawer already on the board for the same resource and direction, if there is one. */
-    private void linkToDrawer(final Node node, final boolean output, final int port) {
-        final List<Port<?>> ports = output ? node.outputs : node.inputs;
-        final String key = Resources.key(ports.get(port));
-        if (key.isEmpty()) return;
-        for (final Drawer d : graph.getDrawers()) {
-            if (d.getKind()
-                .linksInputs() == output || !key.equals(d.getResourceKey())) continue;
-            graph.linkDrawer(d.getId(), new Drawer.Link(node.id, port));
-            return;
-        }
     }
 
     // region Wires and drawers (each one undoable, saved, re-solved)
@@ -405,8 +357,8 @@ public final class BoardSession {
         drawer.setX(x);
         // Never under or over a card or another drawer: step down until it is clear.
         int clear = y;
-        for (int tries = 0; tries < 100 && overlapsAnything(x, clear, DrawerCard.W, DrawerCard.H, null); tries++)
-            clear += 20;
+        for (int tries = 0; tries < 100
+            && NewCards.overlapsAnything(graph, x, clear, DrawerCard.W, DrawerCard.H, null); tries++) clear += 20;
         drawer.setY(clear);
         edit(() -> {
             graph.addDrawer(drawer);
@@ -516,8 +468,6 @@ public final class BoardSession {
 
     // endregion
 
-    private static final int GAP = 80;
-
     private boolean wireToOrigin(final Node added, final Node origin, final NodeLookupContext lookup) {
         final List<Port<?>> originPorts = lookup.output() ? origin.outputs : origin.inputs;
         final int idx = lookup.portIndex();
@@ -536,66 +486,6 @@ public final class BoardSession {
             return true;
         }
         return false;
-    }
-
-    /**
-     * Places a new card next to what it was wired to: left of the first card it feeds, else right of the first card
-     * that feeds it, else right of everything on the board. Then moves it down until it overlaps nothing.
-     */
-    private void placeBesideNeighbours(final Node node) {
-        Node feeds = null, fedBy = null;
-        for (final Edge e : graph.getEdges()) {
-            if (feeds == null && e.sourceNodeId.equals(node.id)) feeds = graph.nodes.get(e.targetNodeId);
-            if (fedBy == null && e.targetNodeId.equals(node.id)) fedBy = graph.nodes.get(e.sourceNodeId);
-        }
-        if (feeds != null) {
-            node.x = feeds.x - CardLayout.W - GAP;
-            node.y = feeds.y;
-        } else if (fedBy != null) {
-            node.x = fedBy.x + CardLayout.W + GAP;
-            node.y = fedBy.y;
-        } else {
-            int right = Integer.MIN_VALUE, top = Integer.MAX_VALUE;
-            for (final Node n : graph.getNodes()) {
-                if (n == node) continue;
-                right = Math.max(right, n.x + CardLayout.W);
-                top = Math.min(top, n.y);
-            }
-            for (final Drawer d : graph.getDrawers()) {
-                right = Math.max(right, d.getX() + DrawerCard.W);
-                top = Math.min(top, d.getY());
-            }
-            node.x = right == Integer.MIN_VALUE ? 40 : right + GAP;
-            node.y = top == Integer.MAX_VALUE ? 40 : top;
-        }
-        for (int tries = 0; tries < 50 && overlapsAnything(node); tries++) node.y += 40;
-    }
-
-    /** Rough card height from its port count, for placement before the card has been drawn. */
-    private static int estimatedHeight(final Node node) {
-        final int rows = Math.max(1, Math.max(node.inputs.size(), node.outputs.size()));
-        return CardLayout.RAILS_Y + Math.max(rows * CardLayout.ROW, CardLayout.PICTURE_MIN) + 85;
-    }
-
-    private boolean overlapsAnything(final Node node) {
-        return overlapsAnything(node.x, node.y, CardLayout.W, estimatedHeight(node), node);
-    }
-
-    /** Whether a box, with a margin, overlaps any card or drawer on the board other than {@code self}. */
-    private boolean overlapsAnything(final int x, final int y, final int w, final int h, final Object self) {
-        final int m = 16;
-        for (final Node n : graph.getNodes()) {
-            if (n != self && boxesOverlap(x, y, w, h, n.x, n.y, CardLayout.W, estimatedHeight(n), m)) return true;
-        }
-        for (final Drawer d : graph.getDrawers()) {
-            if (d != self && boxesOverlap(x, y, w, h, d.getX(), d.getY(), DrawerCard.W, DrawerCard.H, m)) return true;
-        }
-        return false;
-    }
-
-    private static boolean boxesOverlap(final int ax, final int ay, final int aw, final int ah, final int bx,
-        final int by, final int bw, final int bh, final int margin) {
-        return ax < bx + bw + margin && bx < ax + aw + margin && ay < by + bh + margin && by < ay + ah + margin;
     }
 
     // region Copy and paste
@@ -841,7 +731,17 @@ public final class BoardSession {
         if (index < 0 || index >= plan.getGraphs()
             .size() || index == plan.getActiveIndex()) return;
         plan.setActiveIndex(index);
+        follow();
         PlanAPI.save();
+    }
+
+    /** Takes up the active plan when it changed (a tab, or the plan button on NEI's recipe page picking another). */
+    private void follow() {
+        final Graph active = Plan.getActiveGraph();
+        if (active != graph) {
+            graph = active;
+            seenVersion = Long.MIN_VALUE;
+        }
     }
 
     public void addSlot() {
@@ -1188,16 +1088,7 @@ public final class BoardSession {
     /** Picks which machine runs the recipe; GregTech single blocks bring their tier, multiblocks their options. */
     public void chooseMachine(final Node node, final ItemStack machine, final boolean gregtech) {
         edit(() -> {
-            node.machineName = CardDefaults.itemKey(machine);
-            if (gregtech) {
-                final GtMachines.Kind kind = GtMachines.of(machine);
-                if (kind != null) {
-                    node.machineConfig.setBoolean("gt_multiblock", kind.multiblock());
-                    if (!kind.multiblock() && kind.tier() >= 0 && kind.tier() < CardDefaults.TIERS.length) {
-                        node.machineConfig.setString("voltage", CardDefaults.TIERS[kind.tier()]);
-                    }
-                }
-            }
+            CardDefaults.useMachine(node, machine, gregtech);
             syncShared(node);
         });
     }
@@ -1287,11 +1178,7 @@ public final class BoardSession {
             pendingLookup = null;
             addSectionTo = null;
         }
-        final Graph active = Plan.getActiveGraph();
-        if (active != graph) {
-            graph = active;
-            seenVersion = Long.MIN_VALUE;
-        }
+        follow();
         try {
             solver.request(graph.solveVersion(), () -> SolveInput.of(graph, BalanceMode.AUTO, null));
         } catch (final RuntimeException e) {

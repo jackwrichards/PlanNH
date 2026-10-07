@@ -14,11 +14,13 @@ import codechicken.nei.api.API;
 import codechicken.nei.api.IConfigureNEI;
 import codechicken.nei.config.OptionCycled;
 import codechicken.nei.config.OptionIntegerField;
+import codechicken.nei.guihook.GuiContainerManager;
 import codechicken.nei.recipe.GuiOverlayButton;
 import codechicken.nei.recipe.GuiRecipe;
 import codechicken.nei.recipe.GuiRecipeButton;
 import codechicken.nei.recipe.GuiRecipeButton.UpdateRecipeButtonsEvent;
 import codechicken.nei.recipe.IRecipeHandler;
+import codechicken.nei.recipe.RecipeHandlerRef;
 import codechicken.nei.recipe.RecipeInfo;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 
@@ -67,6 +69,10 @@ public class NEIPlanConfig implements IConfigureNEI {
         codechicken.nei.api.GuiInfo.guiHandlers.addFirst(new FlowchartGuiHandler());
         API.addLayoutStyle(0, new FlowchartLayoutStyle());
         MinecraftForge.EVENT_BUS.register(this);
+        // The plan button's menus: first for clicks and keys while one is open, drawn over everything NEI draws.
+        GuiContainerManager.inputHandlers.addFirst(PlanMenu.INSTANCE);
+        GuiContainerManager.addDrawHandler(PlanMenu.INSTANCE);
+        GuiContainerManager.addObjectHandler(PlanMenu.INSTANCE);
         API.addOption(new OptionCycled(ConfigBurnableOverride.KEY, 2) {
 
             public boolean onClick(int button) {
@@ -103,6 +109,7 @@ public class NEIPlanConfig implements IConfigureNEI {
     @SubscribeEvent
     public void onPostButtonUpdate(final UpdateRecipeButtonsEvent.Post event) {
         final GuiRecipe<?> gui = (GuiRecipe<?>) event.gui;
+        addPlanButton(event);
         if (!com.sbancuz.plannh.ui.Planner.isPlanner(gui.firstGui)) return;
 
         for (final GuiRecipeButton btn : event.buttonList) {
@@ -110,6 +117,19 @@ public class NEIPlanConfig implements IConfigureNEI {
                 ((GuiOverlayButton) btn).setRequireShiftForOverlayRecipe(false);
             }
         }
+    }
+
+    /** The plan button, at the top of NEI's column of recipe buttons (+ at the bottom, the star above it). */
+    private static void addPlanButton(final UpdateRecipeButtonsEvent.Post event) {
+        final RecipeHandlerRef ref = event.recipeWidget.getRecipeHandlerRef();
+        if (ref == null || !PlanOverlayHandler.plannable(ref.handler, ref.recipeIndex)) return;
+        int x = Math.min(166, event.recipeWidget.w) - GuiRecipeButton.BUTTON_WIDTH;
+        int top = event.recipeWidget.h - 5;
+        for (final GuiRecipeButton b : event.buttonList) {
+            x = b.xPosition;
+            top = Math.min(top, b.yPosition);
+        }
+        event.buttonList.add(new PlanButton(ref, x, top - GuiRecipeButton.BUTTON_HEIGHT - 1));
     }
 
     @Override

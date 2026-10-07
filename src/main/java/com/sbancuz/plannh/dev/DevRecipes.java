@@ -170,6 +170,55 @@ final class DevRecipes {
         return false;
     }
 
+    /**
+     * Opens NEI's recipes (or uses) for an item: over the planner as R and U do there, or from the inventory, the
+     * planner closed. {@code tab}, when given, picks the first tab whose name contains it.
+     */
+    static Map<String, Object> openNei(final String item, final boolean uses, final boolean planner, final String tab) {
+        final Map<String, Object> out = new LinkedHashMap<>();
+        final ItemStack stack = resolveStack(item);
+        if (stack == null) {
+            out.put("error", "no item " + item);
+            return out;
+        }
+        final net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+        if (planner) com.sbancuz.plannh.ui.Planner.lookUp(stack, uses);
+        else {
+            mc.displayGuiScreen(new net.minecraft.client.gui.inventory.GuiInventory(mc.thePlayer));
+            if (uses) codechicken.nei.recipe.GuiUsageRecipe.openRecipeGui("item", stack);
+            else GuiCraftingRecipe.openRecipeGui("item", stack);
+        }
+        if (!(mc.currentScreen instanceof final codechicken.nei.recipe.GuiRecipe<?> gui)) {
+            out.put("error", "NEI has no " + (uses ? "uses" : "recipes") + " for " + item);
+            return out;
+        }
+        final List<String> tabs = new ArrayList<>();
+        int pick = -1;
+        for (int i = 0; i < gui.currenthandlers.size(); i++) {
+            final String name = gui.currenthandlers.get(i)
+                .getRecipeName()
+                .trim();
+            tabs.add(name);
+            if (pick < 0 && !tab.isEmpty()
+                && name.toLowerCase(Locale.ROOT)
+                    .contains(tab.toLowerCase(Locale.ROOT)))
+                pick = i;
+        }
+        if (pick >= 0) {
+            try {
+                final java.lang.reflect.Method page = codechicken.nei.recipe.GuiRecipe.class
+                    .getDeclaredMethod("setRecipePage", int.class);
+                page.setAccessible(true);
+                page.invoke(gui, pick);
+            } catch (final ReflectiveOperationException e) {
+                out.put("error", "could not switch tab: " + e);
+            }
+        }
+        out.put("tabs", tabs);
+        out.put("tab", gui.recipetype);
+        return out;
+    }
+
     private static ItemStack resolveStack(final String key) {
         if (key.contains(":")) {
             final String[] parts = key.split(":");

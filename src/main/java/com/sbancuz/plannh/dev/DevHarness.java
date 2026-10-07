@@ -318,6 +318,16 @@ public final class DevHarness {
                         Float.parseFloat(q.getOrDefault("panY", "0")));
                     return ok();
                 });
+            case "/nei":
+                // NEI's recipes for item=<modid:name[:meta] or ore name>; uses=1 for its uses; planner=0 from the
+                // inventory (the planner closed); tab=<part of a tab's name> to open on that tab.
+                requireWorld();
+                return onClient(
+                    () -> DevRecipes.openNei(
+                        arg(q, "item"),
+                        "1".equals(q.get("uses")),
+                        !"0".equals(q.get("planner")),
+                        q.getOrDefault("tab", "")));
             case "/recipeinfo":
                 requireWorld();
                 return onClient(
@@ -455,6 +465,7 @@ public final class DevHarness {
                 "/cmd?c=/time set day - run a command as the player",
                 "/addrecipe?output=dustRutile[&handler=blast][&input=ilmenite][&x&y] - put a real recipe on the board (with the board open: placed and auto-wired like NEI's +)",
                 "/recipeinfo?output[&handler][&input] - what NEI and PlanNH see in a recipe (stacks, ports), read-only",
+                "/nei?item[&uses=1][&planner=0][&tab] - open NEI's recipes for an item, over the planner or (planner=0) from the inventory",
                 "/gtmachines?q=turbine[&all=1][&art=1] - GregTech multiblocks (all=1: every machine) as the game names them; art=1 adds the bundled picture each resolves to",
                 "/slots[?add=name | switch=i | delete=i] - list, open, switch or delete plan slots",
                 "/clearplan - empty the active board (one undoable edit)",

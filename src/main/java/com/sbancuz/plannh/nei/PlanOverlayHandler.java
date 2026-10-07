@@ -5,14 +5,13 @@ import java.util.List;
 
 import net.minecraft.client.gui.inventory.GuiContainer;
 
-import com.sbancuz.plannh.api.PlanAPI;
 import com.sbancuz.plannh.api.RecipePropertyAPI;
-import com.sbancuz.plannh.data.flowchart.Graph;
-import com.sbancuz.plannh.data.flowchart.Node;
 import com.sbancuz.plannh.data.flowchart.Plan;
 import com.sbancuz.plannh.data.properties.PropertyProvider;
 import com.sbancuz.plannh.ui.BoardScreen;
+import com.sbancuz.plannh.ui.NewCards;
 import com.sbancuz.plannh.ui.Planner;
+import com.sbancuz.plannh.ui.card.MachineChoices;
 
 import codechicken.nei.PositionedStack;
 import codechicken.nei.api.IOverlayHandler;
@@ -36,15 +35,17 @@ public class PlanOverlayHandler implements IOverlayHandler {
 
     @Override
     public boolean canCraft(final GuiContainer firstGui, final IRecipeHandler handler, final int recipeIndex) {
-        for (final PropertyProvider p : RecipePropertyAPI.getExtractors(handler.getClass())) {
-            if (p.canCraft(handler, recipeIndex)) return true;
-        }
-        return false;
+        return plannable(handler, recipeIndex);
     }
 
     @Override
     public boolean craft(final GuiContainer firstGui, final IRecipeHandler handler, final int recipeIndex,
         final int multiplier) {
+        return plannable(handler, recipeIndex);
+    }
+
+    /** Whether the planner can read the recipe: + and the plan button only show on recipes it can. */
+    public static boolean plannable(final IRecipeHandler handler, final int recipeIndex) {
         for (final PropertyProvider p : RecipePropertyAPI.getExtractors(handler.getClass())) {
             if (p.canCraft(handler, recipeIndex)) return true;
         }
@@ -61,10 +62,7 @@ public class PlanOverlayHandler implements IOverlayHandler {
                 .addRecipe(handler, recipeIndex);
             return;
         }
-        final Node node = new Node(handler, recipeIndex, 0, 0);
-        final Graph graph = Plan.getActiveGraph();
-        PlanAPI.recordEdit(graph, () -> graph.addNode(node));
-        PlanAPI.save();
+        NewCards.addTo(Plan.getActiveGraph(), MachineChoices.newNode(handler, recipeIndex, null));
     }
 
     @Override

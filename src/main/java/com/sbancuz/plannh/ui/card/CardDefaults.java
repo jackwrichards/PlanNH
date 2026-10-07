@@ -73,6 +73,18 @@ public final class CardDefaults {
         return stacks.isEmpty() || stacks.get(0) == null ? null : stacks.get(0).item;
     }
 
+    /** Runs the recipe on {@code machine}: GregTech single blocks bring their tier, multiblocks their options. */
+    public static void useMachine(final Node node, final ItemStack machine, final boolean gregtech) {
+        node.machineName = itemKey(machine);
+        if (!gregtech) return;
+        final GtMachines.Kind kind = GtMachines.of(machine);
+        if (kind == null) return;
+        node.machineConfig.setBoolean("gt_multiblock", kind.multiblock());
+        if (!kind.multiblock() && kind.tier() >= 0 && kind.tier() < TIERS.length) {
+            node.machineConfig.setString("voltage", TIERS[kind.tier()]);
+        }
+    }
+
     /** "item:modid:name:meta", how a chosen machine is remembered in the node's machine name. */
     public static String itemKey(final ItemStack stack) {
         final Object name = Item.itemRegistry.getNameForObject(stack.getItem());
