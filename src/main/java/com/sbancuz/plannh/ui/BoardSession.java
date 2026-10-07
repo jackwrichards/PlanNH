@@ -320,6 +320,31 @@ public final class BoardSession {
         });
     }
 
+    /**
+     * A drawer for a resource from the overview: a source left of the first card that uses it, or a product right of
+     * the first card that makes it, linked to every port waiting for it.
+     */
+    public void addDrawerFor(final String key, final String label, final boolean source) {
+        int x = 40, y = 40;
+        for (final CardModel card : models.values()) {
+            final List<CardModel.PortView> ports = source ? card.inputs : card.outputs;
+            boolean found = false;
+            for (final CardModel.PortView p : ports) found |= p.key()
+                .equals(key);
+            if (!found) continue;
+            x = source ? card.node.x - DrawerCard.W - 60 : card.node.x + CardLayout.W + 60;
+            y = card.node.y;
+            break;
+        }
+        // In line with, and below, any drawers already there.
+        for (final Drawer d : graph.getDrawers()) if (Math.abs(d.getX() - x) <= 40) {
+            x = d.getX();
+            break;
+        }
+        for (int tries = 0; tries < 100 && overlapsAnything(x, y, DrawerCard.W, DrawerCard.H, null); tries++) y += 20;
+        addDrawer(source ? Drawer.Kind.SOURCE : Drawer.Kind.PRODUCT, key, label, x, y);
+    }
+
     /** A new, unlinked drawer for a resource at a world point (from an NEI drag). */
     public void addDrawer(final Drawer.Kind kind, final String resourceKey, final String label, final int x,
         final int y) {
@@ -469,15 +494,17 @@ public final class BoardSession {
     }
 
     private boolean overlapsAnything(final Node node) {
-        final int h = estimatedHeight(node), m = 16;
+        return overlapsAnything(node.x, node.y, CardLayout.W, estimatedHeight(node), node);
+    }
+
+    /** Whether a box, with a margin, overlaps any card or drawer on the board other than {@code self}. */
+    private boolean overlapsAnything(final int x, final int y, final int w, final int h, final Object self) {
+        final int m = 16;
         for (final Node n : graph.getNodes()) {
-            if (n != node
-                && boxesOverlap(node.x, node.y, CardLayout.W, h, n.x, n.y, CardLayout.W, estimatedHeight(n), m))
-                return true;
+            if (n != self && boxesOverlap(x, y, w, h, n.x, n.y, CardLayout.W, estimatedHeight(n), m)) return true;
         }
         for (final Drawer d : graph.getDrawers()) {
-            if (boxesOverlap(node.x, node.y, CardLayout.W, h, d.getX(), d.getY(), DrawerCard.W, DrawerCard.H, m))
-                return true;
+            if (d != self && boxesOverlap(x, y, w, h, d.getX(), d.getY(), DrawerCard.W, DrawerCard.H, m)) return true;
         }
         return false;
     }
@@ -486,6 +513,63 @@ public final class BoardSession {
         final int by, final int bw, final int bh, final int margin) {
         return ax < bx + bw + margin && bx < ax + aw + margin && ay < by + bh + margin && by < ay + ah + margin;
     }
+
+    // region Selection
+
+    /**
+     * Where cards and drawers land when dragged: a 10 px grid, fine enough to feel smooth, coarse enough to line up.
+     */
+    public static int snap(final float v) {
+        return Math.round(v / 10f) * 10;
+    }
+
+    private final Set<UUID> selection = new java.util.LinkedHashSet<>();
+
+    /** Selects a card or drawer; {@code add} keeps the others (Shift), and toggles this one. */
+    public void select(final UUID id, final boolean add) {
+        if (!add) {
+            selection.clear();
+            selection.add(id);
+        } else if (!selection.remove(id)) selection.add(id);
+    }
+
+    public boolean isSelected(final UUID id) {
+        return selection.contains(id);
+    }
+
+    public Set<UUID> selection() {
+        return java.util.Collections.unmodifiableSet(selection);
+    }
+
+    public boolean hasSelection() {
+        return !selection.isEmpty();
+    }
+
+    public void clearSelection() {
+        selection.clear();
+    }
+
+    /** Every card and drawer on the board. */
+    public void selectAll() {
+        selection.clear();
+        selection.addAll(graph.nodes.keySet());
+        selection.addAll(graph.drawers.keySet());
+    }
+
+    /** Deletes every selected card and drawer as one undoable step. */
+    public void deleteSelected() {
+        if (selection.isEmpty()) return;
+        final List<UUID> ids = new ArrayList<>(selection);
+        selection.clear();
+        edit(() -> {
+            for (final UUID id : ids) {
+                if (graph.nodes.containsKey(id)) graph.removeNode(id);
+                else if (graph.drawers.containsKey(id)) graph.removeDrawer(id);
+            }
+        });
+    }
+
+    // endregion
 
     // region Undo, plan slots, board keys
 
@@ -717,6 +801,18 @@ public final class BoardSession {
         return latest == null || latest.version() != graph.solveVersion();
     }
 
+    private long solvingSince = -1;
+
+    /** Solving for long enough to say so: a quick solve should not flicker the top bar. */
+    public boolean solvingVisibly() {
+        if (!solving()) {
+            solvingSince = -1;
+            return false;
+        }
+        if (solvingSince < 0) solvingSince = System.currentTimeMillis();
+        return System.currentTimeMillis() - solvingSince > 250;
+    }
+
     /**
      * Called every client tick while the board is open, never from drawing. Hands the solver a snapshot when the plan
      * changed in a way that matters to the answer, and rebuilds the card models when the layout moved or an answer
@@ -946,8 +1042,10 @@ public final class BoardSession {
                         focus));
             }
             for (final Note note : result.notes()) {
+                // An empty plan is not an error: the board says how to start one.
                 if (note.severity() == Severity.INFO || note.message() == SolverMessage.DRAWER_UNMET
-                    || note.message() == SolverMessage.DRAWER_LIMITED_BY) continue;
+                    || note.message() == SolverMessage.DRAWER_LIMITED_BY
+                    || note.message() == SolverMessage.EMPTY_GRAPH) continue;
                 out.add(new Notice(note.severity(), render(note), idsIn(note)));
             }
         } else if (lastResult != null && lastResult.errorNote() != null) {

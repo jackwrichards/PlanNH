@@ -301,6 +301,46 @@ public final class DevHarness {
                         return error("GregTech is not loaded (start with PLANNH_GTNH=1)");
                     }
                 });
+            case "/slots":
+                // Plan slots: list them; add=<name> opens a new one; switch=<i>; delete=<i>.
+                requireWorld();
+                return onClient(() -> {
+                    final com.sbancuz.plannh.data.flowchart.Plan plan = com.sbancuz.plannh.data.flowchart.Plan
+                        .getInstance();
+                    com.sbancuz.plannh.data.flowchart.Plan.getActiveGraph();
+                    if (q.containsKey("add")) {
+                        plan.getGraphs()
+                            .add(new com.sbancuz.plannh.data.flowchart.Graph(q.get("add")));
+                        plan.setActiveIndex(
+                            plan.getGraphs()
+                                .size() - 1);
+                    } else if (q.containsKey("switch")) {
+                        final int i = intArg(q, "switch");
+                        if (i >= 0 && i < plan.getGraphs()
+                            .size()) plan.setActiveIndex(i);
+                    } else if (q.containsKey("delete")) {
+                        final int i = intArg(q, "delete");
+                        if (plan.getGraphs()
+                            .size() > 1 && i >= 0
+                            && i < plan.getGraphs()
+                                .size()) {
+                            plan.getGraphs()
+                                .remove(i);
+                            if (plan.getActiveIndex() >= plan.getGraphs()
+                                .size())
+                                plan.setActiveIndex(
+                                    plan.getGraphs()
+                                        .size() - 1);
+                        }
+                    }
+                    com.sbancuz.plannh.api.PlanAPI.save();
+                    final Map<String, Object> m = new LinkedHashMap<>();
+                    final List<String> names = new ArrayList<>();
+                    for (final com.sbancuz.plannh.data.flowchart.Graph g : plan.getGraphs()) names.add(g.getName());
+                    m.put("slots", names);
+                    m.put("active", plan.getActiveIndex());
+                    return m;
+                });
             case "/clearplan":
                 requireWorld();
                 return onClient(DevRecipes::clearPlan);
@@ -324,12 +364,13 @@ public final class DevHarness {
                 "/open - open the PlanNH flowchart; /close - close the current screen",
                 "/screenshot?name=x.png[&x&y&w&h] - save the next frame (optionally a GUI-coord crop), returns the path",
                 "/widgets - dump the ModularUI widget tree with GUI-coordinate areas",
-                "/move?x&y, /click?x&y&button&count, /drag?x1&y1&x2&y2&steps&button, /scroll?x&y&amount - GUI coords",
+                "/move?x&y, /click?x&y&button&count&mods, /drag?x1&y1&x2&y2&steps&button&mods, /scroll?x&y&amount - GUI coords",
                 "/key?code[&char][&mods=ctrl,shift,alt] - LWJGL2 key code, /type?text - text into the focused field",
                 "/cmd?c=/time set day - run a command as the player",
                 "/addrecipe?output=dustRutile[&handler=blast][&input=ilmenite][&x&y] - put a real recipe on the board (with the board open: placed and auto-wired like NEI's +)",
                 "/recipeinfo?output[&handler][&input] - what NEI and PlanNH see in a recipe (stacks, ports), read-only",
                 "/gtmachines?q=turbine[&all=1][&art=1] - GregTech multiblocks (all=1: every machine) as the game names them; art=1 adds the bundled picture each resolves to",
+                "/slots[?add=name | switch=i | delete=i] - list, open, switch or delete plan slots",
                 "/clearplan - empty the active board (one undoable edit)",
                 "/board - open board as data: view, and per card its state and every control's GUI rect (cx, cy)",
                 "/view?zoom&panX&panY - set the board view (defaults 1, 0, 0)",
@@ -514,20 +555,25 @@ public final class DevHarness {
     private Object click(final Map<String, String> q) throws Exception {
         final int x = intArg(q, "x"), y = intArg(q, "y"), button = intArg(q, "button", 0);
         final int count = Math.max(1, intArg(q, "count", 1));
+        final List<Integer> mods = mods(q);
         final List<Runnable> actions = new ArrayList<>();
+        for (final int m : mods) actions.add(() -> SyntheticInput.key(m, 0, true));
         actions.add(() -> moveTo(x, y));
         // Consecutive ticks are 50ms apart, well inside any double-click window.
         for (int i = 0; i < count; i++) {
             actions.add(() -> SyntheticInput.button(button, true));
             actions.add(() -> SyntheticInput.button(button, false));
         }
+        for (final int m : mods) actions.add(() -> SyntheticInput.key(m, 0, false));
         return input(actions);
     }
 
     private Object drag(final Map<String, String> q) throws Exception {
         final int x1 = intArg(q, "x1"), y1 = intArg(q, "y1"), x2 = intArg(q, "x2"), y2 = intArg(q, "y2");
         final int steps = Math.max(1, intArg(q, "steps", 10)), button = intArg(q, "button", 0);
+        final List<Integer> mods = mods(q);
         final List<Runnable> actions = new ArrayList<>();
+        for (final int m : mods) actions.add(() -> SyntheticInput.key(m, 0, true));
         actions.add(() -> moveTo(x1, y1));
         actions.add(() -> SyntheticInput.button(button, true));
         for (int i = 1; i <= steps; i++) {
@@ -535,7 +581,23 @@ public final class DevHarness {
             actions.add(() -> moveTo(sx, sy));
         }
         actions.add(() -> SyntheticInput.button(button, false));
+        for (final int m : mods) actions.add(() -> SyntheticInput.key(m, 0, false));
         return input(actions);
+    }
+
+    /** mods=ctrl,shift,alt: LWJGL left-hand key codes to hold around an input. */
+    private static List<Integer> mods(final Map<String, String> q) {
+        final List<Integer> mods = new ArrayList<>();
+        for (final String m : q.getOrDefault("mods", "")
+            .split(",")) {
+            switch (m.trim()) {
+                case "ctrl" -> mods.add(29);
+                case "shift" -> mods.add(42);
+                case "alt" -> mods.add(56);
+                default -> {}
+            }
+        }
+        return mods;
     }
 
     private Object scroll(final Map<String, String> q) throws Exception {
@@ -547,17 +609,7 @@ public final class DevHarness {
         final int code = intArg(q, "code");
         final String ch = q.getOrDefault("char", "");
         final int codepoint = ch.isEmpty() ? 0 : ch.codePointAt(0);
-        // mods=ctrl,shift,alt: held around the key (LWJGL left-hand codes).
-        final List<Integer> mods = new ArrayList<>();
-        for (final String m : q.getOrDefault("mods", "")
-            .split(",")) {
-            switch (m.trim()) {
-                case "ctrl" -> mods.add(29);
-                case "shift" -> mods.add(42);
-                case "alt" -> mods.add(56);
-                default -> {}
-            }
-        }
+        final List<Integer> mods = mods(q);
         final List<Runnable> steps = new ArrayList<>();
         for (final int m : mods) steps.add(() -> SyntheticInput.key(m, 0, true));
         steps.add(() -> SyntheticInput.key(code, codepoint, true));
@@ -753,6 +805,7 @@ public final class DevHarness {
                     .invoke(event);
                 lastX = px;
                 lastY = py;
+                reassertHeld();
             } catch (final ReflectiveOperationException e) {
                 throw new IllegalStateException(e);
             }
@@ -766,6 +819,7 @@ public final class DevHarness {
                 final int flags = buttonFlags.getInt(null);
                 buttonFlags.setInt(null, down ? flags | mask : flags & ~mask);
                 addButtonEvent.invoke(null, button, down);
+                reassertHeld();
             } catch (final ReflectiveOperationException e) {
                 throw new IllegalStateException(e);
             }
@@ -800,7 +854,20 @@ public final class DevHarness {
                 else HELD.remove(scancode);
                 if (pressed != null && scancode > 0 && scancode < pressed.limit())
                     pressed.put(scancode, (byte) (down ? 1 : 0));
-                // SDL refreshes the array as it pumps events, so re-assert every key still held (modifiers).
+                reassertHeld();
+            } catch (final ReflectiveOperationException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        /** SDL refreshes its key state array as it pumps events, so re-assert every key still held (modifiers). */
+        static void reassertHeld() {
+            if (HELD.isEmpty()) return;
+            try {
+                final java.lang.reflect.Field state = Class.forName("org.lwjglx.input.Keyboard")
+                    .getDeclaredField("sdlKeyPressedArray");
+                state.setAccessible(true);
+                final java.nio.ByteBuffer pressed = (java.nio.ByteBuffer) state.get(null);
                 if (pressed != null)
                     for (final int held : HELD) if (held > 0 && held < pressed.limit()) pressed.put(held, (byte) 1);
             } catch (final ReflectiveOperationException e) {

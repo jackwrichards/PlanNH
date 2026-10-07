@@ -52,6 +52,7 @@ tools/dev/mc.sh part 1 TIER     # click card 1's tier chip by name (also: move, 
 tools/dev/mc.sh swap --reopen   # hot-swap code changes into the running game (~12s, no restart)
 tools/dev/mc.sh stop
 tools/dev/mc.sh smoke      # automated launch/open/screenshot/log-scan check
+tools/dev/board-check.sh  # GT runs: end-to-end board check (recipe, port drag, solve, auto-wire, undo) in a throwaway plan
 ```
 
 - `PLANNH_GTNH=1 tools/dev/mc.sh start` loads GregTech and the pack's recipes through the GTNH core mod (72 mods,
@@ -63,7 +64,8 @@ tools/dev/mc.sh smoke      # automated launch/open/screenshot/log-scan check
 - `mc.sh stop` kills the game on purpose: a clean quit with GT loaded hangs on a "really close?" dialog.
 - PlanNH text fields need a double-click (`click?x&y&count=2`) before `type` works.
 - After changing mod code: `tools/dev/mc.sh swap --reopen`. Restart instead (`mc.sh restart`, ~30s) when swap
-  exits 2 (new or not-yet-loaded classes) or for mixins, resources and startup-only code.
+  exits 2 (new or not-yet-loaded classes), for mixins, resources and startup-only code, and when you add a field
+  with an initialiser: widgets already on screen get it as null, and a draw that touches it crashes out of the world.
 - The game window opens on the user's desktop. It is muted and 1920x1080 at GUI scale 2 by design; keep it that
   way. Leave it running while the user is iterating on the UI with you; stop it when the work is done.
 - The user can press F2 in game to screenshot what they see; when they refer to "this" or "my screenshot", Read

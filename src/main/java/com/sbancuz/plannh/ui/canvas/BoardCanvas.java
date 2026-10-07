@@ -15,6 +15,7 @@ import com.cleanroommc.modularui.api.UpOrDown;
 import com.cleanroommc.modularui.api.layout.IViewport;
 import com.cleanroommc.modularui.api.layout.IViewportStack;
 import com.cleanroommc.modularui.api.widget.IDraggable;
+import com.cleanroommc.modularui.api.widget.IWidget;
 import com.cleanroommc.modularui.api.widget.Interactable;
 import com.cleanroommc.modularui.drawable.Stencil;
 import com.cleanroommc.modularui.screen.ModularPanel;
@@ -135,9 +136,17 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     @Override
     public void draw(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
+        stepCamera();
+        stepGlide();
         session.setHoverKey(hoveredResource());
         final Area a = getArea();
         Hyb.rect(0, 0, a.width, a.height, Hyb.CANVAS);
+        if (cards.isEmpty() && drawers.isEmpty()) {
+            // An empty board says how to start.
+            Hyb.textCentered("Nothing here yet.", a.width / 2f, a.height / 2f - 14, Hyb.MUTED);
+            Hyb.textCentered("Press P over any item for its recipes,", a.width / 2f, a.height / 2f, 0xFF6A6C74);
+            Hyb.textCentered("or + on an NEI recipe page.", a.width / 2f, a.height / 2f + 11, 0xFF6A6C74);
+        }
         final float zoom = graph().getZoom();
         final float step = GRID * zoom;
         if (step >= 6) {
@@ -203,7 +212,135 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     @Override
     public void postDraw(final ModularGuiContext context, final boolean transformed) {
-        if (!transformed) Stencil.remove();
+        if (transformed) drawBox();
+        else Stencil.remove();
+    }
+
+    // endregion
+
+    // region Moving cards and drawers, and box selection
+
+    private java.util.Map<UUID, int[]> moveStart;
+    private UUID moveAnchor;
+    private int moveMouseX, moveMouseY, moveDX, moveDY;
+    private String moveUndo;
+
+    /**
+     * A card or drawer body was pressed and is being dragged: it moves, with the rest of the selection when it is
+     * selected. Offsets snap to the grid as a whole, so things keep their alignment to each other.
+     */
+    public void beginMove(final UUID id) {
+        final java.util.List<UUID> ids = new ArrayList<>();
+        if (session.isSelected(id)) {
+            for (final UUID s : session.selection()) ids.add(s);
+        } else ids.add(id);
+        moveStart = new HashMap<>();
+        for (final UUID m : ids) {
+            final Node n = graph().nodes.get(m);
+            if (n != null) moveStart.put(m, new int[] { n.x, n.y });
+            final Drawer d = graph().getDrawer(m);
+            if (d != null) moveStart.put(m, new int[] { d.getX(), d.getY() });
+        }
+        moveAnchor = id;
+        moveMouseX = getContext().getAbsMouseX();
+        moveMouseY = getContext().getAbsMouseY();
+        moveDX = moveDY = 0;
+        moveUndo = com.sbancuz.plannh.api.PlanAPI.undoHistory()
+            .beginEdit(graph());
+    }
+
+    /** Whether a card or drawer is being carried by a move right now (it draws lifted). */
+    public boolean isCarried(final UUID id) {
+        return moveStart != null && moveStart.containsKey(id) && (moveDX != 0 || moveDY != 0);
+    }
+
+    /** Cards and drawers moved this session, most recent last: they draw over the rest, in that order. */
+    private final java.util.LinkedHashSet<UUID> raised = new java.util.LinkedHashSet<>();
+
+    /**
+     * Children in draw and hit order: drawers, then cards, then whatever was moved last, then whatever a move is
+     * carrying right now, so the thing in hand is always on top.
+     */
+    @Override
+    public @NotNull List<IWidget> getChildren() {
+        final List<IWidget> all = super.getChildren();
+        final boolean carrying = moveStart != null && (moveDX != 0 || moveDY != 0);
+        if (raised.isEmpty() && !carrying) return all;
+        final List<IWidget> out = new ArrayList<>(all.size()), carried = new ArrayList<>();
+        final Map<UUID, IWidget> lifted = new HashMap<>();
+        for (final IWidget w : all) {
+            final UUID id = w instanceof final RecipeCard card ? card.nodeId
+                : w instanceof final DrawerCard drawer ? drawer.drawerId : null;
+            if (id != null && carrying && isCarried(id)) carried.add(w);
+            else if (id != null && raised.contains(id)) lifted.put(id, w);
+            else out.add(w);
+        }
+        for (final UUID id : raised) {
+            final IWidget w = lifted.get(id);
+            if (w != null) out.add(w);
+        }
+        out.addAll(carried);
+        return out;
+    }
+
+    public void dragMove() {
+        if (moveStart == null) return;
+        final float zoom = graph().getZoom();
+        moveDX = BoardSession.snap((getContext().getAbsMouseX() - moveMouseX) / zoom);
+        moveDY = BoardSession.snap((getContext().getAbsMouseY() - moveMouseY) / zoom);
+        final java.util.Map<UUID, int[]> at = new HashMap<>();
+        for (final java.util.Map.Entry<UUID, int[]> e : moveStart.entrySet())
+            at.put(e.getKey(), new int[] { e.getValue()[0] + moveDX, e.getValue()[1] + moveDY });
+        place(at);
+    }
+
+    /** Ends a move: one undoable step; a press that never moved is a click, which selects (Shift adds). */
+    public void endMove(final boolean successful) {
+        if (moveStart == null) return;
+        if (moveDX == 0 && moveDY == 0) {
+            session.select(moveAnchor, net.minecraft.client.gui.GuiScreen.isShiftKeyDown());
+        } else if (successful) {
+            for (final UUID id : moveStart.keySet()) {
+                raised.remove(id);
+                raised.add(id);
+            }
+            com.sbancuz.plannh.api.PlanAPI.undoHistory()
+                .commitEdit(moveUndo, graph());
+            graph().touchLayout();
+            com.sbancuz.plannh.api.PlanAPI.save();
+        } else place(moveStart);
+        moveStart = null;
+        moveUndo = null;
+    }
+
+    /** Shift-drag on empty board draws a box; what it touches becomes the selection. */
+    private float boxX0, boxY0, boxX1, boxY1;
+    private boolean boxing;
+
+    private void drawBox() {
+        if (!boxing) return;
+        final float x = Math.min(boxX0, boxX1), y = Math.min(boxY0, boxY1);
+        final float w = Math.abs(boxX1 - boxX0), h = Math.abs(boxY1 - boxY0);
+        Hyb.rect(x, y, w, h, 0x2022D3EE);
+        Hyb.ring(x, y, w, h, 1 / graph().getZoom(), Hyb.SELECTION);
+    }
+
+    private void selectBox() {
+        final float x0 = Math.min(boxX0, boxX1), y0 = Math.min(boxY0, boxY1);
+        final float x1 = Math.max(boxX0, boxX1), y1 = Math.max(boxY0, boxY1);
+        if (!net.minecraft.client.gui.GuiScreen.isCtrlKeyDown()) session.clearSelection();
+        for (final RecipeCard card : cards.values()) {
+            if (card.model() == null || card.layout() == null) continue;
+            final Node n = card.model().node;
+            if (n.x < x1 && n.x + CardLayout.W > x0 && n.y < y1 && n.y + card.layout().height > y0)
+                session.select(n.id, true);
+        }
+        for (final DrawerCard drawer : drawers.values()) {
+            if (drawer.model() == null) continue;
+            final Drawer d = drawer.model().drawer;
+            if (d.getX() < x1 && d.getX() + DrawerCard.W > x0 && d.getY() < y1 && d.getY() + DrawerCard.H > y0)
+                session.select(d.getId(), true);
+        }
     }
 
     // endregion
@@ -214,6 +351,46 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     private record PortDrag(UUID nodeId, boolean output, int port, int startX, int startY) {}
 
     private PortDrag portDrag;
+
+    /** The resource a wire being dragged carries, or null when no port is being dragged. */
+    public String dragResource() {
+        if (portDrag == null) return null;
+        final RecipeCard card = cards.get(portDrag.nodeId());
+        if (card == null || card.model() == null) return null;
+        final List<CardModel.PortView> ports = portDrag.output() ? card.model().outputs : card.model().inputs;
+        return portDrag.port() < ports.size() ? ports.get(portDrag.port())
+            .key() : null;
+    }
+
+    /** Whether a port on this card, on that side, would take the wire being dragged. */
+    public boolean acceptsDrag(final UUID nodeId, final boolean output, final String key) {
+        final String dragging = dragResource();
+        return dragging != null && !dragging.isEmpty()
+            && !nodeId.equals(portDrag.nodeId())
+            && output != portDrag.output()
+            && dragging.equals(key);
+    }
+
+    /** Whether a drawer would take the wire being dragged: same resource, on the matching side. */
+    public boolean drawerAcceptsDrag(final Drawer drawer) {
+        final String dragging = dragResource();
+        return dragging != null && dragging.equals(drawer.getResourceKey())
+            && drawer.getKind()
+                .linksInputs() != portDrag.output();
+    }
+
+    /** Tooltip for the wire under the mouse: what it carries and how much. */
+    public List<String> wireLines() {
+        final WireLayer.Wire wire = wires.hit(worldX(getContext().getAbsMouseX()), worldY(getContext().getAbsMouseY()));
+        if (wire == null) return null;
+        final boolean fluid = com.sbancuz.plannh.ui.Resources.isFluid(wire.resource());
+        return List.of(
+            com.sbancuz.plannh.ui.Resources.name(wire.resource()),
+            "§7" + (wire.perSecond() > 0
+                ? com.sbancuz.plannh.ui.theme.Fmt.rate(wire.perSecond(), session.rateUnit(), fluid)
+                : "nothing flows yet"),
+            "§8Right click: add a drawer here, or delete it");
+    }
 
     /** Called by a port slot when the mouse goes down on it and starts to drag. */
     public void beginPortDrag(final UUID nodeId, final boolean output, final int port) {
@@ -340,7 +517,10 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
                 new int[] { (sx + mx) / 2, my },
                 new int[] { (sx + mx) / 2, sy },
                 new int[] { sx, sy });
-        WireLayer.drawWire(path, 0xFFE8E9EE, 2, true);
+        final java.util.List<com.sbancuz.plannh.data.flowchart.Port<?>> ports = portDrag.output() ? n.outputs
+            : n.inputs;
+        final int color = portDrag.port() < ports.size() ? WireLayer.colorOf(ports.get(portDrag.port())) : 0xFFE8E9EE;
+        WireLayer.drawWire(path, color, 3, true);
     }
 
     // endregion
@@ -389,11 +569,53 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         final float left = g.getPanX() + n.x * z, right = g.getPanX() + (n.x + CardLayout.W) * z;
         final float top = g.getPanY() + n.y * z, bottom = g.getPanY() + (n.y + card.layout().height) * z;
         final int w = getArea().width, h = getArea().height;
-        if (left < m) g.setPanX(g.getPanX() + m - left);
-        else if (right > w - m) g.setPanX(g.getPanX() - Math.min(right - (w - m), left - m));
-        if (top < m) g.setPanY(g.getPanY() + m - top);
-        else if (bottom > h - m) g.setPanY(g.getPanY() - Math.min(bottom - (h - m), top - m));
+        float panX = g.getPanX(), panY = g.getPanY();
+        if (left < m) panX += m - left;
+        else if (right > w - m) panX -= Math.min(right - (w - m), left - m);
+        if (top < m) panY += m - top;
+        else if (bottom > h - m) panY -= Math.min(bottom - (h - m), top - m);
+        if (panX == g.getPanX() && panY == g.getPanY()) return;
+        moveCamera(z, (w / 2f - panX) / z, (h / 2f - panY) / z, w / 2f, h / 2f);
     }
+
+    // region Camera
+
+    private static final long CAMERA_MS = 160;
+    private long cameraStart = -1;
+    private float fromZoom, toZoom, fromWX, fromWY, toWX, toWY, cameraSX, cameraSY;
+
+    /**
+     * Eases the camera (160 ms, ease-out) so the world point (wx, wy) ends at the board point (sx, sy) at {@code zoom}.
+     * Zoom moves in log space and the anchor point slides in a straight line, so zooming around the cursor keeps the
+     * point under it still.
+     */
+    private void moveCamera(final float zoom, final float wx, final float wy, final float sx, final float sy) {
+        final Graph g = graph();
+        fromZoom = g.getZoom();
+        fromWX = (sx - g.getPanX()) / fromZoom;
+        fromWY = (sy - g.getPanY()) / fromZoom;
+        toZoom = zoom;
+        toWX = wx;
+        toWY = wy;
+        cameraSX = sx;
+        cameraSY = sy;
+        cameraStart = System.currentTimeMillis();
+    }
+
+    private void stepCamera() {
+        if (cameraStart < 0) return;
+        final float t = Math.min(1, (System.currentTimeMillis() - cameraStart) / (float) CAMERA_MS);
+        final float e = 1 - (1 - t) * (1 - t) * (1 - t);
+        final float z = (float) (fromZoom * Math.pow(toZoom / fromZoom, e));
+        final float wx = fromWX + (toWX - fromWX) * e, wy = fromWY + (toWY - fromWY) * e;
+        final Graph g = graph();
+        g.setZoom(t >= 1 ? toZoom : z);
+        g.setPanX(cameraSX - wx * g.getZoom());
+        g.setPanY(cameraSY - wy * g.getZoom());
+        if (t >= 1) cameraStart = -1;
+    }
+
+    // endregion
 
     /** A card or drawer as the layered layout sees it; drawers have one port, at their anchor. */
     private record LayoutItem(UUID id, String machineName, int worldWidth, int worldHeight, int inputCount,
@@ -465,23 +687,82 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             py0 = Math.min(py0, p[1]);
         }
         final int dx = x0 - px0, dy = y0 - py0;
-        session.editLayout(() -> {
-            for (final Node n : g.getNodes()) {
-                final int[] p = placed.get(n.id);
-                if (p == null) continue;
-                n.x = p[0] + dx;
-                n.y = p[1] + dy;
+        // Where everything is now, and where it goes.
+        final java.util.Map<UUID, int[]> from = new HashMap<>(), to = new HashMap<>();
+        for (final Node n : g.getNodes()) {
+            final int[] p = placed.get(n.id);
+            if (p == null) continue;
+            from.put(n.id, new int[] { n.x, n.y });
+            to.put(n.id, new int[] { p[0] + dx, p[1] + dy });
+        }
+        for (final Drawer d : g.getDrawers()) {
+            final int[] p = placed.get(d.getId());
+            if (p == null) continue;
+            from.put(d.getId(), new int[] { d.getX(), d.getY() });
+            to.put(d.getId(), new int[] { p[0] + dx, p[1] + dy });
+        }
+        // One undoable step with the final places, then rewind and let everything glide there.
+        session.editLayout(() -> place(to));
+        place(from);
+        glideFrom = from;
+        glideTo = to;
+        glideStart = System.currentTimeMillis();
+        int bx0 = Integer.MAX_VALUE, by0 = Integer.MAX_VALUE, bx1 = Integer.MIN_VALUE, by1 = Integer.MIN_VALUE;
+        for (final java.util.Map.Entry<UUID, int[]> e : to.entrySet()) {
+            final RecipeCard card = cards.get(e.getKey());
+            final int w = card != null ? CardLayout.W : DrawerCard.W;
+            final int h = card != null && card.layout() != null ? card.layout().height : DrawerCard.H;
+            bx0 = Math.min(bx0, e.getValue()[0]);
+            by0 = Math.min(by0, e.getValue()[1]);
+            bx1 = Math.max(bx1, e.getValue()[0] + w);
+            by1 = Math.max(by1, e.getValue()[1] + h);
+        }
+        if (bx0 != Integer.MAX_VALUE) frameBox(bx0, by0, bx1, by1);
+    }
+
+    private static final long GLIDE_MS = 250;
+    private java.util.Map<UUID, int[]> glideFrom, glideTo;
+    private long glideStart = -1;
+
+    /** Puts cards and drawers at the given places, widgets included. */
+    private void place(final java.util.Map<UUID, int[]> at) {
+        final Graph g = graph();
+        for (final java.util.Map.Entry<UUID, int[]> e : at.entrySet()) {
+            final Node n = g.nodes.get(e.getKey());
+            if (n != null) {
+                n.x = e.getValue()[0];
+                n.y = e.getValue()[1];
+                final RecipeCard card = cards.get(n.id);
+                if (card != null) card.pos(n.x, n.y);
+                continue;
             }
-            for (final Drawer d : g.getDrawers()) {
-                final int[] p = placed.get(d.getId());
-                if (p == null) continue;
-                d.setX(p[0] + dx);
-                d.setY(p[1] + dy);
-            }
-        });
-        for (final RecipeCard card : cards.values()) card.refresh();
-        for (final DrawerCard drawer : drawers.values()) drawer.refresh();
-        frameAll();
+            final Drawer d = g.getDrawer(e.getKey());
+            if (d == null) continue;
+            d.setX(e.getValue()[0]);
+            d.setY(e.getValue()[1]);
+            final DrawerCard drawer = drawers.get(d.getId());
+            if (drawer != null) drawer.pos(d.getX(), d.getY());
+        }
+    }
+
+    /** One frame of the arrange glide; at the end everything sits exactly where it was arranged. */
+    private void stepGlide() {
+        if (glideStart < 0) return;
+        final float t = Math.min(1, (System.currentTimeMillis() - glideStart) / (float) GLIDE_MS);
+        final float e = 1 - (1 - t) * (1 - t) * (1 - t);
+        final java.util.Map<UUID, int[]> at = new HashMap<>();
+        for (final java.util.Map.Entry<UUID, int[]> f : glideFrom.entrySet()) {
+            final int[] a = f.getValue(), b = glideTo.get(f.getKey());
+            at.put(
+                f.getKey(),
+                new int[] { Math.round(a[0] + (b[0] - a[0]) * e), Math.round(a[1] + (b[1] - a[1]) * e) });
+        }
+        place(at);
+        if (t >= 1) {
+            glideStart = -1;
+            graph().touchLayout();
+            com.sbancuz.plannh.api.PlanAPI.save();
+        }
     }
 
     /** Frames every card and drawer on the board. */
@@ -513,15 +794,17 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             }
         }
         if (x0 == Integer.MAX_VALUE) return;
+        frameBox(x0, y0, x1, y1);
+    }
+
+    /** Eases the camera onto a world box, at the largest whole zoom step that fits it (1.5 at most). */
+    private void frameBox(final int x0, final int y0, final int x1, final int y1) {
         final int margin = 24;
         final float fitW = getArea().width / (float) (x1 - x0 + 2 * margin);
         final float fitH = getArea().height / (float) (y1 - y0 + 2 * margin);
         float zoom = ZOOMS[0];
         for (final float z : ZOOMS) if (z <= Math.min(Math.min(fitW, fitH), 1.5f)) zoom = z;
-        final Graph g = graph();
-        g.setZoom(zoom);
-        g.setPanX(getArea().width / 2f - (x0 + x1) / 2f * zoom);
-        g.setPanY(getArea().height / 2f - (y0 + y1) / 2f * zoom);
+        moveCamera(zoom, (x0 + x1) / 2f, (y0 + y1) / 2f, getArea().width / 2f, getArea().height / 2f);
     }
 
     // endregion
@@ -579,17 +862,15 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     @Override
     public boolean onMouseScroll(final UpOrDown direction, final int amount) {
         final Graph g = graph();
-        final float old = g.getZoom();
-        int i = nearestZoom(old);
+        // Steps chain: a second notch during the ease continues from where the first one is heading.
+        final float from = cameraStart >= 0 ? toZoom : g.getZoom();
+        int i = nearestZoom(from);
         i = Math.max(0, Math.min(ZOOMS.length - 1, i + (direction == UpOrDown.UP ? 1 : -1)));
         final float next = ZOOMS[i];
-        if (next == old) return true;
-        final float ratio = next / old;
+        if (next == from) return true;
         final float mx = getContext().getAbsMouseX() - getArea().x;
         final float my = getContext().getAbsMouseY() - getArea().y;
-        g.setZoom(next);
-        g.setPanX(mx - (mx - g.getPanX()) * ratio);
-        g.setPanY(my - (my - g.getPanY()) * ratio);
+        moveCamera(next, (mx - g.getPanX()) / g.getZoom(), (my - g.getPanY()) / g.getZoom(), mx, my);
         return true;
     }
 
@@ -604,6 +885,13 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     @Override
     public boolean onDragStart(final int button) {
         if (button != 0 && button != 2) return false;
+        cameraStart = -1;
+        boxing = button == 0 && net.minecraft.client.gui.GuiScreen.isShiftKeyDown();
+        if (boxing) {
+            boxX0 = boxX1 = worldX(getContext().getAbsMouseX());
+            boxY0 = boxY1 = worldY(getContext().getAbsMouseY());
+            return true;
+        }
         panStartX = graph().getPanX();
         panStartY = graph().getPanY();
         panMouseX = getContext().getAbsMouseX();
@@ -613,12 +901,25 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     @Override
     public void onDrag(final int mouseButton, final long timeSinceLastClick) {
+        if (boxing) {
+            boxX1 = worldX(getContext().getAbsMouseX());
+            boxY1 = worldY(getContext().getAbsMouseY());
+            return;
+        }
         graph().setPanX(panStartX + getContext().getAbsMouseX() - panMouseX);
         graph().setPanY(panStartY + getContext().getAbsMouseY() - panMouseY);
     }
 
     @Override
-    public void onDragEnd(final boolean successful) {}
+    public void onDragEnd(final boolean successful) {
+        if (boxing) {
+            boxing = false;
+            selectBox();
+            return;
+        }
+        // A click on empty board (no pan) clears the selection.
+        if (graph().getPanX() == panStartX && graph().getPanY() == panStartY) session.clearSelection();
+    }
 
     @Override
     public void drawMovingState(final ModularGuiContext context, final float partialTicks) {}

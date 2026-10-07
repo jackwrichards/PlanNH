@@ -43,7 +43,10 @@ final class OverviewRail extends ParentWidget<OverviewRail> implements Interacta
     private static final int INTERNAL_INK = 0xFFD4D4D4;
 
     private enum Kind {
+        ADD,
         FOLD,
+        CLEAR,
+        DELETE,
         SECTION,
         RESOURCE,
         RULE,
@@ -163,24 +166,28 @@ final class OverviewRail extends ParentWidget<OverviewRail> implements Interacta
 
         // The list scrolls under the heading and filter.
         final float z = context.getCurrentDrawingZ();
-        Stencil.apply(0, LIST_Y, w - 1, h - LIST_Y, context);
-        int y = LIST_Y - scroll;
+        final int listY = listY();
+        if (session.hasSelection()) selectionStrip(w, hover);
+        Stencil.apply(0, listY, w - 1, h - listY, context);
+        int y = listY - scroll;
         final BoardSession.Totals t = session.totals();
+        inputs.clear();
+        inputs.addAll(t.inputs());
         y = resources("INPUTS", t.inputs(), y, w, z, Hyb.SOURCE_INK, "-", "Nothing missing.", hover);
         y = resources("OUTPUTS", t.outputs(), y, w, z, Hyb.PRODUCT_INK, "+", "Nothing coming out yet.", hover);
         y = resources("INTERNAL", t.internal(), y, w, z, INTERNAL_INK, "", "Nothing internal.", hover);
         y = machines(t, y, w, z, hover);
-        contentH = y + scroll - LIST_Y;
+        contentH = y + scroll - listY;
         Stencil.remove();
         // Keep what is on screen of the list; the heading's fold key stays as it is.
         final List<Hit> moved = new ArrayList<>(hits.size());
         for (final Hit hit : hits) {
-            if (hit.kind() == Kind.FOLD) {
+            if (hit.kind() == Kind.FOLD || hit.kind() == Kind.CLEAR || hit.kind() == Kind.DELETE) {
                 moved.add(hit);
                 continue;
             }
-            if (hit.y1() <= LIST_Y || hit.y0() >= h) continue;
-            moved.add(new Hit(hit.kind(), hit.x0(), Math.max(hit.y0(), LIST_Y), hit.x1(), hit.y1(), hit.data()));
+            if (hit.y1() <= listY || hit.y0() >= h) continue;
+            moved.add(new Hit(hit.kind(), hit.x0(), Math.max(hit.y0(), listY), hit.x1(), hit.y1(), hit.data()));
         }
         hits.clear();
         hits.addAll(moved);
@@ -196,6 +203,37 @@ final class OverviewRail extends ParentWidget<OverviewRail> implements Interacta
         final int x = localX(), y = localY();
         for (final Hit h : lastHits) if (h.contains(x, y)) return h;
         return null;
+    }
+
+    /** The list starts lower while something is selected, under the selection strip. */
+    private int listY() {
+        return LIST_Y + (session.hasSelection() ? 16 : 0);
+    }
+
+    /** "2 cards, 1 drawer selected", with Clear and Delete, in Factory Flow's cyan. */
+    private void selectionStrip(final int w, final Hit hover) {
+        int cards = 0, drawers = 0;
+        for (final UUID id : session.selection()) {
+            if (session.model(id) != null) cards++;
+            else if (session.drawerModel(id) != null) drawers++;
+        }
+        final int y = LIST_Y - 2;
+        Hyb.rect(0, y, w - 1, 16, 0x3322D3EE);
+        Hyb.rect(0, y, w - 1, 1, 0x9922D3EE);
+        Hyb.rect(0, y + 15, w - 1, 1, 0x9922D3EE);
+        final StringBuilder what = new StringBuilder();
+        if (cards > 0) what.append(cards)
+            .append(cards == 1 ? " card" : " cards");
+        if (drawers > 0) what.append(what.length() > 0 ? ", " : "")
+            .append(drawers)
+            .append(drawers == 1 ? " drawer" : " drawers");
+        Hyb.text(what.toString(), 6, y + 4, Hyb.INK);
+        final String clear = "Clear", delete = "Delete";
+        final int dx = w - 6 - Hyb.width(delete), cx = dx - 8 - Hyb.width(clear);
+        Hyb.text(clear, cx, y + 4, hover != null && hover.kind() == Kind.CLEAR ? 0xFFFFFFFF : Hyb.SELECTION);
+        Hyb.text(delete, dx, y + 4, hover != null && hover.kind() == Kind.DELETE ? 0xFFFFFFFF : Hyb.RED_INK);
+        hits.add(new Hit(Kind.CLEAR, cx - 2, y, cx + Hyb.width(clear) + 2, y + 16, null));
+        hits.add(new Hit(Kind.DELETE, dx - 2, y, dx + Hyb.width(delete) + 2, y + 16, null));
     }
 
     private void drawFolded(final int h) {
@@ -224,7 +262,9 @@ final class OverviewRail extends ParentWidget<OverviewRail> implements Interacta
         if (hover != null && hover.kind() == Kind.SECTION && title.equals(hover.data()))
             Hyb.rect(0, y, w - 1, SECTION_H, 0xFF30333A);
         else Hyb.rect(0, y, w - 1, SECTION_H, 0xFF2A2D33);
-        Hyb.text(isFolded ? "▸" : "▾", 5, y + 4, ink);
+        // A small triangle: pointing right when folded, down when open.
+        if (isFolded) Hyb.triangle(6, y + 4, 6, y + 12, 10, y + 8, ink);
+        else Hyb.triangle(4, y + 6, 12, y + 6, 8, y + 10, ink);
         Hyb.text(title, 14, y + 4, ink);
         final String badge = filter.isBlank() ? Integer.toString(count) : shown + " / " + count;
         final int bw = Hyb.width(badge) + 6;
@@ -247,7 +287,8 @@ final class OverviewRail extends ParentWidget<OverviewRail> implements Interacta
         final Fmt.RateUnit unit = session.rateUnit();
         final int tint = ink & 0x00FFFFFF | 0x0D000000;
         for (final BoardSession.TotalLine line : shown) {
-            final boolean hot = hover != null && hover.kind() == Kind.RESOURCE && hover.data() == line;
+            final boolean hot = hover != null && (hover.kind() == Kind.RESOURCE || hover.kind() == Kind.ADD)
+                && hover.data() == line;
             Hyb.rect(0, y, w - 1, ROW_H, hot ? 0x1A22D3EE : tint);
             if (hot) {
                 Hyb.rect(0, y, w - 1, 1, 0x9922D3EE);
@@ -261,11 +302,33 @@ final class OverviewRail extends ParentWidget<OverviewRail> implements Interacta
             Hyb.text(Hyb.fit(line.label(), w - 24 - rateW - 10), 23, y + 5, Hyb.INK);
             Hyb.text(number, w - 6 - rateW, y + 5, line.amount() > 0 ? ink : Hyb.MUTED);
             Hyb.text(suffix, w - 6 - Hyb.width(suffix), y + 5, Hyb.MUTED);
+            // Hovered and without a drawer on this side: a "+" that makes one (a source for inputs, a product for
+            // outputs).
+            if (hot && !title.equals("INTERNAL") && !hasDrawer(line, title.equals("INPUTS"))) {
+                final int ax = w - 6 - rateW - 16;
+                final boolean addHot = hover.kind() == Kind.ADD;
+                Hyb.bevel(ax, y + 3, 12, 12, addHot ? Hyb.KEY_HOVER : Hyb.KEY, Hyb.KEY_HI, Hyb.KEY_LO, 0, 1);
+                Hyb.rect(ax + 3, y + 8, 6, 2, ink);
+                Hyb.rect(ax + 5, y + 6, 2, 6, ink);
+                hits.add(new Hit(Kind.ADD, ax, y + 3, ax + 12, y + 15, line));
+            }
             hits.add(new Hit(Kind.RESOURCE, 0, y, w - 1, y + ROW_H, line));
             y += ROW_H;
             y = drawerRows(title, line, y, w, hover);
         }
         return y + GAP;
+    }
+
+    /** The input rows drawn this frame, to tell an input's "+" (source) from an output's (product). */
+    private final java.util.Set<Object> inputs = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    private boolean hasDrawer(final BoardSession.TotalLine line, final boolean sources) {
+        for (final DrawerModel d : session.drawerModels()
+            .values()) {
+            if ((d.kind == Drawer.Kind.SOURCE) == sources && d.drawer.getResourceKey()
+                .equals(line.key())) return true;
+        }
+        return false;
     }
 
     /** Under a resource, the drawers holding it on that side, each with its rule and rate. */
@@ -405,6 +468,12 @@ final class OverviewRail extends ParentWidget<OverviewRail> implements Interacta
         final int sx = getArea().x + hit.x0(), sy = getArea().y + hit.y1() + 2;
         switch (hit.kind()) {
             case FOLD -> toggle();
+            case CLEAR -> session.clearSelection();
+            case ADD -> {
+                final BoardSession.TotalLine line = (BoardSession.TotalLine) hit.data();
+                session.addDrawerFor(line.key(), line.label(), inputs.contains(line));
+            }
+            case DELETE -> session.deleteSelected();
             case SECTION -> {
                 final String title = (String) hit.data();
                 if (!folded.remove(title)) folded.add(title);
@@ -463,7 +532,7 @@ final class OverviewRail extends ParentWidget<OverviewRail> implements Interacta
     @Override
     public boolean onMouseScroll(final UpOrDown direction, final int amount) {
         if (!open) return false;
-        final int max = Math.max(0, contentH - (getArea().height - LIST_Y));
+        final int max = Math.max(0, contentH - (getArea().height - listY()));
         scroll = Math.max(0, Math.min(max, scroll + (direction == UpOrDown.UP ? -ROW_H : ROW_H)));
         return true;
     }
@@ -476,6 +545,11 @@ final class OverviewRail extends ParentWidget<OverviewRail> implements Interacta
         final Fmt.RateUnit unit = session.rateUnit();
         return switch (hit.kind()) {
             case FOLD -> List.of(open ? "Fold the overview" : "Open the overview");
+            case CLEAR -> List.of("Clear the selection (Esc)");
+            case ADD -> List.of(
+                inputs.contains(hit.data()) ? "Add a source for it" : "Add a product for it",
+                hint + "Linked to every port waiting for it");
+            case DELETE -> List.of("Delete the selected cards and drawers (Delete)");
             case SECTION -> List.of(hint + "Click: fold or unfold");
             case RESOURCE -> {
                 final BoardSession.TotalLine line = (BoardSession.TotalLine) hit.data();

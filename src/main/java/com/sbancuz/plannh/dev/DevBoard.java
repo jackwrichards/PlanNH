@@ -62,6 +62,10 @@ final class DevBoard {
             c.put("recipeHeat", model.recipeHeat);
             c.put("machines", model.machines);
             c.put("pinned", model.pinned);
+            c.put(
+                "selected",
+                screen.session()
+                    .isSelected(model.node.id));
             c.put("euPerTick", model.euPerTick);
             c.put("durationTicks", model.durationTicks);
             final List<Object> ports = new ArrayList<>();
@@ -106,6 +110,10 @@ final class DevBoard {
             o.put("target", model.target);
             o.put("rate", model.rate);
             o.put("unmet", model.unmet);
+            o.put(
+                "selected",
+                screen.session()
+                    .isSelected(model.drawer.getId()));
             o.put(
                 "links",
                 model.drawer.getLinks()

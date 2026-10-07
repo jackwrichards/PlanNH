@@ -6,7 +6,15 @@ from this repository. Read all of it before writing code. It is written to be pa
 ## Status (2026-10-06)
 
 All six steps below are built and on `main`, each checked in the GregTech dev client through the harness
-(`mc.sh part`, `/board`). The old `gui/` package is deleted. If you are picking this up, the brief below is still
+(`mc.sh part`, `/board`). The old `gui/` package is deleted. After the owner's first look, added: the overview rail
+(Factory Flow's resources column, on the left), Factory Flow wires (ranked widths, arrowheads, bridges where they
+cross), multiblock pictures (bundled Factory Flow renders, else built in game with BlockRenderer6343), whole-row
+port handles, two-line port names, one type scale, selection (click, Shift, box, Ctrl+A; Delete; group moves), eased
+camera moves, an animated Arrange, and a help key. A polish pass after that: arrowheads sit mid-run, clear of
+ports and corners; whatever is carried or was last moved draws on top; the wire router is about 8x faster (a
+turn-aware A* heuristic and an allocation-free heap: 13 ms for 30 wires on 20 cards), so drags stay smooth; drawers
+added from the overview line up below their neighbours; an empty plan shows a hint rather than a solver error.
+`tools/dev/board-check.sh` checks the main flows end to end. If you are picking this up, the brief below is still
 the reference for how things are meant to work; what is left is this list.
 
 Known gaps:
@@ -15,9 +23,9 @@ Known gaps:
   click that drops a carried item without calling GUI handlers, input handlers or ModularUI. Needs a look at how
   ModularUI's NEI integration routes mouse input (`ClientScreenHandler`, `ModularUIContainerInputHandler`).
   Drawers can be made by dragging a port onto empty board, and recipes added with P or the port picker.
-- Not built: "Add another recipe to this machine", hop bumps where wires cross, card selection (cyan ring),
-  the greyed "recipe missing" card, short-ladder [-] value [+] settings on the card (settings live in the
-  actions menu's Machine settings list), Shift-wheel amps steps, previewing a machine on hover in the switch list.
+- Not built: "Add another recipe to this machine", the greyed "recipe missing" card, short-ladder [-] value [+]
+  settings on the card (settings live in the actions menu's Machine settings list), Shift-wheel amps steps,
+  previewing a machine on hover in the switch list, copy and paste.
 - The solver does not flag a GregTech card set below its recipe's tier; the card shows a red ring and TIER!.
 - AUTO can still balance a wired port through a gated import or surplus no drawer allows (see the engine notes).
 - Undo history is per session (not saved), as before.

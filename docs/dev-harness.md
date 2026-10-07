@@ -48,14 +48,15 @@ is a thin curl wrapper. Every request waits until the game has processed it, so 
 | `/screenshot?name=x.png[&x&y&w&h]` | save the next fully drawn frame, optionally cropped to a GUI-coordinate rectangle; returns the path |
 | `/widgets` | ModularUI widget tree of the current screen: type, name, x/y/w/h in GUI coordinates, children |
 | `/move?x&y` | move the mouse (hover) |
-| `/click?x&y[&button=0][&count=1]` | button 0 left, 1 right, 2 middle; `count=2` double-clicks |
-| `/drag?x1&y1&x2&y2[&steps=10][&button=0]` | press, move in steps (one per tick), release |
+| `/click?x&y[&button=0][&count=1][&mods=shift]` | button 0 left, 1 right, 2 middle; `count=2` double-clicks; `mods` as for `/key` |
+| `/drag?x1&y1&x2&y2[&steps=10][&button=0][&mods=shift]` | press, move in steps (one per tick), release; `mods` held throughout (Shift-drag box-selects) |
 | `/scroll?x&y[&amount=1]` | wheel; positive is up |
 | `/key?code[&char][&mods=ctrl,shift]` | press + release an LWJGL2 key code (modifiers held around it) (`Keyboard.KEY_*`: 1 Esc, 28 Enter, 14 Backspace, 20 T, 66 F8) |
 | `/type?text` | type text into the focused field |
 | `/cmd?c=/time%20set%20day` | run a command as the player (client commands first, then chat) |
 | `/board` | the open board as data: zoom/pan, per card its state (tier, amps, coil, machines, pinned, ports) and the GUI rect of each control and port (`parts.TIER`, `parts.OUT1`, with `cx/cy`), per drawer its kind, rule, target, rate, unmet flag and parts, the edge count, `solving`, and the notices |
 | `/view?zoom&panX&panY` | set the board view (defaults 1, 0, 0) so tests start from a known place |
+| `/slots[?add=name \| switch=i \| delete=i]` | the plan slots (`slots`, `active`); `add` opens a new one, so a check can work without touching the owner's plans |
 | `/gtmachines?q&all=1&art=1` | GregTech multiblocks (all=1: every machine) by meta and in-game name; art=1 adds the bundled picture each resolves to |
 | `/recipeinfo?output&handler&input` | what NEI and PlanNH see in a recipe (ingredient, result and other stacks with registry names, catalysts, the ports a card would get), read-only |
 | `/structurepic?meta=1000` | GT runs only: (re)build that multiblock controller's recipe-card picture (structure built in BlockRenderer6343's fake world, replaces the cached one so an open board shows it), save it as `screenshots/structure-<meta>.png`; returns `status` (ok, too big, empty, not a multiblock, failed: ...), `size`, `blocks`, timings and `path`. Without `meta`: every constructable controller as `{meta, name}` |
@@ -67,9 +68,13 @@ All coordinates are GUI-scaled (what `GuiScreen` sees as `mouseX`/`mouseY`), not
 
 ## Tips for UI work
 
-- PlanNH text fields (note bodies, headers) only take focus on a double-click: `click?x&y&count=2`, check
-  `focused` in `/status`, then `type`. Esc (`key?code=1`) ends the edit.
-- The canvas zooms with the wheel around the cursor; left-drag moves nodes and notes (see the in-game Help panel).
+- A PlanNH text field that is not focused by the click that opens it takes focus on a double-click:
+  `click?x&y&count=2`, check `focused` in `/status`, then `type`. Esc (`key?code=1`) ends the edit.
+- The board zooms with the wheel around the cursor; left-drag pans on empty board and moves a card or drawer (with
+  the rest of the selection); Shift-drag box-selects. The top bar's `?` lists every gesture.
+- `tools/dev/board-check.sh` (GT runs) is the end-to-end check of the board: a real EBF recipe and its defaults, a
+  port drag into a drawer, a rate solved, auto-wiring, undo/redo, no solver errors. It works in a plan slot of its
+  own and deletes it afterwards, and refuses to run while the game window has focus (`FORCE=1` overrides).
 - Cropped screenshots are cheap to inspect and keep native resolution:
   `mc.sh shot detail.png 'x=30&y=50&w=150&h=90'`.
 - `mc.sh smoke` fails on a crash, on any exception with a `com.sbancuz.plannh` frame, or if the flowchart does not

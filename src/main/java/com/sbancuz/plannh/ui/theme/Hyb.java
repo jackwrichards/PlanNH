@@ -187,6 +187,15 @@ public final class Hyb {
             });
     }
 
+    /** A ring of {@code t} px just outside a box, for selection and warnings. */
+    public static void ring(final float x, final float y, final float w, final float h, final float t,
+        final int color) {
+        rect(x - t, y - t, w + 2 * t, t, color);
+        rect(x - t, y + h, w + 2 * t, t, color);
+        rect(x - t, y, t, h, color);
+        rect(x + w, y, t, h, color);
+    }
+
     /** A dashed rectangle outline, 2 px on and 2 px off. */
     public static void dashed(final float x, final float y, final float w, final float h, final int color) {
         for (float d = 0; d < w; d += 4) {

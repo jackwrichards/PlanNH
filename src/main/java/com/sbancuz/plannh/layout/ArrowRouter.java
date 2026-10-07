@@ -4,11 +4,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.PriorityQueue;
 import java.util.UUID;
 
 /**
@@ -208,6 +206,7 @@ public final class ArrowRouter {
         final int[] cameFrom;
         final int[] scoreRun;
         int runId = 1;
+        final OpenSet open = new OpenSet();
 
         Grid(final int originX, final int originY, final int cols, final int rows, final int cell, final int stub) {
             this.originX = originX;
@@ -316,14 +315,15 @@ public final class ArrowRouter {
             final int startState = ((sgy * cols + sgx) * 4);
             setScore(startState, 0, -1, run);
 
-            final PriorityQueue<int[]> open = new PriorityQueue<>(Comparator.comparingInt((int[] a) -> a[0]));
-            open.add(new int[] { heuristic(sgx, sgy, ggx, ggy), startState, 0 });
+            open.clear();
+            open.push(heuristic(sgx, sgy, 0, ggx, ggy), 0, startState);
 
             while (!open.isEmpty()) {
-                final int[] top = open.poll();
-                final int state = top[1];
-                final int g = top[2];
-                if (g > score(state, run)) continue;
+                final long top = open.pop();
+                final int state = OpenSet.state(top);
+                final int g = score(state, run);
+                // A stale entry: the state was reached more cheaply since it was pushed.
+                if (OpenSet.g(top) != Math.min(g, OpenSet.MASK)) continue;
 
                 final int idx = state >> 2;
                 final int dir = state & 3;
@@ -351,16 +351,31 @@ public final class ArrowRouter {
                     final int nState = nIdx * 4 + nd;
                     if (ng < score(nState, run)) {
                         setScore(nState, ng, state, run);
-                        open.add(new int[] { ng + heuristic(nx, ny, ggx, ggy), nState, ng });
+                        open.push(ng + heuristic(nx, ny, nd, ggx, ggy), ng, nState);
                     }
                 }
             }
             return null;
         }
 
-        /** Manhattan lower bound used by A* to prefer cells closer to the target. */
-        private static int heuristic(final int x, final int y, final int gx, final int gy) {
-            return (Math.abs(x - gx) + Math.abs(y - gy)) * STEP;
+        /**
+         * A lower bound on the cost to the goal, arriving heading +x: the Manhattan distance plus the turns no path can
+         * avoid. Turns cost far more than steps, so counting them keeps A* from fanning out over every equally short
+         * detour.
+         */
+        private static int heuristic(final int x, final int y, final int dir, final int gx, final int gy) {
+            final int dx = gx - x, dy = gy - y;
+            final int turns = switch (dir) {
+                // Heading +x: none if the goal is straight ahead, else off this row and back.
+                case 0 -> dy == 0 && dx >= 0 ? 0 : 2;
+                // Heading -x: round to a vertical and then to +x.
+                case 1 -> 2;
+                // Heading +y: one turn to +x, three if the goal row is behind.
+                case 2 -> dy < 0 ? 3 : 1;
+                // Heading -y.
+                default -> dy > 0 ? 3 : 1;
+            };
+            return (Math.abs(dx) + Math.abs(dy)) * STEP + turns * TURN;
         }
 
         private int nextRun() {
@@ -426,6 +441,64 @@ public final class ArrowRouter {
             pts.add(new int[] { q.dx, q.dy });
 
             return simplify(orthogonalize(pts));
+        }
+    }
+
+    /**
+     * The A* open set: a binary min-heap of longs, each packing f, then g inverted (so of two equally promising states
+     * the one further along comes out first), then the state. No allocation per push.
+     */
+    private static final class OpenSet {
+
+        private static final int BITS = 21;
+        static final long MASK = (1L << BITS) - 1;
+        private long[] heap = new long[1024];
+        private int size;
+
+        void clear() {
+            size = 0;
+        }
+
+        boolean isEmpty() {
+            return size == 0;
+        }
+
+        void push(final int f, final int g, final int state) {
+            final long key = Math.min(f, MASK) << 2 * BITS | (MASK - Math.min(g, MASK)) << BITS | state;
+            if (size == heap.length) heap = Arrays.copyOf(heap, size * 2);
+            int i = size++;
+            while (i > 0) {
+                final int parent = (i - 1) >>> 1;
+                if (heap[parent] <= key) break;
+                heap[i] = heap[parent];
+                i = parent;
+            }
+            heap[i] = key;
+        }
+
+        long pop() {
+            final long top = heap[0];
+            final long last = heap[--size];
+            if (size == 0) return top;
+            int i = 0;
+            while (true) {
+                int child = 2 * i + 1;
+                if (child >= size) break;
+                if (child + 1 < size && heap[child + 1] < heap[child]) child++;
+                if (heap[child] >= last) break;
+                heap[i] = heap[child];
+                i = child;
+            }
+            heap[i] = last;
+            return top;
+        }
+
+        static int state(final long key) {
+            return (int) (key & MASK);
+        }
+
+        static int g(final long key) {
+            return (int) (MASK - (key >>> BITS & MASK));
         }
     }
 

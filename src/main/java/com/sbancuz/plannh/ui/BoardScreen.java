@@ -86,7 +86,8 @@ public final class BoardScreen extends ModularScreen {
         topBar.child(
             new TextWidget<>(
                 IKey.dynamic(
-                    () -> session.solving() ? "Solving" + ".".repeat((int) (System.currentTimeMillis() / 400 % 4))
+                    () -> session.solvingVisibly()
+                        ? "Solving" + ".".repeat((int) (System.currentTimeMillis() / 400 % 4))
                         : "")).color(Hyb.MUTED)
                             .shadow(true)
                             .heightRel(1f)
@@ -117,13 +118,7 @@ public final class BoardScreen extends ModularScreen {
         topBar
             .child(key(() -> "Arrange", () -> true, "Lay the plan out left to right (undoable)", 42, canvas::arrange));
         topBar.child(key(() -> "Fit", () -> true, "Fit the whole plan in view", 24, canvas::frameAll));
-        topBar.child(
-            key(
-                () -> rail.isOpen() ? "Hide overview" : "Overview",
-                () -> true,
-                "The overview rail: what the plan takes in and gives out, its power, the machines to build",
-                66,
-                rail::toggle));
+        topBar.child(key(() -> "?", () -> true, "How the board works", 16, () -> showHelp(panel)));
 
         final Flow column = Flow.column()
             .widthRel(1f)
@@ -146,6 +141,26 @@ public final class BoardScreen extends ModularScreen {
                 .right(6)
                 .top(TOP_BAR + 4));
         return new BoardScreen(panel, session, canvas);
+    }
+
+    /** Every gesture on the board, in one list. */
+    private static void showHelp(final ModularPanel panel) {
+        final List<com.sbancuz.plannh.ui.popup.PickList.Entry> rows = new ArrayList<>();
+        final String[][] tips = { { "P over any item", "what makes it (Shift+P: what uses it)" },
+            { "Click a port", "what makes this input, or uses this output" },
+            { "Drag a port", "onto a card: wire it; onto the board: a drawer" },
+            { "Right-click a wire", "a drawer on it, or delete it" },
+            { "Click a card or drawer", "select it (Shift: add to the selection)" },
+            { "Shift-drag the board", "select everything in the box" },
+            { "Drag a selected card", "move the whole selection" },
+            { "Delete", "remove the selection (Esc: clear it)" }, { "Wheel", "zoom; over a control: change it" },
+            { "Ctrl+Z, Ctrl+Shift+Z", "undo, redo" },
+            { "Overview: double-click", "fly to the cards that use a resource" } };
+        for (final String[] tip : tips)
+            rows.add(new com.sbancuz.plannh.ui.popup.PickList.Entry(null, tip[0], tip[1], Hyb.INK, false, () -> {}));
+        com.cleanroommc.modularui.screen.ModularPanel p = com.sbancuz.plannh.ui.popup.PickList
+            .popup("plannh_help", "HOW THE BOARD WORKS", rows, false, 300);
+        com.sbancuz.plannh.ui.popup.Popup.open(panel, (com.sbancuz.plannh.ui.popup.Popup) p, 300, 24);
     }
 
     /** A top-bar key in the card's key style: a label, a tooltip, greyed when it can do nothing. */
@@ -197,6 +212,21 @@ public final class BoardScreen extends ModularScreen {
     @Override
     public boolean onKeyPressed(final char typedChar, final int keyCode) {
         if (!textFocused(this)) {
+            // Delete or Backspace removes the selection; Esc clears it (and only closes the planner when nothing is
+            // selected).
+            if ((keyCode == org.lwjgl.input.Keyboard.KEY_DELETE || keyCode == org.lwjgl.input.Keyboard.KEY_BACK)
+                && session.hasSelection()) {
+                session.deleteSelected();
+                return true;
+            }
+            if (keyCode == org.lwjgl.input.Keyboard.KEY_A && net.minecraft.client.gui.GuiScreen.isCtrlKeyDown()) {
+                session.selectAll();
+                return true;
+            }
+            if (keyCode == org.lwjgl.input.Keyboard.KEY_ESCAPE && session.hasSelection()) {
+                session.clearSelection();
+                return true;
+            }
             final boolean undo = NEIClientConfig.isKeyHashDown(NEIPlanConfig.ConfigUndoKey.KEY);
             if (undo || NEIClientConfig.isKeyHashDown(NEIPlanConfig.ConfigRedoKey.KEY)
                 || NEIClientConfig.isKeyHashDown(NEIPlanConfig.ConfigRedoAltKey.KEY)) {
@@ -232,6 +262,7 @@ public final class BoardScreen extends ModularScreen {
     private void drawPortTooltip() {
         final Object hovered = getContext().getHovered();
         final List<String> lines;
+        int tipX = getContext().getAbsMouseX() + 12;
         if (hovered instanceof final RecipeCard card) {
             lines = card.hoverLines();
             if (lines == null) return;
@@ -247,6 +278,11 @@ public final class BoardScreen extends ModularScreen {
         } else if (hovered instanceof final OverviewRail overview) {
             lines = overview.hoverLines();
             if (lines == null) return;
+            // Beside the rail, so the tip never covers the row it is about.
+            tipX = overview.getArea().x + overview.getArea().width + 4;
+        } else if (hovered == null || hovered == canvas) {
+            lines = canvas.wireLines();
+            if (lines == null) return;
         } else if (hovered instanceof final PortSlot slot) {
             final ItemStack stack = slot.stack();
             final CardModel.PortView view = slot.view();
@@ -259,7 +295,7 @@ public final class BoardScreen extends ModularScreen {
         }
         GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_DEPTH_BUFFER_BIT);
         GL11.glDisable(GL11.GL_DEPTH_TEST);
-        drawMultilineTip(getContext().getAbsMouseX() + 12, getContext().getAbsMouseY() - 12, lines);
+        drawMultilineTip(tipX, getContext().getAbsMouseY() - 12, lines);
         GL11.glPopAttrib();
     }
 }

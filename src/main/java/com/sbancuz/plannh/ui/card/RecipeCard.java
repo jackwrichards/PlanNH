@@ -16,7 +16,6 @@ import com.cleanroommc.modularui.screen.viewport.ModularGuiContext;
 import com.cleanroommc.modularui.theme.WidgetThemeEntry;
 import com.cleanroommc.modularui.widget.ParentWidget;
 import com.cleanroommc.modularui.widget.sizer.Area;
-import com.sbancuz.plannh.api.PlanAPI;
 import com.sbancuz.plannh.data.MachineConfig;
 import com.sbancuz.plannh.data.RecipeContext;
 import com.sbancuz.plannh.data.SettingDef;
@@ -68,8 +67,6 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     private CardModel model;
     private CardLayout layout;
 
-    private int dragStartX, dragStartY, dragMouseX, dragMouseY;
-    private String dragUndo;
     private boolean moving;
 
     public RecipeCard(final BoardSession session, final UUID nodeId) {
@@ -220,6 +217,12 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             return;
         }
         final Part hover = isHovering() ? partAt(localX(), localY()) : null;
+        if (canvas() != null && canvas().isCarried(nodeId)) {
+            // Lifted while it is carried: a soft shadow under it.
+            Hyb.rect(5, 7, CardLayout.W, layout.height, 0x50000000);
+            Hyb.rect(3, 4, CardLayout.W, layout.height, 0x40000000);
+        }
+        if (session.isSelected(nodeId)) Hyb.ring(-3, -3, CardLayout.W + 6, layout.height + 6, 2, Hyb.SELECTION);
         Hyb.cardFrame(0, 0, CardLayout.W, layout.height);
         if (m.tierTooLow()) {
             // Can't run: the tier is below the recipe's. Red ring outside the card; the POWER tile says TIER!.
@@ -246,6 +249,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     private void drawGlance(final CardModel m, final float z) {
         final int h = layout.height;
         Hyb.cardFrame(0, 0, CardLayout.W, h);
+        if (session.isSelected(nodeId)) Hyb.ring(-6, -6, CardLayout.W + 12, h + 12, 4, Hyb.SELECTION);
         final int icon = Math.min(96, h - 24);
         if (m.machineStack != null) Hyb.item(m.machineStack, CardLayout.PAD + 8, (h - icon) / 2f, icon, z);
         final int tx = CardLayout.PAD + 16 + icon;
@@ -329,13 +333,19 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             if (!p.wired()) Hyb.dashed(x - 2, y - 1, 22, 22, Hyb.AMBER_INK);
             if (p.key()
                 .equals(session.hoverKey())) glow(x, y + 1);
+            // While a wire is dragged out of another card, the ports that would take it light up green.
+            final BoardCanvas board = canvas();
+            if (board != null && board.acceptsDrag(nodeId, output, p.key())) {
+                Hyb.rect(x - 1, y - 1, CardLayout.RAIL_W + 1, layout.rowH(output, p.index()) + 2, 0x205EE9B5);
+                Hyb.ring(x, y + 1, 18, 18, 2, Hyb.PRODUCT_INK);
+            }
             if (p.isFluid()) Hyb.fluid(p.fluid(), x + 1, y + 2, 16, z);
             else Hyb.item(p.item(), x + 1, y + 2, 16, z);
             final int textX = x + CardLayout.TEXT_X;
             final List<String> name = layout.nameLines(output, p.index());
             for (int line = 0; line < name.size(); line++) Hyb.text(name.get(line), textX, y + 2 + line * 9, Hyb.INK);
             String rate = Fmt.rate(p.perSecond(), unit, p.isFluid());
-            if (p.chance() < 0.9999f) rate += " 00b7 " + Fmt.compact(p.chance() * 100) + "%";
+            if (p.chance() < 0.9999f) rate += " · " + Fmt.compact(p.chance() * 100) + "%";
             Hyb.text(Hyb.fit(rate, CardLayout.TEXT_W), textX, y + 2 + name.size() * 9, Hyb.MUTED);
         }
     }
@@ -731,43 +741,20 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
     @Override
     public boolean onDragStart(final int button) {
-        if (button != 0 || model == null || partAt(localX(), localY()) != Part.BODY) return false;
-        final Node node = model.node;
-        dragStartX = node.x;
-        dragStartY = node.y;
-        dragMouseX = getContext().getAbsMouseX();
-        dragMouseY = getContext().getAbsMouseY();
-        dragUndo = PlanAPI.undoHistory()
-            .beginEdit(session.graph());
+        if (button != 0 || model == null || partAt(localX(), localY()) != Part.BODY || canvas() == null) return false;
+        // The board moves it, with the rest of the selection when it is selected.
+        canvas().beginMove(nodeId);
         return true;
     }
 
     @Override
     public void onDrag(final int mouseButton, final long timeSinceLastClick) {
-        if (model == null || dragUndo == null) return;
-        final float zoom = session.graph()
-            .getZoom();
-        final Node node = model.node;
-        node.x = Math.round(dragStartX + (getContext().getAbsMouseX() - dragMouseX) / zoom);
-        node.y = Math.round(dragStartY + (getContext().getAbsMouseY() - dragMouseY) / zoom);
-        pos(node.x, node.y);
+        if (canvas() != null) canvas().dragMove();
     }
 
     @Override
     public void onDragEnd(final boolean successful) {
-        if (model == null || dragUndo == null) return;
-        if (successful) {
-            PlanAPI.undoHistory()
-                .commitEdit(dragUndo, session.graph());
-            session.graph()
-                .touchLayout();
-            PlanAPI.save();
-        } else {
-            model.node.x = dragStartX;
-            model.node.y = dragStartY;
-            pos(dragStartX, dragStartY);
-        }
-        dragUndo = null;
+        if (canvas() != null) canvas().endMove(successful);
     }
 
     @Override

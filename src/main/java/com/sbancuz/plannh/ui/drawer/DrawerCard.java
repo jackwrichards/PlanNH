@@ -14,7 +14,6 @@ import com.cleanroommc.modularui.screen.viewport.ModularGuiContext;
 import com.cleanroommc.modularui.theme.WidgetThemeEntry;
 import com.cleanroommc.modularui.widget.Widget;
 import com.cleanroommc.modularui.widget.sizer.Area;
-import com.sbancuz.plannh.api.PlanAPI;
 import com.sbancuz.plannh.data.flowchart.Drawer;
 import com.sbancuz.plannh.ui.BoardSession;
 import com.sbancuz.plannh.ui.canvas.BoardCanvas;
@@ -52,8 +51,6 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
     public final UUID drawerId;
     private DrawerModel model;
 
-    private int dragStartX, dragStartY, dragMouseX, dragMouseY;
-    private String dragUndo;
     private boolean moving;
 
     public DrawerCard(final BoardSession session, final UUID drawerId) {
@@ -164,10 +161,22 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         if (m == null) return;
         final float z = context.getCurrentDrawingZ();
         final Part hover = isHovering() ? partAt(localX(), localY()) : null;
-        final int ring = m.drawer.getResourceKey()
-            .equals(session.hoverKey()) ? Hyb.GOLD : frameColor(m.kind);
+        final BoardCanvas board = canvas();
+        final int ring = board != null && board.drawerAcceptsDrag(m.drawer) ? Hyb.PRODUCT_INK
+            : m.drawer.getResourceKey()
+                .equals(session.hoverKey()) ? Hyb.GOLD : frameColor(m.kind);
 
+        if (canvas() != null && canvas().isCarried(drawerId)) {
+            Hyb.rect(5, 7, W, H, 0x50000000);
+            Hyb.rect(3, 4, W, H, 0x40000000);
+        }
+        if (session.isSelected(drawerId)) Hyb.ring(-3, -3, W + 6, H + 6, 2, Hyb.SELECTION);
         Hyb.rect(0, 0, W, H, ring);
+        if (session.graph()
+            .getZoom() <= com.sbancuz.plannh.ui.card.RecipeCard.GLANCE_ZOOM) {
+            drawGlance(m, z, ring);
+            return;
+        }
         Hyb.rect(1, 1, W - 2, H - 2, Hyb.FRAME);
         Hyb.rect(1, 1, W - 2, 1, Hyb.HIGHLIGHT);
         Hyb.rect(1, H - 2, W - 2, 1, Hyb.SHADOW);
@@ -211,6 +220,20 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
                 ROW_Y + 3,
                 Hyb.MUTED);
         }
+    }
+
+    /** Zoomed out: the resource, its name and the rate, big enough to read at half zoom. */
+    private void drawGlance(final DrawerModel m, final float z, final int ring) {
+        Hyb.rect(2, 2, W - 4, H - 4, Hyb.FRAME);
+        Hyb.rect(2, 2, W - 4, H - 4, (ring & 0x00FFFFFF) | 0x33000000);
+        // The name across the top, then the icon and the rate.
+        Hyb.text(Hyb.fit(m.label, (W - 12) / 2), 6, 6, 2f, 0xFFFFFFFF);
+        if (m.isFluid()) Hyb.fluid(m.fluid, 6, 26, 28, z);
+        else Hyb.item(m.item, 6, 26, 28, z);
+        final Fmt.RateUnit unit = session.rateUnit();
+        final String sign = m.rate <= 0 ? "" : m.kind == Drawer.Kind.SOURCE ? "-" : "+";
+        final int color = m.rate <= 0 ? Hyb.MUTED : m.kind == Drawer.Kind.SOURCE ? Hyb.SOURCE_INK : Hyb.PRODUCT_INK;
+        Hyb.text(Hyb.fit(sign + Fmt.compact(m.rate * unit.perSecond), (W - 44) / 3), 40, 29, 3f, color);
     }
 
     private static void key(final int x, final int y, final boolean hover) {
@@ -396,42 +419,20 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
 
     @Override
     public boolean onDragStart(final int button) {
-        if (button != 0 || model == null || partAt(localX(), localY()) != Part.BODY) return false;
-        dragStartX = model.drawer.getX();
-        dragStartY = model.drawer.getY();
-        dragMouseX = getContext().getAbsMouseX();
-        dragMouseY = getContext().getAbsMouseY();
-        dragUndo = PlanAPI.undoHistory()
-            .beginEdit(session.graph());
+        if (button != 0 || model == null || partAt(localX(), localY()) != Part.BODY || canvas() == null) return false;
+        // The board moves it, with the rest of the selection when it is selected.
+        canvas().beginMove(drawerId);
         return true;
     }
 
     @Override
     public void onDrag(final int mouseButton, final long timeSinceLastClick) {
-        if (model == null || dragUndo == null) return;
-        final float zoom = session.graph()
-            .getZoom();
-        final Drawer d = model.drawer;
-        d.setX(Math.round(dragStartX + (getContext().getAbsMouseX() - dragMouseX) / zoom));
-        d.setY(Math.round(dragStartY + (getContext().getAbsMouseY() - dragMouseY) / zoom));
-        pos(d.getX(), d.getY());
+        if (canvas() != null) canvas().dragMove();
     }
 
     @Override
     public void onDragEnd(final boolean successful) {
-        if (model == null || dragUndo == null) return;
-        if (successful) {
-            PlanAPI.undoHistory()
-                .commitEdit(dragUndo, session.graph());
-            session.graph()
-                .touchLayout();
-            PlanAPI.save();
-        } else {
-            model.drawer.setX(dragStartX);
-            model.drawer.setY(dragStartY);
-            pos(dragStartX, dragStartY);
-        }
-        dragUndo = null;
+        if (canvas() != null) canvas().endMove(successful);
     }
 
     @Override
