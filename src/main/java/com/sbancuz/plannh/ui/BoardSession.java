@@ -313,7 +313,10 @@ public final class BoardSession {
         final Drawer drawer = new Drawer(output ? Drawer.Kind.PRODUCT : Drawer.Kind.SOURCE, Resources.key(p));
         drawer.setLabel(p.getDisplayName());
         drawer.setX(output ? worldX : worldX - DrawerCard.W);
-        drawer.setY(worldY - DrawerCard.ANCHOR_Y);
+        // Dropped nearly level with the port: make it level, so the wire runs straight instead of jogging.
+        final CardModel card = models.get(fromNode);
+        final int portY = card == null ? worldY : node.y + new CardLayout(card).anchorY(output, port);
+        drawer.setY((Math.abs(worldY - portY) <= 24 ? portY : worldY) - DrawerCard.ANCHOR_Y);
         edit(() -> {
             graph.addDrawer(drawer);
             graph.linkDrawer(drawer.getId(), new Drawer.Link(node.id, port));
