@@ -36,6 +36,7 @@ import com.sbancuz.plannh.ui.card.MachineChoices;
 import com.sbancuz.plannh.ui.drawer.DrawerCard;
 import com.sbancuz.plannh.ui.drawer.DrawerModel;
 import com.sbancuz.plannh.ui.theme.Fmt;
+import com.sbancuz.plannh.ui.theme.Hyb;
 
 import codechicken.nei.recipe.IRecipeHandler;
 import codechicken.nei.recipe.RecipeHandlerRef;
@@ -743,6 +744,17 @@ public final class BoardSession {
         libraryOpener.run();
     }
 
+    /** Opens the library on My plans: every plan kept, open in a tab or not. */
+    private Runnable myPlansOpener = () -> {};
+
+    public void setMyPlansOpener(final Runnable opener) {
+        myPlansOpener = opener;
+    }
+
+    public void openMyPlans() {
+        myPlansOpener.run();
+    }
+
     /** Opens the library on what makes a resource ({@code kind:id}, Factory Flow's key, and its name). */
     private java.util.function.BiConsumer<String, String> librarySearch = (key, label) -> {};
 
@@ -807,13 +819,48 @@ public final class BoardSession {
     /** Removes a plan slot; the last one stays. */
     public void deleteSlot(final int index) {
         final Plan plan = Plan.getInstance();
-        final int size = plan.getGraphs()
-            .size();
-        if (size <= 1 || index < 0 || index >= size) return;
-        plan.getGraphs()
-            .remove(index);
-        if (plan.getActiveIndex() >= index && plan.getActiveIndex() > 0) plan.setActiveIndex(plan.getActiveIndex() - 1);
+        if (index < 0 || index >= plan.getGraphs()
+            .size()) return;
+        final String name = plan.getGraphs()
+            .get(index)
+            .getName();
+        plan.removeSlot(index);
+        follow();
         PlanAPI.save();
+        flash(Severity.INFO, "Deleted '" + name + "'");
+    }
+
+    /** Closes a plan's tab; the plan stays in the library's My plans. */
+    public void closeSlot(final int index) {
+        final Plan plan = Plan.getInstance();
+        if (index < 0 || index >= plan.getGraphs()
+            .size()) return;
+        plan.closeSlot(index);
+        follow();
+        PlanAPI.save();
+    }
+
+    /** Asks before deleting a plan for good: it cannot be undone. */
+    public void confirmDelete(final int index, final com.cleanroommc.modularui.screen.ModularPanel panel, final int x,
+        final int y) {
+        if (index < 0 || index >= slots().size()) return;
+        final String name = slots().get(index)
+            .getName();
+        final List<com.sbancuz.plannh.ui.popup.PickList.Entry> rows = List.of(
+            new com.sbancuz.plannh.ui.popup.PickList.Entry(
+                null,
+                "Delete it",
+                "",
+                Hyb.RED_INK,
+                false,
+                () -> deleteSlot(index)),
+            com.sbancuz.plannh.ui.popup.PickList.Entry.of("Keep it", () -> {}));
+        com.sbancuz.plannh.ui.popup.Popup.open(
+            panel,
+            com.sbancuz.plannh.ui.popup.PickList
+                .popup("plannh_delete", "Delete '" + name + "' for good?", rows, false, 150),
+            x,
+            y);
     }
 
     /** How the board shows power: EU/t, or amps at each card's tier. */

@@ -54,11 +54,16 @@ public class Graph {
     private boolean snapToGrid;
 
     /**
-     * When the plan was last opened (ms since the epoch), so menus can list the most recent first. Saved with the slot.
+     * When the plan was last open (ms since the epoch), so menus can list the most recent first. Saved with the slot.
      */
     @Getter
     @Setter
     private long lastOpen;
+
+    /** Whether the plan has a tab. A closed plan is still kept, in the library's My plans. Saved with the slot. */
+    @Getter
+    @Setter
+    private boolean open = true;
 
     @Getter
     private BalanceMode balanceMode = BalanceMode.AUTO;
@@ -123,6 +128,7 @@ public class Graph {
     void takeSlotOf(final Graph replaced) {
         this.slot = replaced.slot;
         this.lastOpen = replaced.lastOpen;
+        this.open = replaced.open;
     }
 
     private void bumpVersion() {

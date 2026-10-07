@@ -25,7 +25,17 @@ import com.sbancuz.plannh.Tags;
  */
 public final class CommunityApi {
 
-    public static final String SITE = System.getProperty("plannh.library.url", "https://gtnhplanner.com");
+    private static volatile String site = System.getProperty("plannh.library.url", "https://gtnhplanner.com");
+
+    /** The site the library reads and posts to: gtnhplanner.com, or a test copy. */
+    public static String site() {
+        return site;
+    }
+
+    /** Points the library at another copy of the site (the dev harness's local stand-in). */
+    public static void useSite(final String url) {
+        site = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+    }
 
     private static final int CONNECT_MS = 8_000, READ_MS = 25_000;
 
@@ -47,35 +57,41 @@ public final class CommunityApi {
 
         /** The website's own page for it. */
         public String link() {
-            return SITE + "/?plan=" + id;
+            return site + "/?plan=" + id;
         }
     }
 
     /** What to list. {@code maxTierIndex} -1 and empty strings mean any. */
-    public record Query(String search, String sort, int maxTierIndex, String gameVersion, List<String> makes) {
+    public record Query(String search, String sort, int maxTierIndex, String gameVersion, List<String> makes,
+        boolean mine) {
 
         public static Query start() {
-            return new Query("", "top", -1, "", List.of());
+            return new Query("", "top", -1, "", List.of(), false);
         }
 
         public Query withSearch(final String s) {
-            return new Query(s, sort, maxTierIndex, gameVersion, makes);
+            return new Query(s, sort, maxTierIndex, gameVersion, makes, mine);
         }
 
         public Query withSort(final String s) {
-            return new Query(search, s, maxTierIndex, gameVersion, makes);
+            return new Query(search, s, maxTierIndex, gameVersion, makes, mine);
         }
 
         public Query withMaxTier(final int t) {
-            return new Query(search, sort, t, gameVersion, makes);
+            return new Query(search, sort, t, gameVersion, makes, mine);
         }
 
         public Query withVersion(final String v) {
-            return new Query(search, sort, maxTierIndex, v, makes);
+            return new Query(search, sort, maxTierIndex, v, makes, mine);
         }
 
         public Query withMakes(final List<String> m) {
-            return new Query(search, sort, maxTierIndex, gameVersion, m);
+            return new Query(search, sort, maxTierIndex, gameVersion, m, mine);
+        }
+
+        /** Only the signed-in player's own posts. */
+        public Query withMine(final boolean b) {
+            return new Query(search, sort, maxTierIndex, gameVersion, makes, b);
         }
     }
 
@@ -86,7 +102,7 @@ public final class CommunityApi {
     public record Download(String name, String planJson) {}
 
     public static Page list(final Query q, final int page, final int pageSize) throws IOException {
-        final StringBuilder url = new StringBuilder(SITE).append("/api/community/plans?sort=")
+        final StringBuilder url = new StringBuilder(site).append("/api/community/plans?sort=")
             .append(enc(q.sort()))
             .append("&page=")
             .append(page)
@@ -106,7 +122,8 @@ public final class CommunityApi {
             .isEmpty())
             url.append("&makes=")
                 .append(enc(String.join(",", q.makes())));
-        final JsonObject root = json(request("GET", url.toString()));
+        if (q.mine()) url.append("&mine=1");
+        final JsonObject root = json(request("GET", url.toString(), null, q.mine() ? Account.token() : null));
         final List<Setup> setups = new ArrayList<>();
         for (final JsonElement e : array(root, "plans")) setups.add(setup(e.getAsJsonObject()));
         final List<String> versions = new ArrayList<>();
@@ -116,11 +133,64 @@ public final class CommunityApi {
 
     /** A setup's whole plan. The site counts it as a download, as when the website opens one. */
     public static Download download(final String id) throws IOException {
-        final JsonObject root = json(request("POST", SITE + "/api/community/plans/" + enc(id) + "/download"));
+        final JsonObject root = json(
+            request("POST", site + "/api/community/plans/" + enc(id) + "/download", null, null));
         final JsonElement plan = root.get("plan");
         if (plan == null || !plan.isJsonObject()) throw new IOException("the site sent no plan");
         return new Download(string(root, "name"), plan.toString());
     }
+
+    // region Accounts and posting: the website's own username and password accounts and its session
+
+    /** A signed-in account, and the session the site gave it (its {@value #SESSION_COOKIE} cookie). */
+    public record SignedIn(String username, String token) {}
+
+    private static final String SESSION_COOKIE = "gtnh_session";
+
+    /** Signs in; the reason, in the site's words, when it says no. */
+    public static SignedIn signIn(final String username, final String password) throws IOException {
+        return account("/api/community/auth/login", username, password);
+    }
+
+    /** Makes an account and signs in to it. */
+    public static SignedIn register(final String username, final String password) throws IOException {
+        return account("/api/community/auth/register", username, password);
+    }
+
+    private static SignedIn account(final String path, final String username, final String password)
+        throws IOException {
+        final JsonObject body = new JsonObject();
+        body.addProperty("username", username);
+        body.addProperty("password", password);
+        final Response r = send("POST", site + path, body.toString(), null);
+        final String token = r.cookie(SESSION_COOKIE);
+        if (token == null || token.isEmpty()) throw new IOException("the site did not sign you in");
+        return new SignedIn(string(json(r.body()), "username"), token);
+    }
+
+    /** Who a session belongs to, or null when it has run out. */
+    @Nullable
+    public static String whoIs(final String token) throws IOException {
+        final JsonElement user = json(request("GET", site + "/api/community/auth/me", null, token)).get("user");
+        return user != null && user.isJsonObject() ? string(user.getAsJsonObject(), "username") : null;
+    }
+
+    /** What a post needs: its title and the plan, and where it came from. */
+    public record Post(String name, String description, String gameVersion, String deviceId, JsonObject plan) {}
+
+    /** Posts a plan to the public setups; its id on the site. */
+    public static String post(final String token, final Post p) throws IOException {
+        final JsonObject body = new JsonObject();
+        body.addProperty("name", p.name());
+        body.addProperty("description", p.description());
+        body.addProperty("gameVersion", p.gameVersion());
+        body.addProperty("datasetVersionId", "");
+        body.addProperty("deviceId", p.deviceId());
+        body.add("plan", p.plan());
+        return string(json(request("POST", site + "/api/community/plans", body.toString(), token)), "id");
+    }
+
+    // endregion
 
     // region JSON
 
@@ -195,26 +265,80 @@ public final class CommunityApi {
 
     // endregion
 
-    private static String request(final String method, final String url) throws IOException {
+    /** An answer: its status, body and the session cookie it set, if any. */
+    private record Response(int status, String body, List<String> cookies) {
+
+        @Nullable
+        String cookie(final String name) {
+            for (final String c : cookies) {
+                if (c.startsWith(name + "=")) return c.substring(name.length() + 1)
+                    .split(";", 2)[0];
+            }
+            return null;
+        }
+    }
+
+    /** The body of an answer that went well; else an IOException with the site's own reason. */
+    private static String request(final String method, final String url, @Nullable final String json,
+        @Nullable final String token) throws IOException {
+        return send(method, url, json, token).body();
+    }
+
+    private static Response send(final String method, final String url, @Nullable final String json,
+        @Nullable final String token) throws IOException {
         final HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setRequestMethod(method);
         c.setConnectTimeout(CONNECT_MS);
         c.setReadTimeout(READ_MS);
+        c.setInstanceFollowRedirects(false);
         c.setRequestProperty("Accept", "application/json");
         c.setRequestProperty("User-Agent", "PlanNH/" + Tags.VERSION + " (GT New Horizons planner mod)");
+        if (token != null) c.setRequestProperty("Cookie", SESSION_COOKIE + "=" + token);
+        final byte[] out = json == null ? new byte[0] : json.getBytes(StandardCharsets.UTF_8);
         if ("POST".equals(method)) {
             c.setDoOutput(true);
-            c.setFixedLengthStreamingMode(0);
+            if (json != null) c.setRequestProperty("Content-Type", "application/json");
+            c.setFixedLengthStreamingMode(out.length);
+            try (java.io.OutputStream o = c.getOutputStream()) {
+                o.write(out);
+            }
         }
         try {
             final int status = c.getResponseCode();
             final InputStream in = status >= 400 ? c.getErrorStream() : c.getInputStream();
             final String body = in == null ? "" : read(in);
-            if (status >= 400) throw new IOException(status == 404 ? "not found" : "the site answered " + status);
-            return body;
+            if (status >= 400) throw new IOException(reason(status, body));
+            final List<String> cookies = new ArrayList<>();
+            for (final java.util.Map.Entry<String, List<String>> h : c.getHeaderFields()
+                .entrySet()) {
+                if (h.getKey() != null && h.getKey()
+                    .equalsIgnoreCase("Set-Cookie")) cookies.addAll(h.getValue());
+            }
+            return new Response(status, body, cookies);
         } finally {
             c.disconnect();
         }
+    }
+
+    /** Why the site said no: its own words when it gave them ({@code {"error": ...}}), else the status. */
+    private static String reason(final int status, final String body) {
+        try {
+            final JsonElement e = new JsonParser().parse(body);
+            if (e.isJsonObject() && e.getAsJsonObject()
+                .has("error")) {
+                return e.getAsJsonObject()
+                    .get("error")
+                    .getAsString();
+            }
+        } catch (final RuntimeException ignored) {
+            // Not JSON: fall through to the status.
+        }
+        return switch (status) {
+            case 401 -> "not signed in";
+            case 404 -> "not found";
+            case 429 -> "too many tries; wait a little";
+            default -> "the site answered " + status;
+        };
     }
 
     private static String read(final InputStream in) throws IOException {

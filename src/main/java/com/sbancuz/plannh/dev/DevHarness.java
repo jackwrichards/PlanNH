@@ -328,6 +328,16 @@ public final class DevHarness {
                     r.put("volume", mc.gameSettings.getSoundLevel(SoundCategory.MASTER));
                     return r;
                 });
+            case "/library":
+                // The site the library reads and posts to: url=<base> (tools/dev/mock-library.mjs for a local
+                // stand-in).
+                if (q.containsKey("url")) com.sbancuz.plannh.library.CommunityApi.useSite(q.get("url"));
+                return onClient(() -> {
+                    final Map<String, Object> r = new LinkedHashMap<>();
+                    r.put("site", com.sbancuz.plannh.library.CommunityApi.site());
+                    r.put("signedInAs", com.sbancuz.plannh.library.Account.username());
+                    return r;
+                });
             case "/nei":
                 // NEI's recipes for item=<modid:name[:meta] or ore name>; uses=1 for its uses; planner=0 from the
                 // inventory (the planner closed); tab=<part of a tab's name> to open on that tab.
@@ -370,19 +380,7 @@ public final class DevHarness {
                         if (i >= 0 && i < plan.getGraphs()
                             .size()) plan.setActiveIndex(i);
                     } else if (q.containsKey("delete")) {
-                        final int i = intArg(q, "delete");
-                        if (plan.getGraphs()
-                            .size() > 1 && i >= 0
-                            && i < plan.getGraphs()
-                                .size()) {
-                            plan.getGraphs()
-                                .remove(i);
-                            if (plan.getActiveIndex() >= plan.getGraphs()
-                                .size())
-                                plan.setActiveIndex(
-                                    plan.getGraphs()
-                                        .size() - 1);
-                        }
+                        plan.removeSlot(intArg(q, "delete"));
                     }
                     com.sbancuz.plannh.api.PlanAPI.save();
                     final Map<String, Object> m = new LinkedHashMap<>();
@@ -477,6 +475,7 @@ public final class DevHarness {
                 "/recipeinfo?output[&handler][&input] - what NEI and PlanNH see in a recipe (stacks, ports), read-only",
                 "/nei?item[&uses=1][&planner=0][&tab] - open NEI's recipes for an item, over the planner or (planner=0) from the inventory",
                 "/sound[?volume=0..1] - the master volume, set or read",
+                "/library[?url=<base>] - the site the library uses (tools/dev/mock-library.mjs is a local stand-in)",
                 "/gtmachines?q=turbine[&all=1][&art=1] - GregTech multiblocks (all=1: every machine) as the game names them; art=1 adds the bundled picture each resolves to",
                 "/slots[?add=name | switch=i | delete=i] - list, open, switch or delete plan slots",
                 "/clearplan - empty the active board (one undoable edit)",

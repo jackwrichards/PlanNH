@@ -42,10 +42,15 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   with the new card centred and selected (`BoardSession.addAndFocus`). Shift-click skips both menus. The machine pick is
   remembered per tab (`MachinePicks`, `config/plannh-machine-picks.properties`) and NEI's + uses it too.
   `call 'nei?item=<key>&planner=0&tab=<name>'` opens a recipe page from the inventory.
-- The Library (top bar, the + tab menu, or right-click on an overview row: setups that make it) is Factory Flow's
-  public setups from gtnhplanner.com's anonymous API (`library/CommunityApi`, `LibraryFeed`; `ui/library/LibraryView`),
-  opened through the importer as a new plan. `-Dplannh.library.url` points it at another copy of the site. Signing
-  in and posting (the website's username and password accounts) are not built yet.
+- Plans work as on the website: a tab is an open plan (`Graph.open`); closing one keeps it, in the Library's My
+  plans, where every plan is listed, most recently open first (`Plan.byRecency`, `lastOpen`). Deleting asks first.
+- The Library (top bar; the + tab menu; right-click on an overview row: setups that make it) has two shelves: My
+  plans, and Factory Flow's public setups from gtnhplanner.com (`library/CommunityApi`, `LibraryFeed`;
+  `ui/library/LibraryView`), opened through the importer as a new plan. Signing in uses the website's own username
+  and password accounts; the session (never the password) is kept in `config/plannh-account.properties`
+  (`library/Account`). "Post to library..." (a tab's or a plan tile's menu) sends the plan as Factory Flow project
+  JSON (`library/PlanExport`, checked against the website's own schema). Test it all against
+  `node tools/dev/mock-library.mjs` (a local stand-in; `call 'library?url=http://127.0.0.1:8789'`), never the real site.
 - Multiblock pictures in `assets/plannh/textures/structures/` are Factory Flow's renders (`public/power-art`: the
   owner's processing multiblocks and the Power Planner workbook's power plants), scaled to 320 px palette PNGs with
   transparency. `ui/card/StructureArt` maps in-game machine names to them; `call 'gtmachines?art=1'` checks coverage.

@@ -8,19 +8,23 @@ import com.cleanroommc.modularui.screen.viewport.ModularGuiContext;
 import com.cleanroommc.modularui.theme.WidgetThemeEntry;
 import com.cleanroommc.modularui.widget.Widget;
 import com.sbancuz.plannh.data.flowchart.Graph;
+import com.sbancuz.plannh.data.flowchart.Plan;
 import com.sbancuz.plannh.ui.popup.PickList;
 import com.sbancuz.plannh.ui.popup.Popup;
 import com.sbancuz.plannh.ui.popup.TextPopup;
 import com.sbancuz.plannh.ui.theme.Hyb;
 
 /**
- * The plan tabs on the top bar: one per plan slot, then "+". Click switches; right-click renames or deletes;
- * the active tab is raised like a card.
+ * The plan tabs on the top bar: one per open plan, then "+". A tab is only a plan that is open; closing it (its x,
+ * or a middle click) keeps the plan, in the library's My plans, as on the website. Click switches; right-click
+ * renames, copies, closes or deletes; the active tab is raised like a card.
  */
 final class PlanTabs extends Widget<PlanTabs> implements Interactable {
 
     private static final int TAB_MAX = 110, TAB_MIN = 28;
     private static final int PLUS = 16;
+    /** The close key on a hovered tab. */
+    private static final int CLOSE = 9;
 
     private final BoardSession session;
 
@@ -29,32 +33,42 @@ final class PlanTabs extends Widget<PlanTabs> implements Interactable {
     }
 
     private static int tabWidth(final Graph g) {
-        return Math.min(TAB_MAX, Hyb.width(g.getName()) + 14);
+        // Room for the close key a hovered tab shows, so the name is not cut for it.
+        return Math.min(TAB_MAX, Hyb.width(g.getName()) + 14 + CLOSE);
     }
 
+    /** One tab: the plan slot it shows, where it is and how wide. */
+    private record Tab(int slot, int x, int w) {}
+
     /**
-     * {x, width} of each tab, then the "+" key. When they do not all fit, the open plan keeps its whole name and the
-     * others give way, the widest first (their names cut short), so every plan keeps a tab; past {@link #TAB_MIN} the
-     * rest are left off.
+     * The tabs, then the "+" key (slot -1). When they do not all fit, the open plan keeps its whole name and the
+     * others give way, the widest first (their names cut short), so every open plan keeps a tab; past
+     * {@link #TAB_MIN} the rest are left off.
      */
-    private List<int[]> layout() {
+    private List<Tab> layout() {
         final List<Graph> slots = session.slots();
-        final int[] natural = new int[slots.size()];
-        for (int i = 0; i < natural.length; i++) natural[i] = tabWidth(slots.get(i));
+        final List<Integer> open = Plan.getInstance()
+            .openSlots();
         final int active = session.activeSlot();
-        final int open = active >= 0 && active < natural.length ? natural[active] : 0;
-        final int room = getArea().width - PLUS - 2 * natural.length - open;
+        final int[] natural = new int[open.size()];
+        int activeAt = -1;
+        for (int i = 0; i < natural.length; i++) {
+            natural[i] = tabWidth(slots.get(open.get(i)));
+            if (open.get(i) == active) activeAt = i;
+        }
+        final int kept = activeAt >= 0 ? natural[activeAt] : 0;
+        final int room = getArea().width - PLUS - 2 * natural.length - kept;
         int cap = TAB_MAX;
-        while (cap > TAB_MIN && cappedWidth(natural, cap, active) > room) cap--;
-        final List<int[]> out = new ArrayList<>();
+        while (cap > TAB_MIN && cappedWidth(natural, cap, activeAt) > room) cap--;
+        final List<Tab> out = new ArrayList<>();
         int x = 0;
         for (int i = 0; i < natural.length; i++) {
-            final int w = i == active ? natural[i] : Math.min(natural[i], cap);
+            final int w = i == activeAt ? natural[i] : Math.min(natural[i], cap);
             if (x + w + PLUS > getArea().width) break;
-            out.add(new int[] { x, w });
+            out.add(new Tab(open.get(i), x, w));
             x += w + 2;
         }
-        out.add(new int[] { x, PLUS });
+        out.add(new Tab(-1, x, PLUS));
         return out;
     }
 
@@ -72,58 +86,82 @@ final class PlanTabs extends Widget<PlanTabs> implements Interactable {
         return sum;
     }
 
-    private int indexAtMouse() {
-        final int mx = getContext().getAbsMouseX() - getArea().x;
-        final List<int[]> tabs = layout();
-        for (int i = 0; i < tabs.size(); i++) {
-            if (mx >= tabs.get(i)[0] && mx < tabs.get(i)[0] + tabs.get(i)[1]) return i;
-        }
-        return -1;
+    private int mouseX() {
+        return getContext().getAbsMouseX() - getArea().x;
+    }
+
+    private Tab tabAtMouse() {
+        final int mx = mouseX();
+        for (final Tab t : layout()) if (mx >= t.x() && mx < t.x() + t.w()) return t;
+        return null;
+    }
+
+    /** Whether the mouse is on a tab's close key; only the last tab has none, there being nothing left to show. */
+    private boolean onClose(final Tab t) {
+        return t.slot() >= 0 && canClose() && mouseX() >= t.x() + t.w() - CLOSE - 3;
+    }
+
+    private static boolean canClose() {
+        return Plan.getInstance()
+            .openSlots()
+            .size() > 1;
     }
 
     @Override
     public void draw(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
-        final List<int[]> tabs = layout();
+        final List<Tab> tabs = layout();
         final List<Graph> slots = session.slots();
         final int h = getArea().height;
-        final int hover = isHovering() ? indexAtMouse() : -1;
-        for (int i = 0; i < tabs.size(); i++) {
-            final int x = tabs.get(i)[0], w = tabs.get(i)[1];
-            final boolean plus = i == tabs.size() - 1;
-            final boolean active = !plus && i == session.activeSlot();
+        final Tab hover = isHovering() ? tabAtMouse() : null;
+        for (final Tab t : tabs) {
+            final int x = t.x(), w = t.w();
+            final boolean plus = t.slot() < 0, hot = hover != null && hover.equals(t);
+            final boolean active = !plus && t.slot() == session.activeSlot();
             if (active) {
                 Hyb.rect(x, 0, w, h, Hyb.RING);
                 Hyb.rect(x + 1, 1, w - 2, h - 1, Hyb.FRAME);
                 Hyb.rect(x + 1, 1, w - 2, 1, Hyb.HIGHLIGHT);
                 if (session.solvingVisibly()) solving(x, w, h);
             } else {
-                Hyb.rect(x, 1, w, h - 1, hover == i ? 0xFF2D2F35 : 0xFF1C1E22);
+                Hyb.rect(x, 1, w, h - 1, hot ? 0xFF2D2F35 : 0xFF1C1E22);
             }
             if (plus) {
-                Hyb.textCentered("+", x + w / 2f + 0.5f, (h - 8) / 2f, hover == i ? 0xFFFFFFFF : Hyb.MUTED);
-            } else {
-                Hyb.text(
-                    Hyb.fit(
-                        slots.get(i)
-                            .getName(),
-                        w - 10),
-                    x + 5,
-                    (h - 8) / 2f,
-                    active ? 0xFFFFFFFF : Hyb.MUTED);
+                Hyb.textCentered("+", x + w / 2f + 0.5f, (h - 8) / 2f, hot ? 0xFFFFFFFF : Hyb.MUTED);
+                continue;
+            }
+            // Hovered, the name makes room for the close key at its end.
+            final boolean closable = hot && canClose();
+            final String name = slots.get(t.slot())
+                .getName();
+            Hyb.text(
+                Hyb.fit(name, w - 10 - (closable ? CLOSE : 0)),
+                x + 5,
+                (h - 8) / 2f,
+                active ? 0xFFFFFFFF : Hyb.MUTED);
+            if (closable) {
+                final int cx = x + w - CLOSE - 2, cy = (h - CLOSE) / 2;
+                final boolean onX = onClose(t);
+                if (onX) Hyb.rect(cx, cy, CLOSE, CLOSE, 0xFF4A4C54);
+                final int c = onX ? 0xFFFFFFFF : Hyb.MUTED;
+                for (int k = 0; k < 5; k++) {
+                    Hyb.rect(cx + 2 + k, cy + 2 + k, 1, 1, c);
+                    Hyb.rect(cx + 6 - k, cy + 2 + k, 1, 1, c);
+                }
             }
         }
     }
 
     @Override
     public Result onMousePressed(final int mouseButton) {
-        final int i = indexAtMouse();
-        if (i < 0) return Result.IGNORE;
-        if (mouseButton == 0 || mouseButton == 1) Hyb.click();
-        final List<int[]> tabs = layout();
-        if (i == tabs.size() - 1) {
-            if (mouseButton != 0 && mouseButton != 1) return Result.IGNORE;
+        final Tab t = tabAtMouse();
+        if (t == null) return Result.IGNORE;
+        if (mouseButton > 2) return Result.IGNORE;
+        Hyb.click();
+        final int sx = getArea().x + t.x(), sy = getArea().y + getArea().height + 2;
+        if (t.slot() < 0) {
             final List<PickList.Entry> rows = new ArrayList<>();
             rows.add(new PickList.Entry(null, "New plan", "", Hyb.INK, false, session::addSlot));
+            rows.add(new PickList.Entry(null, "Open a plan...", "My plans", Hyb.INK, false, session::openMyPlans));
             rows.add(
                 new PickList.Entry(
                     null,
@@ -133,48 +171,71 @@ final class PlanTabs extends Widget<PlanTabs> implements Interactable {
                     false,
                     session::pastePlan));
             rows.add(new PickList.Entry(null, "Browse library", "public setups", Hyb.INK, false, session::openLibrary));
-            Popup.open(
-                getPanel(),
-                PickList.popup("plannh_new_plan", null, rows, false, 190),
-                getArea().x + tabs.get(i)[0],
-                getArea().y + getArea().height + 2);
+            Popup.open(getPanel(), PickList.popup("plannh_new_plan", null, rows, false, 190), sx, sy);
+            return Result.SUCCESS;
+        }
+        final int slot = t.slot();
+        if (mouseButton == 2 || mouseButton == 0 && onClose(t)) {
+            session.closeSlot(slot);
             return Result.SUCCESS;
         }
         if (mouseButton == 0) {
-            session.switchSlot(i);
+            session.switchSlot(slot);
             return Result.SUCCESS;
         }
-        if (mouseButton != 1) return Result.IGNORE;
         final Graph g = session.slots()
-            .get(i);
-        final int sx = getArea().x + tabs.get(i)[0], sy = getArea().y + getArea().height + 2;
+            .get(slot);
         final List<PickList.Entry> rows = new ArrayList<>();
         rows.add(
             PickList.Entry.of(
                 "Rename",
                 () -> Popup.open(
                     getPanel(),
-                    TextPopup.create("Plan name", g.getName(), name -> session.renameSlot(i, name)),
+                    TextPopup.create("Plan name", g.getName(), name -> session.renameSlot(slot, name)),
                     sx,
                     sy)));
-        rows.add(PickList.Entry.of("Copy plan", () -> session.copyPlan(i)));
-        if (session.slots()
-            .size() > 1)
-            rows.add(new PickList.Entry(null, "Delete this plan", "", Hyb.RED_INK, false, () -> session.deleteSlot(i)));
-        Popup.open(getPanel(), PickList.popup("plannh_tab", null, rows, false, 120), sx, sy);
+        rows.add(
+            new PickList.Entry(
+                null,
+                "Copy plan code",
+                "to paste or share",
+                Hyb.INK,
+                false,
+                () -> session.copyPlan(slot)));
+        rows.add(
+            new PickList.Entry(
+                null,
+                "Post to library...",
+                "share it",
+                Hyb.INK,
+                false,
+                () -> com.sbancuz.plannh.ui.library.AccountForms.post(getPanel(), session, g)));
+        if (canClose()) rows.add(
+            new PickList.Entry(null, "Close tab", "kept in My plans", Hyb.INK, false, () -> session.closeSlot(slot)));
+        rows.add(
+            new PickList.Entry(
+                null,
+                "Delete plan",
+                "",
+                Hyb.RED_INK,
+                false,
+                () -> session.confirmDelete(slot, getPanel(), sx, sy)));
+        Popup.open(getPanel(), PickList.popup("plannh_tab", null, rows, false, 150), sx, sy);
         return Result.SUCCESS;
     }
 
     /** Tooltip lines for the tab under the mouse. */
     List<String> hoverLines() {
         if (!isHovering()) return null;
-        final int i = indexAtMouse();
-        if (i < 0) return null;
-        if (i == layout().size() - 1) return List.of("New plan, or paste one from Factory Flow");
+        final Tab t = tabAtMouse();
+        if (t == null) return null;
+        if (t.slot() < 0)
+            return List.of("New plan, or open one", "§7From My plans, a Factory Flow link or code, or the library");
+        if (onClose(t)) return List.of("Close the tab", "§7The plan stays in My plans");
         return List.of(
             session.slots()
-                .get(i)
+                .get(t.slot())
                 .getName(),
-            "§7Click: open  Right click: rename, copy, delete");
+            "§7Click: open  Middle click: close  Right click: rename, copy, close, delete");
     }
 }

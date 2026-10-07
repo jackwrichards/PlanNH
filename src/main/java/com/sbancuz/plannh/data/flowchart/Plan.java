@@ -33,14 +33,57 @@ public class Plan {
 
     private Plan() {}
 
-    /** Opens a slot: it becomes the active one. The one it replaces was open until now, and is stamped so. */
+    /**
+     * Opens a slot: it becomes the active one, with a tab. The one it replaces was open until now, and is stamped so.
+     */
     public void setActiveIndex(final int index) {
         final long now = System.currentTimeMillis();
         if (activeIndex >= 0 && activeIndex < graphs.size()) graphs.get(activeIndex)
             .setLastOpen(now);
         activeIndex = index;
-        if (index >= 0 && index < graphs.size()) graphs.get(index)
-            .setLastOpen(now);
+        if (index >= 0 && index < graphs.size()) {
+            graphs.get(index)
+                .setLastOpen(now);
+            graphs.get(index)
+                .setOpen(true);
+        }
+    }
+
+    /**
+     * Closes a slot's tab; the plan stays. If it was the active one, the most recently open of the others takes over.
+     * The last tab stays open.
+     */
+    public void closeSlot(final int index) {
+        if (index < 0 || index >= graphs.size() || openSlots().size() <= 1) return;
+        if (index == activeIndex) setActiveIndex(mostRecentOpenExcept(index));
+        graphs.get(index)
+            .setOpen(false);
+    }
+
+    /** Removes a slot for good; the most recently open of the others takes over. The last slot stays. */
+    public void removeSlot(final int index) {
+        if (graphs.size() <= 1 || index < 0 || index >= graphs.size()) return;
+        if (index == activeIndex) {
+            int next = mostRecentOpenExcept(index);
+            if (next < 0) next = index == 0 ? 1 : 0;
+            setActiveIndex(next);
+        }
+        graphs.remove(index);
+        if (activeIndex > index) activeIndex--;
+    }
+
+    private int mostRecentOpenExcept(final int index) {
+        for (final int i : byRecency()) if (i != index && graphs.get(i)
+            .isOpen()) return i;
+        return -1;
+    }
+
+    /** The slots with a tab, in tab order. */
+    public List<Integer> openSlots() {
+        final List<Integer> out = new ArrayList<>();
+        for (int i = 0; i < graphs.size(); i++) if (graphs.get(i)
+            .isOpen()) out.add(i);
+        return out;
     }
 
     /** The slots' indices, most recently open first: the active one, then by when each was last open. */

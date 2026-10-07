@@ -5,6 +5,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.annotation.Nullable;
@@ -20,6 +21,8 @@ import com.cleanroommc.modularui.theme.WidgetThemeEntry;
 import com.cleanroommc.modularui.value.StringValue;
 import com.cleanroommc.modularui.widget.ParentWidget;
 import com.cleanroommc.modularui.widgets.textfield.TextFieldWidget;
+import com.sbancuz.plannh.data.flowchart.Graph;
+import com.sbancuz.plannh.data.flowchart.Plan;
 import com.sbancuz.plannh.data.flowchart.balancer.Severity;
 import com.sbancuz.plannh.importer.FfConverter;
 import com.sbancuz.plannh.importer.ImportReport;
@@ -83,7 +86,12 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         AUTHOR,
         TIER_BADGE,
         PANE_CLOSE,
-        MAKES_CLEAR
+        MAKES_CLEAR,
+        SHELF,
+        MY_TILE,
+        NEW_TILE,
+        ACCOUNT,
+        MINE_CLEAR
     }
 
     private record Hit(Kind kind, int x0, int y0, int x1, int y1, @Nullable Object data) {
@@ -108,17 +116,45 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         this.showOpened = showOpened;
         searchField = new TextFieldWidget()
             .value(new StringValue.Dynamic(() -> searchText, s -> searchText = s == null ? "" : s))
-            .hintText("Search setups (#tag, @name)");
+            .hintText("Find a plan");
         child(searchField);
     }
 
-    /** Opens on the list as it was left; the first time, fetches it. */
+    /** Opens on the shelf as it was left; the public list is fetched the first time it is shown. */
     public void opened() {
-        if (!feed.started()) feed.restart();
+        if (!mine && !feed.started()) feed.restart();
+    }
+
+    /** Opens on My plans: every plan kept, open in a tab or not. */
+    public void showMine() {
+        shelf(true);
+    }
+
+    /** Opens on the public setups. */
+    public void showPublic() {
+        shelf(false);
+    }
+
+    /** Which shelf shows: My plans, or the public setups. Each keeps its own search. */
+    boolean mine = true;
+    private String mineSearch = "", publicSearch = "";
+
+    private void shelf(final boolean toMine) {
+        if (toMine != mine) {
+            if (mine) mineSearch = searchText;
+            else publicSearch = searchText;
+            mine = toMine;
+            searchText = mine ? mineSearch : publicSearch;
+            searchField.setText(searchText);
+            searchField.hintText(mine ? "Find a plan" : "Search setups (#tag, @name)");
+            scroll = 0;
+        }
+        if (!mine && !feed.started()) feed.restart();
     }
 
     /** Shows the setups that make a resource ({@code kind:id}, as Factory Flow writes them). */
     public void showMaking(final String ffKey, final String label) {
+        shelf(false);
         searchText = "";
         searchField.setText("");
         feed.set(
@@ -137,27 +173,31 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         super.onUpdate();
         feed.poll();
         final String live = searchField.getText();
-        if (live != null && !live.equals(
+        if (live == null) return;
+        if (mine) {
+            if (!live.equals(searchText)) scroll = 0;
+            searchText = live;
+        } else if (!live.equals(
             feed.query()
                 .search())) {
-            searchText = live;
-            feed.type(live);
-            scroll = 0;
-        }
+                    searchText = live;
+                    feed.type(live);
+                    scroll = 0;
+                }
     }
 
     // region Layout
 
-    private int gridRight() {
-        return getArea().width - (picked != null ? PANE_W + PAD : 0) - PAD;
+    int gridRight() {
+        return getArea().width - (picked != null && !mine ? PANE_W + PAD : 0) - PAD;
     }
 
-    private int columns() {
+    int columns() {
         final int w = gridRight() - PAD;
         return Math.max(1, (w + GAP) / (TILE_MIN_W + GAP));
     }
 
-    private int tileW() {
+    int tileW() {
         final int cols = columns();
         return (gridRight() - PAD - (cols - 1) * GAP) / cols;
     }
@@ -174,13 +214,14 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         drawHeader(w, hover);
         final int top = HEAD_H + 4;
         Stencil.apply(0, top, gridRight() + PAD, h - top, context);
-        drawGrid(top, h, z, hover);
+        if (mine) drawMine(top, h, z, hover);
+        else drawGrid(top, h, z, hover);
         Stencil.remove();
-        if (picked != null) drawPane(w, h, z, hover);
+        if (picked != null && !mine) drawPane(w, h, z, hover);
         lastHits.clear();
         lastHits.addAll(hits);
         // Near the end of what is loaded: the next page.
-        if (contentH - scroll < (h - top) * 2) feed.more();
+        if (!mine && contentH - scroll < (h - top) * 2) feed.more();
     }
 
     @Override
@@ -198,16 +239,20 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         Hyb.rect(0, 0, w, HEAD_H, 0xFF2A2D33);
         Hyb.rect(0, HEAD_H - 1, w, 1, Hyb.RING);
         int x = PAD;
-        Hyb.text("PUBLIC SETUPS", x, 8, Hyb.INK);
-        x += Hyb.width("PUBLIC SETUPS") + 6;
-        final String count = feed.total() < 0 ? "..." : Fmt.compact(feed.total());
-        final int cw = Hyb.width(count) + 6;
-        Hyb.rect(x, 7, cw, 10, 0xFF353942);
-        Hyb.text(count, x + 3, 8, 0xFFA3A3A3);
-        x += cw + 10;
-        // Right to left: close, version, tier, sort.
+        final int plans = Plan.getInstance()
+            .getGraphs()
+            .size();
+        x = shelfTab(x, "MY PLANS", Integer.toString(plans), true, hover) + 6;
+        x = shelfTab(x, "PUBLIC SETUPS", feed.total() < 0 ? "..." : Fmt.compact(feed.total()), false, hover) + 12;
+        // Right to left: close, then the public list's version, tier and sort.
         int right = w - PAD;
         right = closeKey(right, 4, Kind.CLOSE, hover) - 8;
+        right = accountKey(right, hover) - 10;
+        if (mine) {
+            searchField.pos(x, 5)
+                .size(Math.max(80, Math.min(240, right - x)), 14);
+            return;
+        }
         final CommunityApi.Query q = feed.query();
         right = key(
             right,
@@ -218,20 +263,82 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         right = key(right, q.maxTierIndex() < 0 ? "Any tier" : "Up to " + TIERS[q.maxTierIndex()], Kind.TIER, hover)
             - 4;
         right = key(right, sortLabel(q.sort()), Kind.SORT, hover) - 8;
-        // The search takes the room left between them.
-        final int fieldW = Math.max(80, Math.min(300, right - x));
+        // The search takes the room left between them, less a filter chip's when one shows.
+        final int chipRoom = q.mine() ? Hyb.width("My posts") + 24
+            : makingLabel != null && !q.makes()
+                .isEmpty() ? Math.min(160, Hyb.width("Makes " + makingLabel) + 24) : 0;
+        final int fieldW = Math.max(80, Math.min(300, right - x - chipRoom));
         searchField.pos(x, 5)
             .size(fieldW, 14);
-        if (makingLabel != null && !q.makes()
-            .isEmpty()) {
-            final String chip = Hyb.fit("Makes " + makingLabel, right - x - fieldW - 26);
+        if (q.mine()) {
+            final String chip = "My posts";
             final int cx = x + fieldW + 6, chipW = Hyb.width(chip) + 16;
-            final boolean hot = hover != null && hover.kind() == Kind.MAKES_CLEAR;
+            final boolean hot = hover != null && hover.kind() == Kind.MINE_CLEAR;
             Hyb.rect(cx, 5, chipW, 14, hot ? 0xFF3A4A52 : 0xFF2C3036);
             Hyb.text(chip, cx + 4, 8, CYAN);
             Hyb.text("x", cx + chipW - 8, 8, hot ? 0xFFFFFFFF : Hyb.MUTED);
-            hits.add(new Hit(Kind.MAKES_CLEAR, cx, 5, cx + chipW, 19, null));
+            hits.add(new Hit(Kind.MINE_CLEAR, cx, 5, cx + chipW, 19, null));
+        } else if (makingLabel != null && !q.makes()
+            .isEmpty()) {
+                final String chip = Hyb.fit("Makes " + makingLabel, right - x - fieldW - 26);
+                final int cx = x + fieldW + 6, chipW = Hyb.width(chip) + 16;
+                final boolean hot = hover != null && hover.kind() == Kind.MAKES_CLEAR;
+                Hyb.rect(cx, 5, chipW, 14, hot ? 0xFF3A4A52 : 0xFF2C3036);
+                Hyb.text(chip, cx + 4, 8, CYAN);
+                Hyb.text("x", cx + chipW - 8, 8, hot ? 0xFFFFFFFF : Hyb.MUTED);
+                hits.add(new Hit(Kind.MAKES_CLEAR, cx, 5, cx + chipW, 19, null));
+            }
+    }
+
+    /**
+     * Who is signed in to gtnhplanner.com, as a key: their name with a dot (a menu: their posts, signing out), or
+     * "Sign in". Returns its left edge.
+     */
+    private int accountKey(final int right, final Hit hover) {
+        final String who = com.sbancuz.plannh.library.Account.username();
+        final String label = who == null ? "Sign in" : who;
+        final int kw = Hyb.width(label) + (who == null ? 12 : 22), x = right - kw;
+        final boolean hot = hover != null && hover.kind() == Kind.ACCOUNT;
+        Hyb.bevel(x, 4, kw, 16, hot ? Hyb.KEY_HOVER : Hyb.KEY, Hyb.KEY_HI, Hyb.KEY_LO, 0, 1);
+        if (who == null) Hyb.text(label, x + 6, 8, CYAN);
+        else {
+            // Signed in: a green dot, the name, a chevron.
+            Hyb.rect(x + 5, 10, 3, 3, 0xFF5EE9B5);
+            Hyb.text(label, x + 11, 8, Hyb.INK);
+            final int cx = x + kw - 8;
+            Hyb.rect(cx, 11, 5, 1, Hyb.MUTED);
+            Hyb.rect(cx + 1, 12, 3, 1, Hyb.MUTED);
+            Hyb.rect(cx + 2, 13, 1, 1, Hyb.MUTED);
         }
+        hits.add(new Hit(Kind.ACCOUNT, x, 4, right, 20, null));
+        return x;
+    }
+
+    private void accountMenu(final Hit hit) {
+        if (!com.sbancuz.plannh.library.Account.signedIn()) {
+            AccountForms.signIn(getPanel(), () -> {});
+            return;
+        }
+        final List<PickList.Entry> rows = new ArrayList<>();
+        rows.add(PickList.Entry.of("My posts", () -> {
+            shelf(false);
+            refilter(
+                feed.query()
+                    .withMine(true));
+        }));
+        rows.add(
+            new PickList.Entry(
+                null,
+                "Sign out",
+                "",
+                Hyb.INK,
+                false,
+                () -> AccountForms.signOut(text -> session.flash(Severity.INFO, text))));
+        Popup.open(
+            getPanel(),
+            PickList.popup("plannh_account", "gtnhplanner.com", rows, false, hit.x1() - hit.x0()),
+            getArea().x + hit.x0(),
+            getArea().y + hit.y1() + 2);
     }
 
     private static String sortLabel(final String sort) {
@@ -329,7 +436,7 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         // The numbers: machines and EU/t at the left, votes and downloads at the right.
         final int ry = y + TILE_H - 13;
         int sx = x + 6;
-        sx = stat(sx, ry, Fmt.compact(s.machines()) + " machines", Hyb.MUTED) + 8;
+        sx = stat(sx, ry, Fmt.compact(s.machines()) + (s.machines() == 1 ? " machine" : " machines"), Hyb.MUTED) + 8;
         if (s.euPerTick() > 0) stat(sx, ry, Fmt.power(s.euPerTick()) + " EU/t", EU_INK);
         int rx = x + w - 6;
         rx = statRight(rx, ry, Fmt.compact(s.downloads()), Glyph.DOWN) - 7;
@@ -401,6 +508,176 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         icons.put(key, stack);
         return stack;
     }
+
+    // region My plans
+
+    /** One of the header's two shelves: its name and count, underlined in cyan when it is the one shown. */
+    private int shelfTab(final int x, final String label, final String count, final boolean isMine, final Hit hover) {
+        final boolean on = isMine == mine;
+        final boolean hot = hover != null && hover.kind() == Kind.SHELF && hover.data() == (Boolean) isMine;
+        Hyb.text(label, x, 8, on ? Hyb.INK : hot ? 0xFFD0D2D8 : Hyb.MUTED);
+        int end = x + Hyb.width(label) + 5;
+        final int cw = Hyb.width(count) + 6;
+        Hyb.rect(end, 7, cw, 10, 0xFF353942);
+        Hyb.text(count, end + 3, 8, 0xFFA3A3A3);
+        end += cw;
+        if (on) Hyb.rect(x, HEAD_H - 3, end - x, 2, CYAN);
+        hits.add(new Hit(Kind.SHELF, x - 2, 0, end + 2, HEAD_H, isMine));
+        return end;
+    }
+
+    /** Every plan kept, the most recently open first, after a tile for a new one. */
+    private void drawMine(final int top, final int h, final float z, final Hit hover) {
+        final Plan plan = Plan.getInstance();
+        final List<Graph> graphs = plan.getGraphs();
+        final String f = searchText.trim()
+            .toLowerCase(Locale.ROOT);
+        final List<Integer> shown = new ArrayList<>();
+        for (final int i : plan.byRecency()) {
+            if (f.isEmpty() || graphs.get(i)
+                .getName()
+                .toLowerCase(Locale.ROOT)
+                .contains(f)) shown.add(i);
+        }
+        final int cols = columns(), tw = tileW(), y0 = top + PAD - scroll;
+        int n = 0;
+        if (f.isEmpty()) {
+            newTile(PAD, y0, tw, hover);
+            n = 1;
+        }
+        for (final int slot : shown) {
+            final int tx = PAD + n % cols * (tw + GAP), ty = y0 + n / cols * (TILE_H + GAP);
+            if (ty + TILE_H >= top && ty <= h) planTile(slot, graphs.get(slot), tx, ty, tw, z, hover);
+            n++;
+        }
+        if (n == 0)
+            Hyb.textCentered("No plan by that name.", (PAD + gridRight()) / 2f, top + (h - top) / 2f, Hyb.MUTED);
+        contentH = (n + cols - 1) / cols * (TILE_H + GAP) + PAD;
+        final int visible = h - top, max = Math.max(0, contentH - visible);
+        if (scroll > max) scroll = max;
+        if (max > 0) {
+            final int thumb = Math.max(12, visible * visible / contentH);
+            Hyb.rect(gridRight() + PAD - 4, top + (visible - thumb) * scroll / max, 2, thumb, Hyb.MUTED);
+        }
+    }
+
+    private void newTile(final int x, final int y, final int w, final Hit hover) {
+        final boolean hot = hover != null && hover.kind() == Kind.NEW_TILE;
+        Hyb.dashed(x, y, w, TILE_H, hot ? CYAN : 0xFF4A4C54, 4, 3);
+        if (hot) Hyb.rect(x + 1, y + 1, w - 2, TILE_H - 2, 0x1422D3EE);
+        Hyb.textCentered("+ New plan", x + w / 2f, y + TILE_H / 2f - 4, hot ? CYAN : 0xFF9FD9E6);
+        hits.add(new Hit(Kind.NEW_TILE, x, y, x + w, y + TILE_H, null));
+    }
+
+    /** A plan of yours: what it makes, its name, how big it is, and when it was last open. */
+    private void planTile(final int slot, final Graph g, final int x, final int y, final int w, final float z,
+        final Hit hover) {
+        final boolean hot = hover != null && hover.kind() == Kind.MY_TILE && hover.data() == (Integer) slot;
+        final boolean current = slot == session.activeSlot();
+        Hyb.rect(x + 3, y + 3, w, TILE_H, 0x66000000);
+        Hyb.rect(x, y, w, TILE_H, current ? CYAN : hot ? Hyb.RING : TILE_EDGE);
+        Hyb.rect(x + 1, y + 1, w - 2, TILE_H - 2, hot || current ? TILE_HOT : TILE_BG);
+        final Object face = planFace(g);
+        if (face instanceof final ItemStack item) Hyb.icon(item, null, x + 5, y + 5, 24, z);
+        else if (face instanceof final FluidStack fluid) Hyb.icon(null, fluid, x + 5, y + 5, 24, z);
+        else face(null, x + 5, y + 5, 24, z);
+        final int nameX = x + 34;
+        int nameRight = x + w - 6;
+        if (g.isOpen()) {
+            final String chip = current ? "SHOWING" : "OPEN";
+            final int cw = Hyb.width(chip) + 6;
+            nameRight -= cw + 4;
+            Hyb.rect(nameRight + 4, y + 5, cw, 10, current ? 0xFF1E4A52 : 0xFF353942);
+            Hyb.text(chip, nameRight + 7, y + 6, current ? CYAN : 0xFFA3A3A3);
+        }
+        Hyb.text(Hyb.fit(g.getName(), nameRight - nameX), nameX, y + 6, 0xFFFFFFFF);
+        final int cards = g.getNodes()
+            .size(), drawers = g.getDrawers()
+                .size();
+        final String size = cards + (cards == 1 ? " card" : " cards") + " · " + drawers + (drawers == 1 ? " drawer" : " drawers");
+        Hyb.text(Hyb.fit(size, x + w - 6 - nameX), nameX, y + 17, 0xFF8A8C94);
+        final String when = g.getLastOpen() > 0 ? "last open " + agoMs(g.getLastOpen()) : "not opened yet";
+        Hyb.text(when, x + 6, y + TILE_H - 13, Hyb.MUTED);
+        hits.add(new Hit(Kind.MY_TILE, x, y, x + w, y + TILE_H, slot));
+    }
+
+    /** A plan's face: the first thing it makes into a drawer, else the first output of its first card. */
+    @Nullable
+    private Object planFace(final Graph g) {
+        String key = null;
+        for (final com.sbancuz.plannh.data.flowchart.Drawer d : g.getDrawers()) {
+            if (d.getKind() == com.sbancuz.plannh.data.flowchart.Drawer.Kind.PRODUCT) {
+                key = d.getResourceKey();
+                break;
+            }
+        }
+        if (key == null) {
+            for (final com.sbancuz.plannh.data.flowchart.Node n : g.getNodes()) {
+                if (!n.outputs.isEmpty()) {
+                    key = com.sbancuz.plannh.ui.Resources.key(n.outputs.get(0));
+                    break;
+                }
+            }
+        }
+        if (key == null || key.isEmpty()) return null;
+        final String cacheKey = "plan:" + key;
+        if (icons.containsKey(cacheKey)) return icons.get(cacheKey);
+        final Object stack = com.sbancuz.plannh.ui.Resources.isFluid(key) ? com.sbancuz.plannh.ui.Resources.fluid(key)
+            : com.sbancuz.plannh.ui.Resources.item(key);
+        icons.put(cacheKey, stack);
+        return stack;
+    }
+
+    /** Opens one of your plans in a tab, back on the board. */
+    private void openPlan(final int slot) {
+        session.switchSlot(slot);
+        close.run();
+    }
+
+    private void planMenu(final int slot, final Hit hit) {
+        final Graph g = Plan.getInstance()
+            .getGraphs()
+            .get(slot);
+        final int sx = getArea().x + hit.x0() + 8, sy = getArea().y + hit.y0() + 20;
+        final List<PickList.Entry> rows = new ArrayList<>();
+        rows.add(PickList.Entry.of("Open", () -> openPlan(slot)));
+        rows.add(
+            PickList.Entry.of(
+                "Rename",
+                () -> Popup.open(
+                    getPanel(),
+                    com.sbancuz.plannh.ui.popup.TextPopup
+                        .create("Plan name", g.getName(), name -> session.renameSlot(slot, name)),
+                    sx,
+                    sy)));
+        rows.add(
+            new PickList.Entry(
+                null,
+                "Copy plan code",
+                "to paste or share",
+                Hyb.INK,
+                false,
+                () -> session.copyPlan(slot)));
+        rows.add(
+            new PickList.Entry(
+                null,
+                "Post to library...",
+                "share it",
+                Hyb.INK,
+                false,
+                () -> AccountForms.post(getPanel(), session, g)));
+        rows.add(
+            new PickList.Entry(
+                null,
+                "Delete plan",
+                "",
+                Hyb.RED_INK,
+                false,
+                () -> session.confirmDelete(slot, getPanel(), sx, sy)));
+        Popup.open(getPanel(), PickList.popup("plannh_my_plan", null, rows, false, 150), sx, sy);
+    }
+
+    // endregion
 
     // region The picked setup
 
@@ -533,11 +810,25 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
     @Override
     public Result onMousePressed(final int mouseButton) {
         final Hit hit = hitAt(lastHits);
-        if (hit == null || mouseButton != 0) return hit == null ? Result.IGNORE : Result.SUCCESS;
+        if (hit == null) return Result.IGNORE;
+        if (mouseButton == 1 && hit.kind() == Kind.MY_TILE) {
+            Hyb.click();
+            planMenu((Integer) hit.data(), hit);
+            return Result.SUCCESS;
+        }
+        if (mouseButton != 0) return Result.SUCCESS;
         Hyb.click();
         final CommunityApi.Query q = feed.query();
         switch (hit.kind()) {
             case CLOSE -> close.run();
+            case SHELF -> shelf((Boolean) hit.data());
+            case ACCOUNT -> accountMenu(hit);
+            case MINE_CLEAR -> refilter(q.withMine(false));
+            case MY_TILE -> openPlan((Integer) hit.data());
+            case NEW_TILE -> {
+                session.addSlot();
+                close.run();
+            }
             case PANE_CLOSE -> pick(null);
             case MAKES_CLEAR -> refilter(q.withMakes(List.of()));
             case SORT -> {
@@ -684,7 +975,7 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         });
     }
 
-    private static void openInBrowser(final String url) {
+    static void openInBrowser(final String url) {
         try {
             java.awt.Desktop.getDesktop()
                 .browse(java.net.URI.create(url));
@@ -718,6 +1009,20 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
             case TIER -> List.of("Only setups up to a tier");
             case VERSION -> List.of("Only setups made for a pack version");
             case MAKES_CLEAR -> List.of("Show every setup again");
+            case SHELF -> (Boolean) hit.data()
+                ? List.of("My plans", "§7Every plan you have made or opened, in a tab or not")
+                : List.of("Public setups", "§7Everyone's shared setups, from gtnhplanner.com");
+            case MY_TILE -> List.of(
+                Plan.getInstance()
+                    .getGraphs()
+                    .get((Integer) hit.data())
+                    .getName(),
+                "§7Click: open  Right click: rename, copy, delete");
+            case NEW_TILE -> List.of("Start a new plan");
+            case ACCOUNT -> com.sbancuz.plannh.library.Account.signedIn()
+                ? List.of("Signed in to gtnhplanner.com", "§7Click: your posts, or sign out")
+                : List.of("Sign in to gtnhplanner.com", "§7To post your plans to the public library");
+            case MINE_CLEAR -> List.of("Show everyone's setups again");
             default -> List.of();
         };
     }
@@ -749,6 +1054,14 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
     }
 
     /** "5m ago", "3h ago", "12d ago" from the site's ISO time. */
+    /** "5m ago" and so on, from a time in ms since the epoch. */
+    private static String agoMs(final long ms) {
+        return ago(
+            java.time.Instant.ofEpochMilli(ms)
+                .atOffset(java.time.ZoneOffset.UTC)
+                .toString());
+    }
+
     private static String ago(final String iso) {
         try {
             final Duration d = Duration.between(OffsetDateTime.parse(iso), OffsetDateTime.now());

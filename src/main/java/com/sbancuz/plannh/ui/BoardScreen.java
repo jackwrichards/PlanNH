@@ -73,7 +73,14 @@ public final class BoardScreen extends ModularScreen {
             library.set(false);
             canvas.frameAllWhenBuilt();
         });
-        session.setLibraryOpener(() -> library.set(true));
+        session.setLibraryOpener(() -> {
+            library.view.showPublic();
+            library.set(true);
+        });
+        session.setMyPlansOpener(() -> {
+            library.view.showMine();
+            library.set(true);
+        });
         session.setLibrarySearch((key, label) -> {
             library.view.showMaking(key, label);
             library.set(true);
@@ -130,7 +137,8 @@ public final class BoardScreen extends ModularScreen {
             key(
                 () -> library.open ? "Board" : "Library",
                 () -> true,
-                "Public setups from gtnhplanner.com\n§7Browse them and open one as a plan. Nothing is fetched until you open it",
+                "Your plans, and everyone's public setups\n"
+                    + "§7My plans: every plan you have, in a tab or not. Public setups: shared on gtnhplanner.com",
                 fit("Library", "Board"),
                 () -> library.set(!library.open)).marginLeft(GROUP_GAP));
         topBar.child(
@@ -278,6 +286,18 @@ public final class BoardScreen extends ModularScreen {
         FEEDBACK
     }
 
+    /** Discord's blurple. */
+    private static final int DISCORD = 0xFF5865F2;
+
+    /** Discord's face, 11 by 8 in pixels: ears, two eyes, two feet. */
+    private static void discord(final int x, final int y) {
+        // {dx, dy, length} runs of the face; the eyes are left out of rows 3 and 4.
+        final int[][] runs = { { 2, 0, 2 }, { 7, 0, 2 }, { 1, 1, 9 }, { 0, 2, 11 }, { 0, 3, 3 }, { 5, 3, 1 },
+            { 8, 3, 3 }, { 0, 4, 3 }, { 5, 4, 1 }, { 8, 4, 3 }, { 0, 5, 11 }, { 1, 6, 3 }, { 7, 6, 3 }, { 2, 7, 2 },
+            { 7, 7, 2 } };
+        for (final int[] r : runs) Hyb.rect(x + r[0], y + r[1], r[2], 1, DISCORD);
+    }
+
     /** A small key with an arrow drawn on it (the game's font has none), for undo and redo. */
     private static ButtonWidget<?> iconKey(final Arrow arrow, final BooleanSupplier enabled, final String tooltip,
         final Runnable action) {
@@ -297,13 +317,7 @@ public final class BoardScreen extends ModularScreen {
      */
     private static void drawArrow(final Arrow arrow, final int x, final int y, final int c) {
         if (arrow == Arrow.FEEDBACK) {
-            Hyb.rect(x + 1, y, 7, 1, c);
-            Hyb.rect(x, y + 1, 1, 3, c);
-            Hyb.rect(x + 8, y + 1, 1, 3, c);
-            Hyb.rect(x + 1, y + 4, 7, 1, c);
-            Hyb.rect(x + 2, y + 5, 2, 1, c);
-            Hyb.rect(x + 2, y + 6, 1, 1, c);
-            for (int d = 0; d < 3; d++) Hyb.rect(x + 2 + 2 * d, y + 2, 1, 1, c);
+            discord(x - 1, y - 1);
             return;
         }
         final boolean undo = arrow == Arrow.UNDO;
