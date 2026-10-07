@@ -270,10 +270,10 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     }
 
     /**
-     * At this zoom and below the card shows the glance view instead (the step out from half size, where its text is
-     * still crisp at one screen pixel per font pixel).
+     * At this zoom and below the card shows the glance view instead: the first wheel step out from half size, past
+     * which the card's own text is less than a screen pixel per font pixel and breaks up.
      */
-    public static final float GLANCE_ZOOM = 0.25f;
+    public static final float GLANCE_ZOOM = 0.45f;
 
     private boolean glance() {
         return session.graph()
@@ -305,8 +305,9 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         drawMachineArt(m, (w - side) / 2f, (h - side) / 2f, side, side, side, z, true);
         // How many, in a dark pill in the corner, at whole screen pixels per font pixel so it stays sharp.
         final String count = "×" + Fmt.machines(m.machines);
-        // The same size on every card at a zoom (never past four times), halved only when the number would not fit.
-        float cs = Math.min(1 / zoom, 4);
+        // Two screen pixels per font pixel, or one far out: whole pixels at every wheel step, so it stays sharp.
+        float cs = 1 / zoom;
+        if (cs > 4) cs /= 2;
         while (cs > 1 && Hyb.width(count) * cs > w * 0.8f) cs /= 2;
         final float pad = cs;
         final float tw = Hyb.width(count) * cs, th = 8 * cs;
@@ -541,7 +542,17 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             final float scale = Math.min(w / art.width(), h / art.height());
             final float pw = art.width() * scale, ph = art.height() * scale;
             final float px = x + (w - pw) / 2f, py = y + (h - ph) / 2f;
-            if (shadow) Hyb.texture(art.location(), px + 4, py + 6, pw, ph, 0x73000000);
+            if (shadow) {
+                // Factory Flow's 5px 7px 6px at 60%: offset with the picture's size, its blur baked into the mask.
+                final float side = Math.min(pw, ph), pad = StructureArt.SHADOW_PAD * scale;
+                Hyb.texture(
+                    art.shadow(),
+                    px + side * 0.045f - pad,
+                    py + side * 0.06f - pad,
+                    pw + 2 * pad,
+                    ph + 2 * pad,
+                    0x99000000);
+            }
             Hyb.texture(art.location(), px, py, pw, ph);
             return;
         }

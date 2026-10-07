@@ -286,7 +286,9 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         final int color = m.rate <= 0 ? Hyb.MUTED : m.kind == Drawer.Kind.SOURCE ? Hyb.SOURCE_INK : Hyb.PRODUCT_INK;
         final String rate = sign + Fmt.brief(m.rate * unit.perSecond);
         // One screen pixel per font pixel at most; less when the number would not fit the drawer.
-        float cs = Math.min(1 / zoom, 4);
+        // Two screen pixels per font pixel, or one far out: whole pixels at every wheel step, so it stays sharp.
+        float cs = 1 / zoom;
+        if (cs > 4) cs /= 2;
         while (cs > 1 && Hyb.width(rate) * cs + 2 * cs > W - 8) cs /= 2;
         final float pad = cs, tw = Hyb.width(rate) * cs, th = 8 * cs;
         final float px = W - 4 - tw - 2 * pad, py = H - 4 - th - 2 * pad;

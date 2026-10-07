@@ -179,8 +179,13 @@ public final class Hyb {
     /** A picture drawn in one colour by its shape alone, e.g. black at 45% for the shadow it casts. */
     public static void texture(final net.minecraft.util.ResourceLocation loc, final float x, final float y,
         final float w, final float h, final int argb) {
-        texture(loc, x, y, w, h);
-        // Redrawn over itself in the colour: the texture's own alpha with the colour multiplied in.
+        net.minecraft.client.Minecraft.getMinecraft()
+            .getTextureManager()
+            .bindTexture(loc);
+        org.lwjgl.opengl.GL11.glEnable(org.lwjgl.opengl.GL11.GL_TEXTURE_2D);
+        org.lwjgl.opengl.GL11.glEnable(org.lwjgl.opengl.GL11.GL_BLEND);
+        net.minecraft.client.renderer.OpenGlHelper.glBlendFunc(770, 771, 1, 0);
+        // Drawn once, the colour multiplied in: black keeps the texture's alpha and loses its colours.
         org.lwjgl.opengl.GL11.glColor4f(
             (argb >> 16 & 0xFF) / 255f,
             (argb >> 8 & 0xFF) / 255f,

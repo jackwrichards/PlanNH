@@ -62,10 +62,16 @@ public final class StructureArt {
         Map.entry("compact-fusion-computer-mk-v", "compact-fusion-reactor"));
 
     /**
-     * A bundled picture, its size in pixels (so the card can fit it without stretching), and the average colour of its
-     * opaque pixels (the zoomed-out card is tinted with it).
+     * A bundled picture, its size in pixels (so the card can fit it without stretching), the average colour of its
+     * opaque pixels (the zoomed-out card is tinted with it), and its shadow: the picture's shape blurred, in black,
+     * {@link #SHADOW_PAD} pixels larger on every side.
      */
-    public record Art(ResourceLocation location, int width, int height, int tint) {}
+    public record Art(ResourceLocation location, int width, int height, int tint, ResourceLocation shadow) {}
+
+    /** The shadow's blur: three passes of a box this many pixels each way, about a Gaussian of 7 px. */
+    private static final int BLUR = 7, PASSES = 3;
+    /** How far the blurred shadow reaches past the picture, in its pixels. */
+    public static final int SHADOW_PAD = BLUR * PASSES + 2;
 
     private static final Map<String, Art> FOUND = new HashMap<>();
 
@@ -109,12 +115,75 @@ public final class StructureArt {
             .getResource(loc)
             .getInputStream()) {
             final java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(in);
-            return image == null ? null : new Art(loc, image.getWidth(), image.getHeight(), averageColor(image));
+            return image == null ? null
+                : new Art(loc, image.getWidth(), image.getHeight(), averageColor(image), shadowOf(id, image));
         } catch (final java.io.FileNotFoundException e) {
             return null;
         } catch (final IOException | RuntimeException e) {
             PlanNH.LOG.warn("Could not read the structure picture {}", loc, e);
             return null;
+        }
+    }
+
+    /**
+     * The picture's shadow, as Factory Flow's CSS drop-shadow draws it: its alpha, padded, blurred, in black. Uploaded
+     * once with smooth filtering; the card draws it offset under the picture.
+     */
+    private static ResourceLocation shadowOf(final String id, final java.awt.image.BufferedImage image) {
+        final int pad = SHADOW_PAD, w = image.getWidth() + 2 * pad, h = image.getHeight() + 2 * pad;
+        float[] a = new float[w * h], b = new float[w * h];
+        for (int y = 0; y < image.getHeight(); y++)
+            for (int x = 0; x < image.getWidth(); x++) a[(y + pad) * w + x + pad] = (image.getRGB(x, y) >>> 24) / 255f;
+        for (int pass = 0; pass < PASSES; pass++) {
+            boxBlur(a, b, w, h, 1, w);
+            boxBlur(b, a, h, w, w, 1);
+        }
+        final java.awt.image.BufferedImage mask = new java.awt.image.BufferedImage(
+            w,
+            h,
+            java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) mask.setRGB(x, y, Math.round(Math.min(1, a[y * w + x]) * 255) << 24);
+        final ResourceLocation loc = new ResourceLocation(PlanNH.MODID, "structure_shadows/" + id);
+        Minecraft.getMinecraft()
+            .getTextureManager()
+            .loadTexture(loc, new ShadowTexture(mask));
+        return loc;
+    }
+
+    /**
+     * One box-blur pass along lines of {@code len} values {@code step} apart, {@code lines} of them {@code stride}
+     * apart: a running sum over 2 * BLUR + 1 values, nothing outside the image.
+     */
+    private static void boxBlur(final float[] src, final float[] dst, final int len, final int lines, final int step,
+        final int stride) {
+        final float norm = 1f / (2 * BLUR + 1);
+        for (int line = 0; line < lines; line++) {
+            final int base = line * stride;
+            float sum = 0;
+            for (int i = 0; i <= BLUR && i < len; i++) sum += src[base + i * step];
+            for (int i = 0; i < len; i++) {
+                dst[base + i * step] = sum * norm;
+                final int in = i + BLUR + 1, out = i - BLUR;
+                if (in < len) sum += src[base + in * step];
+                if (out >= 0) sum -= src[base + out * step];
+            }
+        }
+    }
+
+    /** A texture made in memory, filtered smoothly (a shadow is all soft edges). */
+    private static final class ShadowTexture extends net.minecraft.client.renderer.texture.AbstractTexture {
+
+        private final java.awt.image.BufferedImage image;
+
+        ShadowTexture(final java.awt.image.BufferedImage image) {
+            this.image = image;
+        }
+
+        @Override
+        public void loadTexture(final net.minecraft.client.resources.IResourceManager resources) {
+            net.minecraft.client.renderer.texture.TextureUtil
+                .uploadTextureImageAllocate(getGlTextureId(), image, true, true);
         }
     }
 }

@@ -45,7 +45,14 @@ import com.sbancuz.plannh.ui.theme.Hyb;
 public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Interactable, IViewport, IDraggable {
 
     /** Steps where the font is sharp at GUI scale 2 (1 font pixel lands on whole screen pixels), plus a far view. */
-    private static final float[] ZOOMS = { 0.125f, 0.25f, 0.5f, 1f, 1.5f, 2f };
+    /** Wheel steps, as on the website: a fifth of a doubling each (2^0.2, about 15%), from an eighth to twice. */
+    private static final float[] ZOOMS = new float[21];
+
+    static {
+        for (int i = 0; i < ZOOMS.length; i++) ZOOMS[i] = (float) (0.125 * Math.pow(2, i / 5.0));
+        // The powers of two exactly, where the game's font is crisp.
+        for (int i = 0; i < ZOOMS.length; i += 5) ZOOMS[i] = (float) (0.125 * (1 << i / 5));
+    }
     private static final int GRID = 20;
 
     private final BoardSession session;

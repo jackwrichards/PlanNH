@@ -16,6 +16,7 @@ import com.sbancuz.plannh.data.flowchart.Port;
 import com.sbancuz.plannh.data.flowchart.balancer.BalanceResult;
 import com.sbancuz.plannh.data.flowchart.balancer.Balancer;
 import com.sbancuz.plannh.layout.ArrowRouter;
+import com.sbancuz.plannh.layout.WireHops;
 import com.sbancuz.plannh.ui.BoardSession;
 import com.sbancuz.plannh.ui.Resources;
 import com.sbancuz.plannh.ui.card.CardLayout;
@@ -276,83 +277,112 @@ final class WireLayer {
 
     /** Draws every wire; those carrying {@code glow} (the resource under the mouse) get a gold halo first. */
     void draw(final List<Wire> wires, @Nullable final String glow) {
+        // Thickest first, so thinner wires lie on top and do the hopping, as in Factory Flow: a thin line survives
+        // being drawn over a fat pipe, and a small bump on it reads at once where a fat pipe rearing up is a blob.
+        // The sort is stable, so equal widths keep the route order.
+        final List<Wire> order = new ArrayList<>(wires);
+        order.sort((a, b) -> Float.compare(b.width(), a.width()));
+        final Map<Wire, WireHops.Hopped> hopped = hops(wires, order);
         if (glow != null && !glow.isEmpty()) {
             // A slow breath (1.6 s) on the halo, as Factory Flow's glow does.
             final double phase = (System.currentTimeMillis() % 1600) / 1600.0 * 2 * Math.PI;
             final int alpha = (int) (0x70 + 0x38 * Math.sin(phase));
             final int halo = alpha << 24 | 0xFFD257;
             for (final Wire w : wires) {
-                if (!glow.equals(w.resource())) continue;
-                final List<int[]> path = w.path();
-                for (int i = 1; i < path.size(); i++) segment(path.get(i - 1), path.get(i), w.width() + 7, halo);
+                if (glow.equals(w.resource())) drawHopped(hopped.get(w), w.width() + 7, halo, 0, 0);
             }
         }
         // The shadow the wire layer casts (Factory Flow: 4 right, 5 down, soft, 35%), under every wire.
         for (final Wire w : wires) {
             if (w.perSecond() <= 0) continue;
-            final List<int[]> path = w.path();
-            final float width = w.width() + Math.max(2, 0.22f * w.width()) + 2;
-            for (int i = 1; i < path.size(); i++) {
-                final int[] a = path.get(i - 1), b = path.get(i);
-                segment(a[0] + 4, a[1] + 5, b[0] + 4, b[1] + 5, width, 0x3C000000);
-            }
+            drawHopped(hopped.get(w), w.width() + Math.max(2, 0.22f * w.width()) + 2, 0x3C000000, 4, 5);
         }
-        // Thickest first, so thinner wires lie on top, as in Factory Flow.
-        final List<Wire> order = new ArrayList<>(wires);
-        order.sort((a, b) -> Float.compare(b.width(), a.width()));
+        for (final Wire w : order) {
+            if (w.perSecond() <= 0) {
+                dotted(w.path(), w.color(), w.width());
+                continue;
+            }
+            final WireHops.Hopped h = hopped.get(w);
+            drawHopped(h, w.width() + Math.max(2, 0.22f * w.width()), CASING, 0, 0);
+            drawHopped(h, w.width(), w.color(), 0, 0);
+            arrows(w.path(), w.color(), w.width(), h.spans());
+        }
+    }
+
+    /** Hops worked out for the wire list they were made for: it is only rebuilt when something moves. */
+    private List<Wire> hopsFor;
+    private Map<Wire, WireHops.Hopped> hopsMade;
+
+    /**
+     * Each flowing wire hops the wires drawn behind it (the thicker ones, and equal ones routed before it), so exactly
+     * one side of every crossing bumps and it is the side you can see. A wire nothing flows through is dotted and
+     * does not hop.
+     */
+    private Map<Wire, WireHops.Hopped> hops(final List<Wire> wires, final List<Wire> order) {
+        if (wires == hopsFor && hopsMade != null) return hopsMade;
+        final Map<Wire, WireHops.Hopped> out = new java.util.IdentityHashMap<>();
         for (int k = 0; k < order.size(); k++) {
             final Wire w = order.get(k);
-            drawWire(w.path(), w.color(), w.width(), w.perSecond() > 0);
-            if (w.perSecond() > 0) bridges(w, order.subList(0, k));
-        }
-    }
-
-    /**
-     * Where a wire crosses one drawn before it (a thicker one), it bridges over: a short stretch of its own core over a
-     * dark halo, so the crossing reads as one wire passing over the other rather than a junction.
-     */
-    private static void bridges(final Wire top, final List<Wire> under) {
-        final List<int[]> p = top.path();
-        for (int i = 1; i < p.size(); i++) {
-            final int[] a = p.get(i - 1), b = p.get(i);
-            for (final Wire o : under) {
-                final List<int[]> q = o.path();
-                for (int j = 1; j < q.size(); j++) {
-                    final int[] c = q.get(j - 1), d = q.get(j);
-                    final float[] at = crossing(a, b, c, d);
-                    if (at == null) continue;
-                    // Across the other wire and a little beyond, longer the more slanted the crossing.
-                    final float reach = (o.width() / 2 + 4) / at[2];
-                    final float run = dist(a, b), ux = (b[0] - a[0]) / run, uy = (b[1] - a[1]) / run;
-                    final float x0 = at[0] - ux * reach, y0 = at[1] - uy * reach;
-                    final float x1 = at[0] + ux * reach, y1 = at[1] + uy * reach;
-                    segment(x0, y0, x1, y1, top.width() + 5, 0xE0101114);
-                    segment(x0, y0, x1, y1, top.width(), top.color());
+            final List<WireHops.Crossed> crossed = new ArrayList<>();
+            if (w.perSecond() > 0) {
+                for (int j = 0; j < k; j++) {
+                    final Wire o = order.get(j);
+                    final List<int[]> q = o.path();
+                    for (int i = 1; i < q.size(); i++) {
+                        final int[] c = q.get(i - 1), d = q.get(i);
+                        crossed.add(new WireHops.Crossed(c[0], c[1], d[0], d[1], o.width()));
+                    }
                 }
             }
+            out.put(w, WireHops.build(w.path(), crossed, w.width()));
         }
+        hopsFor = wires;
+        hopsMade = out;
+        return out;
     }
 
+    /** A hopped wire {@code width} wide, offset by (dx, dy): its straight runs, then its bumps as smooth ribbons. */
+    private static void drawHopped(final WireHops.Hopped h, final float width, final int color, final float dx,
+        final float dy) {
+        for (final List<float[]> run : h.straights()) {
+            for (int i = 1; i < run.size(); i++) {
+                final float[] a = run.get(i - 1), b = run.get(i);
+                segment(a[0] + dx, a[1] + dy, b[0] + dx, b[1] + dy, width, color);
+            }
+        }
+        for (final WireHops.Bump b : h.bumps()) ribbon(b.points(BUMP_STEPS), width, color, dx, dy);
+    }
+
+    private static final int BUMP_STEPS = 14;
+
     /**
-     * Where two runs cross inside both (not at or near an end, so wires meeting at a port do not bridge): {x, y, sine
-     * of
-     * the angle between them}, or null when they are parallel or miss.
+     * A curve {@code width} wide through the points: each point pushed out both ways along the curve's normal there,
+     * the band between filled with triangles, so the curve has no steps at its joints.
      */
-    private static float[] crossing(final int[] a, final int[] b, final int[] c, final int[] d) {
-        final float rx = b[0] - a[0], ry = b[1] - a[1], sx = d[0] - c[0], sy = d[1] - c[1];
-        final float denom = rx * sy - ry * sx;
-        if (Math.abs(denom) < 1e-3f) return null;
-        final float t = ((c[0] - a[0]) * sy - (c[1] - a[1]) * sx) / denom;
-        final float u = ((c[0] - a[0]) * ry - (c[1] - a[1]) * rx) / denom;
-        final float lr = (float) Math.hypot(rx, ry), ls = (float) Math.hypot(sx, sy);
-        // At least 2 units in from either end of both runs.
-        if (t * lr <= 2 || (1 - t) * lr <= 2 || u * ls <= 2 || (1 - u) * ls <= 2) return null;
-        return new float[] { a[0] + rx * t, a[1] + ry * t, Math.abs(denom) / (lr * ls) };
+    private static void ribbon(final List<float[]> pts, final float width, final int color, final float dx,
+        final float dy) {
+        final int n = pts.size();
+        final float h = width / 2;
+        final float[] lx = new float[n], ly = new float[n], rx = new float[n], ry = new float[n];
+        for (int i = 0; i < n; i++) {
+            final float[] prev = pts.get(Math.max(0, i - 1)), next = pts.get(Math.min(n - 1, i + 1));
+            final float tx = next[0] - prev[0], ty = next[1] - prev[1], len = (float) Math.hypot(tx, ty);
+            final float nx = len == 0 ? 0 : -ty / len * h, ny = len == 0 ? 0 : tx / len * h;
+            final float[] p = pts.get(i);
+            lx[i] = p[0] + dx + nx;
+            ly[i] = p[1] + dy + ny;
+            rx[i] = p[0] + dx - nx;
+            ry[i] = p[1] + dy - ny;
+        }
+        for (int i = 1; i < n; i++) {
+            Hyb.triangle(lx[i - 1], ly[i - 1], lx[i], ly[i], rx[i], ry[i], color);
+            Hyb.triangle(lx[i - 1], ly[i - 1], rx[i], ry[i], rx[i - 1], ry[i - 1], color);
+        }
     }
 
     /**
      * One wire, Factory Flow style: a dark casing, the core in the resource's colour, and filled arrowheads along its
-     * straight runs. A wire that carries nothing is dotted.
+     * straight runs. A wire that carries nothing is dotted. (The port-drag preview; board wires go through draw.)
      */
     static void drawWire(final List<int[]> path, final int color, final float width, final boolean flowing) {
         if (path.size() < 2) return;
@@ -363,7 +393,7 @@ final class WireLayer {
         final float casing = width + Math.max(2, 0.22f * width);
         for (int i = 1; i < path.size(); i++) segment(path.get(i - 1), path.get(i), casing, CASING);
         for (int i = 1; i < path.size(); i++) segment(path.get(i - 1), path.get(i), width, color);
-        arrows(path, color, width);
+        arrows(path, color, width, List.of());
     }
 
     private static final int CASING = 0xB8111827;
@@ -413,28 +443,48 @@ final class WireLayer {
      * one
      * every {@value #ARROW_EVERY} on a long run, and at least one per wire, on its longest run.
      */
-    private static void arrows(final List<int[]> path, final int color, final float width) {
+    private static void arrows(final List<int[]> path, final int color, final float width, final List<float[]> hops) {
         final float len = Math.max(7, Math.min(12, 2f * width + 3));
         final float half = Math.max(3.5f, Math.min(6, width * 0.9f + 1.5f));
         final float clear = len + 8;
         final int fill = brighter(color, 0.3f), outline = darker(color);
         int longest = 0;
-        float longestLen = 0;
+        float longestLen = 0, longestAt = 0, at = 0;
         boolean any = false;
-        for (int i = 1; i < path.size(); i++) {
+        for (int i = 1; i < path.size(); i++, at += dist(path.get(i - 2), path.get(i - 1))) {
             final int[] a = path.get(i - 1), b = path.get(i);
             final float run = dist(a, b);
             if (run > longestLen) {
                 longestLen = run;
                 longest = i;
+                longestAt = at;
             }
             if (run < len + 2 * clear) continue;
             final int count = Math.max(1, Math.round(run / ARROW_EVERY));
-            for (int k = 0; k < count; k++) arrowOn(a, b, run * (k + 0.5f) / count + len / 2, len, half, fill, outline);
-            any = true;
+            for (int k = 0; k < count; k++) {
+                final float tip = run * (k + 0.5f) / count + len / 2;
+                if (offHops(at + tip, len, hops)) {
+                    arrowOn(a, b, tip, len, half, fill, outline);
+                    any = true;
+                }
+            }
         }
-        if (!any && longestLen >= len + 4)
-            arrowOn(path.get(longest - 1), path.get(longest), longestLen / 2 + len / 2, len, half, fill, outline);
+        if (any || longestLen < len + 4) return;
+        // At least one, on the longest run: its middle, or a quarter in from either end when a hop is there.
+        for (final float share : new float[] { 0.5f, 0.25f, 0.75f }) {
+            final float tip = longestLen * share + len / 2;
+            if (tip > longestLen || !offHops(longestAt + tip, len, hops)) continue;
+            arrowOn(path.get(longest - 1), path.get(longest), tip, len, half, fill, outline);
+            return;
+        }
+    }
+
+    /** Whether an arrowhead ending {@code tip} along the wire keeps off every hop, with its own length to spare. */
+    private static boolean offHops(final float tip, final float len, final List<float[]> hops) {
+        for (final float[] span : hops) {
+            if (tip > span[0] - len && tip - len < span[1] + len) return false;
+        }
+        return true;
     }
 
     /** An arrowhead on the run from a to b, its tip {@code tip} along it. */
@@ -475,15 +525,21 @@ final class WireLayer {
      */
     private static void segment(final float ax, final float ay, final float bx, final float by, final float width,
         final int color) {
-        final float h = width / 2;
+        segment(ax, ay, bx, by, width, color, true);
+    }
+
+    /** A run {@code width} wide; with {@code caps} it reaches half a width past each end, so runs join at corners. */
+    private static void segment(final float ax, final float ay, final float bx, final float by, final float width,
+        final int color, final boolean caps) {
+        final float h = width / 2, c = caps ? h : 0;
         if (ay == by) {
-            Hyb.rect(Math.min(ax, bx) - h, ay - h, Math.abs(bx - ax) + width, width, color);
+            Hyb.rect(Math.min(ax, bx) - c, ay - h, Math.abs(bx - ax) + 2 * c, width, color);
         } else if (ax == bx) {
-            Hyb.rect(ax - h, Math.min(ay, by) - h, width, Math.abs(by - ay) + width, color);
+            Hyb.rect(ax - h, Math.min(ay, by) - c, width, Math.abs(by - ay) + 2 * c, color);
         } else {
             final float len = (float) Math.hypot(bx - ax, by - ay), ux = (bx - ax) / len, uy = (by - ay) / len;
-            // Along (u) and across (v) the run, half a width each way.
-            final float x0 = ax - ux * h, y0 = ay - uy * h, x1 = bx + ux * h, y1 = by + uy * h;
+            // Along (u) and across (v) the run, half a width each way (along only with caps).
+            final float x0 = ax - ux * c, y0 = ay - uy * c, x1 = bx + ux * c, y1 = by + uy * c;
             final float vx = -uy * h, vy = ux * h;
             Hyb.triangle(x0 + vx, y0 + vy, x1 + vx, y1 + vy, x1 - vx, y1 - vy, color);
             Hyb.triangle(x0 + vx, y0 + vy, x1 - vx, y1 - vy, x0 - vx, y0 - vy, color);
