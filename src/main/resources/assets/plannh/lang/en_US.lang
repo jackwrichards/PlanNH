@@ -236,6 +236,5 @@ plannh.summary.help.move=[LMB drag] move node
 plannh.summary.help.nei=[R/U] open NEI
 plannh.summary.help.add_recipe=[+ in NEI GUI] add recipe
 
-key.plannh.plan_item=Plan the item under the mouse (Shift: what uses it)
 key.neiflowchart.open=Open the planner
 key.categories.neiflowchart=PlanNH

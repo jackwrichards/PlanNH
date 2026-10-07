@@ -114,7 +114,7 @@ public final class BoardScreen extends ModularScreen {
                 28,
                 session::togglePeakPower));
         topBar
-            .child(key(() -> "Arrange", () -> true, "Lay the plan out left to right (undoable)", 42, canvas::arrange));
+            .child(key(() -> "Arrange", () -> true, "Lay the plan out left to right (undoable)", 52, canvas::arrange));
         topBar.child(key(() -> "Fit", () -> true, "Fit the whole plan in view", 24, canvas::frameAll));
         topBar.child(key(() -> "?", () -> true, "How the board works", 16, () -> showHelp(panel)));
 

@@ -37,7 +37,7 @@ import com.sbancuz.plannh.ui.theme.Hyb;
 final class OverviewRail extends ParentWidget<OverviewRail>
     implements Interactable, com.cleanroommc.modularui.integration.recipeviewer.RecipeViewerIngredientProvider {
 
-    static final int W = 248;
+    static final int W = 198;
     static final int W_FOLDED = 14;
 
     private static final int HEAD_H = 18, FILTER_Y = 20, FILTER_H = 14, LIST_Y = 38;
@@ -289,6 +289,8 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         final List<BoardSession.TotalLine> shown = new ArrayList<>();
         for (final BoardSession.TotalLine line : lines) if (matches(line.label())) shown.add(line);
         y = section(title, lines.size(), shown.size(), y, w, ink, hover);
+        final int rateRight = title.equals("INTERNAL") ? w - 6 : w - 6 - CONTROLS_W - 4;
+        if (!folded.contains(title)) Hyb.textRight(session.rateUnit().suffix, rateRight, y - SECTION_H + 4, Hyb.MUTED);
         if (folded.contains(title)) return y + GAP;
         if (shown.isEmpty()) {
             Hyb.text(lines.isEmpty() ? empty : "No matches.", 8, y + 5, 0xFF6A6C74);
@@ -313,9 +315,9 @@ final class OverviewRail extends ParentWidget<OverviewRail>
             else Hyb.item(line.item(), 4, y + 1, 16, z);
             // What the plan moves, right-aligned against the controls so the numbers line up down the list.
             final String number = (line.amount() > 0 ? sign : "") + Fmt.compact(line.amount() * unit.perSecond);
-            final String suffix = (line.isFluid() ? " L" : "") + unit.suffix;
+            // The time unit is the same on every line, so it is said once, in the section's header.
+            final String suffix = line.isFluid() ? " L" : "";
             final int rateW = Hyb.width(number) + Hyb.width(suffix) + 1;
-            final int rateRight = title.equals("INTERNAL") ? w - 6 : w - 6 - CONTROLS_W - 4;
             Hyb.text(Hyb.fit(line.label(), rateRight - rateW - 6 - 23), 23, y + 5, Hyb.INK);
             Hyb.text(number, rateRight - rateW, y + 5, line.amount() > 0 ? ink : Hyb.MUTED);
             Hyb.text(suffix, rateRight - Hyb.width(suffix), y + 5, Hyb.MUTED);
@@ -365,7 +367,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
     }
 
     /** The rule key and the rate box, as the drawer card wears them, at the right of a line. */
-    private static final int RULE_W = 22, BOX_W = 52, CONTROLS_W = RULE_W + 2 + BOX_W;
+    private static final int RULE_W = 20, BOX_W = 40, CONTROLS_W = RULE_W + 2 + BOX_W;
 
     private void drawerControls(final DrawerModel d, final int y, final int w, final Hit hover) {
         final int bx = w - 6 - BOX_W, rx = bx - 2 - RULE_W, h = 14;
@@ -390,13 +392,12 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         if (empty) Hyb.text("§orate?", bx + 4, y + 3, 0xFF6F737C);
         else {
             final Fmt.RateUnit unit = session.rateUnit();
-            final String suffix = (d.isFluid() ? "L" : "") + unit.suffix;
+            // In the line's own unit, as the number beside it.
             Hyb.text(
-                Hyb.fit(Fmt.compact(target * unit.perSecond), BOX_W - 8 - Hyb.width(suffix)),
+                Hyb.fit(Fmt.compact(target * unit.perSecond), BOX_W - 7),
                 bx + 4,
                 y + 3,
                 d.unmet ? 0xFFF87171 : Hyb.GOLD);
-            Hyb.textRight(suffix, bx + BOX_W - 3, y + 3, 0xFF8A8E97);
         }
         hits.add(new Hit(Kind.RULE, rx, y, rx + RULE_W, y + h, d));
         hits.add(new Hit(Kind.RATE, bx, y, bx + BOX_W, y + h, d));

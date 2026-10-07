@@ -19,7 +19,7 @@ import com.sbancuz.plannh.ui.theme.Hyb;
  */
 final class PlanTabs extends Widget<PlanTabs> implements Interactable {
 
-    private static final int TAB_MAX = 110;
+    private static final int TAB_MAX = 110, TAB_MIN = 28;
     private static final int PLUS = 16;
 
     private final BoardSession session;
@@ -32,18 +32,33 @@ final class PlanTabs extends Widget<PlanTabs> implements Interactable {
         return Math.min(TAB_MAX, Hyb.width(g.getName()) + 14);
     }
 
-    /** {x, width} of each tab, then the "+" key, as far as they fit. */
+    /**
+     * {x, width} of each tab, then the "+" key. When they do not all fit, the widest give way first (their names cut
+     * short) so every plan keeps a tab; past {@link #TAB_MIN} the rest are left off.
+     */
     private List<int[]> layout() {
+        final List<Graph> slots = session.slots();
+        final int[] natural = new int[slots.size()];
+        for (int i = 0; i < natural.length; i++) natural[i] = tabWidth(slots.get(i));
+        final int room = getArea().width - PLUS - 2 * natural.length;
+        int cap = TAB_MAX;
+        while (cap > TAB_MIN && cappedWidth(natural, cap) > room) cap--;
         final List<int[]> out = new ArrayList<>();
         int x = 0;
-        for (final Graph g : session.slots()) {
-            final int w = tabWidth(g);
+        for (final int n : natural) {
+            final int w = Math.min(n, cap);
             if (x + w + PLUS > getArea().width) break;
             out.add(new int[] { x, w });
             x += w + 2;
         }
         out.add(new int[] { x, PLUS });
         return out;
+    }
+
+    private static int cappedWidth(final int[] natural, final int cap) {
+        int sum = 0;
+        for (final int n : natural) sum += Math.min(n, cap);
+        return sum;
     }
 
     private int indexAtMouse() {

@@ -165,7 +165,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             // An empty board says how to start.
             Hyb.textCentered("Nothing here yet.", a.width / 2f, a.height / 2f - 14, Hyb.MUTED);
             Hyb.textCentered(
-                "Look an item up in NEI (R, or P) and press + on a recipe,",
+                "Look an item up in NEI (R or U) and press + on a recipe,",
                 a.width / 2f,
                 a.height / 2f,
                 0xFF6A6C74);
