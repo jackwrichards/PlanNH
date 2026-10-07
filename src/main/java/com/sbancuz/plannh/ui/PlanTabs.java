@@ -33,20 +33,23 @@ final class PlanTabs extends Widget<PlanTabs> implements Interactable {
     }
 
     /**
-     * {x, width} of each tab, then the "+" key. When they do not all fit, the widest give way first (their names cut
-     * short) so every plan keeps a tab; past {@link #TAB_MIN} the rest are left off.
+     * {x, width} of each tab, then the "+" key. When they do not all fit, the open plan keeps its whole name and the
+     * others give way, the widest first (their names cut short), so every plan keeps a tab; past {@link #TAB_MIN} the
+     * rest are left off.
      */
     private List<int[]> layout() {
         final List<Graph> slots = session.slots();
         final int[] natural = new int[slots.size()];
         for (int i = 0; i < natural.length; i++) natural[i] = tabWidth(slots.get(i));
-        final int room = getArea().width - PLUS - 2 * natural.length;
+        final int active = session.activeSlot();
+        final int open = active >= 0 && active < natural.length ? natural[active] : 0;
+        final int room = getArea().width - PLUS - 2 * natural.length - open;
         int cap = TAB_MAX;
-        while (cap > TAB_MIN && cappedWidth(natural, cap) > room) cap--;
+        while (cap > TAB_MIN && cappedWidth(natural, cap, active) > room) cap--;
         final List<int[]> out = new ArrayList<>();
         int x = 0;
-        for (final int n : natural) {
-            final int w = Math.min(n, cap);
+        for (int i = 0; i < natural.length; i++) {
+            final int w = i == active ? natural[i] : Math.min(natural[i], cap);
             if (x + w + PLUS > getArea().width) break;
             out.add(new int[] { x, w });
             x += w + 2;
@@ -55,9 +58,17 @@ final class PlanTabs extends Widget<PlanTabs> implements Interactable {
         return out;
     }
 
-    private static int cappedWidth(final int[] natural, final int cap) {
+    /** While the plan solves, a short cyan line runs along the bottom of its tab. */
+    private static void solving(final int x, final int w, final int h) {
+        final int seg = Math.max(8, w / 3);
+        final int at = (int) ((w + seg) * (System.currentTimeMillis() % 900) / 900) - seg;
+        final int from = Math.max(1, at), to = Math.min(w - 1, at + seg);
+        if (to > from) Hyb.rect(x + from, h - 2, to - from, 1, 0xFF22D3EE);
+    }
+
+    private static int cappedWidth(final int[] natural, final int cap, final int except) {
         int sum = 0;
-        for (final int n : natural) sum += Math.min(n, cap);
+        for (int i = 0; i < natural.length; i++) if (i != except) sum += Math.min(natural[i], cap);
         return sum;
     }
 
@@ -84,6 +95,7 @@ final class PlanTabs extends Widget<PlanTabs> implements Interactable {
                 Hyb.rect(x, 0, w, h, Hyb.RING);
                 Hyb.rect(x + 1, 1, w - 2, h - 1, Hyb.FRAME);
                 Hyb.rect(x + 1, 1, w - 2, 1, Hyb.HIGHLIGHT);
+                if (session.solvingVisibly()) solving(x, w, h);
             } else {
                 Hyb.rect(x, 1, w, h - 1, hover == i ? 0xFF2D2F35 : 0xFF1C1E22);
             }

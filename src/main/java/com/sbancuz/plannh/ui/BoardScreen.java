@@ -9,13 +9,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.item.ItemStack;
 
 import com.cleanroommc.modularui.api.drawable.IDrawable;
-import com.cleanroommc.modularui.api.drawable.IKey;
 import com.cleanroommc.modularui.api.widget.IWidget;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.ModularScreen;
 import com.cleanroommc.modularui.screen.UISettings;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
-import com.cleanroommc.modularui.widgets.TextWidget;
 import com.cleanroommc.modularui.widgets.layout.Flow;
 import com.sbancuz.plannh.PlanNH;
 import com.sbancuz.plannh.nei.NEIPlanConfig;
@@ -90,63 +88,59 @@ public final class BoardScreen extends ModularScreen {
                 Hyb.rect(x, y, w, h, 0xFF0E0F12);
                 Hyb.rect(x, y + h - 1, w, 1, 0xFF2A2C31);
             });
+        // The tabs take all the room the keys leave; the keys come in groups, a gap between each: editing, the view,
+        // the library, then help.
         topBar.child(
-            new PlanTabs(session).width(320)
+            new PlanTabs(session).expanded()
                 .height(16));
-        topBar.child(key(() -> "Undo", session::canUndo, "Undo (Ctrl+Z)", 30, session::undo));
-        topBar.child(key(() -> "Redo", session::canRedo, "Redo (Ctrl+Shift+Z)", 30, session::redo));
-        topBar.child(
-            new TextWidget<>(
-                IKey.dynamic(
-                    () -> session.solvingVisibly()
-                        ? "Solving" + ".".repeat((int) (System.currentTimeMillis() / 400 % 4))
-                        : "")).color(Hyb.MUTED)
-                            .shadow(true)
-                            .heightRel(1f)
-                            .expanded());
+        topBar.child(iconKey(Arrow.UNDO, session::canUndo, "Undo\n§7Ctrl+Z", session::undo).marginLeft(GROUP_GAP));
+        topBar.child(iconKey(Arrow.REDO, session::canRedo, "Redo\n§7Ctrl+Shift+Z or Ctrl+Y", session::redo));
         topBar.child(
             key(
-                () -> library.open ? "Board" : "Library",
+                () -> "Arrange",
                 () -> true,
-                "Public setups from gtnhplanner.com: browse them and open one as a plan\n"
-                    + "§7The same library as the website's; nothing is fetched until you open it",
-                44,
-                () -> library.set(!library.open)));
+                "Lay the plan out left to right\n§7One step: Undo puts it back",
+                fit("Arrange"),
+                canvas::arrange).marginLeft(GROUP_GAP));
+        topBar.child(key(() -> "Fit", () -> true, "Fit the whole plan in view", fit("Fit"), canvas::frameAll));
         topBar.child(
             key(
                 () -> session.rateUnit().suffix,
                 () -> true,
-                "Rate unit",
-                30,
+                "Rates per tick, second, minute or hour\n§7Click: the next one",
+                fit("/t", "/s", "/min", "/hr"),
                 () -> session.setRateUnit(
                     session.rateUnit()
-                        .next())));
+                        .next())).marginLeft(GROUP_GAP));
         topBar.child(
             key(
                 () -> session.powerKey() == BoardSession.PowerKey.EU ? "EU/t" : "Amps",
                 () -> true,
-                "Power: EU/t, or amps at each card's tier",
-                30,
+                "Power in EU/t, or in amps at each card's tier\n§7Click: switch",
+                fit("EU/t", "Amps"),
                 session::togglePowerKey));
         topBar.child(
             key(
                 () -> session.peakPower() ? "Peak" : "Avg",
                 () -> true,
-                "Power: average (solved machines) or peak (every machine running)",
-                28,
+                "Power on average, or at peak\n§7Average counts the machines the plan needs; peak, every machine running at once",
+                fit("Peak", "Avg"),
                 session::togglePeakPower));
-        topBar
-            .child(key(() -> "Arrange", () -> true, "Lay the plan out left to right (undoable)", 52, canvas::arrange));
-        topBar.child(key(() -> "Fit", () -> true, "Fit the whole plan in view", 24, canvas::frameAll));
         topBar.child(
             key(
-                () -> "Feedback",
+                () -> library.open ? "Board" : "Library",
                 () -> true,
-                "Report a bug, or talk about PlanNH's development\n"
+                "Public setups from gtnhplanner.com\n§7Browse them and open one as a plan. Nothing is fetched until you open it",
+                fit("Library", "Board"),
+                () -> library.set(!library.open)).marginLeft(GROUP_GAP));
+        topBar.child(
+            iconKey(
+                Arrow.FEEDBACK,
+                () -> true,
+                "Feedback: report a bug, or talk about PlanNH's development\n"
                     + "§7It's a thread on the GT New Horizons Discord: join that server first to see it\n"
                     + "Click: open it in your browser",
-                54,
-                BoardScreen::openFeedback));
+                BoardScreen::openFeedback).marginLeft(GROUP_GAP));
         topBar.child(key(() -> "?", () -> true, "How the board works", 16, () -> showHelp(panel)));
 
         final Flow column = Flow.column()
@@ -265,6 +259,61 @@ public final class BoardScreen extends ModularScreen {
             });
         KEY_TIPS.put(button, tooltip);
         return button;
+    }
+
+    /** Between groups of keys in the top bar. */
+    private static final int GROUP_GAP = 6;
+
+    /** A key's width for the widest label it shows: the same padding either side of every label. */
+    private static int fit(final String... labels) {
+        int w = 0;
+        for (final String l : labels) w = Math.max(w, Hyb.width(l));
+        return w + 12;
+    }
+
+    /** The pictures drawn on the small keys. */
+    private enum Arrow {
+        UNDO,
+        REDO,
+        FEEDBACK
+    }
+
+    /** A small key with an arrow drawn on it (the game's font has none), for undo and redo. */
+    private static ButtonWidget<?> iconKey(final Arrow arrow, final BooleanSupplier enabled, final String tooltip,
+        final Runnable action) {
+        final ButtonWidget<?> button = key(() -> "", enabled, tooltip, 18, action);
+        button.overlay(
+            (IDrawable) (ctx, x, y, w, h, theme) -> drawArrow(
+                arrow,
+                x + (w - 9) / 2,
+                y + (h - 7) / 2,
+                enabled.getAsBoolean() ? Hyb.INK : 0xFF5A5C65));
+        return button;
+    }
+
+    /**
+     * 9 by 7: a hooked arrow, its head pointing left for undo and right for redo, its tail curling under; for feedback,
+     * a speech bubble.
+     */
+    private static void drawArrow(final Arrow arrow, final int x, final int y, final int c) {
+        if (arrow == Arrow.FEEDBACK) {
+            Hyb.rect(x + 1, y, 7, 1, c);
+            Hyb.rect(x, y + 1, 1, 3, c);
+            Hyb.rect(x + 8, y + 1, 1, 3, c);
+            Hyb.rect(x + 1, y + 4, 7, 1, c);
+            Hyb.rect(x + 2, y + 5, 2, 1, c);
+            Hyb.rect(x + 2, y + 6, 1, 1, c);
+            for (int d = 0; d < 3; d++) Hyb.rect(x + 2 + 2 * d, y + 2, 1, 1, c);
+            return;
+        }
+        final boolean undo = arrow == Arrow.UNDO;
+        // Pixel runs {dx, dy, length} for undo; redo is the mirror.
+        final int[][] runs = { { 2, 0, 1 }, { 1, 1, 2 }, { 0, 2, 7 }, { 1, 3, 2 }, { 7, 3, 1 }, { 2, 4, 1 },
+            { 8, 4, 1 }, { 8, 5, 1 }, { 4, 6, 4 } };
+        for (final int[] r : runs) {
+            final int dx = undo ? r[0] : 9 - r[0] - r[2];
+            Hyb.rect(x + dx, y + r[1], r[2], 1, c);
+        }
     }
 
     public BoardSession session() {

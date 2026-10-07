@@ -43,6 +43,8 @@ public final class Tip {
     private static final int PAD_X = 6, PAD_Y = 5, LINE = 10, MAX_W = 220;
 
     private final String title;
+    /** The title over as many lines as it takes at {@link #MAX_W}: a long one never runs out of the panel. */
+    private final List<String> titleLines;
     private String subtitle;
     private int titleColor = TITLE;
     private final List<Row> rows = new ArrayList<>();
@@ -51,6 +53,9 @@ public final class Tip {
 
     private Tip(final String title) {
         this.title = title == null ? "" : title;
+        this.titleLines = Hyb.width(this.title) <= MAX_W ? List.of(this.title)
+            : Hyb.font()
+                .listFormattedStringToWidth(this.title, MAX_W);
     }
 
     public static Tip of(final String title) {
@@ -169,7 +174,8 @@ public final class Tip {
     }
 
     private int contentWidth() {
-        int w = Hyb.width(title);
+        int w = 0;
+        for (final String line : titleLines) w = Math.max(w, Hyb.width(line));
         if (subtitle != null) w = Math.max(w, Hyb.width(subtitle));
         for (final Row r : rows) w = Math.max(w, Hyb.width(r.label) + 14 + Hyb.width(r.value));
         for (final Note n : notes) w = Math.max(w, Hyb.width(n.text));
@@ -187,7 +193,7 @@ public final class Tip {
     }
 
     public int height() {
-        int h = LINE;
+        int h = LINE * titleLines.size();
         if (subtitle != null) h += LINE;
         if (!rows.isEmpty()) h += 3 + rows.size() * LINE;
         if (!notes.isEmpty()) h += 3 + notes.size() * LINE;
@@ -247,8 +253,10 @@ public final class Tip {
         chrome(x, y, w, h);
         final int left = x + PAD_X, right = left + cw;
         int ty = y + PAD_Y;
-        Hyb.text(title, left, ty, titleColor);
-        ty += LINE;
+        for (final String line : titleLines) {
+            Hyb.text(line, left, ty, titleColor);
+            ty += LINE;
+        }
         if (subtitle != null) {
             Hyb.text(subtitle, left, ty, SUBTLE);
             ty += LINE;

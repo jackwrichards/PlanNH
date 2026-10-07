@@ -321,6 +321,14 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         };
     }
 
+    /**
+     * A rule's mark where a line of text at {@code y} would go, centred on that line: the font draws "~" at the very
+     * top of its cell, so it comes down to the middle like the others.
+     */
+    public static void drawRuleMark(final Drawer.Rule rule, final float x, final float y, final int color) {
+        Hyb.text(ruleMark(rule), x, y + (rule == Drawer.Rule.ANY ? 2.5f : 0), color);
+    }
+
     public static String ruleMark(final Drawer.Rule rule) {
         return switch (rule) {
             case ANY -> "~";
@@ -336,7 +344,7 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         Hyb.rect(RULE_X + 1, ROW_Y + 1, RULE_W - 2, ROW_H - 2, hover ? 0xFF454952 : 0xFF34373E);
         Hyb.rect(RULE_X + 1, ROW_Y + 1, RULE_W - 2, 1, 0x1FFFFFFF);
         final int markColor = m.rule == Drawer.Rule.ANY ? Hyb.MUTED : Hyb.GOLD;
-        Hyb.text(ruleMark(m.rule), RULE_X + 4, ROW_Y + 3, markColor);
+        drawRuleMark(m.rule, RULE_X + 4, ROW_Y + 3, markColor);
         final int cx = RULE_X + RULE_W - 9, cy = ROW_Y + 6;
         Hyb.rect(cx, cy, 5, 1, markColor);
         Hyb.rect(cx + 1, cy + 1, 3, 1, markColor);

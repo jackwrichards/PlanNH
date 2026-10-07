@@ -256,7 +256,8 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         for (final BoardSession.TotalLine line : lines) if (matches(line.label())) shown.add(line);
         y = section(title, lines.size(), shown.size(), y, w, ink, hover);
         final int rateRight = title.equals("INTERNAL") ? w - 6 : w - 6 - CONTROLS_W - 4;
-        if (!folded.contains(title)) Hyb.textRight(session.rateUnit().suffix, rateRight, y - SECTION_H + 4, Hyb.MUTED);
+        // The unit every rate below is in, at the header's end.
+        if (!folded.contains(title)) Hyb.textRight(session.rateUnit().suffix, w - 6, y - SECTION_H + 4, Hyb.MUTED);
         if (folded.contains(title)) return y + GAP;
         if (shown.isEmpty()) {
             Hyb.text(lines.isEmpty() ? empty : "No matches.", 8, y + 5, 0xFF6A6C74);
@@ -344,7 +345,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         Hyb.rect(rx, y, RULE_W, h, 0xFF111317);
         Hyb.rect(rx + 1, y + 1, RULE_W - 2, h - 2, ruleHot ? 0xFF454952 : 0xFF34373E);
         Hyb.rect(rx + 1, y + 1, RULE_W - 2, 1, 0x1FFFFFFF);
-        Hyb.text(DrawerCard.ruleMark(d.rule), rx + 4, y + 3, mark);
+        DrawerCard.drawRuleMark(d.rule, rx + 4, y + 3, mark);
         Hyb.rect(rx + RULE_W - 9, y + 6, 5, 1, mark);
         Hyb.rect(rx + RULE_W - 8, y + 7, 3, 1, mark);
         Hyb.rect(rx + RULE_W - 7, y + 8, 1, 1, mark);
