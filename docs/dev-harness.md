@@ -46,12 +46,12 @@ is a thin curl wrapper. Every request waits until the game has processed it, so 
 | `/status` | `ready`, `inWorld`, `screen`, `muiScreen`, `hovered` and `focused` widgets, `windowActive` (the owner has the game focused), `fps`, display size, `guiWidth`/`guiHeight`/`guiScale`, mouse position |
 | `/open`, `/close` | open the flowchart (same as F8) / close the current screen |
 | `/screenshot?name=x.png[&x&y&w&h]` | save the next fully drawn frame, optionally cropped to a GUI-coordinate rectangle; returns the path |
-| `/widgets` | ModularUI widget tree of the current screen: type, name, x/y/w/h in GUI coordinates, children; open popups (menus, the recipe picker) under `popups` |
+| `/widgets` | ModularUI widget tree of the current screen: type, name, x/y/w/h in GUI coordinates, children; open popups (menus, number boxes) under `popups` |
 | `/move?x&y` | move the mouse (hover) |
 | `/click?x&y[&button=0][&count=1][&mods=shift]` | button 0 left, 1 right, 2 middle; `count=2` double-clicks; `mods` as for `/key` |
 | `/drag?x1&y1&x2&y2[&steps=10][&button=0][&mods=shift]` | press, move in steps (one per tick, and never two in one frame), release; `mods` held throughout (Shift-drag box-selects) |
 | `/scroll?x&y[&amount=1]` | wheel; positive is up |
-| `/key?code[&char][&mods=ctrl,shift]` | press + release an LWJGL2 key code (modifiers held around it) (`Keyboard.KEY_*`: 1 Esc, 28 Enter, 14 Backspace, 20 T, 66 F8) |
+| `/key?code[&char][&mods=ctrl,shift][&hold=ms]` | press + release an LWJGL2 key code (modifiers held around it; `hold` keeps it down that long) (`Keyboard.KEY_*`: 1 Esc, 28 Enter, 14 Backspace, 20 T, 66 F8) |
 | `/type?text` | type text into the focused field |
 | `/cmd?c=/time%20set%20day` | run a command as the player (client commands first, then chat) |
 | `/board` | the open board as data: zoom/pan, per card its state (tier, amps, coil, machines, pinned, ports) and the GUI rect of each control and port (`parts.TIER`, `parts.OUT1`, with `cx/cy`), per drawer its kind, rule, target, rate, unmet flag and parts, the edge count, `solving`, and the notices |

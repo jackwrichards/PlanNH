@@ -28,7 +28,6 @@ import com.sbancuz.plannh.data.flowchart.Edge;
 import com.sbancuz.plannh.data.flowchart.Graph;
 import com.sbancuz.plannh.data.flowchart.Node;
 import com.sbancuz.plannh.layout.AutoLayout;
-import com.sbancuz.plannh.nei.NodeLookupContext;
 import com.sbancuz.plannh.ui.BoardSession;
 import com.sbancuz.plannh.ui.card.CardLayout;
 import com.sbancuz.plannh.ui.card.CardModel;
@@ -37,7 +36,6 @@ import com.sbancuz.plannh.ui.drawer.DrawerCard;
 import com.sbancuz.plannh.ui.drawer.DrawerModel;
 import com.sbancuz.plannh.ui.popup.PickList;
 import com.sbancuz.plannh.ui.popup.Popup;
-import com.sbancuz.plannh.ui.popup.RecipePicker;
 import com.sbancuz.plannh.ui.theme.Hyb;
 
 /**
@@ -79,10 +77,19 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         boolean rebuild = builtStructure != session.structure();
         for (final RecipeCard card : cards.values()) rebuild |= card.shapeChanged();
         if (rebuild) rebuildCards();
-        if (reveal != null && cards.containsKey(reveal)) {
-            reveal(cards.get(reveal));
-            reveal = null;
+        final UUID added = session.takeJustAdded();
+        if (added != null) reveal = List.of(added);
+        if (!reveal.isEmpty() && reveal.stream()
+            .allMatch(id -> cards.containsKey(id) || drawers.containsKey(id))) {
+            final int[] box = box(reveal);
+            if (box != null) revealBox(box[0], box[1], box[2], box[3]);
+            reveal = List.of();
         }
+    }
+
+    /** Brings cards and drawers just added into view once their widgets exist. */
+    public void revealWhenBuilt(final List<UUID> ids) {
+        reveal = List.copyOf(ids);
     }
 
     private void rebuildCards() {
@@ -137,6 +144,9 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     @Override
     public void draw(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
         stepCamera();
+        stepMiddlePan();
+        stepPanGlide();
+        if (panning && !boxing || middlePan) samplePan();
         stepGlide();
         session.setHoverKey(hoveredResource());
         final Area a = getArea();
@@ -144,12 +154,15 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         if (cards.isEmpty() && drawers.isEmpty()) {
             // An empty board says how to start.
             Hyb.textCentered("Nothing here yet.", a.width / 2f, a.height / 2f - 14, Hyb.MUTED);
-            Hyb.textCentered("Press P over any item for its recipes,", a.width / 2f, a.height / 2f, 0xFF6A6C74);
-            Hyb.textCentered("press + on an NEI recipe page,", a.width / 2f, a.height / 2f + 11, 0xFF6A6C74);
+            Hyb.textCentered(
+                "Look an item up in NEI (R, or P) and press + on a recipe,",
+                a.width / 2f,
+                a.height / 2f,
+                0xFF6A6C74);
             Hyb.textCentered(
                 "or drag an item out of NEI's list and click here.",
                 a.width / 2f,
-                a.height / 2f + 22,
+                a.height / 2f + 11,
                 0xFF6A6C74);
         }
         final float zoom = graph().getZoom();
@@ -237,6 +250,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
      * selected. Offsets snap to the grid as a whole, so things keep their alignment to each other.
      */
     public void beginMove(final UUID id) {
+        stopPanGlide();
         final java.util.List<UUID> ids = new ArrayList<>();
         if (session.isSelected(id)) {
             for (final UUID s : session.selection()) ids.add(s);
@@ -414,8 +428,8 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         if (drag == null) return;
         final int mx = getContext().getAbsMouseX(), my = getContext().getAbsMouseY();
         if (Math.abs(mx - drag.startX()) + Math.abs(my - drag.startY()) < 4) {
-            // A click, not a drag: what makes this input, or what uses this output.
-            openPortPicker(drag);
+            // A click, not a drag: NEI's recipes for this input, or uses of this output.
+            lookUpPort(drag);
             return;
         }
         if (!successful) return;
@@ -438,12 +452,16 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         session.dropPortOnBoard(drag.nodeId(), drag.output(), drag.port(), Math.round(wx), Math.round(wy));
     }
 
-    /** A click on a port: "What makes this?" for an input, "What uses this?" for an output. */
+    /** A click on a port: NEI's recipes that make an input, or that use an output. */
     public void clickPort(final UUID nodeId, final boolean output, final int port) {
-        openPortPicker(new PortDrag(nodeId, output, port, 0, 0));
+        lookUpPort(new PortDrag(nodeId, output, port, 0, 0));
     }
 
-    private void openPortPicker(final PortDrag drag) {
+    /**
+     * Opens NEI's own page for a port's resource: what makes an input, what uses an output. The recipe added from it
+     * with + lands beside this card, wired into this port. When NEI knows none, the port says so.
+     */
+    private void lookUpPort(final PortDrag drag) {
         final RecipeCard card = cards.get(drag.nodeId());
         if (card == null || card.model() == null) return;
         final List<CardModel.PortView> ports = drag.output() ? card.model().outputs : card.model().inputs;
@@ -451,53 +469,23 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         final ItemStack stack = ports.get(drag.port())
             .lookupStack();
         if (stack == null) return;
-        openRecipePicker(stack.copy(), drag.output(), new NodeLookupContext(drag.nodeId(), drag.output(), drag.port()));
-    }
-
-    /**
-     * Opens "What makes this?" ({@code uses} false) or "What uses this?" for an item. With an origin port, the recipe
-     * picked lands beside that card and wires only that resource into it; without one it is auto-wired.
-     */
-    public void openRecipePicker(final ItemStack stack, final boolean uses, @Nullable final NodeLookupContext origin) {
-        final Popup picker = RecipePicker.create(stack, uses, (handler, index) -> {
-            if (origin != null) session.armLookup(origin.nodeId(), origin.output(), origin.portIndex());
-            reveal = session.addRecipe(handler, index).id;
-        });
-        final int x, y;
-        if (origin != null && cards.get(origin.nodeId()) != null) {
-            final Node n = cards.get(origin.nodeId())
-                .model().node;
-            x = screenX(n.x + CardLayout.anchorX(origin.output())) + (origin.output() ? 4 : -RecipePicker.ROW * 16);
-            y = screenY(
-                n.y + cards.get(origin.nodeId())
-                    .layout()
-                    .anchorY(origin.output(), origin.portIndex()));
-        } else {
-            x = getArea().x + getArea().width / 2 - 180;
-            y = getArea().y + 30;
-        }
-        if (picker != null) {
-            Popup.open(getPanel(), picker, x, y);
-            return;
-        }
-        final String name = stack.getDisplayName();
+        session.armLookup(drag.nodeId(), drag.output(), drag.port());
+        if (com.sbancuz.plannh.ui.Planner.lookUp(stack.copy(), drag.output())) return;
+        session.disarmLookup();
+        final Node n = card.model().node;
+        final String none = (drag.output() ? "Nothing uses " : "Nothing makes ") + stack.getDisplayName();
         Popup.open(
             getPanel(),
             PickList.popup(
                 "plannh_none",
                 null,
-                List.of(
-                    new PickList.Entry(
-                        stack,
-                        (uses ? "Nothing uses " : "Nothing makes ") + name,
-                        "",
-                        Hyb.MUTED,
-                        false,
-                        () -> {})),
+                List.of(new PickList.Entry(stack, none, "", Hyb.MUTED, false, () -> {})),
                 false,
                 160),
-            x,
-            y);
+            screenX(n.x + CardLayout.anchorX(drag.output())) + (drag.output() ? 4 : -164),
+            screenY(
+                n.y + card.layout()
+                    .anchorY(drag.output(), drag.port())));
     }
 
     private static boolean inside(final int x, final int y, final int w, final int h, final float px, final float py) {
@@ -527,8 +515,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     // endregion
 
     /**
-     * An item dragged in from NEI's list and dropped on the board: offers it as a drawer there (source or
-     * product), or its recipes.
+     * An item dragged in from NEI's list and dropped on the board: offers it as a drawer there, a product or a source.
      */
     public void dropNeiItem(final ItemStack stack, final int screenX, final int screenY) {
         final int wx = Math.round(worldX(screenX)), wy = Math.round(worldY(screenY));
@@ -553,25 +540,28 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
                 false,
                 () -> session
                     .addDrawer(Drawer.Kind.SOURCE, key, label, wx - DrawerCard.W / 2, wy - DrawerCard.ANCHOR_Y)));
-        rows.add(PickList.Entry.of("What makes this?", () -> openRecipePicker(stack, false, null)));
-        rows.add(PickList.Entry.of("What uses this?", () -> openRecipePicker(stack, true, null)));
         Popup.open(getPanel(), PickList.popup("plannh_drop", null, rows, false, 150), screenX, screenY);
     }
 
     // region Show me
 
-    /** A card just added from the picker; brought into view once its widget exists. */
-    private UUID reveal;
+    /** Cards and drawers just added (from NEI, or pasted); brought into view once their widgets exist. */
+    private List<UUID> reveal = List.of();
 
-    /** Pans the least needed to show a whole card (with a margin), keeping the zoom. */
-    private void reveal(final RecipeCard card) {
-        if (card.model() == null || card.layout() == null) return;
-        final Node n = card.model().node;
+    /**
+     * Pans the least needed to show a world box (with a margin), keeping the zoom; frames it instead when it is bigger
+     * than the view.
+     */
+    private void revealBox(final int x0, final int y0, final int x1, final int y1) {
         final Graph g = graph();
         final float z = g.getZoom(), m = 16;
-        final float left = g.getPanX() + n.x * z, right = g.getPanX() + (n.x + CardLayout.W) * z;
-        final float top = g.getPanY() + n.y * z, bottom = g.getPanY() + (n.y + card.layout().height) * z;
         final int w = getArea().width, h = getArea().height;
+        if ((x1 - x0) * z > w - 2 * m || (y1 - y0) * z > h - 2 * m) {
+            frameBox(x0, y0, x1, y1);
+            return;
+        }
+        final float left = g.getPanX() + x0 * z, right = g.getPanX() + x1 * z;
+        final float top = g.getPanY() + y0 * z, bottom = g.getPanY() + y1 * z;
         float panX = g.getPanX(), panY = g.getPanY();
         if (left < m) panX += m - left;
         else if (right > w - m) panX -= Math.min(right - (w - m), left - m);
@@ -593,6 +583,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
      * point under it still.
      */
     private void moveCamera(final float zoom, final float wx, final float wy, final float sx, final float sy) {
+        stopPanGlide();
         final Graph g = graph();
         fromZoom = g.getZoom();
         fromWX = (sx - g.getPanX()) / fromZoom;
@@ -881,22 +872,176 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     @Override
     public Result onMousePressed(final int mouseButton) {
         if (mouseButton == 1) return openWireMenu() ? Result.SUCCESS : Result.IGNORE;
-        return mouseButton == 0 || mouseButton == 2 ? Result.ACCEPT : Result.IGNORE;
+        return mouseButton == 0 ? Result.ACCEPT : Result.IGNORE;
+    }
+
+    // region Pan glide
+
+    /**
+     * Let go of a pan while moving and the board drifts on briefly, as on the website: released motion bleeds off over
+     * {@value #GLIDE_TAU_MS} ms; a slow or parked release does not glide.
+     */
+    private static final double GLIDE_TAU_MS = 100, GLIDE_STOP_PX_MS = 0.01, GLIDE_START_PX_MS = 0.04;
+    private static final double GLIDE_STALE_MS = 90, GLIDE_MIN_SPAN_MS = 30;
+    /** Recent pans as {time ms, panX, panY}, the last 120 ms at most. */
+    private final java.util.ArrayDeque<double[]> panSamples = new java.util.ArrayDeque<>();
+    private double glideVX, glideVY, glideLast;
+
+    private void samplePan() {
+        final double now = System.nanoTime() / 1e6;
+        panSamples.addLast(new double[] { now, graph().getPanX(), graph().getPanY() });
+        while (panSamples.size() > 8 || panSamples.size() > 2 && panSamples.peekFirst()[0] < now - 120)
+            panSamples.removeFirst();
+    }
+
+    private void startPanGlide() {
+        final double now = System.nanoTime() / 1e6;
+        if (panSamples.size() >= 2) {
+            final double[] oldest = panSamples.peekFirst(), newest = panSamples.peekLast();
+            final double span = newest[0] - oldest[0];
+            if (span >= GLIDE_MIN_SPAN_MS && now - newest[0] <= GLIDE_STALE_MS) {
+                final double vx = (newest[1] - oldest[1]) / span, vy = (newest[2] - oldest[2]) / span;
+                if (Math.hypot(vx, vy) >= GLIDE_START_PX_MS) {
+                    glideVX = vx;
+                    glideVY = vy;
+                    glideLast = now;
+                }
+            }
+        }
+        panSamples.clear();
+    }
+
+    /** A hand on the board, or the camera moving on its own, stops a glide dead. */
+    private void stopPanGlide() {
+        glideVX = glideVY = 0;
+        panSamples.clear();
+    }
+
+    /**
+     * Held pan keys (WASD, arrows) ease up to this speed in GUI pixels per ms: the website's 1.05 screen pixels per ms
+     * at GUI scale 2.
+     */
+    private static final double KEY_CRUISE_PX_MS = 0.55, KEY_ACCEL_TAU_MS = 70;
+
+    private void stepPanGlide() {
+        final double now = System.nanoTime() / 1e6, dt = Math.min(50, now - glideLast);
+        glideLast = now;
+        final int[] keys = heldPanKeys();
+        if (keys != null) {
+            // Held keys steer the same velocity a fling leaves: they ease up to cruise, and glide out when let go.
+            final double len = Math.hypot(keys[0], keys[1]);
+            final double approach = 1 - Math.exp(-dt / KEY_ACCEL_TAU_MS);
+            glideVX += (KEY_CRUISE_PX_MS * keys[0] / len - glideVX) * approach;
+            glideVY += (KEY_CRUISE_PX_MS * keys[1] / len - glideVY) * approach;
+        } else if (glideVX == 0 && glideVY == 0) return;
+        graph().setPanX((float) (graph().getPanX() + glideVX * dt));
+        graph().setPanY((float) (graph().getPanY() + glideVY * dt));
+        if (keys != null) return;
+        final double decay = Math.exp(-dt / GLIDE_TAU_MS);
+        glideVX *= decay;
+        glideVY *= decay;
+        if (Math.hypot(glideVX, glideVY) < GLIDE_STOP_PX_MS) glideVX = glideVY = 0;
+    }
+
+    /**
+     * The direction the board moves for the pan keys held now (W/A/S/D or the arrows; the board moves opposite the
+     * camera), or null when none is held or the keys belong to something else: a text field, NEI's search, a popup, or
+     * a
+     * Ctrl/Alt shortcut (Ctrl+A, Ctrl+S...).
+     */
+    @Nullable
+    private int[] heldPanKeys() {
+        if (net.minecraft.client.gui.GuiScreen.isCtrlKeyDown()
+            || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_LMENU)
+            || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_RMENU)) return null;
+        final int x = (held(org.lwjgl.input.Keyboard.KEY_A, org.lwjgl.input.Keyboard.KEY_LEFT) ? 1 : 0)
+            - (held(org.lwjgl.input.Keyboard.KEY_D, org.lwjgl.input.Keyboard.KEY_RIGHT) ? 1 : 0);
+        final int y = (held(org.lwjgl.input.Keyboard.KEY_W, org.lwjgl.input.Keyboard.KEY_UP) ? 1 : 0)
+            - (held(org.lwjgl.input.Keyboard.KEY_S, org.lwjgl.input.Keyboard.KEY_DOWN) ? 1 : 0);
+        if (x == 0 && y == 0) return null;
+        if (com.sbancuz.plannh.ui.BoardScreen.textFocused(getScreen())
+            || codechicken.nei.LayoutManager.getInputFocused() != null
+            || getScreen().getPanelManager()
+                .getTopMostPanel() instanceof Popup)
+            return null;
+        return new int[] { x, y };
+    }
+
+    private static boolean held(final int key, final int alt) {
+        return org.lwjgl.input.Keyboard.isKeyDown(key) || org.lwjgl.input.Keyboard.isKeyDown(alt);
+    }
+
+    // endregion
+
+    /** Whether the middle button is panning the board: from anywhere on it, over cards too, as on the website. */
+    private boolean middlePan;
+
+    /**
+     * Starts a middle-button pan. ModularUI only drags with the left button, so the screen starts this on the press,
+     * the pan follows the mouse frame by frame, and the screen ends it on the release.
+     */
+    public void beginMiddlePan() {
+        stopPanGlide();
+        cameraStart = -1;
+        middlePan = true;
+        panStartX = graph().getPanX();
+        panStartY = graph().getPanY();
+        panMouseX = getContext().getAbsMouseX();
+        panMouseY = getContext().getAbsMouseY();
+    }
+
+    /**
+     * A middle-click that did not pan: on a drawer's rule or rate it clears the drawer back to "rate?", as on the
+     * website.
+     */
+    private void middleClick() {
+        for (final DrawerCard d : drawers.values()) {
+            final DrawerCard.Part part = d.partUnderMouse();
+            if ((part == DrawerCard.Part.RULE || part == DrawerCard.Part.RATE) && d.model() != null) {
+                session.setDrawerRate(d.model().drawer, 0);
+                return;
+            }
+        }
+    }
+
+    /** Ends a middle-button pan on the release: a press that never moved is a middle-click. */
+    public void endMiddlePan() {
+        if (!middlePan) return;
+        stepMiddlePan();
+        middlePan = false;
+        if (graph().getPanX() == panStartX && graph().getPanY() == panStartY) middleClick();
+        else startPanGlide();
+    }
+
+    private void stepMiddlePan() {
+        if (!middlePan) return;
+        graph().setPanX(panStartX + getContext().getAbsMouseX() - panMouseX);
+        graph().setPanY(panStartY + getContext().getAbsMouseY() - panMouseY);
     }
 
     @Override
     public boolean onMouseScroll(final UpOrDown direction, final int amount) {
+        zoomStep(
+            direction == UpOrDown.UP ? 1 : -1,
+            getContext().getAbsMouseX() - getArea().x,
+            getContext().getAbsMouseY() - getArea().y);
+        return true;
+    }
+
+    /** A zoom key (+, -, Page Up, Page Down): one step, about the middle of the view. */
+    public void zoomKey(final int steps) {
+        zoomStep(steps, getArea().width / 2f, getArea().height / 2f);
+    }
+
+    /** Steps the zoom keeping the board point under (sx, sy) in place. */
+    private void zoomStep(final int steps, final float sx, final float sy) {
         final Graph g = graph();
         // Steps chain: a second notch during the ease continues from where the first one is heading.
         final float from = cameraStart >= 0 ? toZoom : g.getZoom();
-        int i = nearestZoom(from);
-        i = Math.max(0, Math.min(ZOOMS.length - 1, i + (direction == UpOrDown.UP ? 1 : -1)));
+        final int i = Math.max(0, Math.min(ZOOMS.length - 1, nearestZoom(from) + steps));
         final float next = ZOOMS[i];
-        if (next == from) return true;
-        final float mx = getContext().getAbsMouseX() - getArea().x;
-        final float my = getContext().getAbsMouseY() - getArea().y;
-        moveCamera(next, (mx - g.getPanX()) / g.getZoom(), (my - g.getPanY()) / g.getZoom(), mx, my);
-        return true;
+        if (next == from) return;
+        moveCamera(next, (sx - g.getPanX()) / g.getZoom(), (sy - g.getPanY()) / g.getZoom(), sx, sy);
     }
 
     private static int nearestZoom(final float zoom) {
@@ -909,9 +1054,10 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     @Override
     public boolean onDragStart(final int button) {
-        if (button != 0 && button != 2) return false;
+        if (button != 0) return false;
+        stopPanGlide();
         cameraStart = -1;
-        boxing = button == 0 && net.minecraft.client.gui.GuiScreen.isShiftKeyDown();
+        boxing = net.minecraft.client.gui.GuiScreen.isShiftKeyDown();
         if (boxing) {
             boxX0 = boxX1 = worldX(getContext().getAbsMouseX());
             boxY0 = boxY1 = worldY(getContext().getAbsMouseY());
@@ -942,8 +1088,9 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             selectBox();
             return;
         }
-        // A click on empty board (no pan) clears the selection.
+        // A click on empty board (no pan) clears the selection; a pan let go while moving glides on.
         if (graph().getPanX() == panStartX && graph().getPanY() == panStartY) session.clearSelection();
+        else startPanGlide();
     }
 
     @Override

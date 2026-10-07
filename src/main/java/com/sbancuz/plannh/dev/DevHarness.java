@@ -526,7 +526,7 @@ public final class DevHarness {
         final ModularScreen screen = muiScreen();
         if (screen == null) throw new IllegalArgumentException("current screen is not a ModularUI screen");
         final Map<String, Object> main = dumpWidget(screen.getMainPanel(), 0);
-        // Popups (menus, the picker) are panels of their own, above the main one.
+        // Popups (menus, number boxes) are panels of their own, above the main one.
         final List<Object> popups = new ArrayList<>();
         for (final ModularPanel p : screen.getPanelManager()
             .getOpenPanels()) if (p != screen.getMainPanel()) popups.add(dumpWidget(p, 0));
@@ -640,6 +640,10 @@ public final class DevHarness {
         final List<Runnable> steps = new ArrayList<>();
         for (final int m : mods) steps.add(() -> SyntheticInput.key(m, 0, true));
         steps.add(() -> SyntheticInput.key(code, codepoint, true));
+        // hold=ms keeps it down that long (a step a tick, 50 ms each), for keys read while held.
+        for (int i = 0; i < intArg(q, "hold", 0) / 50; i++) {
+            steps.add(SyntheticInput::reassertHeld);
+        }
         steps.add(() -> SyntheticInput.key(code, codepoint, false));
         for (final int m : mods) steps.add(() -> SyntheticInput.key(m, 0, false));
         return input(steps);

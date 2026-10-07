@@ -31,7 +31,7 @@ public final class PortSlot extends Widget<PortSlot>
         if (card.layout() != null) place(card.layout());
     }
 
-    /** The whole row (icon, name, rate) is the handle: drag a wire from anywhere on it, click it for the picker. */
+    /** The whole row (icon, name, rate) is the handle: drag a wire from anywhere on it, click it for NEI's recipes. */
     void place(final CardLayout layout) {
         size(CardLayout.RAIL_W, layout.rowH(output, index));
         pos(CardLayout.railX(output), layout.rowY(output, index));
@@ -65,8 +65,11 @@ public final class PortSlot extends Widget<PortSlot>
     // region Dragging a wire out of the port
 
     private boolean moving;
-    /** Whether the press turned into a drag; a press that did not is a click. */
-    private boolean dragged;
+    /**
+     * Whether this port saw the press of the click now ending and it did not become a drag. A release alone is no
+     * click: pressing NEI's + closes its page onto the board, and that release lands on whatever port is under it.
+     */
+    private boolean pressed;
 
     private BoardCanvas canvas() {
         return card.getParent() instanceof final BoardCanvas c ? c : null;
@@ -74,13 +77,14 @@ public final class PortSlot extends Widget<PortSlot>
 
     @Override
     public Result onMousePressed(final int mouseButton) {
-        dragged = false;
+        pressed = mouseButton == 0;
         return mouseButton == 0 ? Result.ACCEPT : Result.IGNORE;
     }
 
     @Override
     public boolean onMouseRelease(final int mouseButton) {
-        if (mouseButton != 0 || dragged) return false;
+        if (mouseButton != 0 || !pressed) return false;
+        pressed = false;
         final BoardCanvas canvas = canvas();
         if (canvas != null) canvas.clickPort(card.nodeId, output, index);
         return true;
@@ -90,7 +94,7 @@ public final class PortSlot extends Widget<PortSlot>
     public boolean onDragStart(final int button) {
         final BoardCanvas canvas = canvas();
         if (button != 0 || canvas == null) return false;
-        dragged = true;
+        pressed = false;
         canvas.beginPortDrag(card.nodeId, output, index);
         return true;
     }

@@ -476,6 +476,11 @@ final class OverviewRail extends ParentWidget<OverviewRail> implements Interacta
     public Result onMousePressed(final int mouseButton) {
         final Hit hit = hitAtMouseFromLastFrame();
         if (hit == null) return open ? Result.SUCCESS : Result.IGNORE;
+        // Middle-click on a rule or rate clears the drawer back to "rate?", as on the website.
+        if (mouseButton == 2 && (hit.kind() == Kind.RULE || hit.kind() == Kind.RATE)) {
+            session.setDrawerRate(((DrawerModel) hit.data()).drawer, 0);
+            return Result.SUCCESS;
+        }
         if (mouseButton != 0 && hit.kind() != Kind.RULE) return Result.SUCCESS;
         final int sx = getArea().x + hit.x0(), sy = getArea().y + hit.y1() + 2;
         switch (hit.kind()) {

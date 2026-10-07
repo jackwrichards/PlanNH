@@ -46,7 +46,6 @@ Width 320. Height grows with the taller rail and the number of settings; it snap
 
 - **Card actions [≡]**: a menu. Items, in FF's order and words:
   - Clone node
-  - Replace the recipe (keeps every wire that still fits)
   - Add another recipe to this machine (only when the machine can run several recipes; see open question 2)
   - Delete node
 - **Machine switch** (the name bar, chevron on the left): lists "Machines that run this recipe", one row each:
@@ -67,8 +66,8 @@ Width 320. Height grows with the taller rail and the number of settings; it snap
 - **Gestures on a port**:
   - Hover: NEI's item tooltip plus the rate; every port and wire carrying the same resource glows.
   - R / U: NEI's recipes / uses for that item.
-  - Click an unwired input: "What makes this?" picker. Adding from it wires only this resource into this card.
-  - Click an unwired output: "What uses this?" picker, same rule.
+  - Click: NEI's own page, the same as R on an input and U on an output (no picker of our own: NEI does the
+    looking up). The recipe added from it with + lands beside this card, wired into this port only.
   - Drag: start a wire. Drop on a card to connect (it snaps to the matching port); drop on empty board to create a
     drawer (source for an input, product for an output).
 - **Unwired port**: dashed slot outline, and the board notice counts it (see 5).
@@ -107,7 +106,7 @@ Only the settings that matter for this machine, from the machine profile PlanNH 
 | Pinned count | MACHINES figure in gold |
 | Unwired port | dashed slot; counted in the board notice |
 | Can't run | red ring; tooltip says why (tier too low, no power) |
-| Recipe missing (pack update) | greyed card that keeps its wires; "Replace the recipe" offered |
+| Recipe missing (pack update) | greyed card that keeps its wires |
 
 ## 3. Drawers
 
@@ -154,7 +153,7 @@ arrange; fit; help. A totals rail (folded by default) lists inputs, outputs, pow
 | NEI hooks: the "+" overlay, R/U lookups, auto-wire context | Card widget and its menus, machine switch, tier and amps chips |
 | Per-mod recipe providers and machine profiles (settings) | Drawers with rules, and their place in the save format |
 | GregTech's real overclock calculator | Wire renderer (FF look), hover glow, notices |
-| The ojAlgo balancer and its tests (180 now) | "What makes / uses this?" picker |
+| The ojAlgo balancer and its tests (180 now) | Ports that open NEI's pages and wire the pick in |
 | Save / share encoding, undo, auto-layout, wire router | Totals rail, board controls |
 
 Engine work the UI needs:
@@ -169,7 +168,7 @@ Engine work the UI needs:
 1. **The card, static**: a real GregTech recipe drawn in the new style with real numbers, in the dev client.
 2. **Card controls**: tier and amps chips, machine switch, settings, the actions menu, pinning the count.
 3. **Drawers, wires and solving**: rules, auto-wiring, background solve, notices.
-4. **Getting recipes in**: NEI "+", P over an item, the port pickers.
+4. **Getting recipes in**: NEI "+", P over an item, clicking a port (NEI's page, wired into that port).
 5. **Around the board**: totals rail, plan tabs, undo, save and load.
 6. **Polish**: arrange, hover glow, zoomed-out glance view, tooltips with gesture hints.
 

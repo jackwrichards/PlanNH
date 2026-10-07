@@ -11,9 +11,9 @@ import codechicken.nei.guihook.GuiContainerManager;
 import codechicken.nei.guihook.IContainerInputHandler;
 
 /**
- * The planner's NEI input. The plan key (P by default) over any item NEI can see, in any container screen: opens the
- * planner's "What makes
- * this?" picker for it; with Shift, "What uses this?". It stays out of the way while a text field has the keyboard.
+ * The planner's NEI input. The plan key (P by default) over any item NEI can see, in any container screen: opens NEI's
+ * recipes for it over the planner (opening the planner first), so + puts the one picked on the board; with Shift, its
+ * uses. It stays out of the way while a text field has the keyboard.
  * Registered ahead of NEI's own keys: P is also NEI's Potions key, which still works when the mouse is not over an
  * item.
  */
@@ -34,7 +34,7 @@ public final class PlanInputHandler implements IContainerInputHandler {
         if (planner != null && com.sbancuz.plannh.ui.BoardScreen.textFocused(planner)) return false;
         final ItemStack stack = GuiContainerManager.getStackMouseOver(gui);
         if (stack == null) return false;
-        Planner.pick(stack.copy(), GuiContainer.isShiftKeyDown());
+        Planner.lookUp(stack.copy(), GuiContainer.isShiftKeyDown());
         return true;
     }
 

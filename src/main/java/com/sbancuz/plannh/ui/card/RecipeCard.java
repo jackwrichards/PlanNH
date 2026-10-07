@@ -460,7 +460,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         switch (part) {
             case ACTIONS -> {
                 lines.add("Card actions");
-                lines.add(hint + "Click: clone, replace, settings, delete");
+                lines.add(hint + "Click: clone, settings, delete");
             }
             case MACHINE -> {
                 lines.add("Machine: " + model.machineName);
@@ -604,14 +604,6 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final Node node = model.node;
         final List<PickList.Entry> rows = new ArrayList<>();
         rows.add(PickList.Entry.of("Clone node", () -> session.cloneNode(node)));
-        rows.add(
-            PickList.Entry.of(
-                "Replace the recipe",
-                () -> session.beginReplace(
-                    node,
-                    model.outputs.isEmpty() ? null
-                        : model.outputs.get(0)
-                            .lookupStack())));
         rows.add(PickList.Entry.of("Machine settings", this::openSettings));
         rows.add(new PickList.Entry(null, "Delete node", "", Hyb.RED_INK, false, () -> session.delete(node)));
         Popup.open(

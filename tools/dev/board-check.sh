@@ -35,8 +35,9 @@ tier=$(board | js 'b.cards.length===1 ? b.cards[0].tier+" "+b.cards[0].coil : "c
 [ "$tier" = "HV Cupronickel" ] && pass "EBF card at HV with Cupronickel" || fail "EBF card defaults: $tier"
 
 # 2. Dragging an output's name onto empty board makes a product drawer.
-read -r x y right < <(board | js 'b.cards[0].parts.OUT1.cx+40+" "+b.cards[0].parts.OUT1.cy+" "+(b.cards[0].parts.BODY.x+b.cards[0].parts.BODY.w)')
-$M call "drag?x1=$x&y1=$y&x2=$((right + 40))&y2=$((y + 30))&steps=10" >/dev/null
+# Dropped below the card, so it stays on the board whatever the window size (NEI's list covers the right).
+read -r x y cx bottom < <(board | js 'b.cards[0].parts.OUT1.cx+40+" "+b.cards[0].parts.OUT1.cy+" "+b.cards[0].parts.BODY.cx+" "+(b.cards[0].parts.BODY.y+b.cards[0].parts.BODY.h)')
+$M call "drag?x1=$x&y1=$y&x2=$cx&y2=$((bottom + 50))&steps=10" >/dev/null
 sleep 1
 drawer=$(board | js 'b.drawers.length===1 ? b.drawers[0].kind+" "+b.drawers[0].label : "drawers="+b.drawers.length')
 [ "$drawer" = "PRODUCT Rutile Dust" ] && pass "product drawer from a port drag" || fail "port drag: $drawer"

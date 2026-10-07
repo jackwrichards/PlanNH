@@ -24,8 +24,8 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 - All six porting steps are on `main` (2026-10-06) and the old `gui/` package is gone. `ui/` map: `BoardScreen`
   (top bar, notices), `OverviewRail` (the overview on the left), `BoardSession` (the open plan: every edit, undo,
   slots, solve hookup, notices, totals), `canvas/` (board, wires, port drags, arrange), `card/` (recipe card),
-  `drawer/`, `popup/` (menus, number and text boxes, the recipe picker). Known gaps and next steps are at the top of
-  `docs/design/build-prompt.md`.
+  `drawer/`, `popup/` (menus, number and text boxes; recipes are looked up in NEI itself). Known gaps and next
+  steps are at the top of `docs/design/build-prompt.md`.
 - Multiblock pictures in `assets/plannh/textures/structures/` are Factory Flow's renders (`public/power-art`: the
   owner's processing multiblocks and the Power Planner workbook's power plants), scaled to 320 px palette PNGs with
   transparency. `ui/card/StructureArt` maps in-game machine names to them; `call 'gtmachines?art=1'` checks coverage.

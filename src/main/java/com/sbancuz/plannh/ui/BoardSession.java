@@ -37,7 +37,6 @@ import com.sbancuz.plannh.ui.drawer.DrawerModel;
 import com.sbancuz.plannh.ui.gt.GtMachines;
 import com.sbancuz.plannh.ui.theme.Fmt;
 
-import codechicken.nei.recipe.GuiCraftingRecipe;
 import codechicken.nei.recipe.IRecipeHandler;
 import codechicken.nei.recipe.RecipeHandlerRef;
 
@@ -62,7 +61,6 @@ public final class BoardSession {
     private NodeLookupContext pendingLookup;
     private final SolveService solver = new SolveService();
     private SolveService.Result lastResult;
-    private UUID pendingReplace;
 
     BoardSession() {
         graph = Plan.getActiveGraph();
@@ -160,6 +158,20 @@ public final class BoardSession {
         pendingLookup = new NodeLookupContext(nodeId, output, portIndex);
     }
 
+    /** Forgets an armed lookup, when the page it was for never opened. */
+    public void disarmLookup() {
+        pendingLookup = null;
+    }
+
+    /** The card added from NEI last, once, for the board to bring into view. */
+    private UUID justAdded;
+
+    public UUID takeJustAdded() {
+        final UUID id = justAdded;
+        justAdded = null;
+        return id;
+    }
+
     /**
      * Puts an NEI recipe on the board. When it came from a lookup on a port, it lands beside that card and only that
      * resource is wired; otherwise it lands to the right of everything already there.
@@ -167,15 +179,9 @@ public final class BoardSession {
     public Node addRecipe(final IRecipeHandler handler, final int recipeIndex) {
         final NodeLookupContext origin = pendingLookup;
         pendingLookup = null;
-        final UUID replacing = pendingReplace;
-        pendingReplace = null;
         final Node node = new Node(handler, recipeIndex, 0, 0);
         CardDefaults.apply(node);
-        final Node old = replacing == null ? null : graph.nodes.get(replacing);
-        if (old != null) {
-            edit(() -> replaceNode(old, node));
-            return node;
-        }
+        justAdded = node.id;
         edit(() -> {
             graph.addNode(node);
             final Node from = origin == null ? null : graph.nodes.get(origin.nodeId());
@@ -522,6 +528,135 @@ public final class BoardSession {
         return ax < bx + bw + margin && bx < ax + aw + margin && ay < by + bh + margin && by < ay + ah + margin;
     }
 
+    // region Copy and paste
+
+    /** A copied card: its recipe and settings, and where it sat from the copy's top-left. */
+    private record ClipNode(codechicken.nei.recipe.Recipe.RecipeId recipe, Map<String, Object> settings,
+        String machineName, boolean fixed, int dx, int dy) {}
+
+    /** A copied drawer, and the copied cards' ports it was linked to, as {card index in the copy, port}. */
+    private record ClipDrawer(Drawer.Kind kind, String key, String label, Drawer.Rule rule, double rate, int dx, int dy,
+        List<int[]> links) {}
+
+    /** A wire between two copied cards, by their index in the copy. */
+    private record ClipEdge(int from, int output, int to, int input) {}
+
+    private record Clip(List<ClipNode> nodes, List<ClipDrawer> drawers, List<ClipEdge> edges) {}
+
+    /** The last copy, shared by every plan, so a group copied from one plan pastes into another. */
+    private static Clip clipboard;
+
+    /** Copies the selected cards and drawers with the wires among them; false when nothing is selected. */
+    public boolean copySelection() {
+        int x0 = Integer.MAX_VALUE, y0 = Integer.MAX_VALUE;
+        final List<Node> nodes = new ArrayList<>();
+        final List<Drawer> drawers = new ArrayList<>();
+        for (final UUID id : selection) {
+            final Node n = graph.nodes.get(id);
+            if (n != null) {
+                nodes.add(n);
+                x0 = Math.min(x0, n.x);
+                y0 = Math.min(y0, n.y);
+            }
+            final Drawer d = graph.getDrawer(id);
+            if (d != null) {
+                drawers.add(d);
+                x0 = Math.min(x0, d.getX());
+                y0 = Math.min(y0, d.getY());
+            }
+        }
+        if (nodes.isEmpty() && drawers.isEmpty()) return false;
+        final Map<UUID, Integer> index = new HashMap<>();
+        final List<ClipNode> clipNodes = new ArrayList<>();
+        for (final Node n : nodes) {
+            index.put(n.id, clipNodes.size());
+            clipNodes.add(
+                new ClipNode(
+                    n.recipeId,
+                    new HashMap<>(n.machineConfig.settings),
+                    n.machineName,
+                    n.isMachineCountFixed(),
+                    n.x - x0,
+                    n.y - y0));
+        }
+        final List<ClipEdge> edges = new ArrayList<>();
+        for (final Edge e : graph.getEdges()) {
+            final Integer from = index.get(e.sourceNodeId), to = index.get(e.targetNodeId);
+            if (from != null && to != null) edges.add(new ClipEdge(from, e.sourceOutputIndex, to, e.targetInputIndex));
+        }
+        final List<ClipDrawer> clipDrawers = new ArrayList<>();
+        for (final Drawer d : drawers) {
+            final List<int[]> links = new ArrayList<>();
+            for (final Drawer.Link l : d.getLinks()) {
+                final Integer at = index.get(l.nodeId());
+                if (at != null) links.add(new int[] { at, l.portIndex() });
+            }
+            clipDrawers.add(
+                new ClipDrawer(
+                    d.getKind(),
+                    d.getResourceKey(),
+                    d.getLabel(),
+                    d.getRule(),
+                    d.getRate(),
+                    d.getX() - x0,
+                    d.getY() - y0,
+                    links));
+        }
+        clipboard = new Clip(clipNodes, clipDrawers, edges);
+        return true;
+    }
+
+    /**
+     * Pastes the last copy with its top-left at a board point, as one undoable edit, and selects and returns what it
+     * made. A card whose recipe NEI no longer knows is left out, with its wires.
+     */
+    public List<UUID> paste(final int worldX, final int worldY) {
+        final Clip clip = clipboard;
+        if (clip == null) return List.of();
+        final List<Node> made = new ArrayList<>();
+        for (final ClipNode c : clip.nodes()) {
+            final RecipeHandlerRef ref = RecipeHandlerRef.of(c.recipe());
+            if (ref == null) {
+                made.add(null);
+                continue;
+            }
+            final Node n = new Node(ref.handler, ref.recipeIndex, snap(worldX + c.dx()), snap(worldY + c.dy()));
+            n.machineConfig.settings.clear();
+            n.machineConfig.settings.putAll(c.settings());
+            n.machineName = c.machineName();
+            n.setMachineCountFixed(c.fixed());
+            made.add(n);
+        }
+        final List<Drawer> madeDrawers = new ArrayList<>();
+        edit(() -> {
+            for (final Node n : made) if (n != null) graph.addNode(n);
+            for (final ClipEdge e : clip.edges()) {
+                final Node from = made.get(e.from()), to = made.get(e.to());
+                if (from != null && to != null)
+                    graph.addEdge(new Edge(UUID.randomUUID(), from.id, to.id, e.output(), e.input()));
+            }
+            for (final ClipDrawer c : clip.drawers()) {
+                final Drawer d = new Drawer(c.kind(), c.key());
+                d.setLabel(c.label());
+                d.setX(snap(worldX + c.dx()));
+                d.setY(snap(worldY + c.dy()));
+                d.setTarget(c.rule(), c.rate());
+                graph.addDrawer(d);
+                for (final int[] l : c.links()) {
+                    final Node n = made.get(l[0]);
+                    if (n != null) graph.linkDrawer(d.getId(), new Drawer.Link(n.id, l[1]));
+                }
+                madeDrawers.add(d);
+            }
+        });
+        selection.clear();
+        for (final Node n : made) if (n != null) selection.add(n.id);
+        for (final Drawer d : madeDrawers) selection.add(d.getId());
+        return List.copyOf(selection);
+    }
+
+    // endregion
+
     // region Selection
 
     /**
@@ -755,50 +890,6 @@ public final class BoardSession {
             copy.machineName = node.machineName;
             graph.addNode(copy);
         });
-    }
-
-    /**
-     * Opens NEI on what makes the card's main output; the recipe added from there with + takes this card's place and
-     * keeps every wire that still fits.
-     */
-    public void beginReplace(final Node node, final ItemStack lookup) {
-        pendingReplace = node.id;
-        pendingLookup = null;
-        if (lookup != null) GuiCraftingRecipe.openRecipeGui("item", lookup);
-    }
-
-    private void replaceNode(final Node old, final Node added) {
-        added.x = old.x;
-        added.y = old.y;
-        // The tier is a choice about the line, so it carries over; machine, amps and coil come from the new recipe.
-        if (CardModel.GT_PROFILE.equals(added.machineConfig.profileId)
-            && CardModel.GT_PROFILE.equals(old.machineConfig.profileId)) {
-            added.machineConfig.setString("voltage", CardDefaults.stringSetting(old.machineConfig, "voltage"));
-        }
-        if (old.isMachineCountFixed()) added.machineConfig.setMachineCount(old.machineConfig.getMachineCount());
-        added.setMachineCountFixed(old.isMachineCountFixed());
-        graph.addNode(added);
-        for (final Edge e : new ArrayList<>(graph.getEdges())) {
-            if (e.sourceNodeId.equals(old.id) && e.sourceOutputIndex < old.outputs.size()) {
-                final Port<?> was = old.outputs.get(e.sourceOutputIndex);
-                for (int out = 0; out < added.outputs.size(); out++) {
-                    if (added.outputs.get(out)
-                        .canConnect(was)) {
-                        graph.addEdge(new Edge(UUID.randomUUID(), added.id, e.targetNodeId, out, e.targetInputIndex));
-                        break;
-                    }
-                }
-            } else if (e.targetNodeId.equals(old.id) && e.targetInputIndex < old.inputs.size()) {
-                final Port<?> was = old.inputs.get(e.targetInputIndex);
-                for (int in = 0; in < added.inputs.size(); in++) {
-                    if (was.canConnect(added.inputs.get(in))) {
-                        graph.addEdge(new Edge(UUID.randomUUID(), e.sourceNodeId, added.id, e.sourceOutputIndex, in));
-                        break;
-                    }
-                }
-            }
-        }
-        graph.removeNode(old.id);
     }
 
     // endregion

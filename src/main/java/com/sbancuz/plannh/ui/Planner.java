@@ -8,6 +8,9 @@ import com.cleanroommc.modularui.screen.GuiContainerWrapper;
 import com.cleanroommc.modularui.screen.ModularContainer;
 import com.cleanroommc.modularui.screen.ModularScreen;
 
+import codechicken.nei.recipe.GuiCraftingRecipe;
+import codechicken.nei.recipe.GuiUsageRecipe;
+
 /** Opening the planner, and telling whether a GUI is it (for the NEI glue and mixins). */
 public final class Planner {
 
@@ -35,13 +38,12 @@ public final class Planner {
     }
 
     /**
-     * "What makes this?" (or uses it) for any item, from anywhere NEI sees one: opens the planner when it is not
-     * already up, then the recipe picker in the middle of the board. The recipe picked goes on the board, auto-wired.
+     * NEI's own page of the recipes that make an item ({@code uses}: that use it), opened over the planner (opening the
+     * planner first when it is not up), so the recipe added with + lands on the board and the page closes back to it.
+     * False when NEI knows none.
      */
-    public static void pick(final ItemStack stack, final boolean uses) {
-        final ModularScreen open = screenOf(Minecraft.getMinecraft().currentScreen);
-        final BoardScreen board = open instanceof final BoardScreen b ? b : open();
-        board.canvas()
-            .openRecipePicker(stack, uses, null);
+    public static boolean lookUp(final ItemStack stack, final boolean uses) {
+        if (!isPlanner(Minecraft.getMinecraft().currentScreen)) open();
+        return uses ? GuiUsageRecipe.openRecipeGui("item", stack) : GuiCraftingRecipe.openRecipeGui("item", stack);
     }
 }

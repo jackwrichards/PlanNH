@@ -20,6 +20,9 @@ board, so `BoardScreen.onMousePressed` takes the drop itself.
 the reference for how things are meant to work; what is left is this list.
 
 Known gaps:
+- Dropped on purpose (the owner, 2026-10-06): our own "What makes / uses this?" picker and "Replace the recipe".
+  NEI already does the looking up: a port click opens NEI's page (R for an input, U for an output) and + wires the
+  pick into that port; P does the same for any item; replacing a recipe is deleting it and adding another.
 - Not built: "Add another recipe to this machine", the greyed "recipe missing" card, short-ladder [-] value [+]
   settings on the card (settings live in the actions menu's Machine settings list), Shift-wheel amps steps,
   previewing a machine on hover in the switch list, copy and paste.

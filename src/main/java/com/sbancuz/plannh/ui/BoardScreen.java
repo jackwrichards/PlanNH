@@ -29,7 +29,6 @@ import com.sbancuz.plannh.ui.card.PortSlot;
 import com.sbancuz.plannh.ui.card.RecipeCard;
 import com.sbancuz.plannh.ui.drawer.DrawerCard;
 import com.sbancuz.plannh.ui.popup.Popup;
-import com.sbancuz.plannh.ui.popup.RecipePicker;
 import com.sbancuz.plannh.ui.theme.Fmt;
 import com.sbancuz.plannh.ui.theme.Hyb;
 
@@ -148,15 +147,18 @@ public final class BoardScreen extends ModularScreen {
     /** Every gesture on the board, in one list. */
     private static void showHelp(final ModularPanel panel) {
         final List<com.sbancuz.plannh.ui.popup.PickList.Entry> rows = new ArrayList<>();
-        final String[][] tips = { { "P over any item", "what makes it (Shift+P: what uses it)" },
-            { "Drag an item out of NEI", "then click the board: a drawer, or its recipes" },
-            { "Click a port", "what makes this input, or uses this output" },
+        final String[][] tips = { { "P over any item", "its recipes in NEI, + puts one here (Shift: uses)" },
+            { "Drag an item out of NEI", "then click the board: a drawer for it" },
+            { "Click a port", "NEI: what makes an input, uses an output; + wires it in" },
             { "Drag a port", "onto a card: wire it; onto the board: a drawer" },
             { "Right-click a wire", "a drawer on it, or delete it" },
+            { "Middle-click a rate", "clear it back to rate?" },
             { "Click a card or drawer", "select it (Shift: add to the selection)" },
-            { "Drag the board", "pan (Shift: select everything in the box)" },
+            { "Drag the board", "pan (or middle-drag anywhere; Shift: box select)" },
             { "Drag a selected card", "move the whole selection" }, { "Ctrl+A", "select everything" },
             { "Delete", "remove the selection (Esc: clear it)" }, { "Wheel", "zoom; over a control: change it" },
+            { "WASD or arrows", "pan (+ and -, Page Up and Down: zoom)" },
+            { "Ctrl+C, Ctrl+X, Ctrl+V", "copy, cut, paste the selection and its wires" },
             { "Ctrl+Z, Ctrl+Shift+Z", "undo, redo" },
             { "Overview: double-click", "fly to the cards that use a resource" } };
         for (final String[] tip : tips)
@@ -200,10 +202,23 @@ public final class BoardScreen extends ModularScreen {
     }
 
     /**
-     * Undo and redo on the screen, not the canvas: the panel only offers keys to the hovered widget. The keys are
-     * NEI-configurable (Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y). A focused text field keeps its own Ctrl+Z.
+     * The board's keys live on the screen, not the canvas: the panel only offers keys to the hovered widget. ModularUI
+     * offers each key event twice (char and key paths), so the ones that must act once remember the last event. Undo
+     * and
+     * redo are NEI-configurable (Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y); a focused text field keeps its own keys.
      */
-    private long lastUndoKeyEvent;
+    private long lastKeyEvent;
+
+    /**
+     * Pastes the last copy with its top-left at the mouse when it is over the board, else in the middle of the view.
+     */
+    private void paste() {
+        final int mx = getContext().getAbsMouseX(), my = getContext().getAbsMouseY();
+        final com.cleanroommc.modularui.widget.sizer.Area a = canvas.getArea();
+        final boolean over = a.isInside(mx, my);
+        final int sx = over ? mx : a.x + a.width / 2, sy = over ? my : a.y + a.height / 2;
+        canvas.revealWhenBuilt(session.paste(Math.round(canvas.worldX(sx)), Math.round(canvas.worldY(sy))));
+    }
 
     /**
      * Whether a widget (a text field) has the keyboard. The context returns an empty holder, never null, and keeps the
@@ -220,7 +235,7 @@ public final class BoardScreen extends ModularScreen {
 
     @Override
     public boolean onKeyPressed(final char typedChar, final int keyCode) {
-        // Esc closes the open popup (a menu, a number box, the picker), not the whole planner.
+        // Esc closes the open popup (a menu, a number box), not the whole planner.
         if (keyCode == org.lwjgl.input.Keyboard.KEY_ESCAPE
             && getPanelManager().getTopMostPanel() instanceof Popup popup) {
             getContext().removeFocus();
@@ -243,13 +258,38 @@ public final class BoardScreen extends ModularScreen {
                 session.clearSelection();
                 return true;
             }
+            // +, -, Page Up and Page Down step the zoom, as on the website (the pan keys are read by the canvas).
+            final int zoom = switch (keyCode) {
+                case org.lwjgl.input.Keyboard.KEY_EQUALS, org.lwjgl.input.Keyboard.KEY_ADD, org.lwjgl.input.Keyboard.KEY_PRIOR -> 1;
+                case org.lwjgl.input.Keyboard.KEY_MINUS, org.lwjgl.input.Keyboard.KEY_SUBTRACT, org.lwjgl.input.Keyboard.KEY_NEXT -> -1;
+                default -> 0;
+            };
+            if (zoom != 0 && codechicken.nei.LayoutManager.getInputFocused() == null) {
+                final long event = org.lwjgl.input.Keyboard.getEventNanoseconds();
+                if (event != lastKeyEvent) {
+                    lastKeyEvent = event;
+                    canvas.zoomKey(zoom);
+                }
+                return true;
+            }
+            // Ctrl+C, Ctrl+X, Ctrl+V: the selection with its wires, pasted at the mouse (or the middle of the view).
+            if (net.minecraft.client.gui.GuiScreen.isCtrlKeyDown()
+                && (keyCode == org.lwjgl.input.Keyboard.KEY_C || keyCode == org.lwjgl.input.Keyboard.KEY_X
+                    || keyCode == org.lwjgl.input.Keyboard.KEY_V)) {
+                final long event = org.lwjgl.input.Keyboard.getEventNanoseconds();
+                if (event == lastKeyEvent) return true;
+                lastKeyEvent = event;
+                if (keyCode == org.lwjgl.input.Keyboard.KEY_V) paste();
+                else if (session.copySelection() && keyCode == org.lwjgl.input.Keyboard.KEY_X) session.deleteSelected();
+                return true;
+            }
             final boolean undo = NEIClientConfig.isKeyHashDown(NEIPlanConfig.ConfigUndoKey.KEY);
             if (undo || NEIClientConfig.isKeyHashDown(NEIPlanConfig.ConfigRedoKey.KEY)
                 || NEIClientConfig.isKeyHashDown(NEIPlanConfig.ConfigRedoAltKey.KEY)) {
                 // ModularUI offers each key event twice (char and key paths); act once per event.
                 final long event = org.lwjgl.input.Keyboard.getEventNanoseconds();
-                if (event != lastUndoKeyEvent) {
-                    lastUndoKeyEvent = event;
+                if (event != lastKeyEvent) {
+                    lastKeyEvent = event;
                     if (undo) session.undo();
                     else session.redo();
                 }
@@ -269,6 +309,16 @@ public final class BoardScreen extends ModularScreen {
     public boolean onMousePressed(final int mouseButton) {
         final ItemStack carried = codechicken.nei.ItemPanels.itemPanel.draggedStack;
         final int mx = getContext().getAbsMouseX(), my = getContext().getAbsMouseY();
+        // Any other press ends a middle pan whose release went missing.
+        if (mouseButton != 2) canvas.endMiddlePan();
+        // The middle button pans from anywhere on the board, cards included.
+        if (mouseButton == 2 && carried == null
+            && canvas.getArea()
+                .isInside(mx, my)
+            && !(getPanelManager().getTopMostPanel() instanceof Popup)) {
+            canvas.beginMiddlePan();
+            return true;
+        }
         if (carried == null || !getMainPanel().getArea()
             .isInside(mx, my)) return super.onMousePressed(mouseButton);
         codechicken.nei.ItemPanels.itemPanel.draggedStack = null;
@@ -279,6 +329,12 @@ public final class BoardScreen extends ModularScreen {
             canvas.dropNeiItem(one, mx, my);
         }
         return true;
+    }
+
+    @Override
+    public boolean onMouseRelease(final int mouseButton) {
+        if (mouseButton == 2) canvas.endMiddlePan();
+        return super.onMouseRelease(mouseButton);
     }
 
     @Override
@@ -309,9 +365,6 @@ public final class BoardScreen extends ModularScreen {
             if (lines == null) return;
         } else if (hovered instanceof final DrawerCard drawer) {
             lines = drawer.hoverLines();
-            if (lines == null) return;
-        } else if (hovered instanceof final RecipePicker picker) {
-            lines = picker.hoverLines();
             if (lines == null) return;
         } else if (hovered instanceof final PlanTabs tabs) {
             lines = tabs.hoverLines();
