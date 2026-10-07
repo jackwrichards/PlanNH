@@ -207,13 +207,15 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         }
         // World space, under the cards.
         wires.draw(wires.wires(cards, drawers), session.hoverKey());
-        if (portDrag != null) drawPortDrag();
     }
 
     @Override
     public void postDraw(final ModularGuiContext context, final boolean transformed) {
-        if (transformed) drawBox();
-        else Stencil.remove();
+        if (transformed) {
+            // Over the cards: the wire in hand and the selection box.
+            if (portDrag != null) drawPortDrag();
+            drawBox();
+        } else Stencil.remove();
     }
 
     // endregion
@@ -506,17 +508,11 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             .anchorY(portDrag.output(), portDrag.port());
         final int mx = Math.round(worldX(getContext().getAbsMouseX()));
         final int my = Math.round(worldY(getContext().getAbsMouseY()));
+        // The bend stays on the port's own side, so the wire in hand never cuts back across its card.
+        final int bend = portDrag.output() ? Math.max(sx + 16, (sx + mx) / 2) : Math.min(sx - 16, (sx + mx) / 2);
         final List<int[]> path = portDrag.output()
-            ? List.of(
-                new int[] { sx, sy },
-                new int[] { (sx + mx) / 2, sy },
-                new int[] { (sx + mx) / 2, my },
-                new int[] { mx, my })
-            : List.of(
-                new int[] { mx, my },
-                new int[] { (sx + mx) / 2, my },
-                new int[] { (sx + mx) / 2, sy },
-                new int[] { sx, sy });
+            ? List.of(new int[] { sx, sy }, new int[] { bend, sy }, new int[] { bend, my }, new int[] { mx, my })
+            : List.of(new int[] { mx, my }, new int[] { bend, my }, new int[] { bend, sy }, new int[] { sx, sy });
         final java.util.List<com.sbancuz.plannh.data.flowchart.Port<?>> ports = portDrag.output() ? n.outputs
             : n.inputs;
         final int color = portDrag.port() < ports.size() ? WireLayer.colorOf(ports.get(portDrag.port())) : 0xFFE8E9EE;

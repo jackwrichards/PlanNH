@@ -116,13 +116,22 @@ public final class DevHarness {
     public void onClientTick(final TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.START) return;
         if (!ready && mc.theWorld != null && mc.thePlayer != null) ready = true;
+        // Input is read per tick but hover is worked out per frame: after a stall the game runs several ticks in one
+        // frame, and a press queued right after a move would land on what was under the mouse before it. So at most one
+        // step per drawn frame.
+        if (!framedSinceStep) return;
         final Runnable action = tickActions.poll();
-        if (action != null) action.run();
+        if (action == null) return;
+        framedSinceStep = false;
+        action.run();
     }
+
+    private volatile boolean framedSinceStep = true;
 
     @SubscribeEvent
     public void onRenderTick(final TickEvent.RenderTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
+        framedSinceStep = true;
         // Only what was queued before this frame; actions may re-queue themselves for the next one.
         for (int i = frameActions.size(); i > 0; i--) {
             final Runnable action = frameActions.poll();

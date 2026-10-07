@@ -311,6 +311,13 @@ public final class BoardScreen extends ModularScreen {
         } else {
             return;
         }
+        // NEI's item list draws over anything past the planner's right edge: flip the tip to the cursor's left.
+        int width = 0;
+        for (final String line : lines) width = Math.max(
+            width,
+            net.minecraft.client.Minecraft.getMinecraft().fontRenderer.getStringWidth(line));
+        final int right = getMainPanel().getArea().x + getMainPanel().getArea().width;
+        if (tipX + width + 4 > right) tipX = Math.max(4, getContext().getAbsMouseX() - 16 - width);
         GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_DEPTH_BUFFER_BIT);
         GL11.glDisable(GL11.GL_DEPTH_TEST);
         drawMultilineTip(tipX, getContext().getAbsMouseY() - 12, lines);
