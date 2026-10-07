@@ -1,0 +1,204 @@
+{
+  "schemaVersion": 1,
+  "id": "manual-project",
+  "name": "Benzene",
+  "recipes": [
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-largechemicalreactor:042f45e9d3aaad21",
+      "name": "Large Chemical Reactor: Distilled Water",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Large Chemical Reactor",
+      "minimumTier": "LV",
+      "durationTicks": 80,
+      "eut": 30,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.integrated_circuit@22",
+          "amount": 1,
+          "displayName": "Programmed Circuit",
+          "modId": "gregtech",
+          "consumed": false
+        },
+        {
+          "kind": "fluid",
+          "id": "hydrogen",
+          "amount": 16000,
+          "displayName": "Hydrogen"
+        },
+        {
+          "kind": "fluid",
+          "id": "oxygen",
+          "amount": 8000,
+          "displayName": "Oxygen"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "fluid",
+          "id": "ic2distilledwater",
+          "amount": 8000,
+          "displayName": "Distilled Water"
+        }
+      ],
+      "programmedCircuit": "22",
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Large Chemical Reactor",
+          "minimumTier": "LV",
+          "perfectOverclock": true,
+          "id": "large-chemical-reactor",
+          "label": "Large Chemical Reactor",
+          "kind": "multiblock"
+        },
+        {
+          "machineType": "Mega Chemical Reactor",
+          "minimumTier": "LV",
+          "perfectOverclock": true,
+          "id": "mega-chemical-reactor",
+          "label": "Mega Chemical Reactor",
+          "kind": "multiblock"
+        }
+      ],
+      "source": {
+        "datasetVersionId": "local-2.9.0-beta-2",
+        "recipeMap": "Large Chemical Reactor",
+        "exporter": "gtnh-oracle",
+        "rawRecipeId": "gt.recipe.largechemicalreactor:042f45e9d3aaad21"
+      },
+      "metadata": {
+        "recipeMapId": "gt.recipe.largechemicalreactor",
+        "specialValue": 0
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "node-1ee960f6-d1fc-406a-a7d0-d4979a72cd48",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-largechemicalreactor:042f45e9d3aaad21",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "LV",
+      "powerEuT": 8388608,
+      "hatchVoltageTier": "UV",
+      "hatchAmps": 16,
+      "powerInputMode": "amps",
+      "recipeInputOverrides": {
+        "1": {
+          "kind": "fluid",
+          "id": "hydrogen",
+          "amount": 16000,
+          "displayName": "Hydrogen"
+        },
+        "2": {
+          "kind": "fluid",
+          "id": "oxygen",
+          "amount": 8000,
+          "displayName": "Oxygen"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": 600,
+        "y": -740
+      }
+    }
+  ],
+  "storages": [
+    {
+      "id": "storage-3738d878-dcca-4bdb-8f4a-9d19807134a8",
+      "kind": "fluid",
+      "resourceId": "ic2distilledwater",
+      "displayName": "Distilled Water",
+      "position": {
+        "x": 1040,
+        "y": -720
+      }
+    },
+    {
+      "id": "storage-aa5851df-6ab7-4298-95e7-124d9fa80b03",
+      "kind": "fluid",
+      "resourceId": "hydrogen",
+      "displayName": "Hydrogen",
+      "position": {
+        "x": 420,
+        "y": -760
+      }
+    },
+    {
+      "id": "storage-ab1093ca-6ed4-4871-ad3b-50b6554cc61c",
+      "kind": "fluid",
+      "resourceId": "oxygen",
+      "displayName": "Oxygen",
+      "position": {
+        "x": 420,
+        "y": -660
+      }
+    }
+  ],
+  "annotations": [],
+  "pockets": [],
+  "edges": [
+    {
+      "id": "edge-028d7538-acf5-4f7a-96ca-5c4e9372677e",
+      "source": "node-1ee960f6-d1fc-406a-a7d0-d4979a72cd48",
+      "target": "storage-3738d878-dcca-4bdb-8f4a-9d19807134a8",
+      "sourceHandle": "output:fluid:ic2distilledwater",
+      "targetHandle": "input:fluid:ic2distilledwater",
+      "resourceKind": "fluid",
+      "resourceId": "ic2distilledwater",
+      "label": "Distilled Water"
+    },
+    {
+      "id": "edge-651a3daf-c2b9-4586-927a-77b128d94f2a",
+      "source": "storage-aa5851df-6ab7-4298-95e7-124d9fa80b03",
+      "target": "node-1ee960f6-d1fc-406a-a7d0-d4979a72cd48",
+      "sourceHandle": "output:fluid:hydrogen",
+      "targetHandle": "input:fluid:hydrogen",
+      "resourceKind": "fluid",
+      "resourceId": "hydrogen",
+      "label": "Hydrogen"
+    },
+    {
+      "id": "edge-dd424a77-af8a-43da-92a9-43a6aadf03c8",
+      "source": "storage-ab1093ca-6ed4-4871-ad3b-50b6554cc61c",
+      "target": "node-1ee960f6-d1fc-406a-a7d0-d4979a72cd48",
+      "sourceHandle": "output:fluid:oxygen",
+      "targetHandle": "input:fluid:oxygen",
+      "resourceKind": "fluid",
+      "resourceId": "oxygen",
+      "label": "Oxygen"
+    }
+  ],
+  "fuelProfiles": [
+    {
+      "id": "benzene",
+      "name": "Benzene",
+      "fuelFluidId": "benzene",
+      "euPerLiter": 32000,
+      "notes": "GTNH generator fuel value."
+    },
+    {
+      "id": "biodiesel",
+      "name": "Biodiesel",
+      "fuelFluidId": "biodiesel",
+      "euPerLiter": 12800,
+      "notes": "GTNH generator fuel value."
+    },
+    {
+      "id": "steam",
+      "name": "Steam",
+      "fuelFluidId": "steam",
+      "euPerLiter": 16,
+      "notes": "GTNH steam turbine value."
+    }
+  ],
+  "selectedFuelProfileId": "biodiesel",
+  "notes": "Dataset-backed plan. Recipes must come from a normalized GTNH dataset.",
+  "metadata": {
+    "createdAt": "2026-08-16T09:53:46.087Z",
+    "updatedAt": "2026-09-10T05:56:35.861Z"
+  }
+}

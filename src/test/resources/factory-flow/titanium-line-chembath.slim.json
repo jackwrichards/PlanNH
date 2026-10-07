@@ -1,0 +1,2175 @@
+{
+  "schemaVersion": 1,
+  "id": "manual-project",
+  "name": "Titanium Line Chembath",
+  "recipes": [
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-vacuumfreezer:fc038b6c9cec5426",
+      "name": "Vacuum Freezer: Titanium Ingot",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Vacuum Freezer",
+      "minimumTier": "HV",
+      "durationTicks": 144,
+      "eut": 480,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@12028",
+          "amount": 1,
+          "displayName": "Hot Titanium Ingot",
+          "modId": "gregtech"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@11028",
+          "amount": 1,
+          "displayName": "Titanium Ingot",
+          "modId": "gregtech"
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Vacuum Freezer",
+          "minimumTier": "HV",
+          "id": "vacuum-freezer",
+          "label": "Vacuum Freezer",
+          "kind": "multiblock"
+        },
+        {
+          "machineType": "Cryogenic Freezer",
+          "minimumTier": "HV",
+          "durationTicks": 48,
+          "eut": 432,
+          "id": "cryogenic-freezer",
+          "label": "Cryogenic Freezer",
+          "kind": "multiblock"
+        },
+        {
+          "machineType": "Endothermic Fridge",
+          "minimumTier": "HV",
+          "id": "endothermic-fridge",
+          "label": "Endothermic Fridge",
+          "kind": "multiblock"
+        }
+      ]
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-blastfurnace:141c60693bdb0f98",
+      "name": "Blast Furnace: Hot Titanium Ingot",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Blast Furnace",
+      "minimumTier": "HV",
+      "durationTicks": 800,
+      "eut": 480,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2018",
+          "amount": 2,
+          "displayName": "Magnesium Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.integrated_circuit@12",
+          "amount": 1,
+          "displayName": "Programmed Circuit",
+          "modId": "gregtech",
+          "consumed": false
+        },
+        {
+          "kind": "fluid",
+          "id": "titaniumtetrachloride",
+          "amount": 1000,
+          "displayName": "Titaniumtetrachloride"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@12028",
+          "amount": 1,
+          "displayName": "Hot Titanium Ingot",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2377",
+          "amount": 6,
+          "displayName": "Magnesiumchloride Dust",
+          "modId": "gregtech"
+        }
+      ],
+      "programmedCircuit": "12",
+      "specialValue": 2140,
+      "machineHandlers": [
+        {
+          "machineType": "Electric Blast Furnace",
+          "minimumTier": "HV",
+          "perfectOverclock": true,
+          "id": "electric-blast-furnace",
+          "label": "Electric Blast Furnace",
+          "kind": "multiblock"
+        },
+        {
+          "machineType": "Exothermic Hearth",
+          "minimumTier": "HV",
+          "id": "exothermic-hearth",
+          "label": "Exothermic Hearth",
+          "kind": "multiblock"
+        },
+        {
+          "machineType": "Helioflare Power Forge",
+          "minimumTier": "HV",
+          "id": "helioflare-power-forge",
+          "label": "Helioflare Power Forge",
+          "kind": "multiblock"
+        },
+        {
+          "machineType": "Industrial Arc Furnace",
+          "minimumTier": "HV",
+          "id": "industrial-arc-furnace",
+          "label": "Industrial Arc Furnace",
+          "kind": "multiblock"
+        },
+        {
+          "machineType": "Volcanus",
+          "minimumTier": "HV",
+          "durationTicks": 364,
+          "eut": 432,
+          "id": "volcanus",
+          "label": "Volcanus",
+          "kind": "multiblock"
+        }
+      ]
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-largechemicalreactor:6db988ddcbfcf8e3",
+      "name": "Large Chemical Reactor: Carbon Monoxide",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Large Chemical Reactor",
+      "minimumTier": "HV",
+      "durationTicks": 400,
+      "eut": 480,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2375",
+          "amount": 3,
+          "displayName": "Rutile Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2010",
+          "amount": 2,
+          "displayName": "Carbon Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "fluid",
+          "id": "chlorine",
+          "amount": 4000,
+          "displayName": "Chlorine"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "fluid",
+          "id": "carbonmonoxide",
+          "amount": 2000,
+          "displayName": "Carbon Monoxide"
+        },
+        {
+          "kind": "fluid",
+          "id": "titaniumtetrachloride",
+          "amount": 1000,
+          "displayName": "Titaniumtetrachloride"
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Large Chemical Reactor",
+          "minimumTier": "HV",
+          "perfectOverclock": true,
+          "id": "large-chemical-reactor",
+          "label": "Large Chemical Reactor",
+          "kind": "multiblock"
+        },
+        {
+          "machineType": "Mega Chemical Reactor",
+          "minimumTier": "HV",
+          "perfectOverclock": true,
+          "id": "mega-chemical-reactor",
+          "label": "Mega Chemical Reactor",
+          "kind": "multiblock"
+        }
+      ]
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-largechemicalreactor:42dabdf3ffe1f27d",
+      "name": "Large Chemical Reactor: Magnesium Dust",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Large Chemical Reactor",
+      "minimumTier": "HV",
+      "durationTicks": 400,
+      "eut": 480,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2017",
+          "amount": 4,
+          "displayName": "Sodium Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2377",
+          "amount": 6,
+          "displayName": "Magnesiumchloride Dust",
+          "modId": "gregtech"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2018",
+          "amount": 2,
+          "displayName": "Magnesium Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2817",
+          "amount": 8,
+          "displayName": "Salt",
+          "modId": "gregtech",
+          "alternatives": [
+            {
+              "kind": "item",
+              "id": "gregtech:gt.metaitem.01@2817",
+              "displayName": "Salt",
+              "modId": "gregtech",
+              "amount": 1
+            },
+            {
+              "kind": "item",
+              "id": "harvestcraft:saltitem",
+              "displayName": "Salt",
+              "modId": "harvestcraft",
+              "amount": 1
+            }
+          ]
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Large Chemical Reactor",
+          "minimumTier": "HV",
+          "perfectOverclock": true,
+          "id": "large-chemical-reactor",
+          "label": "Large Chemical Reactor",
+          "kind": "multiblock"
+        },
+        {
+          "machineType": "Mega Chemical Reactor",
+          "minimumTier": "HV",
+          "perfectOverclock": true,
+          "id": "mega-chemical-reactor",
+          "label": "Mega Chemical Reactor",
+          "kind": "multiblock"
+        }
+      ]
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-electrolyzer:2211d2a81ffdca26",
+      "name": "Electrolyzer: Sodium Dust",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Electrolyzer",
+      "minimumTier": "LV",
+      "durationTicks": 320,
+      "eut": 30,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2817",
+          "amount": 2,
+          "displayName": "Salt",
+          "modId": "gregtech",
+          "alternatives": [
+            {
+              "kind": "item",
+              "id": "gregtech:gt.metaitem.01@2817",
+              "displayName": "Salt",
+              "modId": "gregtech",
+              "amount": 1
+            },
+            {
+              "kind": "item",
+              "id": "harvestcraft:saltitem",
+              "displayName": "Salt",
+              "modId": "harvestcraft",
+              "amount": 1
+            }
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2017",
+          "amount": 1,
+          "displayName": "Sodium Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "fluid",
+          "id": "chlorine",
+          "amount": 1000,
+          "displayName": "Chlorine"
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Electrolyzer",
+          "minimumTier": "LV",
+          "id": "electrolyzer",
+          "label": "Electrolyzer",
+          "kind": "single"
+        },
+        {
+          "machineType": "Ionizer",
+          "minimumTier": "UV",
+          "id": "ionizer",
+          "label": "Ionizer",
+          "kind": "single"
+        },
+        {
+          "machineType": "Molecular Disintegrator E-4908",
+          "minimumTier": "IV",
+          "id": "molecular-disintegrator-e-4908",
+          "label": "Molecular Disintegrator E-4908",
+          "kind": "single"
+        }
+      ]
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-blastfurnace:8505f18dedb7f046",
+      "name": "Blast Furnace: Cast Iron Ingot",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Blast Furnace",
+      "minimumTier": "HV",
+      "durationTicks": 3200,
+      "eut": 480,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2918",
+          "amount": 5,
+          "displayName": "Ilmenite Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2010",
+          "amount": 1,
+          "displayName": "Carbon Dust",
+          "modId": "gregtech"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@11304",
+          "amount": 1,
+          "displayName": "Cast Iron Ingot",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2375",
+          "amount": 3,
+          "displayName": "Rutile Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "fluid",
+          "id": "carbonmonoxide",
+          "amount": 1000,
+          "displayName": "Carbon Monoxide"
+        }
+      ],
+      "specialValue": 1700,
+      "machineHandlers": [
+        {
+          "machineType": "Electric Blast Furnace",
+          "minimumTier": "HV",
+          "perfectOverclock": true,
+          "id": "electric-blast-furnace",
+          "label": "Electric Blast Furnace",
+          "kind": "multiblock"
+        },
+        {
+          "machineType": "Exothermic Hearth",
+          "minimumTier": "HV",
+          "id": "exothermic-hearth",
+          "label": "Exothermic Hearth",
+          "kind": "multiblock"
+        },
+        {
+          "machineType": "Helioflare Power Forge",
+          "minimumTier": "HV",
+          "id": "helioflare-power-forge",
+          "label": "Helioflare Power Forge",
+          "kind": "multiblock"
+        },
+        {
+          "machineType": "Industrial Arc Furnace",
+          "minimumTier": "HV",
+          "id": "industrial-arc-furnace",
+          "label": "Industrial Arc Furnace",
+          "kind": "multiblock"
+        },
+        {
+          "machineType": "Volcanus",
+          "minimumTier": "HV",
+          "durationTicks": 1455,
+          "eut": 432,
+          "id": "volcanus",
+          "label": "Volcanus",
+          "kind": "multiblock"
+        }
+      ]
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-electrolyzer:e350a85e393e5272",
+      "name": "Electrolyzer: Carbon Dust",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Electrolyzer",
+      "minimumTier": "MV",
+      "durationTicks": 300,
+      "eut": 120,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.integrated_circuit@1",
+          "amount": 1,
+          "displayName": "Programmed Circuit",
+          "modId": "gregtech",
+          "consumed": false
+        },
+        {
+          "kind": "fluid",
+          "id": "carbonmonoxide",
+          "amount": 1000,
+          "displayName": "Carbon Monoxide"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2010",
+          "amount": 1,
+          "displayName": "Carbon Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "fluid",
+          "id": "oxygen",
+          "amount": 1000,
+          "displayName": "Oxygen"
+        }
+      ],
+      "programmedCircuit": "1",
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Electrolyzer",
+          "minimumTier": "MV",
+          "id": "electrolyzer",
+          "label": "Electrolyzer",
+          "kind": "single"
+        },
+        {
+          "machineType": "Ionizer",
+          "minimumTier": "UV",
+          "id": "ionizer",
+          "label": "Ionizer",
+          "kind": "single"
+        },
+        {
+          "machineType": "Molecular Disintegrator E-4908",
+          "minimumTier": "IV",
+          "id": "molecular-disintegrator-e-4908",
+          "label": "Molecular Disintegrator E-4908",
+          "kind": "single"
+        }
+      ]
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-chemicalbath:9fed82f4dc025246",
+      "name": "Chemical Bath: Rutile Dust",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Chemical Bath",
+      "minimumTier": "EV",
+      "durationTicks": 420,
+      "eut": 1000,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@5918",
+          "amount": 1,
+          "displayName": "Crushed Ilmenite Ore",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "fluid",
+          "id": "sulfuricacid",
+          "amount": 1000,
+          "displayName": "Sulfuric Acid"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2375",
+          "amount": 2,
+          "displayName": "Rutile Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2414",
+          "amount": 1,
+          "displayName": "Ilmenite Slag Dust",
+          "modId": "gregtech",
+          "chance": 0.6
+        },
+        {
+          "kind": "fluid",
+          "id": "solution.greenvitriol",
+          "amount": 2000,
+          "displayName": "Green Vitriol Water Solution"
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Chemical Bath",
+          "minimumTier": "EV",
+          "id": "chemical-bath",
+          "label": "Chemical Bath",
+          "kind": "single"
+        },
+        {
+          "machineType": "Chemical Dunktron",
+          "minimumTier": "UV",
+          "id": "chemical-dunktron",
+          "label": "Chemical Dunktron",
+          "kind": "single"
+        },
+        {
+          "machineType": "Industrial Chemical Bath",
+          "minimumTier": "EV",
+          "durationTicks": 84,
+          "id": "industrial-chemical-bath",
+          "label": "Industrial Chemical Bath",
+          "kind": "multiblock"
+        }
+      ]
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-macerator:b3d0078a049bdd4e",
+      "name": "Macerator: Crushed Ilmenite Ore",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Macerator",
+      "minimumTier": "ULV",
+      "durationTicks": 400,
+      "eut": 2,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.03@5918",
+          "amount": 1,
+          "displayName": "Raw Ilmenite Ore",
+          "modId": "gregtech"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@5918",
+          "amount": 2,
+          "displayName": "Crushed Ilmenite Ore",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2032",
+          "amount": 1,
+          "displayName": "Iron Dust",
+          "modId": "gregtech",
+          "alternatives": [
+            {
+              "kind": "item",
+              "id": "gregtech:gt.metaitem.01@2032",
+              "displayName": "Iron Dust",
+              "modId": "gregtech",
+              "amount": 1
+            },
+            {
+              "kind": "item",
+              "id": "ic2:itemdust@5",
+              "displayName": "Iron Dust",
+              "modId": "IC2",
+              "amount": 1
+            }
+          ],
+          "chance": 0.05
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2299",
+          "amount": 1,
+          "displayName": "Stone Dust",
+          "modId": "gregtech",
+          "alternatives": [
+            {
+              "kind": "item",
+              "id": "gregtech:gt.metaitem.01@2299",
+              "displayName": "Stone Dust",
+              "modId": "gregtech",
+              "amount": 1
+            },
+            {
+              "kind": "item",
+              "id": "ic2:itemdust@9",
+              "displayName": "Stone Dust",
+              "modId": "IC2",
+              "amount": 1
+            }
+          ],
+          "chance": 0.5
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Macerator",
+          "minimumTier": "LV",
+          "id": "macerator",
+          "label": "Macerator",
+          "kind": "single"
+        },
+        {
+          "machineType": "Blend-O-Matic 9001",
+          "minimumTier": "IV",
+          "id": "blend-o-matic-9001",
+          "label": "Blend-O-Matic 9001",
+          "kind": "single"
+        },
+        {
+          "machineType": "High Pressure Steam Macerator",
+          "minimumTier": "ULV",
+          "id": "high-pressure-steam-macerator",
+          "label": "High Pressure Steam Macerator",
+          "kind": "single"
+        },
+        {
+          "machineType": "Pulverizer",
+          "minimumTier": "EV",
+          "id": "pulverizer",
+          "label": "Pulverizer",
+          "kind": "single"
+        },
+        {
+          "machineType": "Shape Eliminator",
+          "minimumTier": "UV",
+          "id": "shape-eliminator",
+          "label": "Shape Eliminator",
+          "kind": "single"
+        },
+        {
+          "machineType": "Steam Macerator",
+          "minimumTier": "ULV",
+          "id": "steam-macerator",
+          "label": "Steam Macerator",
+          "kind": "single"
+        },
+        {
+          "machineType": "Industrial Maceration Stack",
+          "minimumTier": "ULV",
+          "id": "industrial-maceration-stack",
+          "label": "Industrial Maceration Stack",
+          "kind": "multiblock"
+        },
+        {
+          "machineType": "Steam Grinder",
+          "minimumTier": "ULV",
+          "durationTicks": 320,
+          "id": "steam-grinder",
+          "label": "Steam Grinder",
+          "kind": "multiblock"
+        }
+      ]
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-electrolyzer:9c4d54434b203cf3",
+      "name": "Electrolyzer: Iron Dust",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Electrolyzer",
+      "minimumTier": "LV",
+      "durationTicks": 900,
+      "eut": 30,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "ic2:itemcellempty",
+          "amount": 1,
+          "displayName": "Empty Cell",
+          "modId": "IC2"
+        },
+        {
+          "kind": "fluid",
+          "id": "solution.greenvitriol",
+          "amount": 2000,
+          "displayName": "Green Vitriol Water Solution"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2032",
+          "amount": 1,
+          "displayName": "Iron Dust",
+          "modId": "gregtech",
+          "alternatives": [
+            {
+              "kind": "item",
+              "id": "gregtech:gt.metaitem.01@2032",
+              "displayName": "Iron Dust",
+              "modId": "gregtech",
+              "amount": 1
+            },
+            {
+              "kind": "item",
+              "id": "ic2:itemdust@5",
+              "displayName": "Iron Dust",
+              "modId": "IC2",
+              "amount": 1
+            }
+          ]
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@30013",
+          "amount": 1,
+          "displayName": "Oxygen Cell",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "fluid",
+          "id": "sulfuricacid",
+          "amount": 1000,
+          "displayName": "Sulfuric Acid"
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Electrolyzer",
+          "minimumTier": "LV",
+          "id": "electrolyzer",
+          "label": "Electrolyzer",
+          "kind": "single"
+        },
+        {
+          "machineType": "Ionizer",
+          "minimumTier": "UV",
+          "id": "ionizer",
+          "label": "Ionizer",
+          "kind": "single"
+        },
+        {
+          "machineType": "Molecular Disintegrator E-4908",
+          "minimumTier": "IV",
+          "id": "molecular-disintegrator-e-4908",
+          "label": "Molecular Disintegrator E-4908",
+          "kind": "single"
+        }
+      ]
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-centrifuge:fafbd6a5bfbecbdf",
+      "name": "Centrifuge: Iron Dust",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Centrifuge",
+      "minimumTier": "MV",
+      "durationTicks": 40,
+      "eut": 120,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2414",
+          "amount": 1,
+          "displayName": "Ilmenite Slag Dust",
+          "modId": "gregtech"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2032",
+          "amount": 1,
+          "displayName": "Iron Dust",
+          "modId": "gregtech",
+          "alternatives": [
+            {
+              "kind": "item",
+              "id": "gregtech:gt.metaitem.01@2032",
+              "displayName": "Iron Dust",
+              "modId": "gregtech",
+              "amount": 1
+            },
+            {
+              "kind": "item",
+              "id": "ic2:itemdust@5",
+              "displayName": "Iron Dust",
+              "modId": "IC2",
+              "amount": 1
+            }
+          ],
+          "chance": 0.8
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2047",
+          "amount": 1,
+          "displayName": "Niobium Dust",
+          "modId": "gregtech",
+          "chance": 0.05
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2080",
+          "amount": 1,
+          "displayName": "Tantalum Dust",
+          "modId": "gregtech",
+          "chance": 0.2
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2031",
+          "amount": 1,
+          "displayName": "Manganese Dust",
+          "modId": "gregtech",
+          "chance": 0.5
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2018",
+          "amount": 1,
+          "displayName": "Magnesium Dust",
+          "modId": "gregtech",
+          "chance": 0.6
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Centrifuge",
+          "minimumTier": "MV",
+          "id": "centrifuge",
+          "label": "Centrifuge",
+          "kind": "single"
+        },
+        {
+          "machineType": "Molecular Cyclone",
+          "minimumTier": "IV",
+          "id": "molecular-cyclone",
+          "label": "Molecular Cyclone",
+          "kind": "single"
+        },
+        {
+          "machineType": "Molecular Separator",
+          "minimumTier": "EV",
+          "id": "molecular-separator",
+          "label": "Molecular Separator",
+          "kind": "single"
+        },
+        {
+          "machineType": "Molecular Tornado",
+          "minimumTier": "UV",
+          "id": "molecular-tornado",
+          "label": "Molecular Tornado",
+          "kind": "single"
+        },
+        {
+          "machineType": "Steam Separator",
+          "minimumTier": "MV",
+          "durationTicks": 32,
+          "id": "steam-separator",
+          "label": "Steam Separator",
+          "kind": "multiblock"
+        }
+      ]
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-macerator:a8e83a744e5f83c9",
+      "name": "Macerator: Crushed Bauxite Ore",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Macerator",
+      "minimumTier": "ULV",
+      "durationTicks": 400,
+      "eut": 2,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.03@5822",
+          "amount": 1,
+          "displayName": "Raw Bauxite Ore",
+          "modId": "gregtech"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@5822",
+          "amount": 2,
+          "displayName": "Crushed Bauxite Ore",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2831",
+          "amount": 1,
+          "displayName": "Grossular Dust",
+          "modId": "gregtech",
+          "chance": 0.05
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2299",
+          "amount": 1,
+          "displayName": "Stone Dust",
+          "modId": "gregtech",
+          "alternatives": [
+            {
+              "kind": "item",
+              "id": "gregtech:gt.metaitem.01@2299",
+              "displayName": "Stone Dust",
+              "modId": "gregtech",
+              "amount": 1
+            },
+            {
+              "kind": "item",
+              "id": "ic2:itemdust@9",
+              "displayName": "Stone Dust",
+              "modId": "IC2",
+              "amount": 1
+            }
+          ],
+          "chance": 0.5
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Macerator",
+          "minimumTier": "LV",
+          "id": "macerator",
+          "label": "Macerator",
+          "kind": "single"
+        },
+        {
+          "machineType": "Blend-O-Matic 9001",
+          "minimumTier": "IV",
+          "id": "blend-o-matic-9001",
+          "label": "Blend-O-Matic 9001",
+          "kind": "single"
+        },
+        {
+          "machineType": "High Pressure Steam Macerator",
+          "minimumTier": "ULV",
+          "id": "high-pressure-steam-macerator",
+          "label": "High Pressure Steam Macerator",
+          "kind": "single"
+        },
+        {
+          "machineType": "Pulverizer",
+          "minimumTier": "EV",
+          "id": "pulverizer",
+          "label": "Pulverizer",
+          "kind": "single"
+        },
+        {
+          "machineType": "Shape Eliminator",
+          "minimumTier": "UV",
+          "id": "shape-eliminator",
+          "label": "Shape Eliminator",
+          "kind": "single"
+        },
+        {
+          "machineType": "Steam Macerator",
+          "minimumTier": "ULV",
+          "id": "steam-macerator",
+          "label": "Steam Macerator",
+          "kind": "single"
+        },
+        {
+          "machineType": "Industrial Maceration Stack",
+          "minimumTier": "ULV",
+          "id": "industrial-maceration-stack",
+          "label": "Industrial Maceration Stack",
+          "kind": "multiblock"
+        },
+        {
+          "machineType": "Steam Grinder",
+          "minimumTier": "ULV",
+          "durationTicks": 320,
+          "id": "steam-grinder",
+          "label": "Steam Grinder",
+          "kind": "multiblock"
+        }
+      ]
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-chemicalbath:c8ec3c5e0bd56000",
+      "name": "Chemical Bath: Purified Bauxite Ore",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Chemical Bath",
+      "minimumTier": "ULV",
+      "durationTicks": 800,
+      "eut": 7,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@5822",
+          "amount": 1,
+          "displayName": "Crushed Bauxite Ore",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "fluid",
+          "id": "sodiumpersulfate",
+          "amount": 100,
+          "displayName": "Sodium Persulfate"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@6822",
+          "amount": 1,
+          "displayName": "Purified Bauxite Ore",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2375",
+          "amount": 1,
+          "displayName": "Rutile Dust",
+          "modId": "gregtech",
+          "chance": 0.5
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2299",
+          "amount": 1,
+          "displayName": "Stone Dust",
+          "modId": "gregtech",
+          "alternatives": [
+            {
+              "kind": "item",
+              "id": "gregtech:gt.metaitem.01@2299",
+              "displayName": "Stone Dust",
+              "modId": "gregtech",
+              "amount": 1
+            },
+            {
+              "kind": "item",
+              "id": "ic2:itemdust@9",
+              "displayName": "Stone Dust",
+              "modId": "IC2",
+              "amount": 1
+            }
+          ],
+          "chance": 0.4
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Chemical Bath",
+          "minimumTier": "LV",
+          "id": "chemical-bath",
+          "label": "Chemical Bath",
+          "kind": "single"
+        },
+        {
+          "machineType": "Chemical Dunktron",
+          "minimumTier": "UV",
+          "id": "chemical-dunktron",
+          "label": "Chemical Dunktron",
+          "kind": "single"
+        },
+        {
+          "machineType": "Industrial Chemical Bath",
+          "minimumTier": "ULV",
+          "durationTicks": 160,
+          "id": "industrial-chemical-bath",
+          "label": "Industrial Chemical Bath",
+          "kind": "multiblock"
+        }
+      ]
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-mixer:8216b526b4783874",
+      "name": "Mixer: Bauxite Slurry",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Mixer",
+      "minimumTier": "MV",
+      "durationTicks": 200,
+      "eut": 120,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@6822",
+          "amount": 32,
+          "displayName": "Purified Bauxite Ore",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2685",
+          "amount": 9,
+          "displayName": "Sodium Hydroxide Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2622",
+          "amount": 4,
+          "displayName": "Quicklime Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.integrated_circuit@8",
+          "amount": 1,
+          "displayName": "Programmed Circuit",
+          "modId": "gregtech",
+          "consumed": false
+        },
+        {
+          "kind": "fluid",
+          "id": "water",
+          "amount": 5000,
+          "displayName": "Water"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "fluid",
+          "id": "bauxiteslurry",
+          "amount": 8000,
+          "displayName": "Bauxite Slurry"
+        }
+      ],
+      "programmedCircuit": "8",
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Mixer",
+          "minimumTier": "MV",
+          "id": "mixer",
+          "label": "Mixer",
+          "kind": "single"
+        },
+        {
+          "machineType": "Matter Organizer",
+          "minimumTier": "UV",
+          "id": "matter-organizer",
+          "label": "Matter Organizer",
+          "kind": "single"
+        }
+      ]
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-fluidheater:3572a57e893efc57",
+      "name": "Fluid Heater: Heated Bauxite Slurry",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Fluid Heater",
+      "minimumTier": "HV",
+      "durationTicks": 40,
+      "eut": 480,
+      "inputs": [
+        {
+          "kind": "fluid",
+          "id": "bauxiteslurry",
+          "amount": 2000,
+          "displayName": "Bauxite Slurry"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "fluid",
+          "id": "headedbauxiteslurry",
+          "amount": 2000,
+          "displayName": "Heated Bauxite Slurry"
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Fluid Heater",
+          "minimumTier": "HV",
+          "id": "fluid-heater",
+          "label": "Fluid Heater",
+          "kind": "single"
+        },
+        {
+          "machineType": "Heat Infuser",
+          "minimumTier": "UV",
+          "id": "heat-infuser",
+          "label": "Heat Infuser",
+          "kind": "single"
+        },
+        {
+          "machineType": "Thermic Heating Device",
+          "minimumTier": "HV",
+          "durationTicks": 18,
+          "eut": 432,
+          "id": "thermic-heating-device",
+          "label": "Thermic Heating Device",
+          "kind": "multiblock"
+        }
+      ]
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-largechemicalreactor:1e3afe6307f068da",
+      "name": "Large Chemical Reactor: Alumina Dust",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Large Chemical Reactor",
+      "minimumTier": "HV",
+      "durationTicks": 300,
+      "eut": 480,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2698",
+          "amount": 1,
+          "displayName": "Aluminium Hydroxide Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "fluid",
+          "id": "carbondioxide",
+          "amount": 5000,
+          "displayName": "Carbon Dioxide"
+        },
+        {
+          "kind": "fluid",
+          "id": "headedbauxiteslurry",
+          "amount": 8000,
+          "displayName": "Heated Bauxite Slurry"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2697",
+          "amount": 64,
+          "displayName": "Alumina Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2697",
+          "amount": 16,
+          "displayName": "Alumina Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2695",
+          "amount": 9,
+          "displayName": "Sodium Carbonate Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2823",
+          "amount": 10,
+          "displayName": "Calcite Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2413",
+          "amount": 16,
+          "displayName": "Bauxite Slag Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "fluid",
+          "id": "sluicejuice",
+          "amount": 5000,
+          "displayName": "Sluice Juice"
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Large Chemical Reactor",
+          "minimumTier": "HV",
+          "perfectOverclock": true,
+          "id": "large-chemical-reactor",
+          "label": "Large Chemical Reactor",
+          "kind": "multiblock"
+        },
+        {
+          "machineType": "Mega Chemical Reactor",
+          "minimumTier": "HV",
+          "perfectOverclock": true,
+          "id": "mega-chemical-reactor",
+          "label": "Mega Chemical Reactor",
+          "kind": "multiblock"
+        }
+      ]
+    },
+    {
+      "id": "recipe-bf976b72-ae80-4db5-827d-551e6203dabe",
+      "name": "Custom Rate",
+      "kind": "custom",
+      "category": "custom-rate",
+      "machineType": "Custom Rate",
+      "minimumTier": "NONE",
+      "durationTicks": 20,
+      "eut": 0,
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "id": "recipe-9154ca58-b815-44ce-a608-a979b83bf817",
+      "name": "Custom Rate",
+      "kind": "custom",
+      "category": "custom-rate",
+      "machineType": "Custom Rate",
+      "minimumTier": "NONE",
+      "durationTicks": 20,
+      "eut": 0,
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-chemicalreactor:ef89fb374ac48543",
+      "name": "Chemical Reactor: Magnesium Dust",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Chemical Reactor",
+      "minimumTier": "HV",
+      "durationTicks": 400,
+      "eut": 480,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2017",
+          "amount": 4,
+          "displayName": "Sodium Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2377",
+          "amount": 6,
+          "displayName": "Magnesiumchloride Dust",
+          "modId": "gregtech"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2018",
+          "amount": 2,
+          "displayName": "Magnesium Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2817",
+          "amount": 8,
+          "displayName": "Salt",
+          "modId": "gregtech",
+          "alternatives": [
+            {
+              "kind": "item",
+              "id": "gregtech:gt.metaitem.01@2817",
+              "displayName": "Salt",
+              "modId": "gregtech",
+              "amount": 1
+            },
+            {
+              "kind": "item",
+              "id": "harvestcraft:saltitem",
+              "displayName": "Salt",
+              "modId": "harvestcraft",
+              "amount": 1
+            }
+          ]
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Chemical Reactor",
+          "minimumTier": "HV",
+          "id": "chemical-reactor",
+          "label": "Chemical Reactor",
+          "kind": "single"
+        },
+        {
+          "machineType": "Chemical Performer",
+          "minimumTier": "UV",
+          "id": "chemical-performer",
+          "label": "Chemical Performer",
+          "kind": "single"
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "node-4b10f3d4-e46f-46ca-b708-26832c044296",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-vacuumfreezer:fc038b6c9cec5426",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "HV",
+      "energyHatches": 1,
+      "recipeInputOverrides": {
+        "0": {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@12028",
+          "amount": 1,
+          "displayName": "Hot Titanium Ingot",
+          "modId": "gregtech"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": 2920,
+        "y": 380
+      }
+    },
+    {
+      "id": "node-b02b49ee-f858-4317-b918-df16f0e7ede6",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-blastfurnace:141c60693bdb0f98",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "HV",
+      "energyHatches": 2,
+      "coilTier": "kanthal",
+      "recipeInputOverrides": {
+        "0": {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2018",
+          "amount": 2,
+          "displayName": "Magnesium Dust",
+          "modId": "gregtech"
+        },
+        "2": {
+          "kind": "fluid",
+          "id": "titaniumtetrachloride",
+          "amount": 1000,
+          "displayName": "Titaniumtetrachloride"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": 2500,
+        "y": 340
+      }
+    },
+    {
+      "id": "node-d8afe5ea-3c47-41eb-8e07-e5eade9cad42",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-largechemicalreactor:6db988ddcbfcf8e3",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "HV",
+      "recipeInputOverrides": {
+        "0": {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2375",
+          "amount": 3,
+          "displayName": "Rutile Dust",
+          "modId": "gregtech"
+        },
+        "1": {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2010",
+          "amount": 2,
+          "displayName": "Carbon Dust",
+          "modId": "gregtech"
+        },
+        "2": {
+          "kind": "fluid",
+          "id": "chlorine",
+          "amount": 4000,
+          "displayName": "Chlorine"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": 2120,
+        "y": 640
+      }
+    },
+    {
+      "id": "node-d4b08d48-73d7-436b-8690-ff146be3af9c",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-chemicalreactor:ef89fb374ac48543",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "HV",
+      "recipeInputOverrides": {
+        "0": {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2017",
+          "amount": 4,
+          "displayName": "Sodium Dust",
+          "modId": "gregtech"
+        },
+        "1": {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2377",
+          "amount": 6,
+          "displayName": "Magnesiumchloride Dust",
+          "modId": "gregtech"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": 2120,
+        "y": 140
+      }
+    },
+    {
+      "id": "node-80956d47-2037-4b1a-ae1f-818383576b74",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-electrolyzer:2211d2a81ffdca26",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "HV",
+      "recipeInputOverrides": {
+        "0": {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2817",
+          "amount": 2,
+          "displayName": "Salt",
+          "modId": "gregtech"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": 2120,
+        "y": 420
+      }
+    },
+    {
+      "id": "node-cdf21db2-de6f-42f8-808e-21dc33759344",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-electrolyzer:e350a85e393e5272",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "HV",
+      "recipeInputOverrides": {
+        "1": {
+          "kind": "fluid",
+          "id": "carbonmonoxide",
+          "amount": 1000,
+          "displayName": "Carbon Monoxide"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": 2120,
+        "y": 940
+      }
+    },
+    {
+      "id": "node-c64df9b4-6d77-4a34-b5c2-da05f086ddd0",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-chemicalbath:9fed82f4dc025246",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "EV",
+      "recipeInputOverrides": {
+        "0": {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@5918",
+          "amount": 1,
+          "displayName": "Crushed Ilmenite Ore",
+          "modId": "gregtech"
+        },
+        "1": {
+          "kind": "fluid",
+          "id": "sulfuricacid",
+          "amount": 1000,
+          "displayName": "Sulfuric Acid"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": 1640,
+        "y": 640
+      }
+    },
+    {
+      "id": "node-1dc025f6-2092-4ffe-9f05-83a574015a9d",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-electrolyzer:9c4d54434b203cf3",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "HV",
+      "recipeInputOverrides": {
+        "0": {
+          "kind": "item",
+          "id": "ic2:itemcellempty",
+          "amount": 1,
+          "displayName": "Empty Cell",
+          "modId": "IC2"
+        },
+        "1": {
+          "kind": "fluid",
+          "id": "solution.greenvitriol",
+          "amount": 2000,
+          "displayName": "Green Vitriol Water Solution"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": 1240,
+        "y": 680
+      }
+    },
+    {
+      "id": "node-ba631d08-7de7-48cc-87c7-8de557f0cbe3",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-centrifuge:fafbd6a5bfbecbdf",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "MV",
+      "recipeInputOverrides": {
+        "0": {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2414",
+          "amount": 1,
+          "displayName": "Ilmenite Slag Dust",
+          "modId": "gregtech"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": 2620,
+        "y": 1100
+      }
+    },
+    {
+      "id": "node-30aa3bdd-cda2-417a-8ada-31327f2a44f7",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-macerator:b3d0078a049bdd4e",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "MV",
+      "recipeInputOverrides": {
+        "0": {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.03@5918",
+          "amount": 1,
+          "displayName": "Raw Ilmenite Ore",
+          "modId": "gregtech"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": 1640,
+        "y": 1280
+      }
+    }
+  ],
+  "storages": [
+    {
+      "id": "storage-1ffedffd-6260-434a-8a21-76bd1d3d8cbc",
+      "kind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@11028",
+      "displayName": "Titanium Ingot",
+      "position": {
+        "x": 3340,
+        "y": 440
+      }
+    },
+    {
+      "id": "storage-d19413dc-16ad-4e2e-81d4-4044fae551bb",
+      "kind": "item",
+      "resourceId": "ic2:itemcellempty",
+      "displayName": "Empty Cell",
+      "position": {
+        "x": 1360,
+        "y": 560
+      }
+    },
+    {
+      "id": "storage-4ad4958d-9bd7-45be-9861-32cf85dd8f19",
+      "kind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2032",
+      "displayName": "Iron Dust",
+      "drainMode": "byproduct",
+      "position": {
+        "x": 2020,
+        "y": 1220
+      }
+    },
+    {
+      "id": "storage-a93decb6-f15f-42ff-a0d6-5c8349f7cb86",
+      "kind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@30013",
+      "displayName": "Oxygen Cell",
+      "position": {
+        "x": 1480,
+        "y": 560
+      }
+    },
+    {
+      "id": "storage-0f492e0e-afde-4b0d-8d07-b32bb9422057",
+      "kind": "fluid",
+      "resourceId": "oxygen",
+      "displayName": "Oxygen",
+      "position": {
+        "x": 2520,
+        "y": 940
+      }
+    },
+    {
+      "id": "storage-f3506795-51e7-4f1b-9335-2b1581881145",
+      "kind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2047",
+      "displayName": "Niobium Dust",
+      "drainMode": "product",
+      "position": {
+        "x": 3020,
+        "y": 1160
+      }
+    },
+    {
+      "id": "storage-b54417f2-9247-47eb-9c40-a33f81b54cc6",
+      "kind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2080",
+      "displayName": "Tantalum Dust",
+      "drainMode": "product",
+      "position": {
+        "x": 3020,
+        "y": 1260
+      }
+    },
+    {
+      "id": "storage-bd3ff29f-0f7f-47af-922d-8a79a348a9a1",
+      "kind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2031",
+      "displayName": "Manganese Dust",
+      "drainMode": "byproduct",
+      "position": {
+        "x": 3020,
+        "y": 1360
+      }
+    },
+    {
+      "id": "storage-48a24f08-ec46-4c01-8c5e-892d6f37a692",
+      "kind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2018",
+      "displayName": "Magnesium Dust",
+      "drainMode": "product",
+      "position": {
+        "x": 2760,
+        "y": 680
+      }
+    },
+    {
+      "id": "storage-33c89944-e52a-46fd-8d27-69cb8cfa08e4",
+      "kind": "item",
+      "resourceId": "gregtech:gt.metaitem.03@5918",
+      "displayName": "Raw Ilmenite Ore",
+      "position": {
+        "x": 1500,
+        "y": 1460
+      }
+    },
+    {
+      "id": "storage-9e5fcf00-bb00-4808-93b2-f5e855ce7c26",
+      "kind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2299",
+      "displayName": "Stone Dust",
+      "position": {
+        "x": 1500,
+        "y": 1380
+      }
+    },
+    {
+      "id": "storage-033aa6b7-35f4-443f-8868-2342c2fa4dcb",
+      "kind": "fluid",
+      "resourceId": "titaniumtetrachloride",
+      "displayName": "Titaniumtetrachloride",
+      "position": {
+        "x": 2980,
+        "y": 680
+      }
+    },
+    {
+      "id": "storage-12927f24-8a0c-4fcd-b0a8-8cf8f8dc4746",
+      "kind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2017",
+      "displayName": "Sodium Dust",
+      "position": {
+        "x": 2000,
+        "y": 120
+      }
+    },
+    {
+      "id": "storage-4ee51b30-5ad4-4605-82a8-26fb52747c8f",
+      "kind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2377",
+      "displayName": "Magnesiumchloride Dust",
+      "position": {
+        "x": 1980,
+        "y": 280
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-e871cbd7-f252-4b79-b96b-5cfeb0ed8b14",
+      "source": "node-b02b49ee-f858-4317-b918-df16f0e7ede6",
+      "target": "node-4b10f3d4-e46f-46ca-b708-26832c044296",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%4012028",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%4012028",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@12028",
+      "label": "Hot Titanium Ingot"
+    },
+    {
+      "id": "edge-f8721f05-6f20-4512-bb13-de8ffaa411b7",
+      "source": "node-d8afe5ea-3c47-41eb-8e07-e5eade9cad42",
+      "target": "node-b02b49ee-f858-4317-b918-df16f0e7ede6",
+      "sourceHandle": "output:fluid:titaniumtetrachloride",
+      "targetHandle": "input:fluid:titaniumtetrachloride",
+      "resourceKind": "fluid",
+      "resourceId": "titaniumtetrachloride",
+      "label": "Titaniumtetrachloride"
+    },
+    {
+      "id": "edge-f24e8878-f2b7-440b-a394-347a11d7b87d",
+      "source": "node-4b10f3d4-e46f-46ca-b708-26832c044296",
+      "target": "storage-1ffedffd-6260-434a-8a21-76bd1d3d8cbc",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%4011028",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%4011028",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@11028",
+      "label": "Titanium Ingot"
+    },
+    {
+      "id": "edge-afbd33bd-fdc4-4bf0-8445-5322ec902017",
+      "source": "node-c64df9b4-6d77-4a34-b5c2-da05f086ddd0",
+      "target": "node-d8afe5ea-3c47-41eb-8e07-e5eade9cad42",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402375",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402375",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2375",
+      "label": "Rutile Dust"
+    },
+    {
+      "id": "edge-bebbe2cc-8f96-4677-970d-7e490f6ab6b5",
+      "source": "node-1dc025f6-2092-4ffe-9f05-83a574015a9d",
+      "target": "node-c64df9b4-6d77-4a34-b5c2-da05f086ddd0",
+      "sourceHandle": "output:fluid:sulfuricacid",
+      "targetHandle": "input:fluid:sulfuricacid",
+      "resourceKind": "fluid",
+      "resourceId": "sulfuricacid",
+      "label": "Sulfuric Acid"
+    },
+    {
+      "id": "edge-a270fdec-68d2-46b7-b3a2-68ecf32cacb0",
+      "source": "node-c64df9b4-6d77-4a34-b5c2-da05f086ddd0",
+      "target": "node-1dc025f6-2092-4ffe-9f05-83a574015a9d",
+      "sourceHandle": "output:fluid:solution.greenvitriol",
+      "targetHandle": "input:fluid:solution.greenvitriol",
+      "resourceKind": "fluid",
+      "resourceId": "solution.greenvitriol",
+      "label": "Green Vitriol Water Solution"
+    },
+    {
+      "id": "edge-318f791a-e20a-43a4-acae-e92d1385707b",
+      "source": "storage-d19413dc-16ad-4e2e-81d4-4044fae551bb",
+      "target": "node-1dc025f6-2092-4ffe-9f05-83a574015a9d",
+      "sourceHandle": "output:item:ic2%3Aitemcellempty",
+      "targetHandle": "input:item:ic2%3Aitemcellempty",
+      "resourceKind": "item",
+      "resourceId": "ic2:itemcellempty",
+      "label": "Empty Cell"
+    },
+    {
+      "id": "edge-8a3c9c30-5264-46a5-9631-9b3876532be4",
+      "source": "node-1dc025f6-2092-4ffe-9f05-83a574015a9d",
+      "target": "storage-4ad4958d-9bd7-45be-9861-32cf85dd8f19",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402032",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402032",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2032",
+      "label": "Iron Dust"
+    },
+    {
+      "id": "edge-077a4593-4b45-4d2c-b444-dbbb9be682ff",
+      "source": "node-1dc025f6-2092-4ffe-9f05-83a574015a9d",
+      "target": "storage-a93decb6-f15f-42ff-a0d6-5c8349f7cb86",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%4030013",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%4030013",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@30013",
+      "label": "Oxygen Cell"
+    },
+    {
+      "id": "edge-daf58748-2c99-43fd-a3be-f807c233737a",
+      "source": "node-d8afe5ea-3c47-41eb-8e07-e5eade9cad42",
+      "target": "node-cdf21db2-de6f-42f8-808e-21dc33759344",
+      "sourceHandle": "output:fluid:carbonmonoxide",
+      "targetHandle": "input:fluid:carbonmonoxide",
+      "resourceKind": "fluid",
+      "resourceId": "carbonmonoxide",
+      "label": "Carbon Monoxide"
+    },
+    {
+      "id": "edge-02f86726-e89d-48ea-8c62-d634bdbbdf1d",
+      "source": "node-cdf21db2-de6f-42f8-808e-21dc33759344",
+      "target": "node-d8afe5ea-3c47-41eb-8e07-e5eade9cad42",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402010",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402010",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2010",
+      "label": "Carbon Dust"
+    },
+    {
+      "id": "edge-213644fd-6c19-4cf0-a76d-15fef3367d9d",
+      "source": "node-cdf21db2-de6f-42f8-808e-21dc33759344",
+      "target": "storage-0f492e0e-afde-4b0d-8d07-b32bb9422057",
+      "sourceHandle": "output:fluid:oxygen",
+      "targetHandle": "input:fluid:oxygen",
+      "resourceKind": "fluid",
+      "resourceId": "oxygen",
+      "label": "Oxygen"
+    },
+    {
+      "id": "edge-7f1bfc5a-8d39-4ef4-a5d1-a46704c55104",
+      "source": "node-80956d47-2037-4b1a-ae1f-818383576b74",
+      "target": "node-d8afe5ea-3c47-41eb-8e07-e5eade9cad42",
+      "sourceHandle": "output:fluid:chlorine",
+      "targetHandle": "input:fluid:chlorine",
+      "resourceKind": "fluid",
+      "resourceId": "chlorine",
+      "label": "Chlorine"
+    },
+    {
+      "id": "edge-956fc7b4-689d-4565-8594-a49647d3b655",
+      "source": "node-c64df9b4-6d77-4a34-b5c2-da05f086ddd0",
+      "target": "node-ba631d08-7de7-48cc-87c7-8de557f0cbe3",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402414",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402414",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2414",
+      "label": "Ilmenite Slag Dust"
+    },
+    {
+      "id": "edge-1f089f11-790a-48d2-ae26-98743439243a",
+      "source": "node-ba631d08-7de7-48cc-87c7-8de557f0cbe3",
+      "target": "storage-f3506795-51e7-4f1b-9335-2b1581881145",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402047",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402047",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2047",
+      "label": "Niobium Dust"
+    },
+    {
+      "id": "edge-c1798462-d95a-4c19-91ad-a2f1402809d0",
+      "source": "node-ba631d08-7de7-48cc-87c7-8de557f0cbe3",
+      "target": "storage-b54417f2-9247-47eb-9c40-a33f81b54cc6",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402080",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402080",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2080",
+      "label": "Tantalum Dust"
+    },
+    {
+      "id": "edge-6b6454e6-b34c-4879-b055-40815b3b0f0f",
+      "source": "node-ba631d08-7de7-48cc-87c7-8de557f0cbe3",
+      "target": "storage-bd3ff29f-0f7f-47af-922d-8a79a348a9a1",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402031",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402031",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2031",
+      "label": "Manganese Dust"
+    },
+    {
+      "id": "edge-8c1ed499-195a-493e-92b4-e97ced41c3f4",
+      "source": "node-ba631d08-7de7-48cc-87c7-8de557f0cbe3",
+      "target": "storage-48a24f08-ec46-4c01-8c5e-892d6f37a692",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402018",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402018",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2018",
+      "label": "Magnesium Dust"
+    },
+    {
+      "id": "edge-bc811efc-d13e-4436-bb67-fd31ba9d4fa6",
+      "source": "node-ba631d08-7de7-48cc-87c7-8de557f0cbe3",
+      "target": "storage-4ad4958d-9bd7-45be-9861-32cf85dd8f19",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402032",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402032",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2032",
+      "label": "Iron Dust"
+    },
+    {
+      "id": "edge-3142c133-727e-4945-941c-90d7d45b7ed9",
+      "source": "storage-48a24f08-ec46-4c01-8c5e-892d6f37a692",
+      "target": "node-b02b49ee-f858-4317-b918-df16f0e7ede6",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402018",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402018",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2018",
+      "label": "Magnesium Dust"
+    },
+    {
+      "id": "edge-05ae4231-f8a5-4c0f-8941-a0b72dede135",
+      "source": "node-30aa3bdd-cda2-417a-8ada-31327f2a44f7",
+      "target": "node-c64df9b4-6d77-4a34-b5c2-da05f086ddd0",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%405918",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%405918",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@5918",
+      "label": "Crushed Ilmenite Ore"
+    },
+    {
+      "id": "edge-b8a1a72c-e00d-4527-9d48-52ea0ef357bc",
+      "source": "storage-33c89944-e52a-46fd-8d27-69cb8cfa08e4",
+      "target": "node-30aa3bdd-cda2-417a-8ada-31327f2a44f7",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.03%405918",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.03%405918",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.03@5918",
+      "label": "Raw Ilmenite Ore"
+    },
+    {
+      "id": "edge-96065c2f-2fda-4eb2-91d8-62ff1b23c895",
+      "source": "node-30aa3bdd-cda2-417a-8ada-31327f2a44f7",
+      "target": "storage-4ad4958d-9bd7-45be-9861-32cf85dd8f19",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402032",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402032",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2032",
+      "label": "Iron Dust"
+    },
+    {
+      "id": "edge-45969612-71cb-4288-91ff-2d9a152803b0",
+      "source": "node-30aa3bdd-cda2-417a-8ada-31327f2a44f7",
+      "target": "storage-9e5fcf00-bb00-4808-93b2-f5e855ce7c26",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402299",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402299",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2299",
+      "label": "Stone Dust"
+    },
+    {
+      "id": "edge-b8cc33ca-c606-4e94-bf98-a6f80423e335",
+      "source": "node-80956d47-2037-4b1a-ae1f-818383576b74",
+      "target": "node-d4b08d48-73d7-436b-8690-ff146be3af9c",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402017",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402017:0",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2017",
+      "label": "Sodium Dust"
+    },
+    {
+      "id": "edge-7248ba3b-b158-46d8-be65-de81ccdbbfe0",
+      "source": "node-b02b49ee-f858-4317-b918-df16f0e7ede6",
+      "target": "node-d4b08d48-73d7-436b-8690-ff146be3af9c",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402377",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402377:1",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2377",
+      "label": "Magnesiumchloride Dust"
+    },
+    {
+      "id": "edge-22577eae-1068-4fd1-9fc7-9cdc606ff8bc",
+      "source": "node-d4b08d48-73d7-436b-8690-ff146be3af9c",
+      "target": "node-b02b49ee-f858-4317-b918-df16f0e7ede6",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402018:0",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402018",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2018",
+      "label": "Magnesium Dust"
+    },
+    {
+      "id": "edge-97fda201-84dc-43c2-9f91-644f20560558",
+      "source": "node-d4b08d48-73d7-436b-8690-ff146be3af9c",
+      "target": "node-80956d47-2037-4b1a-ae1f-818383576b74",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402817:1",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402817",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2817",
+      "label": "Salt"
+    },
+    {
+      "id": "edge-53866f1e-28be-4c23-bfe6-4819421a863a",
+      "source": "storage-033aa6b7-35f4-443f-8868-2342c2fa4dcb",
+      "target": "node-b02b49ee-f858-4317-b918-df16f0e7ede6",
+      "sourceHandle": "output:fluid:titaniumtetrachloride",
+      "targetHandle": "input:fluid:titaniumtetrachloride",
+      "resourceKind": "fluid",
+      "resourceId": "titaniumtetrachloride",
+      "label": "Titaniumtetrachloride"
+    },
+    {
+      "id": "edge-6e2bbe2a-50c7-4c6b-a256-2b93369ae56c",
+      "source": "storage-12927f24-8a0c-4fcd-b0a8-8cf8f8dc4746",
+      "target": "node-d4b08d48-73d7-436b-8690-ff146be3af9c",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402017",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402017",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2017",
+      "label": "Sodium Dust"
+    },
+    {
+      "id": "edge-b46b69fa-10e5-4e8e-ae56-0d6bc8e093b9",
+      "source": "storage-4ee51b30-5ad4-4605-82a8-26fb52747c8f",
+      "target": "node-d4b08d48-73d7-436b-8690-ff146be3af9c",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402377",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402377",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2377",
+      "label": "Magnesiumchloride Dust"
+    }
+  ],
+  "fuelProfiles": []
+}
