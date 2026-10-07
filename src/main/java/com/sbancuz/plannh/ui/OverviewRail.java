@@ -48,8 +48,6 @@ final class OverviewRail extends ParentWidget<OverviewRail>
     private enum Kind {
         ADD,
         FOLD,
-        CLEAR,
-        DELETE,
         SECTION,
         RESOURCE,
         RULE,
@@ -169,8 +167,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
 
         // The list scrolls under the heading and filter.
         final float z = context.getCurrentDrawingZ();
-        final int listY = listY();
-        if (session.hasSelection()) selectionStrip(w, hover);
+        final int listY = LIST_Y;
         Stencil.apply(0, listY, w - 1, h - listY, context);
         int y = listY - scroll;
         final BoardSession.Totals t = session.totals();
@@ -192,7 +189,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         // Keep what is on screen of the list; the heading's fold key stays as it is.
         final List<Hit> moved = new ArrayList<>(hits.size());
         for (final Hit hit : hits) {
-            if (hit.kind() == Kind.FOLD || hit.kind() == Kind.CLEAR || hit.kind() == Kind.DELETE) {
+            if (hit.kind() == Kind.FOLD) {
                 moved.add(hit);
                 continue;
             }
@@ -213,37 +210,6 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         final int x = localX(), y = localY();
         for (final Hit h : lastHits) if (h.contains(x, y)) return h;
         return null;
-    }
-
-    /** The list starts lower while something is selected, under the selection strip. */
-    private int listY() {
-        return LIST_Y + (session.hasSelection() ? 16 : 0);
-    }
-
-    /** "2 cards, 1 drawer selected", with Clear and Delete, in Factory Flow's cyan. */
-    private void selectionStrip(final int w, final Hit hover) {
-        int cards = 0, drawers = 0;
-        for (final UUID id : session.selection()) {
-            if (session.model(id) != null) cards++;
-            else if (session.drawerModel(id) != null) drawers++;
-        }
-        final int y = LIST_Y - 2;
-        Hyb.rect(0, y, w - 1, 16, 0x3322D3EE);
-        Hyb.rect(0, y, w - 1, 1, 0x9922D3EE);
-        Hyb.rect(0, y + 15, w - 1, 1, 0x9922D3EE);
-        final StringBuilder what = new StringBuilder();
-        if (cards > 0) what.append(cards)
-            .append(cards == 1 ? " card" : " cards");
-        if (drawers > 0) what.append(what.length() > 0 ? ", " : "")
-            .append(drawers)
-            .append(drawers == 1 ? " drawer" : " drawers");
-        Hyb.text(what.toString(), 6, y + 4, Hyb.INK);
-        final String clear = "Clear", delete = "Delete";
-        final int dx = w - 6 - Hyb.width(delete), cx = dx - 8 - Hyb.width(clear);
-        Hyb.text(clear, cx, y + 4, hover != null && hover.kind() == Kind.CLEAR ? 0xFFFFFFFF : Hyb.SELECTION);
-        Hyb.text(delete, dx, y + 4, hover != null && hover.kind() == Kind.DELETE ? 0xFFFFFFFF : Hyb.RED_INK);
-        hits.add(new Hit(Kind.CLEAR, cx - 2, y, cx + Hyb.width(clear) + 2, y + 16, null));
-        hits.add(new Hit(Kind.DELETE, dx - 2, y, dx + Hyb.width(delete) + 2, y + 16, null));
     }
 
     private void drawFolded(final int h) {
@@ -508,12 +474,10 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         final int sx = getArea().x + hit.x0(), sy = getArea().y + hit.y1() + 2;
         switch (hit.kind()) {
             case FOLD -> toggle();
-            case CLEAR -> session.clearSelection();
             case ADD -> {
                 final BoardSession.TotalLine line = (BoardSession.TotalLine) hit.data();
                 session.addDrawerFor(line.key(), line.label(), inputs.contains(line));
             }
-            case DELETE -> session.deleteSelected();
             case SECTION -> {
                 final String title = (String) hit.data();
                 if (!folded.remove(title)) folded.add(title);
@@ -583,7 +547,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
             DrawerCard.stepRate(session, (DrawerModel) hit.data(), step);
             return true;
         }
-        final int max = Math.max(0, contentH - (getArea().height - listY()));
+        final int max = Math.max(0, contentH - (getArea().height - LIST_Y));
         scroll = Math.max(0, Math.min(max, scroll + (direction == UpOrDown.UP ? -ROW_H : ROW_H)));
         return true;
     }
@@ -615,11 +579,9 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         final Fmt.RateUnit unit = session.rateUnit();
         return switch (hit.kind()) {
             case FOLD -> List.of(open ? "Fold the overview" : "Open the overview");
-            case CLEAR -> List.of("Clear the selection (Esc)");
             case ADD -> List.of(
                 inputs.contains(hit.data()) ? "Add a source for it" : "Add a product for it",
                 hint + "Linked to every port waiting for it");
-            case DELETE -> List.of("Delete the selected cards and drawers (Delete)");
             case SECTION -> List.of(hint + "Click: fold or unfold");
             case RESOURCE -> {
                 final BoardSession.TotalLine line = (BoardSession.TotalLine) hit.data();
