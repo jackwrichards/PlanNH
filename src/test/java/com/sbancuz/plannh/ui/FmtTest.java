@@ -27,6 +27,19 @@ class FmtTest {
     }
 
     @Test
+    void briefKeepsThreeFiguresSoNothingIsCut() {
+        assertEquals("0", Fmt.brief(0));
+        assertEquals("0.33", Fmt.brief(1 / 3.0));
+        assertEquals("33.3", Fmt.brief(33.333));
+        assertEquals("-167", Fmt.brief(-166.67));
+        assertEquals("100", Fmt.brief(99.96));
+        assertEquals("999", Fmt.brief(999.4));
+        assertEquals("1k", Fmt.brief(999.6));
+        assertEquals("33.3k", Fmt.brief(33_333));
+        assertEquals("2.56M", Fmt.brief(2_560_000));
+    }
+
+    @Test
     void ratesCarryTheUnitAndLitres() {
         assertEquals("900/hr", Fmt.rate(0.25, RateUnit.HOUR, false));
         assertEquals("180k L/hr", Fmt.rate(50, RateUnit.HOUR, true));

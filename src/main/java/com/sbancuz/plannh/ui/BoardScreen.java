@@ -153,15 +153,15 @@ public final class BoardScreen extends ModularScreen {
             { "Drag a port", "onto a card: wire it; onto the board: a drawer" },
             { "Right-click a wire", "a drawer on it, or delete it" },
             { "Click a card or drawer", "select it (Shift: add to the selection)" },
-            { "Shift-drag the board", "select everything in the box" },
-            { "Drag a selected card", "move the whole selection" },
+            { "Drag the board", "pan (Shift: select everything in the box)" },
+            { "Drag a selected card", "move the whole selection" }, { "Ctrl+A", "select everything" },
             { "Delete", "remove the selection (Esc: clear it)" }, { "Wheel", "zoom; over a control: change it" },
             { "Ctrl+Z, Ctrl+Shift+Z", "undo, redo" },
             { "Overview: double-click", "fly to the cards that use a resource" } };
         for (final String[] tip : tips)
             rows.add(new com.sbancuz.plannh.ui.popup.PickList.Entry(null, tip[0], tip[1], Hyb.INK, false, () -> {}));
         com.cleanroommc.modularui.screen.ModularPanel p = com.sbancuz.plannh.ui.popup.PickList
-            .popup("plannh_help", "HOW THE BOARD WORKS", rows, false, 300);
+            .popup("plannh_help", "HOW THE BOARD WORKS", rows, false, 300, rows.size());
         com.sbancuz.plannh.ui.popup.Popup.open(panel, (com.sbancuz.plannh.ui.popup.Popup) p, 300, 24);
     }
 

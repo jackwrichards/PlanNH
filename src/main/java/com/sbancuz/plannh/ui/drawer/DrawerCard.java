@@ -236,9 +236,11 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         final Fmt.RateUnit unit = session.rateUnit();
         final String sign = m.rate <= 0 ? "" : m.kind == Drawer.Kind.SOURCE ? "-" : "+";
         final int color = m.rate <= 0 ? Hyb.MUTED : m.kind == Drawer.Kind.SOURCE ? Hyb.SOURCE_INK : Hyb.PRODUCT_INK;
-        final String rate = sign + Fmt.compact(m.rate * unit.perSecond);
-        if (far) Hyb.text(Hyb.fit(rate, (W - 12) / 4), 6, 24, 4f, color);
-        else Hyb.text(Hyb.fit(rate, (W - 44) / 3), 40, 29, 3f, color);
+        final String rate = sign + Fmt.brief(m.rate * unit.perSecond);
+        // A number is never cut: if it does not fit big it drops to the next scale that stays sharp, centred.
+        final float x = far ? 6 : 40, room = W - 4 - x, big = far ? 4f : 3f, small = 2f;
+        final float scale = Hyb.width(rate) * big <= room ? big : small;
+        Hyb.text(rate, x, (far ? 24 : 29) + (big - scale) * 9 / 2, scale, color);
     }
 
     private static void key(final int x, final int y, final boolean hover) {

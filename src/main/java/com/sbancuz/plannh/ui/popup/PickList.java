@@ -41,10 +41,10 @@ public final class PickList extends Widget<PickList> implements Interactable {
     private List<Entry> shown;
     private int scroll;
 
-    private PickList(final List<Entry> entries, final int width) {
+    private PickList(final List<Entry> entries, final int width, final int maxRows) {
         this.entries = entries;
         this.shown = entries;
-        this.rows = Math.max(1, Math.min(MAX_ROWS, entries.size()));
+        this.rows = Math.max(1, Math.min(maxRows, entries.size()));
         size(width, rows * ROW);
         for (int i = 0; i < entries.size(); i++) {
             if (entries.get(i).current && i >= rows) scroll = Math.min(i, entries.size() - rows);
@@ -58,6 +58,12 @@ public final class PickList extends Widget<PickList> implements Interactable {
      */
     public static Popup popup(final String name, final String title, final List<Entry> entries,
         final boolean filterable, final int minWidth) {
+        return popup(name, title, entries, filterable, minWidth, MAX_ROWS);
+    }
+
+    /** As above, showing up to {@code maxRows} rows before it scrolls. */
+    public static Popup popup(final String name, final String title, final List<Entry> entries,
+        final boolean filterable, final int minWidth, final int maxRows) {
         // Never cut a row: grow to the widest label and detail (the game font has one size).
         int width = Math.max(minWidth, title == null ? 0 : Hyb.width(title) + 16);
         for (final Entry e : entries) {
@@ -66,7 +72,7 @@ public final class PickList extends Widget<PickList> implements Interactable {
             width = Math.max(width, (e.icon() == null ? 6 : 26) + Hyb.width(e.label()) + detail + 18);
         }
         width = Math.min(width, 360);
-        final PickList list = new PickList(entries, width - 8);
+        final PickList list = new PickList(entries, width - 8, maxRows);
         int y = 4;
         final List<com.cleanroommc.modularui.api.widget.IWidget> top = new ArrayList<>();
         if (title != null) {

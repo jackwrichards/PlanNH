@@ -57,6 +57,24 @@ public final class Fmt {
         return sign + strip(rounded) + SUFFIXES[tier];
     }
 
+    /**
+     * At most three significant figures, then k, M, G...: for numbers that must fit a small space whole, like a
+     * zoomed-out drawer ("167", "33.3", "33.3k"). Below 1 it keeps two, as {@link #compact} does.
+     */
+    public static String brief(final double value) {
+        if (value == 0 || Double.isNaN(value)) return "0";
+        final String sign = value < 0 ? "-" : "";
+        double v = Math.abs(value);
+        if (v < 1) return sign + strip(new BigDecimal(v).round(new java.math.MathContext(2)));
+        int tier = 0;
+        // 999.5 and up rounds to 1000, which reads as the next suffix.
+        while (v >= 999.5 && tier < SUFFIXES.length - 1) {
+            v /= 1000;
+            tier++;
+        }
+        return sign + strip(new BigDecimal(v).round(new java.math.MathContext(3))) + SUFFIXES[tier];
+    }
+
     /** A per-second rate in the given unit, e.g. "900/hr"; fluids get " L" before the unit ("180k L/hr"). */
     public static String rate(final double perSecond, final RateUnit unit, final boolean fluid) {
         final String number = compact(perSecond * unit.perSecond);
