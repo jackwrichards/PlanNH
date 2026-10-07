@@ -56,6 +56,7 @@ is a thin curl wrapper. Every request waits until the game has processed it, so 
 | `/cmd?c=/time%20set%20day` | run a command as the player (client commands first, then chat) |
 | `/board` | the open board as data: zoom/pan, per card its state (tier, amps, coil, machines, pinned, ports) and the GUI rect of each control and port (`parts.TIER`, `parts.OUT1`, with `cx/cy`), per drawer its kind, rule, target, rate, unmet flag and parts, the edge count, `solving`, and the notices |
 | `/view?zoom&panX&panY` | set the board view (defaults 1, 0, 0) so tests start from a known place |
+| `/structurepic?meta=1000` | GT runs only: (re)build that multiblock controller's recipe-card picture (structure built in BlockRenderer6343's fake world, replaces the cached one so an open board shows it), save it as `screenshots/structure-<meta>.png`; returns `status` (ok, too big, empty, not a multiblock, failed: ...), `size`, `blocks`, timings and `path`. Without `meta`: every constructable controller as `{meta, name}` |
 | `/frame` | run one ModularUI frame update and report what is hovered and below the mouse (hover debugging) |
 | `/quit` | ask the game to quit (with GT this can stop on a "really close?" dialog; `mc.sh stop` kills instead) |
 

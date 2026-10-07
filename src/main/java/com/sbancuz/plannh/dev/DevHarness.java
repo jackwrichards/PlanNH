@@ -47,6 +47,7 @@ import com.cleanroommc.modularui.widget.sizer.Area;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.sbancuz.plannh.PlanNH;
+import com.sbancuz.plannh.ui.gt.MultiblockPictures;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
@@ -289,6 +290,9 @@ public final class DevHarness {
             case "/clearplan":
                 requireWorld();
                 return onClient(DevRecipes::clearPlan);
+            case "/structurepic":
+                requireWorld();
+                return onFrame(() -> structurePicture(q));
             case "/quit":
                 frameActions.add(mc::shutdown);
                 return ok();
@@ -313,6 +317,7 @@ public final class DevHarness {
                 "/clearplan - empty the active board (one undoable edit)",
                 "/board - open board as data: view, and per card its state and every control's GUI rect (cx, cy)",
                 "/view?zoom&panX&panY - set the board view (defaults 1, 0, 0)",
+                "/structurepic?meta=1000 - (re)build that GT multiblock's card picture, save it as screenshots/structure-<meta>.png; no meta lists the controllers",
                 "/quit - ask the client to quit (may hang on a confirm dialog with GT; mc.sh stop kills)"));
         return m;
     }
@@ -404,6 +409,45 @@ public final class DevHarness {
             }
         }));
         return done.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Rebuilds one multiblock's recipe-card picture (replacing the cached one, so an open board shows it) and saves its
+     * pixels; without {@code meta}, lists the controllers that can have one.
+     */
+    private Map<String, Object> structurePicture(final Map<String, String> q) {
+        if (!MultiblockPictures.available()) {
+            return error("multiblock pictures need GregTech, BlockRenderer6343 and GL 3.0 (start with PLANNH_GTNH=1)");
+        }
+        if (!q.containsKey("meta")) {
+            final Map<String, Object> m = ok();
+            m.put("controllers", MultiblockPictures.controllers());
+            return m;
+        }
+        final MultiblockPictures.Build build = MultiblockPictures.rebuild(intArg(q, "meta"));
+        final Map<String, Object> m = ok();
+        m.put("meta", build.meta());
+        m.put("name", build.name());
+        m.put("status", build.status());
+        m.put("size", List.of(build.sizeX(), build.sizeY(), build.sizeZ()));
+        m.put("blocks", build.blocks());
+        m.put("buildMs", build.buildMillis());
+        m.put("renderMs", build.renderMillis());
+        if (build.argb() != null) {
+            final int side = MultiblockPictures.SIZE;
+            final BufferedImage image = new BufferedImage(side, side, BufferedImage.TYPE_INT_ARGB);
+            image.setRGB(0, 0, side, side, build.argb(), 0, side);
+            final File dir = new File(mc.mcDataDir, "screenshots");
+            final File file = new File(dir, "structure-" + build.meta() + ".png");
+            try {
+                Files.createDirectories(dir.toPath());
+                ImageIO.write(image, "png", file);
+                m.put("path", file.getCanonicalPath());
+            } catch (final IOException e) {
+                m.put("pathError", e.toString());
+            }
+        }
+        return m;
     }
 
     private Object widgets() {
@@ -541,6 +585,19 @@ public final class DevHarness {
     private <T> T onClient(final Supplier<T> task) throws Exception {
         final CompletableFuture<T> done = new CompletableFuture<>();
         tickActions.add(() -> {
+            try {
+                done.complete(task.get());
+            } catch (final Throwable t) {
+                done.completeExceptionally(t);
+            }
+        });
+        return done.get(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+    }
+
+    /** Like {@link #onClient}, but at the end of a rendered frame (for offscreen GL work). */
+    private <T> T onFrame(final Supplier<T> task) throws Exception {
+        final CompletableFuture<T> done = new CompletableFuture<>();
+        frameActions.add(() -> {
             try {
                 done.complete(task.get());
             } catch (final Throwable t) {

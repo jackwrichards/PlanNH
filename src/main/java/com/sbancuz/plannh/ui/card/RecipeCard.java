@@ -26,6 +26,7 @@ import com.sbancuz.plannh.ui.BoardSession;
 import com.sbancuz.plannh.ui.canvas.BoardCanvas;
 import com.sbancuz.plannh.ui.gt.GtCoils;
 import com.sbancuz.plannh.ui.gt.GtMachines;
+import com.sbancuz.plannh.ui.gt.MultiblockPictures;
 import com.sbancuz.plannh.ui.popup.NumberPopup;
 import com.sbancuz.plannh.ui.popup.PickList;
 import com.sbancuz.plannh.ui.popup.Popup;
@@ -343,7 +344,9 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     private void drawPicture(final CardModel m, final float z) {
         final int x = CardLayout.PICTURE_X, y = CardLayout.RAILS_Y, w = CardLayout.PICTURE_W, h = layout.railsH;
         Hyb.well(x, y, w, h, Hyb.PICTURE, Hyb.SHADOW, Hyb.TILE_EDGE);
-        if (m.machineStack != null) Hyb.item(m.machineStack, x + (w - 64) / 2f, y + (h - 64) / 2f, 64, z);
+        final MultiblockPictures.Picture structure = MultiblockPictures.get(m.machineStack);
+        if (structure != null) structure.draw(x + 2, y + 2, w - 4, h - 4);
+        else if (m.machineStack != null) Hyb.item(m.machineStack, x + (w - 64) / 2f, y + (h - 64) / 2f, 64, z);
     }
 
     private void drawCoil(final CardModel m, final float z, final boolean hover) {
