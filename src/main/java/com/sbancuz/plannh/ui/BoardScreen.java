@@ -116,6 +116,15 @@ public final class BoardScreen extends ModularScreen {
         topBar
             .child(key(() -> "Arrange", () -> true, "Lay the plan out left to right (undoable)", 52, canvas::arrange));
         topBar.child(key(() -> "Fit", () -> true, "Fit the whole plan in view", 24, canvas::frameAll));
+        topBar.child(
+            key(
+                () -> "Feedback",
+                () -> true,
+                "Report a bug, or talk about PlanNH's development\n"
+                    + "§7It's a thread on the GT New Horizons Discord: join that server first to see it\n"
+                    + "Click: open it in your browser",
+                54,
+                BoardScreen::openFeedback));
         topBar.child(key(() -> "?", () -> true, "How the board works", 16, () -> showHelp(panel)));
 
         final Flow column = Flow.column()
@@ -168,6 +177,19 @@ public final class BoardScreen extends ModularScreen {
 
     /** The top-bar keys' tooltips, drawn as board tips (ModularUI's own would be the game's purple ones). */
     private static final java.util.Map<IWidget, String> KEY_TIPS = new java.util.WeakHashMap<>();
+
+    /** Where bugs and development talk go: PlanNH's thread on the GT New Horizons Discord. */
+    private static final String FEEDBACK_URL = "https://discord.com/channels/181078474394566657/1531402304530682036";
+
+    /** Opens the feedback thread in the browser, as vanilla opens chat links. */
+    private static void openFeedback() {
+        try {
+            java.awt.Desktop.getDesktop()
+                .browse(java.net.URI.create(FEEDBACK_URL));
+        } catch (final Exception | LinkageError e) {
+            org.lwjgl.Sys.openURL(FEEDBACK_URL);
+        }
+    }
 
     /** A top-bar key in the card's key style: a label, a tooltip, greyed when it can do nothing. */
     private static ButtonWidget<?> key(final Supplier<String> label, final BooleanSupplier enabled,
