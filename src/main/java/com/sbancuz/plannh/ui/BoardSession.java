@@ -326,15 +326,17 @@ public final class BoardSession {
      */
     public void addDrawerFor(final String key, final String label, final boolean source) {
         int x = 40, y = 40;
-        for (final CardModel card : models.values()) {
+        search: for (final CardModel card : models.values()) {
             final List<CardModel.PortView> ports = source ? card.inputs : card.outputs;
-            boolean found = false;
-            for (final CardModel.PortView p : ports) found |= p.key()
-                .equals(key);
-            if (!found) continue;
-            x = source ? card.node.x - DrawerCard.W - 60 : card.node.x + CardLayout.W + 60;
-            y = card.node.y;
-            break;
+            for (int i = 0; i < ports.size(); i++) {
+                if (!ports.get(i)
+                    .key()
+                    .equals(key)) continue;
+                x = source ? card.node.x - DrawerCard.W - 60 : card.node.x + CardLayout.W + 60;
+                // Its wire runs straight: the drawer's anchor level with the port's.
+                y = card.node.y + new CardLayout(card).anchorY(!source, i) - DrawerCard.ANCHOR_Y;
+                break search;
+            }
         }
         // In line with, and below, any drawers already there.
         for (final Drawer d : graph.getDrawers()) if (Math.abs(d.getX() - x) <= 40) {
