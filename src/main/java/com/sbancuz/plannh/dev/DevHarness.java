@@ -428,6 +428,12 @@ public final class DevHarness {
                     .getAbsMouseY());
         }
         m.put("windowActive", org.lwjgl.opengl.Display.isActive());
+        // Minecraft keeps "N fps, M chunk updates" in its debug string.
+        m.put(
+            "fps",
+            Integer.parseInt(
+                mc.debug.replaceFirst(" fps.*", "")
+                    .trim()));
         m.put("displayWidth", mc.displayWidth);
         m.put("displayHeight", mc.displayHeight);
         m.put("guiWidth", sr.getScaledWidth());
@@ -510,7 +516,13 @@ public final class DevHarness {
     private Object widgets() {
         final ModularScreen screen = muiScreen();
         if (screen == null) throw new IllegalArgumentException("current screen is not a ModularUI screen");
-        return dumpWidget(screen.getMainPanel(), 0);
+        final Map<String, Object> main = dumpWidget(screen.getMainPanel(), 0);
+        // Popups (menus, the picker) are panels of their own, above the main one.
+        final List<Object> popups = new ArrayList<>();
+        for (final ModularPanel p : screen.getPanelManager()
+            .getOpenPanels()) if (p != screen.getMainPanel()) popups.add(dumpWidget(p, 0));
+        if (!popups.isEmpty()) main.put("popups", popups);
+        return main;
     }
 
     private static String describe(final IWidget widget) {

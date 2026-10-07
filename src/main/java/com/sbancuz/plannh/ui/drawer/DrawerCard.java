@@ -228,12 +228,17 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         Hyb.rect(2, 2, W - 4, H - 4, (ring & 0x00FFFFFF) | 0x33000000);
         // The name across the top, then the icon and the rate.
         Hyb.text(Hyb.fit(m.label, (W - 12) / 2), 6, 6, 2f, 0xFFFFFFFF);
-        if (m.isFluid()) Hyb.fluid(m.fluid, 6, 26, 28, z);
-        else Hyb.item(m.item, 6, 26, 28, z);
+        // Far out the icon is too small to read: the rate takes its place, at a scale that stays sharp.
+        final boolean far = session.graph()
+            .getZoom() <= 0.25f;
+        if (!far && m.isFluid()) Hyb.fluid(m.fluid, 6, 26, 28, z);
+        else if (!far) Hyb.item(m.item, 6, 26, 28, z);
         final Fmt.RateUnit unit = session.rateUnit();
         final String sign = m.rate <= 0 ? "" : m.kind == Drawer.Kind.SOURCE ? "-" : "+";
         final int color = m.rate <= 0 ? Hyb.MUTED : m.kind == Drawer.Kind.SOURCE ? Hyb.SOURCE_INK : Hyb.PRODUCT_INK;
-        Hyb.text(Hyb.fit(sign + Fmt.compact(m.rate * unit.perSecond), (W - 44) / 3), 40, 29, 3f, color);
+        final String rate = sign + Fmt.compact(m.rate * unit.perSecond);
+        if (far) Hyb.text(Hyb.fit(rate, (W - 12) / 4), 6, 24, 4f, color);
+        else Hyb.text(Hyb.fit(rate, (W - 44) / 3), 40, 29, 3f, color);
     }
 
     private static void key(final int x, final int y, final boolean hover) {

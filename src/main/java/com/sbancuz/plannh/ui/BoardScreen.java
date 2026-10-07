@@ -14,6 +14,7 @@ import org.lwjgl.opengl.GL11;
 
 import com.cleanroommc.modularui.api.drawable.IDrawable;
 import com.cleanroommc.modularui.api.drawable.IKey;
+import com.cleanroommc.modularui.api.widget.IWidget;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.ModularScreen;
 import com.cleanroommc.modularui.screen.UISettings;
@@ -27,6 +28,7 @@ import com.sbancuz.plannh.ui.card.CardModel;
 import com.sbancuz.plannh.ui.card.PortSlot;
 import com.sbancuz.plannh.ui.card.RecipeCard;
 import com.sbancuz.plannh.ui.drawer.DrawerCard;
+import com.sbancuz.plannh.ui.popup.Popup;
 import com.sbancuz.plannh.ui.popup.RecipePicker;
 import com.sbancuz.plannh.ui.theme.Fmt;
 import com.sbancuz.plannh.ui.theme.Hyb;
@@ -202,15 +204,28 @@ public final class BoardScreen extends ModularScreen {
      */
     private long lastUndoKeyEvent;
 
-    /** Whether a widget (a text field) has the keyboard. The context returns an empty holder, never null. */
+    /**
+     * Whether a widget (a text field) has the keyboard. The context returns an empty holder, never null, and keeps the
+     * focus on a field whose popup has closed until something else takes it: that field is not typing.
+     */
     public static boolean textFocused(final ModularScreen screen) {
         final com.cleanroommc.modularui.screen.viewport.LocatedWidget focused = screen.getContext()
             .getFocusedWidget();
-        return focused != null && focused.getElement() != null;
+        final IWidget w = focused == null ? null : focused.getElement();
+        return w != null && w.isValid()
+            && w.getPanel()
+                .isOpen();
     }
 
     @Override
     public boolean onKeyPressed(final char typedChar, final int keyCode) {
+        // Esc closes the open popup (a menu, a number box, the picker), not the whole planner.
+        if (keyCode == org.lwjgl.input.Keyboard.KEY_ESCAPE
+            && getPanelManager().getTopMostPanel() instanceof Popup popup) {
+            getContext().removeFocus();
+            popup.closeIfOpen();
+            return true;
+        }
         if (!textFocused(this)) {
             // Delete or Backspace removes the selection; Esc clears it (and only closes the planner when nothing is
             // selected).
@@ -261,6 +276,9 @@ public final class BoardScreen extends ModularScreen {
      */
     private void drawPortTooltip() {
         final Object hovered = getContext().getHovered();
+        // While a popup is open, only it explains itself: a tip from the board would cover it.
+        final ModularPanel top = getPanelManager().getTopMostPanel();
+        if (top instanceof Popup && !(hovered instanceof final IWidget w && w.getPanel() == top)) return;
         final List<String> lines;
         int tipX = getContext().getAbsMouseX() + 12;
         if (hovered instanceof final RecipeCard card) {

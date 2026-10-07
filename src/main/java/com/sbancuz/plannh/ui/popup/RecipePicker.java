@@ -111,7 +111,12 @@ public final class RecipePicker extends Widget<RecipePicker> implements Interact
             for (int i = 0; i < h.numRecipes(); i++) all.add(new Row(h, i));
         }
         shown.addAll(all);
-        size(WIDTH - 8, Math.max(1, Math.min(VISIBLE, all.size())) * ROW);
+        size(WIDTH - 8, listHeight());
+    }
+
+    /** The list's height: up to {@value #VISIBLE} rows. Its area is not laid out until the popup opens. */
+    private int listHeight() {
+        return Math.max(1, Math.min(VISIBLE, all.size())) * ROW;
     }
 
     /** NEI pages that describe the world rather than recipes (GregTech's ore vein tables). */
@@ -134,7 +139,7 @@ public final class RecipePicker extends Widget<RecipePicker> implements Interact
         if (list.all.isEmpty()) return null;
         final String title = (uses ? "WHAT USES " : "WHAT MAKES ") + stack.getDisplayName()
             .toUpperCase(Locale.ROOT) + "  (" + list.all.size() + ")";
-        final Popup popup = new Popup("plannh_recipes", WIDTH, 4 + 14 + 18 + list.getArea().height + 4);
+        final Popup popup = new Popup("plannh_recipes", WIDTH, 4 + 14 + 18 + list.listHeight() + 4);
         list.popup = popup;
         popup.child(
             new TextWidget<>(IKey.str(Hyb.fit(title, WIDTH - 12))).color(Hyb.MUTED)

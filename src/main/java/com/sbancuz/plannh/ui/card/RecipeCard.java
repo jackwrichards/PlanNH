@@ -258,7 +258,15 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final Hyb.Tier tier = Hyb.tier(m.tier);
         if (m.gregtech) Hyb.text(tier.name(), tx, 36, 2f, tier.bg());
         final String count = "x" + Fmt.machines(m.machines);
-        Hyb.text(count, tx, h - 60, 3f, m.pinned ? Hyb.GOLD : m.machines <= 0 ? Hyb.MUTED : Hyb.INK);
+        // Whole screen pixels per font pixel at either glance zoom, so the number stays sharp.
+        final float cs = session.graph()
+            .getZoom() <= 0.25f ? 4f : 3f;
+        Hyb.text(
+            Hyb.fit(count, (int) ((CardLayout.W - tx - 8) / cs)),
+            tx,
+            h - 32 - 9 * cs,
+            cs,
+            m.pinned ? Hyb.GOLD : m.machines <= 0 ? Hyb.MUTED : Hyb.INK);
         Hyb.text(Fmt.power(session.power(m)) + " EU/t", tx, h - 28, 2f, Hyb.MUTED);
     }
 
