@@ -1,0 +1,814 @@
+{
+  "schemaVersion": 1,
+  "id": "manual-project",
+  "name": "Untitled design",
+  "view": {
+    "canvasPattern": "dots",
+    "canvasTheme": "charcoal",
+    "lineHeatMode": false,
+    "lineThicknessMode": false,
+    "freeDockMode": true,
+    "lineLabelsMode": false,
+    "linePulseMode": false,
+    "calmMode": false,
+    "glanceMode": "identity",
+    "rateUnit": "second",
+    "leftPanelOpen": true,
+    "rightPanelOpen": true,
+    "showHiddenResources": false,
+    "favouritesOnly": false,
+    "trendsOpen": false,
+    "hiddenResourceKeys": [],
+    "favouriteResourceKeys": []
+  },
+  "recipes": [
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-canner:e09953ecba003d8b",
+      "name": "Canner: Phosphoric Acid Cell",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Canner",
+      "minimumTier": "ULV",
+      "durationTicks": 16,
+      "eut": 1,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "ic2:itemcellempty",
+          "amount": 1,
+          "displayName": "Empty Cell",
+          "modId": "IC2"
+        },
+        {
+          "kind": "fluid",
+          "id": "phosphoricacid_gt5u",
+          "amount": 1000,
+          "displayName": "Phosphoric Acid"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@30689",
+          "amount": 1,
+          "displayName": "Phosphoric Acid Cell",
+          "modId": "gregtech"
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Canning Machine",
+          "minimumTier": "LV",
+          "id": "canning-machine",
+          "label": "Canning Machine",
+          "kind": "single"
+        },
+        {
+          "machineType": "Can Operator",
+          "minimumTier": "UV",
+          "id": "can-operator",
+          "label": "Can Operator",
+          "kind": "single"
+        },
+        {
+          "machineType": "TurboCan Pro",
+          "minimumTier": "ULV",
+          "durationTicks": 8,
+          "id": "turbocan-pro",
+          "label": "TurboCan Pro",
+          "kind": "multiblock"
+        }
+      ],
+      "source": {
+        "datasetVersionId": "local-2.9.0-beta-2",
+        "recipeMap": "Canner",
+        "exporter": "gtnh-oracle",
+        "rawRecipeId": "gt.recipe.canner:e09953ecba003d8b"
+      },
+      "metadata": {
+        "recipeMapId": "gt.recipe.canner",
+        "specialValue": 0
+      }
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-chemicalreactor:35b410e28a37e4d0",
+      "name": "Chemical Reactor: Phosphoric Acid",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Chemical Reactor",
+      "minimumTier": "LV",
+      "durationTicks": 40,
+      "eut": 30,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2665",
+          "amount": 14,
+          "displayName": "Phosphorous Pentoxide Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "fluid",
+          "id": "water",
+          "amount": 6000,
+          "displayName": "Water"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "fluid",
+          "id": "phosphoricacid_gt5u",
+          "amount": 4000,
+          "displayName": "Phosphoric Acid"
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Chemical Reactor",
+          "minimumTier": "LV",
+          "id": "chemical-reactor",
+          "label": "Chemical Reactor",
+          "kind": "single"
+        },
+        {
+          "machineType": "Chemical Performer",
+          "minimumTier": "UV",
+          "id": "chemical-performer",
+          "label": "Chemical Performer",
+          "kind": "single"
+        }
+      ],
+      "source": {
+        "datasetVersionId": "local-2.9.0-beta-2",
+        "recipeMap": "Chemical Reactor",
+        "exporter": "gtnh-oracle",
+        "rawRecipeId": "gt.recipe.chemicalreactor:35b410e28a37e4d0"
+      },
+      "metadata": {
+        "recipeMapId": "gt.recipe.chemicalreactor",
+        "specialValue": 0
+      }
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-electrolyzer:372d15dcd0a6cae3",
+      "name": "Electrolyzer: Hydrogen Cell",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Electrolyzer",
+      "minimumTier": "MV",
+      "durationTicks": 540,
+      "eut": 120,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@30689",
+          "amount": 1,
+          "displayName": "Phosphoric Acid Cell",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "ic2:itemcellempty",
+          "amount": 6,
+          "displayName": "Empty Cell",
+          "modId": "IC2"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@30001",
+          "amount": 3,
+          "displayName": "Hydrogen Cell",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2021",
+          "amount": 1,
+          "displayName": "Phosphorus Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@30013",
+          "amount": 4,
+          "displayName": "Oxygen Cell",
+          "modId": "gregtech"
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Electrolyzer",
+          "minimumTier": "MV",
+          "id": "electrolyzer",
+          "label": "Electrolyzer",
+          "kind": "single"
+        },
+        {
+          "machineType": "Ionizer",
+          "minimumTier": "UV",
+          "id": "ionizer",
+          "label": "Ionizer",
+          "kind": "single"
+        },
+        {
+          "machineType": "Molecular Disintegrator E-4908",
+          "minimumTier": "IV",
+          "id": "molecular-disintegrator-e-4908",
+          "label": "Molecular Disintegrator E-4908",
+          "kind": "single"
+        }
+      ],
+      "source": {
+        "datasetVersionId": "local-2.9.0-beta-2",
+        "recipeMap": "Electrolyzer",
+        "exporter": "gtnh-oracle",
+        "rawRecipeId": "gt.recipe.electrolyzer:372d15dcd0a6cae3"
+      },
+      "metadata": {
+        "recipeMapId": "gt.recipe.electrolyzer",
+        "specialValue": 0
+      }
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-canner:a8e66697a5cc1d7e",
+      "name": "Canner: Empty Cell",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Canner",
+      "minimumTier": "ULV",
+      "durationTicks": 16,
+      "eut": 1,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@30001",
+          "amount": 1,
+          "displayName": "Hydrogen Cell",
+          "modId": "gregtech"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "ic2:itemcellempty",
+          "amount": 1,
+          "displayName": "Empty Cell",
+          "modId": "IC2"
+        },
+        {
+          "kind": "fluid",
+          "id": "hydrogen",
+          "amount": 1000,
+          "displayName": "Hydrogen"
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Canning Machine",
+          "minimumTier": "LV",
+          "id": "canning-machine",
+          "label": "Canning Machine",
+          "kind": "single"
+        },
+        {
+          "machineType": "Can Operator",
+          "minimumTier": "UV",
+          "id": "can-operator",
+          "label": "Can Operator",
+          "kind": "single"
+        },
+        {
+          "machineType": "TurboCan Pro",
+          "minimumTier": "ULV",
+          "durationTicks": 8,
+          "id": "turbocan-pro",
+          "label": "TurboCan Pro",
+          "kind": "multiblock"
+        }
+      ],
+      "source": {
+        "datasetVersionId": "local-2.9.0-beta-2",
+        "recipeMap": "Canner",
+        "exporter": "gtnh-oracle",
+        "rawRecipeId": "gt.recipe.canner:a8e66697a5cc1d7e"
+      },
+      "metadata": {
+        "recipeMapId": "gt.recipe.canner",
+        "specialValue": 0
+      }
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-chemicalreactor:ec65e3fc64e6c1e8",
+      "name": "Chemical Reactor: Phosphorous Pentoxide Dust",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Chemical Reactor",
+      "minimumTier": "LV",
+      "durationTicks": 40,
+      "eut": 30,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2021",
+          "amount": 4,
+          "displayName": "Phosphorus Dust",
+          "modId": "gregtech"
+        },
+        {
+          "kind": "fluid",
+          "id": "oxygen",
+          "amount": 10000,
+          "displayName": "Oxygen"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2665",
+          "amount": 14,
+          "displayName": "Phosphorous Pentoxide Dust",
+          "modId": "gregtech"
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Chemical Reactor",
+          "minimumTier": "LV",
+          "id": "chemical-reactor",
+          "label": "Chemical Reactor",
+          "kind": "single"
+        },
+        {
+          "machineType": "Chemical Performer",
+          "minimumTier": "UV",
+          "id": "chemical-performer",
+          "label": "Chemical Performer",
+          "kind": "single"
+        }
+      ],
+      "source": {
+        "datasetVersionId": "local-2.9.0-beta-2",
+        "recipeMap": "Chemical Reactor",
+        "exporter": "gtnh-oracle",
+        "rawRecipeId": "gt.recipe.chemicalreactor:ec65e3fc64e6c1e8"
+      },
+      "metadata": {
+        "recipeMapId": "gt.recipe.chemicalreactor",
+        "specialValue": 0
+      }
+    },
+    {
+      "id": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-canner:03ddcf43b6c6e15c",
+      "name": "Canner: Empty Cell",
+      "kind": "gregtech_machine",
+      "category": "gregtech",
+      "machineType": "Canner",
+      "minimumTier": "ULV",
+      "durationTicks": 16,
+      "eut": 1,
+      "inputs": [
+        {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@30013",
+          "amount": 1,
+          "displayName": "Oxygen Cell",
+          "modId": "gregtech"
+        }
+      ],
+      "outputs": [
+        {
+          "kind": "item",
+          "id": "ic2:itemcellempty",
+          "amount": 1,
+          "displayName": "Empty Cell",
+          "modId": "IC2"
+        },
+        {
+          "kind": "fluid",
+          "id": "oxygen",
+          "amount": 1000,
+          "displayName": "Oxygen"
+        }
+      ],
+      "specialValue": 0,
+      "machineHandlers": [
+        {
+          "machineType": "Canning Machine",
+          "minimumTier": "LV",
+          "id": "canning-machine",
+          "label": "Canning Machine",
+          "kind": "single"
+        },
+        {
+          "machineType": "Can Operator",
+          "minimumTier": "UV",
+          "id": "can-operator",
+          "label": "Can Operator",
+          "kind": "single"
+        },
+        {
+          "machineType": "TurboCan Pro",
+          "minimumTier": "ULV",
+          "durationTicks": 8,
+          "id": "turbocan-pro",
+          "label": "TurboCan Pro",
+          "kind": "multiblock"
+        }
+      ],
+      "source": {
+        "datasetVersionId": "local-2.9.0-beta-2",
+        "recipeMap": "Canner",
+        "exporter": "gtnh-oracle",
+        "rawRecipeId": "gt.recipe.canner:03ddcf43b6c6e15c"
+      },
+      "metadata": {
+        "recipeMapId": "gt.recipe.canner",
+        "specialValue": 0
+      }
+    }
+  ],
+  "nodes": [
+    {
+      "id": "node-fc76da44-50f7-4cb6-bf75-d204600aba6d",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-canner:e09953ecba003d8b",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "ULV",
+      "recipeInputOverrides": {
+        "0": {
+          "kind": "item",
+          "id": "ic2:itemcellempty",
+          "amount": 1,
+          "displayName": "Empty Cell",
+          "modId": "IC2"
+        },
+        "1": {
+          "kind": "fluid",
+          "id": "phosphoricacid_gt5u",
+          "amount": 1000,
+          "displayName": "Phosphoric Acid"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": -320,
+        "y": -200
+      }
+    },
+    {
+      "id": "node-fad7576c-fcad-41b2-a036-50e7c40281c5",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-chemicalreactor:35b410e28a37e4d0",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "LV",
+      "recipeInputOverrides": {
+        "0": {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2665",
+          "amount": 14,
+          "displayName": "Phosphorous Pentoxide Dust",
+          "modId": "gregtech"
+        },
+        "1": {
+          "kind": "fluid",
+          "id": "water",
+          "amount": 6000,
+          "displayName": "Water"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": -760,
+        "y": -160
+      }
+    },
+    {
+      "id": "node-7ef0ce4b-d3bc-4b96-9f25-65aa52459f1d",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-electrolyzer:372d15dcd0a6cae3",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "HV",
+      "recipeInputOverrides": {
+        "0": {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@30689",
+          "amount": 1,
+          "displayName": "Phosphoric Acid Cell",
+          "modId": "gregtech"
+        },
+        "1": {
+          "kind": "item",
+          "id": "ic2:itemcellempty",
+          "amount": 6,
+          "displayName": "Empty Cell",
+          "modId": "IC2"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": -320,
+        "y": 100
+      }
+    },
+    {
+      "id": "node-6c24ecc0-ac08-4da5-bcc5-a6d25b3d069c",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-canner:a8e66697a5cc1d7e",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "ULV",
+      "recipeInputOverrides": {
+        "0": {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@30001",
+          "amount": 1,
+          "displayName": "Hydrogen Cell",
+          "modId": "gregtech"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": 120,
+        "y": 100
+      }
+    },
+    {
+      "id": "node-12b5d4d3-76f6-40c1-957f-3141377af4aa",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-chemicalreactor:ec65e3fc64e6c1e8",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "MV",
+      "recipeInputOverrides": {
+        "0": {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@2021",
+          "amount": 4,
+          "displayName": "Phosphorus Dust",
+          "modId": "gregtech"
+        },
+        "1": {
+          "kind": "fluid",
+          "id": "oxygen",
+          "amount": 10000,
+          "displayName": "Oxygen"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": -760,
+        "y": 460
+      }
+    },
+    {
+      "id": "node-65d48922-98ae-4f8a-848f-21a4ce6c6543",
+      "recipeId": "oracle:local-2.9.0-beta-2:gregtech:gt-recipe-canner:03ddcf43b6c6e15c",
+      "machineCount": 1,
+      "parallel": 1,
+      "overclockTier": "ULV",
+      "recipeInputOverrides": {
+        "0": {
+          "kind": "item",
+          "id": "gregtech:gt.metaitem.01@30013",
+          "amount": 1,
+          "displayName": "Oxygen Cell",
+          "modId": "gregtech"
+        }
+      },
+      "enabled": true,
+      "position": {
+        "x": -320,
+        "y": 420
+      }
+    }
+  ],
+  "storages": [
+    {
+      "id": "storage-034d3bc8-d034-4c14-84e6-7d6eca67df98",
+      "kind": "fluid",
+      "resourceId": "water",
+      "displayName": "Water",
+      "position": {
+        "x": -540,
+        "y": -360
+      }
+    },
+    {
+      "id": "storage-77f32a3c-854e-42fe-929b-27374c9bd555",
+      "kind": "fluid",
+      "resourceId": "hydrogen",
+      "displayName": "Hydrogen",
+      "position": {
+        "x": 260,
+        "y": 400
+      }
+    },
+    {
+      "id": "storage-2cc93116-491d-4c41-a9fb-f7ee1396f986",
+      "kind": "item",
+      "resourceId": "ic2:itemcellempty",
+      "displayName": "Empty Cell",
+      "bufferMode": "overflow",
+      "position": {
+        "x": 160,
+        "y": -360
+      }
+    },
+    {
+      "id": "storage-d9f0e507-5b92-4bf5-ac5f-ee68660c9e8c",
+      "kind": "fluid",
+      "resourceId": "oxygen",
+      "displayName": "Oxygen",
+      "position": {
+        "x": 140,
+        "y": 400
+      }
+    }
+  ],
+  "annotations": [],
+  "pockets": [],
+  "edges": [
+    {
+      "id": "edge-bd49f0d1-97a8-4786-9e73-97dd751df468",
+      "source": "node-fad7576c-fcad-41b2-a036-50e7c40281c5",
+      "target": "node-fc76da44-50f7-4cb6-bf75-d204600aba6d",
+      "sourceHandle": "output:fluid:phosphoricacid_gt5u",
+      "targetHandle": "input:fluid:phosphoricacid_gt5u",
+      "resourceKind": "fluid",
+      "resourceId": "phosphoricacid_gt5u",
+      "label": "Phosphoric Acid"
+    },
+    {
+      "id": "edge-bd09c2dd-c2eb-4cc7-b367-efe5bee3992b",
+      "source": "storage-034d3bc8-d034-4c14-84e6-7d6eca67df98",
+      "target": "node-fad7576c-fcad-41b2-a036-50e7c40281c5",
+      "sourceHandle": "output:fluid:water",
+      "targetHandle": "input:fluid:water",
+      "resourceKind": "fluid",
+      "resourceId": "water",
+      "label": "Water"
+    },
+    {
+      "id": "edge-9047b8ae-5bfa-4818-ad2a-089e6c324fdf",
+      "source": "node-fc76da44-50f7-4cb6-bf75-d204600aba6d",
+      "target": "node-7ef0ce4b-d3bc-4b96-9f25-65aa52459f1d",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%4030689",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%4030689",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@30689",
+      "label": "Phosphoric Acid Cell"
+    },
+    {
+      "id": "edge-a4f0c746-92d1-4a43-aa31-46d79d2a4010",
+      "source": "node-7ef0ce4b-d3bc-4b96-9f25-65aa52459f1d",
+      "target": "node-6c24ecc0-ac08-4da5-bcc5-a6d25b3d069c",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%4030001",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%4030001",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@30001",
+      "label": "Hydrogen Cell"
+    },
+    {
+      "id": "edge-ec96f581-f8c0-433d-80ff-d90a8a1d8d7a",
+      "source": "node-6c24ecc0-ac08-4da5-bcc5-a6d25b3d069c",
+      "target": "storage-77f32a3c-854e-42fe-929b-27374c9bd555",
+      "sourceHandle": "output:fluid:hydrogen",
+      "targetHandle": "input:fluid:hydrogen",
+      "resourceKind": "fluid",
+      "resourceId": "hydrogen",
+      "label": "Hydrogen"
+    },
+    {
+      "id": "edge-169fe7f6-1104-4e71-bd68-1a8b0e1a6a36",
+      "source": "node-7ef0ce4b-d3bc-4b96-9f25-65aa52459f1d",
+      "target": "node-12b5d4d3-76f6-40c1-957f-3141377af4aa",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402021",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402021",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2021",
+      "label": "Phosphorus Dust"
+    },
+    {
+      "id": "edge-8060e1be-2afc-4c0f-8ab7-11ee70a63f06",
+      "source": "node-7ef0ce4b-d3bc-4b96-9f25-65aa52459f1d",
+      "target": "node-65d48922-98ae-4f8a-848f-21a4ce6c6543",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%4030013",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%4030013",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@30013",
+      "label": "Oxygen Cell"
+    },
+    {
+      "id": "edge-7c765cfb-3020-4640-987b-9420f458f21c",
+      "source": "node-65d48922-98ae-4f8a-848f-21a4ce6c6543",
+      "target": "node-12b5d4d3-76f6-40c1-957f-3141377af4aa",
+      "sourceHandle": "output:fluid:oxygen",
+      "targetHandle": "input:fluid:oxygen",
+      "resourceKind": "fluid",
+      "resourceId": "oxygen",
+      "label": "Oxygen"
+    },
+    {
+      "id": "edge-311dea5d-e617-4661-9c63-b1590936509f",
+      "source": "node-65d48922-98ae-4f8a-848f-21a4ce6c6543",
+      "target": "storage-2cc93116-491d-4c41-a9fb-f7ee1396f986",
+      "sourceHandle": "output:item:ic2%3Aitemcellempty",
+      "targetHandle": "input:item:ic2%3Aitemcellempty",
+      "resourceKind": "item",
+      "resourceId": "ic2:itemcellempty",
+      "label": "Empty Cell",
+      "waypoints": [
+        {
+          "x": 100,
+          "y": -220
+        }
+      ]
+    },
+    {
+      "id": "edge-5f260c58-a113-419f-8ff8-b950b73e9da0",
+      "source": "node-6c24ecc0-ac08-4da5-bcc5-a6d25b3d069c",
+      "target": "storage-2cc93116-491d-4c41-a9fb-f7ee1396f986",
+      "sourceHandle": "output:item:ic2%3Aitemcellempty",
+      "targetHandle": "input:item:ic2%3Aitemcellempty",
+      "resourceKind": "item",
+      "resourceId": "ic2:itemcellempty",
+      "label": "Empty Cell"
+    },
+    {
+      "id": "edge-efa8e4bb-242c-4dcb-9379-c3c1500169e5",
+      "source": "node-12b5d4d3-76f6-40c1-957f-3141377af4aa",
+      "target": "node-fad7576c-fcad-41b2-a036-50e7c40281c5",
+      "sourceHandle": "output:item:gregtech%3Agt.metaitem.01%402665",
+      "targetHandle": "input:item:gregtech%3Agt.metaitem.01%402665",
+      "resourceKind": "item",
+      "resourceId": "gregtech:gt.metaitem.01@2665",
+      "label": "Phosphorous Pentoxide Dust"
+    },
+    {
+      "id": "edge-ea5ffda3-7b1f-4ca3-8c7f-15bcbc330a93",
+      "source": "node-65d48922-98ae-4f8a-848f-21a4ce6c6543",
+      "target": "storage-d9f0e507-5b92-4bf5-ac5f-ee68660c9e8c",
+      "sourceHandle": "output:fluid:oxygen",
+      "targetHandle": "input:fluid:oxygen",
+      "resourceKind": "fluid",
+      "resourceId": "oxygen",
+      "label": "Oxygen"
+    },
+    {
+      "id": "edge-952dbe31-8891-422f-8eea-19904cf7f06d",
+      "source": "storage-2cc93116-491d-4c41-a9fb-f7ee1396f986",
+      "target": "node-fc76da44-50f7-4cb6-bf75-d204600aba6d",
+      "sourceHandle": "output:item:ic2%3Aitemcellempty",
+      "targetHandle": "input:item:ic2%3Aitemcellempty",
+      "resourceKind": "item",
+      "resourceId": "ic2:itemcellempty",
+      "label": "Empty Cell"
+    },
+    {
+      "id": "edge-51a69397-5dc8-405b-bfad-25931ca37039",
+      "source": "storage-2cc93116-491d-4c41-a9fb-f7ee1396f986",
+      "target": "node-7ef0ce4b-d3bc-4b96-9f25-65aa52459f1d",
+      "sourceHandle": "output:item:ic2%3Aitemcellempty",
+      "targetHandle": "input:item:ic2%3Aitemcellempty",
+      "resourceKind": "item",
+      "resourceId": "ic2:itemcellempty",
+      "label": "Empty Cell"
+    }
+  ],
+  "fuelProfiles": [
+    {
+      "id": "benzene",
+      "name": "Benzene",
+      "fuelFluidId": "benzene",
+      "euPerLiter": 32000,
+      "notes": "GTNH generator fuel value."
+    },
+    {
+      "id": "biodiesel",
+      "name": "Biodiesel",
+      "fuelFluidId": "biodiesel",
+      "euPerLiter": 12800,
+      "notes": "GTNH generator fuel value."
+    },
+    {
+      "id": "steam",
+      "name": "Steam",
+      "fuelFluidId": "steam",
+      "euPerLiter": 16,
+      "notes": "GTNH steam turbine value."
+    }
+  ],
+  "selectedFuelProfileId": "biodiesel",
+  "notes": "Dataset-backed plan. Recipes must come from a normalized GTNH dataset.",
+  "metadata": {
+    "createdAt": "2026-08-12T22:37:06.903Z",
+    "updatedAt": "2026-08-12T23:11:21.900Z",
+    "communityPlanId": "19912cac-6881-4405-a986-b2d055e46234",
+    "communityFingerprint": "7npb68ojr3"
+  }
+}
