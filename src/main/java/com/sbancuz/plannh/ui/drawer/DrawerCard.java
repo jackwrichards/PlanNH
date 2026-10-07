@@ -321,7 +321,7 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         };
     }
 
-    private static String ruleMark(final Drawer.Rule rule) {
+    public static String ruleMark(final Drawer.Rule rule) {
         return switch (rule) {
             case ANY -> "~";
             case AT_LEAST -> "≥";
@@ -475,6 +475,15 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
      * The wheel on the rate, as on the website: one at a time in the shown unit, ten with Ctrl, a hundred with Shift.
      */
     private void stepRate(final int step) {
+        stepRate(session, model, step);
+    }
+
+    private void stepRule(final int step) {
+        stepRule(session, model, step);
+    }
+
+    /** The wheel on a drawer's rate; the overview's rows take it too. */
+    public static void stepRate(final BoardSession session, final DrawerModel model, final int step) {
         final Fmt.RateUnit unit = session.rateUnit();
         final boolean ctrl = org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_LCONTROL)
             || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_RCONTROL);
@@ -485,7 +494,8 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         session.setDrawerRate(model.drawer, next / unit.perSecond);
     }
 
-    private void stepRule(final int step) {
+    /** The wheel on a drawer's rule: the next or previous rule. */
+    public static void stepRule(final BoardSession session, final DrawerModel model, final int step) {
         final Drawer.Rule[] rules = Drawer.Rule.values();
         final int i = (model.rule.ordinal() + step + rules.length) % rules.length;
         session.setDrawerRule(model.drawer, rules[i]);

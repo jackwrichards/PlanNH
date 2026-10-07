@@ -37,7 +37,7 @@ import com.sbancuz.plannh.ui.theme.Hyb;
 final class OverviewRail extends ParentWidget<OverviewRail>
     implements Interactable, com.cleanroommc.modularui.integration.recipeviewer.RecipeViewerIngredientProvider {
 
-    static final int W = 200;
+    static final int W = 248;
     static final int W_FOLDED = 14;
 
     private static final int HEAD_H = 18, FILTER_Y = 20, FILTER_H = 14, LIST_Y = 38;
@@ -297,34 +297,49 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         final Fmt.RateUnit unit = session.rateUnit();
         final int tint = ink & 0x00FFFFFF | 0x0D000000;
         for (final BoardSession.TotalLine line : shown) {
-            final boolean hot = hover != null && (hover.kind() == Kind.RESOURCE || hover.kind() == Kind.ADD)
-                && hover.data() == line;
-            Hyb.rect(0, y, w - 1, ROW_H, hot ? 0x1A22D3EE : tint);
+            final boolean hot = hover != null && hover.data() == line
+                && (hover.kind() == Kind.RESOURCE || hover.kind() == Kind.ADD);
+            final List<DrawerModel> drawers = title.equals("INTERNAL") ? List.of()
+                : drawersFor(line, title.equals("INPUTS"));
+            // One line per drawer: the resource's own line carries the first; any more get a short line each.
+            final int rows = Math.max(1, drawers.size());
+            final int h = ROW_H + (rows - 1) * DRAWER_H;
+            Hyb.rect(0, y, w - 1, h, hot ? 0x1A22D3EE : tint);
             if (hot) {
                 Hyb.rect(0, y, w - 1, 1, 0x9922D3EE);
-                Hyb.rect(0, y + ROW_H - 1, w - 1, 1, 0x9922D3EE);
+                Hyb.rect(0, y + h - 1, w - 1, 1, 0x9922D3EE);
             }
             if (line.isFluid()) Hyb.fluid(line.fluid(), 4, y + 1, 16, z);
             else Hyb.item(line.item(), 4, y + 1, 16, z);
+            // What the plan moves, right-aligned against the controls so the numbers line up down the list.
             final String number = (line.amount() > 0 ? sign : "") + Fmt.compact(line.amount() * unit.perSecond);
             final String suffix = (line.isFluid() ? " L" : "") + unit.suffix;
             final int rateW = Hyb.width(number) + Hyb.width(suffix) + 1;
-            Hyb.text(Hyb.fit(line.label(), w - 24 - rateW - 10), 23, y + 5, Hyb.INK);
-            Hyb.text(number, w - 6 - rateW, y + 5, line.amount() > 0 ? ink : Hyb.MUTED);
-            Hyb.text(suffix, w - 6 - Hyb.width(suffix), y + 5, Hyb.MUTED);
-            // Hovered and without a drawer on this side: a "+" that makes one (a source for inputs, a product for
-            // outputs).
-            if (hot && !title.equals("INTERNAL") && !hasDrawer(line, title.equals("INPUTS"))) {
-                final int ax = w - 6 - rateW - 16;
+            final int rateRight = title.equals("INTERNAL") ? w - 6 : w - 6 - CONTROLS_W - 4;
+            Hyb.text(Hyb.fit(line.label(), rateRight - rateW - 6 - 23), 23, y + 5, Hyb.INK);
+            Hyb.text(number, rateRight - rateW, y + 5, line.amount() > 0 ? ink : Hyb.MUTED);
+            Hyb.text(suffix, rateRight - Hyb.width(suffix), y + 5, Hyb.MUTED);
+            if (!drawers.isEmpty()) {
+                drawerControls(drawers.get(0), y + 2, w, hover);
+                for (int i = 1; i < drawers.size(); i++) {
+                    final int dy = y + ROW_H + (i - 1) * DRAWER_H;
+                    // A branch from the resource down to each further drawer.
+                    Hyb.rect(11, y + ROW_H - 1, 1, dy - y - ROW_H + DRAWER_H / 2 + 1, Hyb.MUTED);
+                    Hyb.rect(11, dy + DRAWER_H / 2, 5, 1, Hyb.MUTED);
+                    drawerControls(drawers.get(i), dy + 1, w, hover);
+                }
+            } else if (hot && !title.equals("INTERNAL")) {
+                // Hovered and without a drawer on this side: a "+" where the controls go, that makes one (a source
+                // for inputs, a product for outputs).
+                final int ax = w - 6 - CONTROLS_W + (CONTROLS_W - 12) / 2;
                 final boolean addHot = hover.kind() == Kind.ADD;
                 Hyb.bevel(ax, y + 3, 12, 12, addHot ? Hyb.KEY_HOVER : Hyb.KEY, Hyb.KEY_HI, Hyb.KEY_LO, 0, 1);
                 Hyb.rect(ax + 3, y + 8, 6, 2, ink);
                 Hyb.rect(ax + 5, y + 6, 2, 6, ink);
                 hits.add(new Hit(Kind.ADD, ax, y + 3, ax + 12, y + 15, line));
             }
-            hits.add(new Hit(Kind.RESOURCE, 0, y, w - 1, y + ROW_H, line));
-            y += ROW_H;
-            y = drawerRows(title, line, y, w, hover);
+            hits.add(new Hit(Kind.RESOURCE, 0, y, w - 1, y + h, line));
+            y += h;
         }
         return y + GAP;
     }
@@ -333,54 +348,56 @@ final class OverviewRail extends ParentWidget<OverviewRail>
     private final java.util.Set<Object> inputs = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
 
     private boolean hasDrawer(final BoardSession.TotalLine line, final boolean sources) {
-        for (final DrawerModel d : session.drawerModels()
-            .values()) {
-            if ((d.kind == Drawer.Kind.SOURCE) == sources && d.drawer.getResourceKey()
-                .equals(line.key())) return true;
-        }
-        return false;
+        return !drawersFor(line, sources).isEmpty();
     }
 
-    /** Under a resource, the drawers holding it on that side, each with its rule and rate. */
-    private int drawerRows(final String title, final BoardSession.TotalLine line, int y, final int w, final Hit hover) {
-        if (title.equals("INTERNAL")) return y;
-        final boolean sources = title.equals("INPUTS");
+    /** The drawers holding a resource on one side (sources for inputs, products for outputs) that take a rule. */
+    private List<DrawerModel> drawersFor(final BoardSession.TotalLine line, final boolean sources) {
+        final List<DrawerModel> out = new ArrayList<>();
         for (final DrawerModel d : session.drawerModels()
             .values()) {
-            if ((d.kind == Drawer.Kind.SOURCE) != sources || !d.drawer.getResourceKey()
-                .equals(line.key()) || !d.kind.hasRule()) continue;
-            // A little tree branch, then the rule button and the rate box.
-            Hyb.rect(9, y, 1, DRAWER_H / 2, Hyb.MUTED);
-            Hyb.rect(9, y + DRAWER_H / 2, 5, 1, Hyb.MUTED);
-            final int rx = 16, rw = 62, bx = rx + rw + 3, bw = w - 6 - bx;
-            final boolean ruleHot = hover != null && hover.kind() == Kind.RULE && hover.data() == d;
-            final boolean rateHot = hover != null && hover.kind() == Kind.RATE && hover.data() == d;
-            Hyb.bevel(rx, y + 2, rw, 12, ruleHot ? Hyb.KEY_HOVER : Hyb.KEY, Hyb.KEY_HI, Hyb.KEY_LO, 0, 1);
-            Hyb.textCentered(
-                Hyb.fit(DrawerCard.ruleLabel(d.rule), rw - 4),
-                rx + rw / 2f,
-                y + 4,
-                d.rule == Drawer.Rule.ANY ? Hyb.MUTED : Hyb.GOLD);
-            Hyb.well(
-                bx,
-                y + 2,
-                bw,
-                12,
-                d.unmet ? 0xFF4A2020 : rateHot ? Hyb.TILE_HI : 0xFF17191D,
-                0xFF282A2F,
-                0xFF5A5C65);
-            final boolean empty = d.rule == Drawer.Rule.ANY || d.target <= 0;
-            final String text = empty ? "rate?" : Fmt.rate(d.target, session.rateUnit(), d.isFluid());
-            Hyb.textCentered(
-                Hyb.fit(text, bw - 4),
-                bx + bw / 2f,
-                y + 4,
-                d.unmet ? Hyb.RED_INK : empty ? 0xFF6F737C : Hyb.GOLD);
-            hits.add(new Hit(Kind.RULE, rx, y + 2, rx + rw, y + 14, d));
-            hits.add(new Hit(Kind.RATE, bx, y + 2, bx + bw, y + 14, d));
-            y += DRAWER_H;
+            if ((d.kind == Drawer.Kind.SOURCE) == sources && d.kind.hasRule()
+                && d.drawer.getResourceKey()
+                    .equals(line.key()))
+                out.add(d);
         }
-        return y;
+        return out;
+    }
+
+    /** The rule key and the rate box, as the drawer card wears them, at the right of a line. */
+    private static final int RULE_W = 22, BOX_W = 52, CONTROLS_W = RULE_W + 2 + BOX_W;
+
+    private void drawerControls(final DrawerModel d, final int y, final int w, final Hit hover) {
+        final int bx = w - 6 - BOX_W, rx = bx - 2 - RULE_W, h = 14;
+        final boolean ruleHot = hover != null && hover.kind() == Kind.RULE && hover.data() == d;
+        final boolean rateHot = hover != null && hover.kind() == Kind.RATE && hover.data() == d;
+        // The rule: its mark in gold (muted for Any) and a chevron, on a small dark key.
+        final int mark = d.rule == Drawer.Rule.ANY ? Hyb.MUTED : Hyb.GOLD;
+        Hyb.rect(rx, y, RULE_W, h, 0xFF111317);
+        Hyb.rect(rx + 1, y + 1, RULE_W - 2, h - 2, ruleHot ? 0xFF454952 : 0xFF34373E);
+        Hyb.rect(rx + 1, y + 1, RULE_W - 2, 1, 0x1FFFFFFF);
+        Hyb.text(DrawerCard.ruleMark(d.rule), rx + 4, y + 3, mark);
+        Hyb.rect(rx + RULE_W - 9, y + 6, 5, 1, mark);
+        Hyb.rect(rx + RULE_W - 8, y + 7, 3, 1, mark);
+        Hyb.rect(rx + RULE_W - 7, y + 8, 1, 1, mark);
+        // The rate: a dark box, the number in gold, its unit at the right; red when it cannot be reached.
+        Hyb.rect(bx, y, BOX_W, h, d.unmet ? 0xBFF87171 : rateHot ? Hyb.GOLD : 0xFF5A5E68);
+        Hyb.rect(bx + 1, y + 1, BOX_W - 2, h - 2, rateHot ? 0xFF15171C : 0xFF0F1114);
+        Hyb.rect(bx + 1, y + 1, BOX_W - 2, 1, 0xB3000000);
+        final boolean empty = d.rule == Drawer.Rule.ANY || d.target <= 0;
+        if (empty) Hyb.text("§orate?", bx + 4, y + 3, 0xFF6F737C);
+        else {
+            final Fmt.RateUnit unit = session.rateUnit();
+            final String suffix = (d.isFluid() ? "L" : "") + unit.suffix;
+            Hyb.text(
+                Hyb.fit(Fmt.compact(d.target * unit.perSecond), BOX_W - 8 - Hyb.width(suffix)),
+                bx + 4,
+                y + 3,
+                d.unmet ? 0xFFF87171 : Hyb.GOLD);
+            Hyb.textRight(suffix, bx + BOX_W - 3, y + 3, 0xFF8A8E97);
+        }
+        hits.add(new Hit(Kind.RULE, rx, y, rx + RULE_W, y + h, d));
+        hits.add(new Hit(Kind.RATE, bx, y, bx + BOX_W, y + h, d));
     }
 
     private int machines(final BoardSession.Totals t, int y, final int w, final float z, final Hit hover) {
@@ -552,6 +569,17 @@ final class OverviewRail extends ParentWidget<OverviewRail>
     @Override
     public boolean onMouseScroll(final UpOrDown direction, final int amount) {
         if (!open) return false;
+        // On a rule or a rate the wheel steps it, as on the drawer itself; anywhere else it scrolls the list.
+        final Hit hit = hitAtMouseFromLastFrame();
+        final int step = direction == UpOrDown.UP ? 1 : -1;
+        if (hit != null && hit.kind() == Kind.RULE) {
+            DrawerCard.stepRule(session, (DrawerModel) hit.data(), step);
+            return true;
+        }
+        if (hit != null && hit.kind() == Kind.RATE) {
+            DrawerCard.stepRate(session, (DrawerModel) hit.data(), step);
+            return true;
+        }
         final int max = Math.max(0, contentH - (getArea().height - listY()));
         scroll = Math.max(0, Math.min(max, scroll + (direction == UpOrDown.UP ? -ROW_H : ROW_H)));
         return true;
@@ -598,8 +626,9 @@ final class OverviewRail extends ParentWidget<OverviewRail>
                     hint + "Double-click: show the cards that make or use it",
                     hint + "R, U: its recipes and uses in NEI");
             }
-            case RULE -> List.of("Rule", hint + "Click: pick  Right click: previous  Middle click: clear");
-            case RATE -> List.of("Rate", hint + "Click: type a rate (2.5k, 1/3)  Middle click: clear");
+            case RULE -> List.of("Rule", hint + "Click: pick  Right click: previous  Wheel: step  Middle click: clear");
+            case RATE -> List
+                .of("Rate", hint + "Click: type (2.5k, 1/3)  Wheel: +1, Ctrl 10, Shift 100  Middle click: clear");
             case PEAK -> List.of(
                 session.peakPower() ? "Peak: every machine running at once"
                     : "Average: the solved fraction of a machine",
