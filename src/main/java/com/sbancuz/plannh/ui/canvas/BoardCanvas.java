@@ -45,7 +45,7 @@ import com.sbancuz.plannh.ui.theme.Hyb;
 public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Interactable, IViewport, IDraggable {
 
     /** Steps where the font is sharp at GUI scale 2 (1 font pixel lands on whole screen pixels), plus a far view. */
-    private static final float[] ZOOMS = { 0.25f, 0.5f, 1f, 1.5f, 2f };
+    private static final float[] ZOOMS = { 0.125f, 0.25f, 0.5f, 1f, 1.5f, 2f };
     private static final int GRID = 20;
 
     private final BoardSession session;

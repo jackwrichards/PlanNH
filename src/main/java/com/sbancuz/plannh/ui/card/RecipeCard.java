@@ -305,7 +305,10 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         drawMachineArt(m, (w - side) / 2f, (h - side) / 2f, side, side, side, z, true);
         // How many, in a dark pill in the corner, at whole screen pixels per font pixel so it stays sharp.
         final String count = "×" + Fmt.machines(m.machines);
-        final float cs = 1 / zoom, pad = cs;
+        // The same size on every card at a zoom (never past four times), halved only when the number would not fit.
+        float cs = Math.min(1 / zoom, 4);
+        while (cs > 1 && Hyb.width(count) * cs > w * 0.8f) cs /= 2;
+        final float pad = cs;
         final float tw = Hyb.width(count) * cs, th = 8 * cs;
         final float px = w - rim - 4 - tw - 2 * pad, py = h - rim - 4 - th - 2 * pad;
         Hyb.rect(px, py, tw + 2 * pad, th + 2 * pad, 0xC0101114);

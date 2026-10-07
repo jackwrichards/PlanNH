@@ -907,10 +907,13 @@ public final class DevHarness {
                     .invoke(event, px / scale);
                 motionEventClass.getMethod("y", float.class)
                     .invoke(event, py / scale);
+                // Relative to where the cursor really is: the game recentres it when a screen opens, behind our back.
+                final int curX = org.lwjgl.input.Mouse.getX();
+                final int curY = Minecraft.getMinecraft().displayHeight - 1 - org.lwjgl.input.Mouse.getY();
                 motionEventClass.getMethod("xrel", float.class)
-                    .invoke(event, (px - lastX) / scale);
+                    .invoke(event, (px - curX) / scale);
                 motionEventClass.getMethod("yrel", float.class)
-                    .invoke(event, (py - lastY) / scale);
+                    .invoke(event, (py - curY) / scale);
                 addMoveEvent.invoke(null, event);
                 motionEventClass.getMethod("free")
                     .invoke(event);

@@ -271,23 +271,27 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         Hyb.rect(x, y, w * share, 1, Hyb.mix(fill, 0xFFFFFF, 0.7f));
     }
 
-    /** Zoomed out: the resource, its name and the rate, big enough to read at half zoom. */
+    /**
+     * Zoomed out, as the cards do: the resource big on the tinted tile and its rate in a dark pill in the corner, at
+     * whole screen pixels per font pixel so it stays sharp. The name is in the tooltip.
+     */
     private void drawGlance(final DrawerModel m, final float z, final int tint, final float r) {
+        final float zoom = session.graph()
+            .getZoom();
         Hyb.roundRect(2, 2, W - 4, H - 4, Math.max(0, r - 2), Hyb.mix(tint, 0x101318, 0.24f));
-        // The name across the top, then the icon and the rate.
-        Hyb.text(Hyb.fit(m.label, (W - 12) / 2), 6, 6, 2f, 0xFFFFFFFF);
-        // Far out the icon is too small to read: the rate takes its place, at a scale that stays sharp.
-        final boolean far = session.graph()
-            .getZoom() <= 0.25f;
-        if (!far) Hyb.icon(m.item, m.fluid, 6, 28, 32, z);
+        final float side = H - 12;
+        Hyb.icon(m.item, m.fluid, 8, 6, side, z);
         final Fmt.RateUnit unit = session.rateUnit();
         final String sign = m.rate <= 0 ? "" : m.kind == Drawer.Kind.SOURCE ? "-" : "+";
         final int color = m.rate <= 0 ? Hyb.MUTED : m.kind == Drawer.Kind.SOURCE ? Hyb.SOURCE_INK : Hyb.PRODUCT_INK;
         final String rate = sign + Fmt.brief(m.rate * unit.perSecond);
-        // A number is never cut: if it does not fit big it drops to the next scale that stays sharp, centred.
-        final float x = far ? 6 : 42, room = W - 4 - x, big = far ? 4f : 3f, small = 2f;
-        final float scale = Hyb.width(rate) * big <= room ? big : small;
-        Hyb.text(rate, x, (far ? 26 : 32) + (big - scale) * 9 / 2, scale, color);
+        // One screen pixel per font pixel at most; less when the number would not fit the drawer.
+        float cs = Math.min(1 / zoom, 4);
+        while (cs > 1 && Hyb.width(rate) * cs + 2 * cs > W - 8) cs /= 2;
+        final float pad = cs, tw = Hyb.width(rate) * cs, th = 8 * cs;
+        final float px = W - 4 - tw - 2 * pad, py = H - 4 - th - 2 * pad;
+        Hyb.rect(px, py, tw + 2 * pad, th + 2 * pad, 0xC0101114);
+        Hyb.text(rate, px + pad, py + pad, cs, color);
     }
 
     /** A title-bar key: a hard dark edge, a dark face. */
