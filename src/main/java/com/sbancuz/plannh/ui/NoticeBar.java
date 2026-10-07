@@ -1,6 +1,7 @@
 package com.sbancuz.plannh.ui;
 
 import java.util.List;
+import java.util.UUID;
 
 import com.cleanroommc.modularui.api.widget.Interactable;
 import com.cleanroommc.modularui.screen.viewport.ModularGuiContext;
@@ -18,6 +19,9 @@ final class NoticeBar extends Widget<NoticeBar> implements Interactable {
     static final int ROW = 14;
     static final int MAX_ROWS = 4;
     private static final String SHOW_ME = "Show me";
+
+    /** Which card "Show me" went to last, per notice, for notices it walks through. */
+    private final java.util.Map<String, Integer> turns = new java.util.HashMap<>();
 
     private final BoardSession session;
     private final BoardCanvas canvas;
@@ -115,7 +119,10 @@ final class NoticeBar extends Widget<NoticeBar> implements Interactable {
         if (localX() >= rw) return Result.IGNORE;
         if (n.focus()
             .isEmpty() || localX() < rw - Hyb.width(SHOW_ME) - 8) return Result.SUCCESS;
-        canvas.frame(n.focus());
+        // All at once while that still shows their ports; else one at a time, in turn, close enough to read.
+        final List<UUID> focus = n.focus();
+        if (focus.size() == 1 || canvas.framesReadably(focus)) canvas.frame(focus);
+        else canvas.frame(List.of(focus.get((turns.merge(n.text(), 1, Integer::sum) - 1) % focus.size())));
         return Result.SUCCESS;
     }
 }

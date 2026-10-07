@@ -521,7 +521,7 @@ final class OverviewRail extends ParentWidget<OverviewRail> implements Interacta
             if (uses) using.add(card.node.id);
         }
         if (using.isEmpty()) return;
-        final int i = flyIndex.merge(key, 1, Integer::sum) % using.size();
+        final int i = (flyIndex.merge(key, 1, Integer::sum) - 1) % using.size();
         canvas.frame(List.of(using.get(i)));
     }
 
@@ -532,7 +532,7 @@ final class OverviewRail extends ParentWidget<OverviewRail> implements Interacta
             if (m.name()
                 .equals(name)) cards.add(m.nodeId());
         if (cards.isEmpty()) return;
-        final int i = flyIndex.merge("machine:" + name, 1, Integer::sum) % cards.size();
+        final int i = (flyIndex.merge("machine:" + name, 1, Integer::sum) - 1) % cards.size();
         canvas.frame(List.of(cards.get(i)));
     }
 

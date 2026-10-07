@@ -770,6 +770,19 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     /** Pans and zooms so the given cards and drawers fill the view, at the largest whole zoom step that fits. */
     public void frame(final List<UUID> ids) {
+        final int[] box = box(ids);
+        if (box != null) frameBox(box[0], box[1], box[2], box[3]);
+    }
+
+    /** Whether {@link #frame} would show these closer than the glance view, so their ports can be read. */
+    public boolean framesReadably(final List<UUID> ids) {
+        final int[] box = box(ids);
+        return box != null && fitZoom(box[0], box[1], box[2], box[3]) > RecipeCard.GLANCE_ZOOM;
+    }
+
+    /** The world box around the given cards and drawers, as {x0, y0, x1, y1}; null when none is on the board. */
+    @Nullable
+    private int[] box(final List<UUID> ids) {
         int x0 = Integer.MAX_VALUE, y0 = Integer.MAX_VALUE, x1 = Integer.MIN_VALUE, y1 = Integer.MIN_VALUE;
         for (final UUID id : ids) {
             final RecipeCard card = cards.get(id);
@@ -789,18 +802,27 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
                 y1 = Math.max(y1, d.getY() + DrawerCard.H);
             }
         }
-        if (x0 == Integer.MAX_VALUE) return;
-        frameBox(x0, y0, x1, y1);
+        return x0 == Integer.MAX_VALUE ? null : new int[] { x0, y0, x1, y1 };
     }
 
-    /** Eases the camera onto a world box, at the largest whole zoom step that fits it (1.5 at most). */
+    /** Eases the camera onto a world box, at the largest whole zoom step that fits it (the cards' own size at most). */
     private void frameBox(final int x0, final int y0, final int x1, final int y1) {
+        moveCamera(
+            fitZoom(x0, y0, x1, y1),
+            (x0 + x1) / 2f,
+            (y0 + y1) / 2f,
+            getArea().width / 2f,
+            getArea().height / 2f);
+    }
+
+    /** The largest whole zoom step that fits a world box in the view with a margin, 1 at most. */
+    private float fitZoom(final int x0, final int y0, final int x1, final int y1) {
         final int margin = 24;
         final float fitW = getArea().width / (float) (x1 - x0 + 2 * margin);
         final float fitH = getArea().height / (float) (y1 - y0 + 2 * margin);
         float zoom = ZOOMS[0];
-        for (final float z : ZOOMS) if (z <= Math.min(Math.min(fitW, fitH), 1.5f)) zoom = z;
-        moveCamera(zoom, (x0 + x1) / 2f, (y0 + y1) / 2f, getArea().width / 2f, getArea().height / 2f);
+        for (final float z : ZOOMS) if (z <= Math.min(Math.min(fitW, fitH), 1f)) zoom = z;
+        return zoom;
     }
 
     // endregion
