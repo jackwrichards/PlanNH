@@ -47,25 +47,30 @@ final class PowerPanel {
         return new Run(Math.max(1, e.durationTicks()), e.energyPerT(), Math.max(1, e.throughputFactor()));
     }
 
+    private static boolean faster(final Run a, final Run b) {
+        return a.runsPerSecond() > b.runsPerSecond() * 1.0001;
+    }
+
     static Facts facts(final CardModel m) {
         final int t = CardDefaults.tierIndex(m.tier);
         final long volt = t < 0 ? 0 : 8L << (2 * t);
         final Run now = runAt(m.node, m.amps);
-        // The next amp count that changes anything: double until it does, then halve the gap back.
+        // The next amp count that runs it faster (past the one-tick floor more amps only draw more): double until one
+        // does, then halve the gap back.
         Integer nextAmps = null;
         Run next = null;
         int lo = m.amps, hi = m.amps;
         while (hi < MAX_AMPS) {
             hi = (int) Math.min(MAX_AMPS, hi * 2L);
-            if (!runAt(m.node, hi).equals(now)) break;
+            if (faster(runAt(m.node, hi), now)) break;
             lo = hi;
         }
         if (lo < hi) {
             final Run top = runAt(m.node, hi);
-            if (!top.equals(now)) {
+            if (faster(top, now)) {
                 while (hi - lo > 1) {
                     final int mid = lo + (hi - lo) / 2;
-                    if (runAt(m.node, mid).equals(now)) lo = mid;
+                    if (!faster(runAt(m.node, mid), now)) lo = mid;
                     else hi = mid;
                 }
                 nextAmps = hi;

@@ -79,5 +79,6 @@ tools/dev/board-check.sh  # GT runs: end-to-end board check (recipe, port drag, 
   the newest file in `run/client/screenshots/`. Harness screenshots land there too, under the names you gave them.
 - UI feedback loop: change code, `swap --reopen`, check with a cropped `shot`, then tell the user it's live in
   their window. They can interact with the game at the same time; just don't send synthetic input while they are
-  mid-action. `call status` shows `"windowActive": true` while they have the game window focused: hold
-  off on input and restarts until it goes false.
+  mid-action. Gate input and restarts on `tools/dev/mc.sh idle`: it succeeds when the game window is unfocused or
+  nothing has come from their mouse or keyboard for 30 s (`idleSeconds` in `call status`). A focused window alone
+  means nothing: the game takes focus when it starts and keeps it while they work elsewhere.

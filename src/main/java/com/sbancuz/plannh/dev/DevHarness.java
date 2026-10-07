@@ -115,6 +115,7 @@ public final class DevHarness {
     @SubscribeEvent
     public void onClientTick(final TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.START) return;
+        watchTheUser();
         if (!ready && mc.theWorld != null && mc.thePlayer != null) ready = true;
         // Input is read per tick but hover is worked out per frame: after a stall the game runs several ticks in one
         // frame, and a press queued right after a move would land on what was under the mouse before it. So at most one
@@ -127,6 +128,27 @@ public final class DevHarness {
     }
 
     private volatile boolean framedSinceStep = true;
+
+    // When the person at the keyboard last did something: the mouse moved, a button or a key went down. Input the
+    // harness sends is not theirs, so anything within a second of it is left out.
+    private volatile long lastUserMs = System.currentTimeMillis();
+    private volatile long lastSyntheticMs;
+    private int lastMouseX = -1, lastMouseY = -1;
+    private boolean lastAnyDown;
+
+    private void watchTheUser() {
+        if (!org.lwjgl.opengl.Display.isActive()) return;
+        final int x = org.lwjgl.input.Mouse.getX(), y = org.lwjgl.input.Mouse.getY();
+        boolean down = org.lwjgl.input.Mouse.isButtonDown(0) || org.lwjgl.input.Mouse.isButtonDown(1)
+            || org.lwjgl.input.Mouse.isButtonDown(2);
+        for (int k = 1; k < 256 && !down; k++) down = org.lwjgl.input.Keyboard.isKeyDown(k);
+        final boolean changed = x != lastMouseX || y != lastMouseY || down && !lastAnyDown;
+        lastMouseX = x;
+        lastMouseY = y;
+        lastAnyDown = down;
+        final long now = System.currentTimeMillis();
+        if (changed && now - lastSyntheticMs > 1000) lastUserMs = now;
+    }
 
     @SubscribeEvent
     public void onRenderTick(final TickEvent.RenderTickEvent event) {
@@ -492,6 +514,8 @@ public final class DevHarness {
                     .getAbsMouseY());
         }
         m.put("windowActive", org.lwjgl.opengl.Display.isActive());
+        // Seconds since the person last moved the mouse or pressed something in the game window.
+        m.put("idleSeconds", (System.currentTimeMillis() - lastUserMs) / 1000);
         // Minecraft keeps "N fps, M chunk updates" in its debug string.
         m.put(
             "fps",
@@ -727,6 +751,7 @@ public final class DevHarness {
         final CompletableFuture<Object> done = new CompletableFuture<>();
         for (final Runnable step : steps) tickActions.add(() -> {
             try {
+                lastSyntheticMs = System.currentTimeMillis();
                 step.run();
             } catch (final Throwable t) {
                 done.completeExceptionally(t);

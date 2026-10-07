@@ -43,7 +43,7 @@ is a thin curl wrapper. Every request waits until the game has processed it, so 
 
 | Endpoint | What it does |
 | --- | --- |
-| `/status` | `ready`, `inWorld`, `screen`, `muiScreen`, `hovered` and `focused` widgets, `windowActive` (the owner has the game focused), `fps`, display size, `guiWidth`/`guiHeight`/`guiScale`, mouse position |
+| `/status` | `ready`, `inWorld`, `screen`, `muiScreen`, `hovered` and `focused` widgets, `windowActive` (the game window has focus), `idleSeconds` (since the owner last moved the mouse or pressed something in it; the harness's own input does not count, and `mc.sh idle` gates on it), `fps`, display size, `guiWidth`/`guiHeight`/`guiScale`, mouse position |
 | `/open`, `/close` | open the flowchart (same as F8) / close the current screen |
 | `/screenshot?name=x.png[&x&y&w&h]` | save the next fully drawn frame, optionally cropped to a GUI-coordinate rectangle; returns the path |
 | `/widgets` | ModularUI widget tree of the current screen: type, name, x/y/w/h in GUI coordinates, children; open popups (menus, number boxes) under `popups` |

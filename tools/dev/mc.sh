@@ -11,6 +11,7 @@
 #   tools/dev/mc.sh swap [--reopen]     recompile and hot-swap changed classes into the running client
 #                                       (exit 2: some changed classes weren't loaded yet, restart for those)
 #   tools/dev/mc.sh smoke               start, open the flowchart, screenshot, stop; non-zero on failure
+#   tools/dev/mc.sh idle [seconds]      exit 0 when the person is away from the game (unfocused, or no input for 30 s)
 #
 # Env: PLANNH_DEV_PORT (25599), PLANNH_RUN_TASK (runClient25), PLANNH_DEV_WIDTH/HEIGHT (1920x1080),
 #      PLANNH_DEV_GUI_SCALE (2), PLANNH_DEV_SOUND (master volume, 0.0 = muted),
@@ -199,6 +200,18 @@ part() {
         });' "$card" "$name")" || die "part $card $name not found"
     call "$action?$xy${extra:+&$extra}"
 }
+# Succeeds when the person is away from the game: its window is not focused, or nothing has come from their mouse
+# or keyboard for N seconds (default 30). Gate synthetic input and restarts on it.
+idle() {
+    local need="${1:-30}"
+    call status | node -e '
+        let s = ""; process.stdin.on("data", d => s += d).on("end", () => {
+            const st = JSON.parse(s), need = +process.argv[1];
+            const away = !st.windowActive || (st.idleSeconds ?? 0) >= need;
+            console.log(away ? "idle" : "busy: input " + st.idleSeconds + "s ago");
+            process.exit(away ? 0 : 1);
+        });' "$need"
+}
 cmd="${1:-}"
 shift || true
 case "$cmd" in
@@ -211,5 +224,6 @@ case "$cmd" in
     swap) swap "$@" ;;
     smoke) smoke ;;
     part) part "$@" ;;
+    idle) idle "$@" ;;
     *) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 2 ;;
 esac
