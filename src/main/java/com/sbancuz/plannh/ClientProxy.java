@@ -8,7 +8,6 @@ import net.minecraftforge.common.MinecraftForge;
 import org.lwjgl.input.Keyboard;
 
 import com.sbancuz.plannh.client.ChatHandler;
-import com.sbancuz.plannh.client.GPUProgram;
 import com.sbancuz.plannh.client.ImportCommand;
 import com.sbancuz.plannh.client.WorldHandler;
 import com.sbancuz.plannh.dev.DevHarness;
@@ -66,8 +65,6 @@ public class ClientProxy extends CommonProxy {
 
         Minecraft.getMinecraft()
             .func_152344_a(AutoLayout::warmup);
-        Minecraft.getMinecraft()
-            .func_152344_a(GPUProgram.BLUR::compile);
 
         DevHarness.initIfDev();
     }

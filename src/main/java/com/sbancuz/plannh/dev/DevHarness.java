@@ -353,6 +353,61 @@ public final class DevHarness {
             case "/clearplan":
                 requireWorld();
                 return onClient(DevRecipes::clearPlan);
+            case "/importff":
+                // Imports a Factory Flow plan as a new slot: file=<path> (absolute, or from the repo root) or text=.
+                requireWorld(); {
+                final String text;
+                if (q.containsKey("file")) {
+                    java.io.File f = new java.io.File(q.get("file"));
+                    if (!f.isAbsolute()) f = new java.io.File(new java.io.File(mc.mcDataDir, "../.."), q.get("file"));
+                    text = java.nio.file.Files.readString(f.toPath());
+                } else text = arg(q, "text");
+                return onClient(() -> {
+                    final com.sbancuz.plannh.importer.FfConverter.Result result;
+                    try {
+                        result = com.sbancuz.plannh.importer.game.FactoryFlowImport.importAsSlot(text);
+                    } catch (final RuntimeException e) {
+                        return error(String.valueOf(e.getMessage()));
+                    }
+                    final boolean wasOpen = com.sbancuz.plannh.ui.Planner.isPlanner(mc.currentScreen);
+                    if (wasOpen) {
+                        mc.displayGuiScreen(null);
+                        openFlowchart();
+                    }
+                    final Map<String, Object> m = new LinkedHashMap<>();
+                    m.put(
+                        "name",
+                        result.graph()
+                            .getName());
+                    m.put(
+                        "summary",
+                        result.report()
+                            .summary());
+                    final List<String> entries = new ArrayList<>();
+                    for (final com.sbancuz.plannh.importer.ImportReport.Entry e : result.report()
+                        .entries()) entries.add(e.toString());
+                    m.put("report", entries);
+                    return m;
+                });
+            }
+            case "/iconatlas":
+                // Writes the icon-shadow atlas to run/client/screenshots/<name, default icon-atlas.png>.
+                return onFrame(() -> {
+                    final java.awt.image.BufferedImage image = com.sbancuz.plannh.ui.theme.IconShadows.atlasImage();
+                    if (image == null) return error("no atlas yet: nothing has asked for an icon shadow");
+                    final java.io.File out = new java.io.File(
+                        mc.mcDataDir,
+                        "screenshots/" + q.getOrDefault("name", "icon-atlas.png"));
+                    try {
+                        javax.imageio.ImageIO.write(image, "png", out);
+                    } catch (final java.io.IOException e) {
+                        return error(e.toString());
+                    }
+                    final Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("file", out.getAbsolutePath());
+                    m.put("cells", com.sbancuz.plannh.ui.theme.IconShadows.cells());
+                    return m;
+                });
             case "/structurepic":
                 requireWorld();
                 return onFrame(() -> structurePicture(q));

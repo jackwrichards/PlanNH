@@ -93,7 +93,22 @@ final class PlanTabs extends Widget<PlanTabs> implements Interactable {
         if (i < 0) return Result.IGNORE;
         final List<int[]> tabs = layout();
         if (i == tabs.size() - 1) {
-            if (mouseButton == 0) session.addSlot();
+            if (mouseButton != 0 && mouseButton != 1) return Result.IGNORE;
+            final List<PickList.Entry> rows = new ArrayList<>();
+            rows.add(new PickList.Entry(null, "New plan", "", Hyb.INK, false, session::addSlot));
+            rows.add(
+                new PickList.Entry(
+                    null,
+                    "Paste plan",
+                    "Factory Flow link or code",
+                    Hyb.INK,
+                    false,
+                    session::pastePlan));
+            Popup.open(
+                getPanel(),
+                PickList.popup("plannh_new_plan", null, rows, false, 190),
+                getArea().x + tabs.get(i)[0],
+                getArea().y + getArea().height + 2);
             return Result.SUCCESS;
         }
         if (mouseButton == 0) {
@@ -113,6 +128,7 @@ final class PlanTabs extends Widget<PlanTabs> implements Interactable {
                     TextPopup.create("Plan name", g.getName(), name -> session.renameSlot(i, name)),
                     sx,
                     sy)));
+        rows.add(PickList.Entry.of("Copy plan", () -> session.copyPlan(i)));
         if (session.slots()
             .size() > 1)
             rows.add(new PickList.Entry(null, "Delete this plan", "", Hyb.RED_INK, false, () -> session.deleteSlot(i)));
@@ -125,11 +141,11 @@ final class PlanTabs extends Widget<PlanTabs> implements Interactable {
         if (!isHovering()) return null;
         final int i = indexAtMouse();
         if (i < 0) return null;
-        if (i == layout().size() - 1) return List.of("New plan");
+        if (i == layout().size() - 1) return List.of("New plan, or paste one from Factory Flow");
         return List.of(
             session.slots()
                 .get(i)
                 .getName(),
-            "§7Click: open  Right click: rename, delete");
+            "§7Click: open  Right click: rename, copy, delete");
     }
 }

@@ -441,7 +441,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
                 z);
             int count = 0;
             for (final BoardSession.MachineLine m : lines) count += (int) Math.ceil(m.machines() - 1e-9);
-            final String total = "x" + count;
+            final String total = "×" + count;
             Hyb.text(Hyb.fit(g.getKey(), w - 30 - Hyb.width(total) - 8), 23, y + 4, Hyb.INK);
             Hyb.textRight(total, w - 6, y + 4, Hyb.INK);
             hits.add(new Hit(Kind.GROUP, 0, y, w - 1, y + GROUP_H, g.getKey()));

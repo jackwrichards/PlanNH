@@ -1,7 +1,5 @@
 package com.sbancuz.plannh.ui;
 
-import static codechicken.lib.gui.GuiDraw.drawMultilineTip;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BooleanSupplier;
@@ -9,8 +7,6 @@ import java.util.function.Supplier;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.item.ItemStack;
-
-import org.lwjgl.opengl.GL11;
 
 import com.cleanroommc.modularui.api.drawable.IDrawable;
 import com.cleanroommc.modularui.api.drawable.IKey;
@@ -29,6 +25,7 @@ import com.sbancuz.plannh.ui.card.PortSlot;
 import com.sbancuz.plannh.ui.card.RecipeCard;
 import com.sbancuz.plannh.ui.drawer.DrawerCard;
 import com.sbancuz.plannh.ui.popup.Popup;
+import com.sbancuz.plannh.ui.popup.Tip;
 import com.sbancuz.plannh.ui.theme.Fmt;
 import com.sbancuz.plannh.ui.theme.Hyb;
 
@@ -168,10 +165,14 @@ public final class BoardScreen extends ModularScreen {
         com.sbancuz.plannh.ui.popup.Popup.open(panel, (com.sbancuz.plannh.ui.popup.Popup) p, 300, 24);
     }
 
+    /** The top-bar keys' tooltips, drawn as board tips (ModularUI's own would be the game's purple ones). */
+    private static final java.util.Map<IWidget, String> KEY_TIPS = new java.util.WeakHashMap<>();
+
     /** A top-bar key in the card's key style: a label, a tooltip, greyed when it can do nothing. */
     private static ButtonWidget<?> key(final Supplier<String> label, final BooleanSupplier enabled,
         final String tooltip, final int width, final Runnable action) {
-        return new ButtonWidget<>().size(width, 16)
+        final ButtonWidget<?> button = new ButtonWidget<>();
+        button.size(width, 16)
             .background(
                 (IDrawable) (ctx, x, y, w, h, theme) -> {
                     Hyb.bevel(x, y, w, h, Hyb.KEY, Hyb.KEY_HI, Hyb.KEY_LO, 0, 1);
@@ -186,11 +187,12 @@ public final class BoardScreen extends ModularScreen {
                     x + w / 2f,
                     y + (h - 8) / 2f,
                     enabled.getAsBoolean() ? Hyb.INK : 0xFF5A5C65))
-            .addTooltipLine(tooltip)
             .onMousePressed(b -> {
                 if (b == 0 && enabled.getAsBoolean()) action.run();
                 return true;
             });
+        KEY_TIPS.put(button, tooltip);
+        return button;
     }
 
     public BoardSession session() {
@@ -350,59 +352,84 @@ public final class BoardScreen extends ModularScreen {
     }
 
     /**
-     * NEI's item tooltip plus the port's rate. NEI skips its own tooltip on ModularUI screens whenever a widget is
-     * hovered, so the board draws it in the foreground pass.
+     * The board's tooltips, in Factory Flow's panel: NEI skips its own on ModularUI screens whenever a widget is
+     * hovered, so the board draws them in the foreground pass. A multiblock's power chips answer with the power panel,
+     * and a card far out with its reveal.
      */
+    /** What the mouse was over last frame, and since when: tips that wait a moment need it. */
+    private Object tipTarget;
+    private long tipSince;
+
     private void drawPortTooltip() {
         final Object hovered = getContext().getHovered();
         // While a popup is open, only it explains itself: a tip from the board would cover it.
         final ModularPanel top = getPanelManager().getTopMostPanel();
+        if (hovered != tipTarget) {
+            tipTarget = hovered;
+            tipSince = System.currentTimeMillis();
+        }
         if (top instanceof Popup && !(hovered instanceof final IWidget w && w.getPanel() == top)) return;
-        final List<String> lines;
-        int tipX = getContext().getAbsMouseX() + 12;
+        final int mx = getContext().getAbsMouseX(), my = getContext().getAbsMouseY();
+        // NEI's item list draws over anything past the planner's right edge: tips stay left of it.
+        final int right = getMainPanel().getArea().x + getMainPanel().getArea().width;
+        final int bottom = getMainPanel().getArea().y + getMainPanel().getArea().height;
+        final Tip tip;
         if (hovered instanceof final RecipeCard card) {
+            if (card.drawPower(right, bottom)) return;
             // Zoomed out, a card answers with its own panel: name, numbers, ins and outs.
-            if (card.drawReveal(
-                getContext().getAbsMouseX(),
-                getContext().getAbsMouseY(),
-                getMainPanel().getArea().x + getMainPanel().getArea().width,
-                getMainPanel().getArea().y + getMainPanel().getArea().height)) return;
-            lines = card.hoverLines();
-            if (lines == null) return;
+            if (card.drawReveal(mx, my, right, bottom)) return;
+            tip = card.tip();
         } else if (hovered instanceof final DrawerCard drawer) {
-            lines = drawer.hoverLines();
-            if (lines == null) return;
+            tip = drawer.tip();
         } else if (hovered instanceof final PlanTabs tabs) {
-            lines = tabs.hoverLines();
-            if (lines == null) return;
+            tip = Tip.ofLines(tabs.hoverLines());
         } else if (hovered instanceof final OverviewRail overview) {
-            lines = overview.hoverLines();
-            if (lines == null) return;
+            final Tip railTip = Tip.ofLines(overview.hoverLines());
+            if (railTip == null) return;
             // Beside the rail, so the tip never covers the row it is about.
-            tipX = overview.getArea().x + overview.getArea().width + 4;
+            railTip.draw(
+                overview.getArea().x + overview.getArea().width + 4,
+                Math.max(2, Math.min(my - 12, bottom - railTip.height())));
+            return;
         } else if (hovered == null || hovered == canvas) {
-            lines = canvas.wireLines();
-            if (lines == null) return;
+            tip = Tip.ofLines(canvas.wireLines());
         } else if (hovered instanceof final PortSlot slot) {
-            final ItemStack stack = slot.stack();
-            final CardModel.PortView view = slot.view();
-            if (stack == null || view == null) return;
-            lines = new ArrayList<>(GuiContainerManager.itemDisplayNameMultiline(stack, null, true));
-            if (lines.isEmpty()) lines.add(view.name());
-            lines.add("§7" + Fmt.rate(view.perSecond(), session.rateUnit(), view.isFluid()));
+            tip = portTip(slot);
+        } else if (hovered instanceof final IWidget w && KEY_TIPS.containsKey(w)) {
+            // The keys wait a moment, so passing over the bar does not flash tips.
+            if (System.currentTimeMillis() - tipSince < 350) return;
+            tip = Tip.ofLines(java.util.Arrays.asList(KEY_TIPS.get(w).split("\n")));
         } else {
             return;
         }
-        // NEI's item list draws over anything past the planner's right edge: flip the tip to the cursor's left.
-        int width = 0;
-        for (final String line : lines) width = Math.max(
-            width,
-            net.minecraft.client.Minecraft.getMinecraft().fontRenderer.getStringWidth(line));
-        final int right = getMainPanel().getArea().x + getMainPanel().getArea().width;
-        if (tipX + width + 4 > right) tipX = Math.max(4, getContext().getAbsMouseX() - 16 - width);
-        GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_DEPTH_BUFFER_BIT);
-        GL11.glDisable(GL11.GL_DEPTH_TEST);
-        drawMultilineTip(tipX, getContext().getAbsMouseY() - 12, lines);
-        GL11.glPopAttrib();
+        if (tip != null) tip.drawNear(mx, my, right, bottom);
+    }
+
+    /** A port: what it is, its rate, NEI's own lines about the stack, and what the mouse and keys do with it. */
+    private Tip portTip(final PortSlot slot) {
+        final CardModel.PortView view = slot.view();
+        if (view == null) return null;
+        final ItemStack stack = slot.stack();
+        final boolean chanced = view.output() && view.chance() < 0.9999f;
+        final Tip tip = Tip.of(view.name())
+            .sub(view.output() ? "Output" : "Input")
+            .row(
+                view.output() ? chanced ? "Average output" : "Produced" : "Consumed",
+                Fmt.rate(view.perSecond(), session.rateUnit(), view.isFluid()));
+        if (chanced) tip.row("Chance", Fmt.compact(view.chance() * 100) + "%");
+        if (stack != null) {
+            // NEI's lines past the name: a formula, a material's notes, the mod. A few at most.
+            final List<String> nei = GuiContainerManager.itemDisplayNameMultiline(stack, null, true);
+            for (int i = 1; i < Math.min(nei.size(), 5); i++) tip.note(nei.get(i), Tip.SUBTLE);
+        }
+        if (!view.wired()) {
+            tip.note("Unconnected", Tip.WARN);
+            tip.muted(
+                view.output() ? "Wire it to a card, or drop it on the board for a drawer."
+                    : "You must connect this input.");
+        }
+        return tip.action(Tip.Input.LEFT, view.output() ? "What uses it" : "What makes it")
+            .action(Tip.Input.DRAG, "Connect")
+            .action(Tip.Input.KEY, "R, U");
     }
 }

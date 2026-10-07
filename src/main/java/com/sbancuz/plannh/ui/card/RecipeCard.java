@@ -29,6 +29,7 @@ import com.sbancuz.plannh.ui.gt.MultiblockPictures;
 import com.sbancuz.plannh.ui.popup.NumberPopup;
 import com.sbancuz.plannh.ui.popup.PickList;
 import com.sbancuz.plannh.ui.popup.Popup;
+import com.sbancuz.plannh.ui.popup.Tip;
 import com.sbancuz.plannh.ui.theme.Fmt;
 import com.sbancuz.plannh.ui.theme.Hyb;
 
@@ -47,20 +48,31 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         TIER,
         COIL,
         MACHINES,
+        POWER,
+        CIRCUIT,
         BODY
     }
 
-    private static final int CHIP_Y = CardLayout.PAD + 2;
-    private static final int KEY_X = CardLayout.PAD + 2;
-    private static final int TIER_W = 26;
-    private static final int AMPS_W = 28;
-    private static final int TIER_X = CardLayout.W - CardLayout.PAD - 2 - TIER_W;
-    private static final int AMPS_X = TIER_X - 2 - AMPS_W;
-    private static final int BAR_X = KEY_X + 16 + 4;
-    private static final int COIL_X = CardLayout.PAD + 40;
-    private static final int COIL_W = CardLayout.W - 2 * CardLayout.PAD - 42;
-    private static final int MACHINES_X = CardLayout.PAD + 154;
-    private static final int MACHINES_W = 128;
+    private static final int CHIP_Y = CardLayout.HEAD_Y;
+    private static final int CHIP_H = CardLayout.HEAD;
+    private static final int KEY_X = CardLayout.PAD;
+    private static final int KEY_W = CardLayout.HEAD;
+    private static final int RIGHT = CardLayout.W - CardLayout.PAD;
+    /** A multiblock's amps and tier chips, touching (Factory Flow's 64 at 380); a single block's lone tier chip. */
+    private static final int CHIP_W = 48;
+    private static final int SINGLE_TIER_W = 42;
+    private static final int AMPS_X = RIGHT - 2 * CHIP_W;
+    private static final int BAR_X = KEY_X + KEY_W + 4;
+    private static final int COIL_X = CardLayout.PAD + 3;
+    private static final int COIL_W = CardLayout.W - 2 * CardLayout.PAD - 6;
+    private static final int COIL_DY = 12;
+    private static final int COIL_H = 18;
+    private static final int CIRCUIT_W = 30;
+    private static final int CIRCUIT_X = RIGHT - CIRCUIT_W;
+    private static final int POWER_X = CardLayout.PAD;
+    private static final int POWER_W = (CIRCUIT_X - 8 - POWER_X) / 2;
+    private static final int MACHINES_X = POWER_X + POWER_W + 4;
+    private static final int MACHINES_W = CIRCUIT_X - 4 - MACHINES_X;
 
     private final BoardSession session;
     public final UUID nodeId;
@@ -136,10 +148,19 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
     // region Geometry and hit testing
 
+    /** The tier chip: beside the amps on a multiblock, alone on a single block, none outside GregTech. */
+    private int tierW() {
+        return model != null && model.multiblock ? CHIP_W : SINGLE_TIER_W;
+    }
+
+    private int tierX() {
+        return RIGHT - tierW();
+    }
+
     private int barRight() {
         // A recipe outside GregTech has no voltage: no tier chip, and the name bar runs to the edge.
-        if (model != null && !model.gregtech) return TIER_X + TIER_W;
-        return (model != null && model.multiblock ? AMPS_X : TIER_X) - 4;
+        if (model != null && !model.gregtech) return RIGHT;
+        return (model != null && model.multiblock ? AMPS_X : tierX()) - 4;
     }
 
     private BoardCanvas canvas() {
@@ -165,12 +186,11 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         if (model == null) return null;
         // Far out the controls are not drawn, so nothing invisible answers a click or the wheel.
         if (glance()) return Part.BODY;
-        if (in(x, y, KEY_X, CHIP_Y, 16, 16)) return Part.ACTIONS;
-        if (model.gregtech && in(x, y, TIER_X, CHIP_Y, TIER_W, 16)) return Part.TIER;
-        if (model.multiblock && in(x, y, AMPS_X, CHIP_Y, AMPS_W, 16)) return Part.AMPS;
-        if (in(x, y, BAR_X, CHIP_Y, barRight() - BAR_X, 16)) return Part.MACHINE;
-        if (layout.settingRows > 0 && in(x, y, COIL_X, layout.settingsY + 1, COIL_W, 16)) return Part.COIL;
-        if (in(x, y, MACHINES_X, layout.footY, MACHINES_W, CardLayout.FOOT)) return Part.MACHINES;
+        for (final Part part : Part.values()) {
+            if (part == Part.BODY) continue;
+            final int[] r = partRect(part);
+            if (r != null && in(x, y, r[0], r[1], r[2], r[3])) return part;
+        }
         return Part.BODY;
     }
 
@@ -185,12 +205,16 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     public int[] partRect(final Part part) {
         if (model == null) return null;
         return switch (part) {
-            case ACTIONS -> new int[] { KEY_X, CHIP_Y, 16, 16 };
-            case TIER -> new int[] { TIER_X, CHIP_Y, TIER_W, 16 };
-            case AMPS -> model.multiblock ? new int[] { AMPS_X, CHIP_Y, AMPS_W, 16 } : null;
-            case MACHINE -> new int[] { BAR_X, CHIP_Y, barRight() - BAR_X, 16 };
-            case COIL -> layout.settingRows > 0 ? new int[] { COIL_X, layout.settingsY + 1, COIL_W, 16 } : null;
+            case ACTIONS -> new int[] { KEY_X, CHIP_Y, KEY_W, CHIP_H };
+            case TIER -> model.gregtech ? new int[] { tierX(), CHIP_Y, tierW(), CHIP_H } : null;
+            case AMPS -> model.multiblock ? new int[] { AMPS_X, CHIP_Y, CHIP_W, CHIP_H } : null;
+            case MACHINE -> new int[] { BAR_X, CHIP_Y, barRight() - BAR_X, CHIP_H };
+            case COIL -> layout.settingRows > 0 ? new int[] { COIL_X, layout.settingsY + COIL_DY, COIL_W, COIL_H }
+                : null;
+            case POWER -> new int[] { POWER_X, layout.footY, POWER_W, CardLayout.FOOT };
             case MACHINES -> new int[] { MACHINES_X, layout.footY, MACHINES_W, CardLayout.FOOT };
+            case CIRCUIT -> model.circuit != null ? new int[] { CIRCUIT_X, layout.footY, CIRCUIT_W, CardLayout.FOOT }
+                : null;
             case BODY -> new int[] { 0, 0, CardLayout.W, layout.height };
         };
     }
@@ -226,8 +250,10 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             Hyb.rect(5, 7, CardLayout.W, layout.height, 0x50000000);
             Hyb.rect(3, 4, CardLayout.W, layout.height, 0x40000000);
         } else Hyb.dropShadow(0, 0, CardLayout.W, layout.height);
-        if (session.isSelected(nodeId)) Hyb.ring(-3, -3, CardLayout.W + 6, layout.height + 6, 2, Hyb.SELECTION);
+        if (anyUnwired(m)) drawUnwiredRing();
+        if (session.isSelected(nodeId)) Hyb.ring(0, 0, CardLayout.W, layout.height, 2, Hyb.SELECTION);
         Hyb.cardFrame(0, 0, CardLayout.W, layout.height);
+        Hyb.rect(CardLayout.PAD, layout.hairY, CardLayout.W - 2 * CardLayout.PAD, 1, 0xFF2A2C31);
         if (m.tierTooLow()) {
             // Can't run: the tier is below the recipe's. Red ring outside the card; the POWER tile says TIER!.
             Hyb.rect(-2, -2, CardLayout.W + 4, 2, Hyb.RED_INK);
@@ -240,7 +266,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         drawRail(m.outputs, true, z);
         drawPicture(m, z);
         if (layout.settingRows > 0) drawCoil(m, z, hover == Part.COIL);
-        drawFooter(m, z, hover == Part.MACHINES);
+        drawFooter(m, z, hover);
     }
 
     /**
@@ -278,7 +304,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final float side = h - 2 * rim - 12;
         drawMachineArt(m, (w - side) / 2f, (h - side) / 2f, side, side, side, z, true);
         // How many, in a dark pill in the corner, at whole screen pixels per font pixel so it stays sharp.
-        final String count = "x" + Fmt.machines(m.machines);
+        final String count = "×" + Fmt.machines(m.machines);
         final float cs = 1 / zoom, pad = cs;
         final float tw = Hyb.width(count) * cs, th = 8 * cs;
         final float px = w - rim - 4 - tw - 2 * pad, py = h - rim - 4 - th - 2 * pad;
@@ -299,19 +325,15 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         int x = mouseX + 14, y = mouseY + 14;
         if (x + w > right) x = Math.max(2, mouseX - 14 - w);
         if (y + h > bottom) y = Math.max(2, bottom - h);
-        org.lwjgl.opengl.GL11
-            .glPushAttrib(org.lwjgl.opengl.GL11.GL_ENABLE_BIT | org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT);
-        org.lwjgl.opengl.GL11.glDisable(org.lwjgl.opengl.GL11.GL_DEPTH_TEST);
-        Hyb.rect(x + 4, y + 4, w, h, 0x59000000);
-        Hyb.rect(x, y, w, h, Hyb.KEY_EDGE);
-        Hyb.rect(x + 1, y + 1, w - 2, h - 2, Hyb.MENU);
+        Tip.beginPanel();
+        Tip.chrome(x, y, w, h);
         // The name bar the card wears zoomed in.
         Hyb.bevel(x + 6, y + 6, w - 12, 18, Hyb.KEY, Hyb.KEY_HI, Hyb.KEY_LO, Hyb.KEY_EDGE, 1);
         Hyb.textCentered(Hyb.fit(m.machineName, w - 24), x + w / 2f, y + 11, Hyb.INK);
         // How many, at what tier, drawing how much.
         float lx = x + 8;
         final int ly = y + 30;
-        final String count = "x" + Fmt.machines(m.machines);
+        final String count = "×" + Fmt.machines(m.machines);
         Hyb.text(count, lx, ly, m.pinned ? Hyb.GOLD : Hyb.INK);
         lx += Hyb.width(count) + 8;
         if (m.gregtech) {
@@ -327,66 +349,107 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             revealPort(m.outputs.get(i), x + 8 + colW + 20, top + i * rowH, colW - 8);
         final float ax = x + 8 + colW + 4, ay = top + 8;
         Hyb.triangle(ax + 8, ay, ax, ay - 4, ax, ay + 4, Hyb.MUTED);
-        org.lwjgl.opengl.GL11.glPopAttrib();
+        Tip.endPanel();
         return true;
     }
 
     private void revealPort(final CardModel.PortView p, final float x, final float y, final int width) {
-        if (p.isFluid()) Hyb.fluid(p.fluid(), x, y + 2, 16, 300);
-        else if (p.item() != null) Hyb.item(p.item(), x, y + 2, 16, 300);
+        Hyb.icon(p.item(), p.fluid(), x, y + 2, 16, 300);
         Hyb.text(Hyb.fit(p.name(), width - 22), x + 20, y, Hyb.INK);
         Hyb.text(Fmt.rate(p.perSecond(), session.rateUnit(), p.isFluid()), x + 20, y + 10, Hyb.MUTED);
+    }
+
+    /** Rounds to the nearest half pixel: one screen pixel at the game's GUI scale 2, so text stays crisp. */
+    private static float crisp(final float v) {
+        return Math.round(v * 2) / 2f;
+    }
+
+    /** Factory Flow's breathing: 0 to 1 and back over 1.9 s, for what wants attention (an unwired port). */
+    private static float breathe() {
+        final double t = (System.currentTimeMillis() % 1900L) / 1900.0;
+        return (float) (0.5 - 0.5 * Math.cos(2 * Math.PI * t));
+    }
+
+    private static int alpha(final int rgb, final float a) {
+        return Math.round(Math.max(0, Math.min(1, a)) * 255) << 24 | rgb & 0xFFFFFF;
+    }
+
+    private static boolean anyUnwired(final CardModel m) {
+        for (final CardModel.PortView p : m.inputs) if (!p.wired()) return true;
+        for (final CardModel.PortView p : m.outputs) if (!p.wired()) return true;
+        return false;
+    }
+
+    /** A card with a port still to wire breathes: a dim ring, and a lit one with a halo fading in and out. */
+    private void drawUnwiredRing() {
+        final int w = CardLayout.W, h = layout.height;
+        final float b = breathe();
+        Hyb.ring(0, 0, w, h, 1, 0x40C8D2E0);
+        Hyb.ring(0, 0, w, h, 1, alpha(0xEEF2F8, 0.85f * b));
+        for (int i = 1; i <= 4; i++)
+            Hyb.ring(-i, -i, w + 2 * i, h + 2 * i, 1, alpha(0xDCE6F4, 0.3f * b * (5 - i) / 5f));
     }
 
     private void drawHead(final CardModel m, final Part hover) {
         final int y = CHIP_Y;
         Hyb.bevel(
-            KEY_X,
-            y,
-            16,
-            16,
+            KEY_X + 1,
+            y + 1,
+            KEY_W - 2,
+            CHIP_H - 2,
             hover == Part.ACTIONS ? Hyb.KEY_HOVER : Hyb.KEY,
             Hyb.KEY_HI,
             Hyb.KEY_LO,
             Hyb.KEY_EDGE,
             1);
-        for (int i = 0; i < 3; i++) Hyb.rect(KEY_X + 3, y + 4 + i * 3, 10, 2, Hyb.INK);
+        for (int i = 0; i < 3; i++) Hyb.rect(KEY_X + 5, y + 5 + i * 4, 10, 2, Hyb.INK);
 
-        if (m.gregtech) chip(TIER_X, y, TIER_W, Hyb.tier(m.tier), hover == Part.TIER);
-        if (m.multiblock) {
-            Hyb.bevel(
-                AMPS_X,
-                y,
-                AMPS_W,
-                16,
-                hover == Part.AMPS ? 0xFF5A5C65 : Hyb.WELL,
-                0xFF5A5C65,
-                Hyb.SHADOW,
-                Hyb.KEY_EDGE,
-                1);
-            Hyb.textCentered(Fmt.compact(m.amps) + "A", AMPS_X + AMPS_W / 2f, y + 4, Hyb.INK);
+        if (m.gregtech) {
+            // Amps wear the tier's colours too: together they read as one figure, 16A UV.
+            final Hyb.Tier tier = Hyb.tier(m.tier);
+            if (m.multiblock)
+                chip(AMPS_X, y, CHIP_W, CHIP_H, tier, Fmt.compact(m.amps) + "A", false, hover == Part.AMPS);
+            chip(tierX(), y, tierW(), CHIP_H, tier, tier.name(), tier.underline(), hover == Part.TIER);
         }
 
         final int bw = barRight() - BAR_X;
-        Hyb.rect(BAR_X - 1, y - 1, bw + 2, 18, Hyb.SHADOW);
-        Hyb.rect(BAR_X, y, bw, 16, hover == Part.MACHINE ? 0xFF34363C : Hyb.NAMEBAR);
-        Hyb.rect(BAR_X, y, bw, 1, Hyb.KEY_HI);
-        Hyb.rect(BAR_X, y, 1, 16, Hyb.KEY_HI);
-        chevron(BAR_X + 4, y + 6, Hyb.MUTED);
-        Hyb.textCentered(Hyb.fit(m.machineName, bw - 20), BAR_X + 8 + (bw - 8) / 2f, y + 4, 0xFFFFFFFF);
+        Hyb.bevel(
+            BAR_X + 1,
+            y + 1,
+            bw - 2,
+            CHIP_H - 2,
+            hover == Part.MACHINE ? 0xFF34363C : Hyb.NAMEBAR,
+            Hyb.KEY_HI,
+            0xFF1A1C20,
+            Hyb.SHADOW,
+            1);
+        // The chevron says the bar is a menu: only when there is another machine to pick.
+        final boolean menu = m.catalysts.size() > 1;
+        if (menu) chevron(BAR_X + 5, y + 8, 0xFFFFFFFF);
+        final int left = menu ? 15 : 6, room = bw - left - 6;
+        final String name = Hyb.fit(m.machineName, room);
+        Hyb.text(name, crisp(BAR_X + left + (room - Hyb.width(name)) / 2f), y + 6.5f, 0xFFFFFFFF);
     }
 
-    private static void chip(final int x, final int y, final int w, final Hyb.Tier tier, final boolean hover) {
-        Hyb.rect(x - 1, y - 1, w + 2, 18, hover ? 0xFFFFFFFF : tier.border());
-        Hyb.rect(x, y, w, 16, tier.bg());
-        Hyb.rect(x, y, w, 1, 0x8CFFFFFF);
-        Hyb.rect(x, y, 1, 16, 0x8CFFFFFF);
-        Hyb.rect(x, y + 15, w, 1, 0x73000000);
-        Hyb.rect(x + w - 1, y, 1, 16, 0x73000000);
-        final int tw = Hyb.width(tier.name());
-        final float tx = x + (w - tw) / 2f;
-        GuiDraw.drawText(tier.name(), tx, y + 4, 1f, tier.text(), false);
-        if (tier.underline()) Hyb.rect(tx, y + 13, tw, 1, tier.text());
+    /**
+     * A chip in a voltage tier's colours, as Factory Flow draws its amps and tier: a raised face, the label large with
+     * a
+     * hard shadow in the tier's dark, underlined from UV up.
+     */
+    private static void chip(final int x, final int y, final int w, final int h, final Hyb.Tier tier,
+        final String label, final boolean underline, final boolean hover) {
+        Hyb.rect(x, y, w, h, tier.border());
+        Hyb.rect(x + 1, y + 1, w - 2, h - 2, hover ? Hyb.mix(tier.bg(), 0xFFFFFF, 0.88f) : tier.bg());
+        Hyb.rect(x + 1, y + 1, w - 2, 1, 0x8CFFFFFF);
+        Hyb.rect(x + 1, y + 1, 1, h - 2, 0x8CFFFFFF);
+        Hyb.rect(x + 1, y + h - 2, w - 2, 1, 0x73000000);
+        Hyb.rect(x + w - 2, y + 1, 1, h - 2, 0x73000000);
+        final float s = 1.5f;
+        final float tw = (Hyb.width(label) - 1) * s;
+        final float tx = crisp(x + (w - tw) / 2f), ty = crisp(y + (h - 7 * s) / 2f);
+        GuiDraw.drawText(label, tx + 1, ty + 1, s, tier.border(), false);
+        GuiDraw.drawText(label, tx, ty, s, tier.text(), false);
+        if (underline) Hyb.rect(tx, ty + 8 * s, tw, 1, tier.text());
     }
 
     private static void chevron(final int x, final int y, final int color) {
@@ -396,48 +459,71 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         Hyb.rect(x + 3, y + 3, 1, 1, color);
     }
 
+    /**
+     * Each port is a tile of its own, as on the website: the icon bare with its shadow, the name on one or two lines,
+     * the rate under it. A port still to wire is dashed and breathes. The tiles go down first, then what lights them,
+     * so a glow is never covered by the tile below.
+     */
     private void drawRail(final List<CardModel.PortView> ports, final boolean output, final float z) {
-        final int x = CardLayout.railX(output);
+        final int x = CardLayout.railX(output), w = CardLayout.RAIL_W, h = CardLayout.ROW;
         final Fmt.RateUnit unit = session.rateUnit();
-        final PortSlot hoveredSlot = getContext().getHovered() instanceof final PortSlot s && s.card() == this ? s : null;
+        final PortSlot hoveredSlot = getContext().getHovered() instanceof final PortSlot s && s.card() == this ? s
+            : null;
         for (final CardModel.PortView p : ports) {
             final int y = layout.rowY(output, p.index());
-            // The whole row is the handle; show it.
-            if (hoveredSlot != null && hoveredSlot.output == output && hoveredSlot.index == p.index())
-                Hyb.rect(x - 1, y - 1, CardLayout.RAIL_W + 1, layout.rowH(output, p.index()) + 2, 0x18FFFFFF);
-            Hyb.slot(x, y + 1, p.isFluid());
-            if (!p.wired()) Hyb.dashed(x - 2, y - 1, 22, 22, Hyb.AMBER_INK);
-            if (p.key()
-                .equals(session.hoverKey())) glow(x, y + 1);
-            // While a wire is dragged out of another card, the ports that would take it light up green.
-            final BoardCanvas board = canvas();
-            if (board != null && board.acceptsDrag(nodeId, output, p.key())) {
-                Hyb.rect(x - 1, y - 1, CardLayout.RAIL_W + 1, layout.rowH(output, p.index()) + 2, 0x205EE9B5);
-                Hyb.ring(x, y + 1, 18, 18, 2, Hyb.PRODUCT_INK);
+            if (p.wired()) Hyb.tile(x, y, w, h);
+            else {
+                Hyb.rect(x, y, w, h, 0xFF2F3640);
+                Hyb.dashed(x, y, w, h, 0xFF8F9BAD, 3, 3);
             }
-            if (p.isFluid()) Hyb.fluid(p.fluid(), x + 1, y + 2, 16, z);
-            else Hyb.item(p.item(), x + 1, y + 2, 16, z);
-            final int textX = x + CardLayout.TEXT_X;
+            if (hoveredSlot != null && hoveredSlot.output == output && hoveredSlot.index == p.index())
+                Hyb.rect(x + 1, y + 1, w - 2, h - 2, 0x14FFFFFF);
+            Hyb.icon(p.item(), p.fluid(), x + CardLayout.ICON_X, y + CardLayout.ICON_Y, CardLayout.ICON, z);
             final List<String> name = layout.nameLines(output, p.index());
-            for (int line = 0; line < name.size(); line++) Hyb.text(name.get(line), textX, y + 2 + line * 9, Hyb.INK);
-            String rate = Fmt.rate(p.perSecond(), unit, p.isFluid());
-            if (p.chance() < 0.9999f) rate += " · " + Fmt.compact(p.chance() * 100) + "%";
-            Hyb.text(Hyb.fit(rate, CardLayout.TEXT_W), textX, y + 2 + name.size() * 9, Hyb.MUTED);
+            final float textX = x + CardLayout.TEXT_X;
+            final float top = crisp(y + (h - ((name.size() + 1) * 9 - 1)) / 2f);
+            for (int line = 0; line < name.size(); line++) Hyb.text(name.get(line), textX, top + line * 9, Hyb.INK);
+            Hyb.text(
+                Hyb.fit(Fmt.rate(p.perSecond(), unit, p.isFluid()), CardLayout.TEXT_W),
+                textX,
+                top + name.size() * 9,
+                Hyb.MUTED);
+        }
+        final BoardCanvas board = canvas();
+        final float b = breathe();
+        for (final CardModel.PortView p : ports) {
+            final int y = layout.rowY(output, p.index());
+            if (!p.wired()) {
+                Hyb.dashed(x - 1, y - 1, w + 2, h + 2, alpha(0xFFFFFF, 0.75f * b), 3, 3);
+                Hyb.ring(x - 1, y - 1, w + 2, h + 2, 1, alpha(0xEEF2F8, 0.3f * b));
+            }
+            if (p.key()
+                .equals(session.hoverKey())) glow(x, y, w, h);
+            // While a wire is dragged out of another card, the ports that would take it light up.
+            if (board != null && board.acceptsDrag(nodeId, output, p.key())) {
+                Hyb.rect(x + 1, y + 1, w - 2, h - 2, 0x2053EAFD);
+                Hyb.ring(x, y, w, h, 1, 0xFF53EAFD);
+            }
         }
     }
 
-    /** A gold ring around a slot whose resource is the one under the mouse. */
-    private static void glow(final int x, final int y) {
-        Hyb.rect(x - 2, y - 2, 22, 2, Hyb.GOLD);
-        Hyb.rect(x - 2, y + 18, 22, 2, Hyb.GOLD);
-        Hyb.rect(x - 2, y, 2, 18, Hyb.GOLD);
-        Hyb.rect(x + 18, y, 2, 18, Hyb.GOLD);
+    /** A gold ring with a soft halo around a tile whose resource is the one under the mouse. */
+    private static void glow(final float x, final float y, final float w, final float h) {
+        Hyb.ring(x, y, w, h, 1, Hyb.GOLD);
+        for (int i = 1; i <= 4; i++)
+            Hyb.ring(x - i, y - i, w + 2 * i, h + 2 * i, 1, alpha(0xFFCA54, 0.5f * (5 - i) / 5f));
     }
 
     private void drawPicture(final CardModel m, final float z) {
         final int x = CardLayout.PICTURE_X, y = CardLayout.RAILS_Y, w = CardLayout.PICTURE_W, h = layout.railsH;
-        Hyb.well(x, y, w, h, Hyb.PICTURE, Hyb.SHADOW, Hyb.TILE_EDGE);
-        drawMachineArt(m, x + 2, y + 2, w - 4, h - 4, 64, z, false);
+        // A sunken window: dark top and left inside the border, a whisper of light at the bottom and right.
+        Hyb.rect(x, y, w, h, Hyb.TILE_EDGE);
+        Hyb.rect(x + 1, y + 1, w - 2, h - 2, Hyb.PICTURE);
+        Hyb.rect(x + 1, y + 1, w - 2, 1, 0x4D000000);
+        Hyb.rect(x + 1, y + 1, 1, h - 2, 0x4D000000);
+        Hyb.rect(x + 1, y + h - 2, w - 2, 1, 0x0AFFFFFF);
+        Hyb.rect(x + w - 2, y + 1, 1, h - 2, 0x0AFFFFFF);
+        drawMachineArt(m, x + 4, y + 4, w - 8, h - 8, 48, z, true);
     }
 
     /**
@@ -456,142 +542,213 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             Hyb.texture(art.location(), px, py, pw, ph);
             return;
         }
+        // Rendered in game on the well's own background: opaque, so it casts no shadow of its own.
         final MultiblockPictures.Picture structure = MultiblockPictures.get(m.machineStack);
-        if (structure != null) {
-            final float side = Math.min(w, h);
-            if (shadow) Hyb.texture(
-                structure.location(),
-                x + (w - side) / 2f + 4,
-                y + (h - side) / 2f + 6,
-                side,
-                side,
-                0x73000000);
-            structure.draw(x, y, w, h);
-        } else if (m.machineStack != null) {
+        if (structure != null) structure.draw(x, y, w, h);
+        else if (m.machineStack != null) {
             final float side = Math.min(itemSize, Math.min(w, h));
-            Hyb.item(m.machineStack, x + (w - side) / 2f, y + (h - side) / 2f, side, z);
+            final float ix = x + (w - side) / 2f, iy = y + (h - side) / 2f;
+            if (shadow) Hyb.iconShadow(m.machineStack, null, ix, iy, side);
+            Hyb.item(m.machineStack, ix, iy, side, z);
         }
     }
 
+    /** The coil, Factory Flow's setting tile: its caption above a raised well with the coil, its name and a chevron. */
     private void drawCoil(final CardModel m, final float z, final boolean hover) {
         final int x = CardLayout.PAD, y = layout.settingsY, w = CardLayout.W - 2 * CardLayout.PAD;
         Hyb.tile(x, y, w, CardLayout.SETTING_ROW);
-        Hyb.text("COIL", x + 4, y + 5, Hyb.MUTED);
-        Hyb.well(COIL_X, y + 1, COIL_W, 16, hover ? Hyb.TILE_HI : Hyb.WELL, 0xFF282A2F, 0xFF5A5C65);
+        Hyb.text("COIL", x + 4, y + 3, Hyb.MUTED);
+        final int wy = y + COIL_DY;
+        Hyb.rect(COIL_X, wy, COIL_W, COIL_H, Hyb.TILE_EDGE);
+        Hyb.rect(COIL_X + 1, wy + 1, COIL_W - 2, COIL_H - 2, hover ? Hyb.TILE_HI : Hyb.WELL);
+        Hyb.rect(COIL_X + 1, wy + 1, COIL_W - 2, 1, Hyb.HIGHLIGHT);
+        Hyb.rect(COIL_X + 1, wy + 1, 1, COIL_H - 2, Hyb.HIGHLIGHT);
+        Hyb.rect(COIL_X + 1, wy + COIL_H - 2, COIL_W - 2, 1, 0xFF282A2F);
+        Hyb.rect(COIL_X + COIL_W - 2, wy + 1, 1, COIL_H - 2, 0xFF282A2F);
         final GtCoils.Coil coil = m.coilHeat > 0 ? GtCoils.forHeat(m.coilHeat) : null;
-        final String label = coil == null ? "Pick a coil" : coil.name();
-        final int lw = Hyb.width(label) + (coil == null ? 0 : 20);
-        final float lx = COIL_X + (COIL_W - lw) / 2f;
-        if (coil != null) Hyb.item(coil.stack(), lx, y + 1, 16, z);
+        final String label = coil == null ? "Pick a coil" : shortCoilName(coil.name());
+        final int lw = (coil == null ? 0 : 20) + Hyb.width(label) + 4 + 7;
+        float lx = crisp(COIL_X + (COIL_W - lw) / 2f);
+        if (coil != null) {
+            Hyb.item(coil.stack(), lx, wy + 1, 16, z);
+            lx += 20;
+        }
         final boolean tooCold = coil != null && m.recipeHeat > coil.heat();
-        Hyb.text(
-            label,
-            lx + (coil == null ? 0 : 20),
-            y + 5,
-            coil == null ? Hyb.MUTED : tooCold ? Hyb.RED_INK : Hyb.INK);
-        chevron(COIL_X + COIL_W - 12, y + 7, Hyb.MUTED);
+        Hyb.text(label, lx, wy + 5, coil == null ? Hyb.MUTED : tooCold ? Hyb.RED_INK : Hyb.INK);
+        chevron(Math.round(lx + Hyb.width(label) + 4), wy + 8, Hyb.MUTED);
     }
 
-    private void drawFooter(final CardModel m, final float z, final boolean hoverMachines) {
-        final int y = layout.footY;
-        final int x = CardLayout.PAD;
+    /** "Kanthal Coil Block" reads as "Kanthal" in the well, as on the website. */
+    private static String shortCoilName(final String name) {
+        for (final String tail : new String[] { " Coil Block", " Coil" }) {
+            if (name.endsWith(tail)) return name.substring(0, name.length() - tail.length());
+        }
+        return name;
+    }
 
-        Hyb.tile(x, y, 150, CardLayout.FOOT);
-        Hyb.text("POWER", x + 4, y + 3, Hyb.MUTED);
+    private void drawFooter(final CardModel m, final float z, final Part hover) {
+        final int y = layout.footY;
+
+        Hyb.tile(POWER_X, y, POWER_W, CardLayout.FOOT);
+        if (hover == Part.POWER) Hyb.rect(POWER_X + 1, y + 1, POWER_W - 2, CardLayout.FOOT - 2, 0x10FFFFFF);
+        Hyb.text("POWER", POWER_X + 4, y + 3, Hyb.MUTED);
         final boolean tooLow = m.tierTooLow();
         final double eu = session.power(m);
         final int tierIdx = CardDefaults.tierIndex(m.tier);
         final boolean amps = session.powerKey() == BoardSession.PowerKey.AMPS && m.gregtech && tierIdx >= 0;
         final String power = tooLow ? "TIER!" : amps ? Fmt.compact(eu / (8L << (2 * tierIdx))) : Fmt.power(eu);
         final String unit = amps ? "A " + m.tier : "EU/t";
-        Hyb.text(power, x + 4, y + 14, Hyb.FIGURE, tooLow ? Hyb.RED_INK : Hyb.INK);
-        if (!tooLow) Hyb.text(unit, x + 7 + Hyb.width(power) * Hyb.FIGURE, y + 18, Hyb.MUTED);
+        Hyb.text(power, POWER_X + 4, y + 14, Hyb.FIGURE, tooLow ? Hyb.RED_INK : Hyb.INK);
+        if (!tooLow) Hyb.text(unit, POWER_X + 7 + Hyb.width(power) * Hyb.FIGURE, y + 17.5f, Hyb.MUTED);
 
-        if (hoverMachines) Hyb.rect(MACHINES_X, y, MACHINES_W, CardLayout.FOOT, Hyb.TILE_HI);
-        else Hyb.tile(MACHINES_X, y, MACHINES_W, CardLayout.FOOT);
+        Hyb.tile(MACHINES_X, y, MACHINES_W, CardLayout.FOOT);
+        if (hover == Part.MACHINES) Hyb.rect(MACHINES_X + 1, y + 1, MACHINES_W - 2, CardLayout.FOOT - 2, 0x10FFFFFF);
         Hyb.text("MACHINES", MACHINES_X + 4, y + 3, Hyb.MUTED);
-        if (m.parallels > 1) Hyb.textRight("PARALLEL x" + m.parallels, MACHINES_X + MACHINES_W - 4, y + 3, Hyb.MUTED);
-        final String count = "x" + Fmt.machines(m.machines);
+        if (m.parallels > 1) Hyb.textRight("PARALLEL ×" + m.parallels, MACHINES_X + MACHINES_W - 4, y + 3, Hyb.MUTED);
+        final String count = "×" + Fmt.machines(m.machines);
         final int color = m.pinned ? Hyb.GOLD : m.machines <= 0 ? Hyb.MUTED : Hyb.INK;
         Hyb.text(count, MACHINES_X + 4, y + 14, Hyb.FIGURE, color);
         final int cw = Math.round(Hyb.width(count) * Hyb.FIGURE);
         for (int dx = 0; dx < cw; dx += 3) Hyb.rect(MACHINES_X + 4 + dx, y + 27, 1, 1, Hyb.MUTED);
-        for (int i = 0; i < 5; i++) Hyb.rect(MACHINES_X + 8 + cw + i, y + 24 - i, 2, 2, Hyb.MUTED);
+        final int pencil = hover == Part.MACHINES ? Hyb.INK : Hyb.MUTED;
+        for (int i = 0; i < 5; i++) Hyb.rect(MACHINES_X + 8 + cw + i, y + 24 - i, 2, 2, pencil);
 
-        final int cx = CardLayout.W - CardLayout.PAD - 30;
         if (m.circuit != null) {
-            Hyb.tile(cx, y, 30, CardLayout.FOOT);
-            Hyb.item(m.circuit, cx + 7, y + 5, 16, z);
-            // Every programmed circuit looks alike; its number is what matters.
-            Hyb.textRight(Integer.toString(m.circuit.getItemDamage()), cx + 27, y + 19, Hyb.INK);
+            // The pack draws each circuit's number on its icon, so the icon alone, as large as the tile allows.
+            Hyb.tile(CIRCUIT_X, y, CIRCUIT_W, CardLayout.FOOT);
+            if (hover == Part.CIRCUIT) Hyb.rect(CIRCUIT_X + 1, y + 1, CIRCUIT_W - 2, CardLayout.FOOT - 2, 0x10FFFFFF);
+            Hyb.icon(m.circuit, null, CIRCUIT_X + 3, y + 3, 24, z);
         } else {
-            Hyb.well(cx, y, 30, CardLayout.FOOT, Hyb.TILE_EDGE, Hyb.SHADOW, 0xFF2A2C31);
+            // No circuit: a sunken socket with a faint chip in it.
+            Hyb.well(CIRCUIT_X, y, CIRCUIT_W, CardLayout.FOOT, Hyb.TILE_EDGE, Hyb.SHADOW, 0xFF2A2C31);
+            final int cx = CIRCUIT_X + 10, cy = y + 10, faint = 0x509A9CA4;
+            Hyb.ring(cx, cy, 10, 10, 1, faint);
+            for (int i = 0; i < 3; i++) {
+                Hyb.rect(cx + 1 + i * 3, cy - 3, 1, 2, faint);
+                Hyb.rect(cx + 1 + i * 3, cy + 11, 1, 2, faint);
+                Hyb.rect(cx - 3, cy + 1 + i * 3, 2, 1, faint);
+                Hyb.rect(cx + 11, cy + 1 + i * 3, 2, 1, faint);
+            }
         }
     }
 
-    /** A GregTech recipe set below its own tier cannot run. */
-    /** Tooltip lines for the part under the mouse, Factory Flow style: what it is, then what the mouse does. */
-    public List<String> hoverLines() {
+    /** The power panel's figures, worked out once for the model they were taken from. */
+    private PowerPanel.Facts powerFacts;
+    private CardModel powerFactsFor;
+
+    /** Whether the part under the mouse answers with the power panel: a multiblock's amps, tier or POWER tile. */
+    private boolean showsPower(final Part part) {
+        return model != null && model.multiblock
+            && model.gregtech
+            && CardDefaults.tierIndex(model.tier) >= 0
+            && (part == Part.AMPS || part == Part.TIER || part == Part.POWER);
+    }
+
+    /**
+     * Factory Flow's POWER INPUT panel, while the mouse is on a multiblock's amps, tier or POWER tile: above the card,
+     * right edges aligned (below it when there is no room), with the guide to the chips beside it. Drawn in screen
+     * space; false when it does not apply.
+     */
+    public boolean drawPower(final int right, final int bottom) {
+        if (model == null || !isHovering() || glance()) return false;
+        final Part part = partAt(localX(), localY());
+        if (!showsPower(part)) return false;
+        final BoardCanvas c = canvas();
+        if (c == null) return false;
+        if (powerFactsFor != model) {
+            powerFacts = PowerPanel.facts(model);
+            powerFactsFor = model;
+        }
+        final int w = PowerPanel.W, h = PowerPanel.height(powerFacts);
+        final int gw = PowerPanel.GUIDE_W, gh = PowerPanel.guideHeight();
+        final int top = c.screenY(model.node.y), under = c.screenY(model.node.y + layout.height);
+        int x = Math.min(c.screenX(model.node.x + CardLayout.W) - w, right - w - 4 - gw);
+        x = Math.max(2, x);
+        // Above the card, or below it; failing both, beside the part under the mouse so it stays in sight.
+        int y = top - 6 - h;
+        if (y < 2) {
+            final int[] r = partRect(part);
+            final int partTop = c.screenY(model.node.y + r[1]), partBottom = c.screenY(model.node.y + r[1] + r[3]);
+            if (under + 6 + h <= bottom) y = under + 6;
+            else if (partTop - 4 - h >= 2) y = partTop - 4 - h;
+            else y = Math.min(partBottom + 4, bottom - h);
+            y = Math.max(2, y);
+        }
+        PowerPanel.draw(powerFacts, x, y);
+        final int gx = x + w + 4 + gw <= right ? x + w + 4 : Math.max(2, x - 4 - gw);
+        PowerPanel.drawGuide(gx, y + h - gh, part);
+        return true;
+    }
+
+    /** The tooltip for the part under the mouse, Factory Flow style: what it is, its figures, what the mouse does. */
+    public Tip tip() {
         if (model == null || !isHovering()) return null;
         final Part part = partAt(localX(), localY());
-        if (part == null) return null;
-        final List<String> lines = new ArrayList<>();
-        final String hint = "§7";
-        switch (part) {
-            case ACTIONS -> {
-                lines.add("Card actions");
-                lines.add(hint + "Click: clone, settings, delete");
-            }
+        if (part == null || showsPower(part)) return null;
+        final CardModel m = model;
+        return switch (part) {
+            case ACTIONS -> Tip.of("Card actions")
+                .action(Tip.Input.LEFT, "Clone, settings, delete");
             case MACHINE -> {
-                lines.add("Machine: " + model.machineName);
-                lines.add(hint + "Click: machines that run this recipe");
-                lines.add(hint + "Wheel: next machine");
+                final Tip tip = Tip.of(m.machineName)
+                    .sub(m.multiblock ? "Multiblock" : "Machine")
+                    .row(m.pinned ? "Pinned machines" : "Required machines", "×" + Fmt.machines(m.machines));
+                if (m.gregtech) tip.row("Configured tier", m.tier);
+                tip.row("Time per operation", Fmt.compact(m.durationTicks / 20.0) + " s")
+                    .row("Draw per machine", Fmt.power(m.euPerTick) + " EU/t");
+                if (m.parallels > 1) tip.row("Parallel operations", Integer.toString(m.parallels));
+                if (m.catalysts.size() > 1)
+                    tip.action(Tip.Input.LEFT, "Machines that run it")
+                        .action(Tip.Input.WHEEL, "Next machine");
+                yield tip;
             }
             case TIER -> {
-                lines.add("Voltage tier: " + model.tier);
-                final Object baseEu = model.node.properties.get(GTProvider.EU_PER_TICK);
-                final Object baseDur = model.node.properties.get(com.sbancuz.plannh.api.RecipePropertyAPI.DURATION_TICKS);
-                if (baseEu instanceof final Number eu && baseDur instanceof final Number dur && eu.longValue() > 0) {
-                    lines.add(
-                        hint + "Recipe: " + CardDefaults.TIERS[CardDefaults.recipeTier(eu.longValue())] + ", " + Fmt.power(eu.longValue())
-                            + " EU/t, " + Fmt.compact(dur.intValue() / 20.0) + " s");
-                    lines.add(
-                        hint + "Here: " + Fmt.power(model.euPerTick) + " EU/t, " + Fmt.compact(model.durationTicks / 20.0)
-                            + " s per run");
-                }
-                lines.add(hint + "Left click: up  Right click: down  Wheel: step");
+                final Tip tip = Tip.of("Voltage tier")
+                    .row("Configured tier", m.tier);
+                if (m.node.properties.get(GTProvider.EU_PER_TICK) instanceof final Number eu && eu.longValue() > 0)
+                    tip.row("Recipe tier", CardDefaults.TIERS[CardDefaults.recipeTier(eu.longValue())]);
+                tip.row("Time per operation", Fmt.compact(m.durationTicks / 20.0) + " s")
+                    .row("Draw per machine", Fmt.power(m.euPerTick) + " EU/t");
+                if (m.tierTooLow()) tip.note("Below the recipe's tier: it cannot run.", Hyb.RED_INK);
+                yield tip.action(Tip.Input.LEFT, "Up")
+                    .action(Tip.Input.RIGHT, "Down")
+                    .action(Tip.Input.WHEEL, "Step");
             }
-            case AMPS -> {
-                lines.add("Energy hatch amps: " + model.amps);
-                lines.add(hint + "Click: type  Right click: -1  Wheel: +/-1");
-            }
+            case AMPS -> Tip.of("Energy hatch amps")
+                .row("Amps", Fmt.compact(m.amps) + "A");
+            case POWER -> Tip.of("Power")
+                .row("Draw per machine", Fmt.power(m.euPerTick) + " EU/t")
+                .row("Demand for this card", Fmt.power(session.power(m)) + " EU/t");
             case COIL -> {
-                final GtCoils.Coil coil = GtCoils.forHeat(model.coilHeat);
-                lines.add("Coil: " + (coil == null ? "none" : coil.name() + " (" + coil.heat() + " K)"));
-                if (model.recipeHeat > 0) lines.add("Recipe needs " + model.recipeHeat + " K");
-                lines.add(hint + "Click: pick  Wheel: step");
+                final GtCoils.Coil coil = GtCoils.forHeat(m.coilHeat);
+                final Tip tip = Tip.of("Heating coil")
+                    .sub(coil == null ? "None picked" : coil.name() + ", " + coil.heat() + " K");
+                if (m.recipeHeat > 0) tip.row("Recipe needs", m.recipeHeat + " K");
+                tip.row("Time per operation", Fmt.compact(m.durationTicks / 20.0) + " s")
+                    .row("Draw per machine", Fmt.power(m.euPerTick) + " EU/t");
+                if (coil != null && m.recipeHeat > coil.heat())
+                    tip.note("Too cold for this recipe: it cannot run.", Hyb.RED_INK);
+                yield tip.action(Tip.Input.LEFT, "Pick")
+                    .action(Tip.Input.WHEEL, "Step");
             }
             case MACHINES -> {
-                lines
-                    .add("Machines: x" + Fmt.machines(model.machines) + (model.pinned ? " (pinned)" : " (worked out)"));
-                lines.add(hint + "Click: type a count to pin it  Empty: unpin");
-                lines.add(hint + "Wheel: +/-1");
+                final Tip tip = Tip.of(m.pinned ? "Pinned machines" : "Required machines")
+                    .row(m.pinned ? "Pinned" : "Calculated", "×" + Fmt.machines(m.machines));
+                final double whole = Math.ceil(m.machines - 1e-9);
+                if (m.machines > 0 && whole != m.machines) tip.row("Whole machines", "×" + (long) whole)
+                    .row("Average utilization", Fmt.compact(100 * m.machines / whole) + "%");
+                if (m.machines <= 0) tip.muted("No production target requires this machine.");
+                yield tip.action(Tip.Input.LEFT, m.pinned ? "Change or unpin" : "Pin count")
+                    .action(Tip.Input.WHEEL, "+1 / -1");
             }
+            case CIRCUIT -> Tip.of("Programmed circuit")
+                .row("Required setting", Integer.toString(m.circuit.getItemDamage()))
+                .muted("Not consumed.");
             default -> {
-                // Far out the card is a summary, its name maybe cut: say what it is.
-                if (!glance()) return null;
-                lines.add(model.machineName);
-                lines.add(
-                    hint + "x"
-                        + Fmt.machines(model.machines)
-                        + (model.gregtech ? " at " + model.tier : "")
-                        + ", "
-                        + Fmt.power(session.power(model))
-                        + " EU/t");
-                lines.add(hint + "Zoom in to change it");
+                // Far out the card answers with its reveal panel; close in, the body says nothing.
+                yield null;
             }
-        }
-        return lines;
+        };
     }
 
     // endregion
@@ -635,7 +792,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final Node node = model.node;
         switch (partAt(localX(), localY())) {
             case TIER -> stepTier(step);
-            case AMPS -> session.setSetting(node, "amp", Math.max(1, Math.min(64, model.amps + step)));
+            case AMPS -> session.setSetting(node, "amp", stepAmps(model.amps, step));
             case COIL -> stepCoil(step);
             case MACHINE -> stepMachine(step);
             case MACHINES -> session.pin(node, Math.max(1, Math.round(model.machines) + step));
@@ -644,6 +801,21 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             }
         }
         return true;
+    }
+
+    /**
+     * The wheel on the amps chip, as on the website: one at a time, ten with Ctrl, a thousand with Ctrl and Shift, and
+     * Shift alone walks the powers of four (a hatch tier's worth at a time).
+     */
+    private static int stepAmps(final int amps, final int step) {
+        final boolean ctrl = org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_LCONTROL)
+            || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_RCONTROL);
+        final boolean shift = org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_LSHIFT)
+            || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_RSHIFT);
+        final long next;
+        if (shift && !ctrl) next = step > 0 ? amps * 4L : amps / 4;
+        else next = amps + (long) step * (ctrl ? shift ? 1000 : 10 : 1);
+        return (int) Math.max(1, Math.min(PowerPanel.MAX_AMPS, next));
     }
 
     private void stepTier(final int step) {
@@ -690,7 +862,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             getPanel(),
             PickList.popup("plannh_actions", null, rows, false, 150),
             screenX(KEY_X),
-            screenY(CHIP_Y + 18));
+            screenY(CHIP_Y + CHIP_H + 2));
     }
 
     private void openMachines() {
@@ -717,7 +889,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             getPanel(),
             PickList.popup("plannh_machines", "MACHINES THAT RUN THIS RECIPE", rows, rows.size() > 8, 240),
             screenX(BAR_X),
-            screenY(CHIP_Y + 18));
+            screenY(CHIP_Y + CHIP_H + 2));
     }
 
     private void openCoils() {
@@ -739,7 +911,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             getPanel(),
             PickList.popup("plannh_coils", null, rows, true, 200),
             screenX(COIL_X),
-            screenY(layout.settingsY + 18));
+            screenY(layout.settingsY + COIL_DY + COIL_H + 2));
     }
 
     private void openAmps() {
@@ -747,13 +919,14 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             getPanel(),
             NumberPopup.create(
                 "Energy hatch amps",
-                "1 to 64",
+                "amps, 1 or more",
                 model.amps,
                 1,
-                64,
-                v -> session.setSetting(model.node, "amp", (int) Math.max(1, Math.min(64, Math.round(v))))),
+                PowerPanel.MAX_AMPS,
+                v -> session
+                    .setSetting(model.node, "amp", (int) Math.max(1, Math.min(PowerPanel.MAX_AMPS, Math.round(v))))),
             screenX(AMPS_X),
-            screenY(CHIP_Y + 18));
+            screenY(CHIP_Y + CHIP_H + 2));
     }
 
     private void openPin() {
@@ -808,7 +981,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                                     key,
                                     (int) Math.max(def.minInt, Math.min(def.maxInt, Math.round(v))))),
                             screenX(KEY_X),
-                            screenY(CHIP_Y + 18))));
+                            screenY(CHIP_Y + CHIP_H + 2))));
             } else if (def.options != null && !def.options.isEmpty()) {
                 final String value = CardDefaults.stringSetting(cfg, key);
                 rows.add(new PickList.Entry(null, def.label, value, Hyb.INK, false, () -> {
@@ -823,7 +996,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             getPanel(),
             PickList.popup("plannh_settings", "MACHINE SETTINGS", rows, false, 260),
             screenX(KEY_X),
-            screenY(CHIP_Y + 18));
+            screenY(CHIP_Y + CHIP_H + 2));
     }
 
     /** The model shown when a setting was toggled; once a newer one arrives the settings list opens again. */

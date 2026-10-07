@@ -504,7 +504,7 @@ public final class BoardSession {
     /** Rough card height from its port count, for placement before the card has been drawn. */
     private static int estimatedHeight(final Node node) {
         final int rows = Math.max(1, Math.max(node.inputs.size(), node.outputs.size()));
-        return CardLayout.RAILS_Y + Math.max(rows * (CardLayout.ROW + CardLayout.ROW_GAP), CardLayout.PICTURE_MIN) + 70;
+        return CardLayout.RAILS_Y + Math.max(rows * CardLayout.ROW, CardLayout.PICTURE_MIN) + 85;
     }
 
     private boolean overlapsAnything(final Node node) {
@@ -1099,7 +1099,65 @@ public final class BoardSession {
     }
 
     public List<Notice> notices() {
-        return notices;
+        if (flash == null) return notices;
+        if (System.currentTimeMillis() > flashUntil) {
+            flash = null;
+            return notices;
+        }
+        final List<Notice> out = new ArrayList<>(notices.size() + 1);
+        out.add(flash);
+        out.addAll(notices);
+        return out;
+    }
+
+    private Notice flash;
+    private long flashUntil;
+
+    /** Shows a sentence above the solver's notices for a few seconds (what a paste or an import did). */
+    public void flash(final Severity severity, final String text) {
+        flash = new Notice(severity, text, List.of());
+        flashUntil = System.currentTimeMillis() + 7000;
+    }
+
+    /**
+     * Adds the plan on the clipboard as a new slot: a Factory Flow link, code or JSON, or a PlanNH share code.
+     * Says what happened in a notice.
+     */
+    public void pastePlan() {
+        final String text = net.minecraft.client.gui.GuiScreen.getClipboardString();
+        if (text == null || text.isBlank()) {
+            flash(Severity.WARN, "The clipboard is empty: copy a Factory Flow plan link or code first");
+            return;
+        }
+        final Graph own = PlanAPI.importFromClipboard();
+        if (own != null) {
+            com.sbancuz.plannh.importer.game.FactoryFlowImport.addAsSlot(own);
+            flash(Severity.INFO, "Pasted '" + own.getName() + "'");
+            return;
+        }
+        try {
+            final com.sbancuz.plannh.importer.FfConverter.Result result = com.sbancuz.plannh.importer.game.FactoryFlowImport
+                .importAsSlot(text);
+            final com.sbancuz.plannh.importer.ImportReport report = result.report();
+            final int missing = report.entries(com.sbancuz.plannh.importer.ImportReport.Kind.UNMATCHED)
+                .size();
+            final String name = result.graph()
+                .getName();
+            flash(missing == 0 ? Severity.INFO : Severity.WARN, "Imported '" + name + "': " + report.summary());
+        } catch (final RuntimeException e) {
+            flash(Severity.WARN, "The clipboard does not hold a plan (a Factory Flow link or code, or a PlanNH code)");
+            com.sbancuz.plannh.PlanNH.LOG.info("Paste plan failed", e);
+        }
+    }
+
+    /** Copies a slot's PlanNH share code to the clipboard. */
+    public void copyPlan(final int index) {
+        if (index < 0 || index >= slots().size()) return;
+        PlanAPI.copyToClipboard(slots().get(index));
+        flash(
+            Severity.INFO,
+            "Copied '" + slots().get(index)
+                .getName() + "' to the clipboard");
     }
 
     /** True when the solver had nothing to scale the plan by: no product rate and no pinned count. */

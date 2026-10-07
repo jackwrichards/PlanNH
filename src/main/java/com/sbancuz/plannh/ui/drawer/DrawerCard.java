@@ -34,9 +34,9 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
     com.cleanroommc.modularui.integration.recipeviewer.RecipeViewerIngredientProvider {
 
     public static final int W = 136;
-    public static final int H = 62;
+    public static final int H = 68;
     /** Where wires meet a drawer: its left edge for kinds that take outputs, its right edge for sources. */
-    public static final int ANCHOR_Y = 30;
+    public static final int ANCHOR_Y = 35;
 
     public enum Part {
         DELETE,
@@ -47,8 +47,8 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
     }
 
     private static final int KEY = 12;
-    private static final int RULE_X = 5, RULE_W = 56, ROW_Y = 43, ROW_H = 14;
-    private static final int RATE_X = 63, RATE_W = W - 5 - 63;
+    private static final int RULE_X = 6, RULE_W = 24, ROW_Y = 49, ROW_H = 14;
+    private static final int RATE_X = RULE_X + RULE_W + 3, RATE_W = W - 6 - RATE_X;
 
     private final BoardSession session;
     public final UUID drawerId;
@@ -129,8 +129,8 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         // Far out the controls are not drawn, so nothing invisible answers a click or the wheel.
         if (session.graph()
             .getZoom() <= com.sbancuz.plannh.ui.card.RecipeCard.GLANCE_ZOOM) return Part.BODY;
-        if (in(x, y, 4, 4, KEY, KEY)) return Part.DELETE;
-        if (model.kind != Drawer.Kind.SOURCE && in(x, y, W - 4 - KEY, 4, KEY, KEY)) return Part.CYCLE;
+        if (in(x, y, 5, 4, KEY, KEY)) return Part.DELETE;
+        if (model.kind != Drawer.Kind.SOURCE && in(x, y, W - 5 - KEY, 4, KEY, KEY)) return Part.CYCLE;
         if (hasRule() && in(x, y, RULE_X, ROW_Y, RULE_W, ROW_H)) return Part.RULE;
         if (hasRule() && in(x, y, RATE_X, ROW_Y, RATE_W, ROW_H)) return Part.RATE;
         return Part.BODY;
@@ -140,8 +140,8 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
     public int[] partRect(final Part part) {
         if (model == null) return null;
         return switch (part) {
-            case DELETE -> new int[] { 4, 4, KEY, KEY };
-            case CYCLE -> model.kind == Drawer.Kind.SOURCE ? null : new int[] { W - 4 - KEY, 4, KEY, KEY };
+            case DELETE -> new int[] { 5, 4, KEY, KEY };
+            case CYCLE -> model.kind == Drawer.Kind.SOURCE ? null : new int[] { W - 5 - KEY, 4, KEY, KEY };
             case RULE -> hasRule() ? new int[] { RULE_X, ROW_Y, RULE_W, ROW_H } : null;
             case RATE -> hasRule() ? new int[] { RATE_X, ROW_Y, RATE_W, ROW_H } : null;
             case BODY -> new int[] { 0, 0, W, H };
@@ -168,6 +168,21 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
 
     // region Drawing
 
+    /** The kind's colour, which tints the whole drawer as on the website: sources red, products green. */
+    private static int tint(final Drawer.Kind kind) {
+        return switch (kind) {
+            case SOURCE -> Hyb.SOURCE_INK;
+            case PRODUCT -> Hyb.PRODUCT_INK;
+            case BYPRODUCT -> 0xFFE0B860;
+            case TRASH -> 0xFF8A8F99;
+        };
+    }
+
+    /** A source is a rounded tank, the rest nearly square boxes. */
+    private static float radius(final Drawer.Kind kind) {
+        return kind == Drawer.Kind.SOURCE ? 10 : 3;
+    }
+
     @Override
     public void draw(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
         final DrawerModel m = model;
@@ -175,55 +190,61 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         final float z = context.getCurrentDrawingZ();
         final Part hover = isHovering() ? partAt(localX(), localY()) : null;
         final BoardCanvas board = canvas();
-        final int ring = board != null && board.drawerAcceptsDrag(m.drawer) ? Hyb.PRODUCT_INK
-            : m.drawer.getResourceKey()
-                .equals(session.hoverKey()) ? Hyb.GOLD : frameColor(m.kind);
+        final int tint = tint(m.kind);
+        final float r = radius(m.kind);
+        final boolean accepts = board != null && board.drawerAcceptsDrag(m.drawer);
+        final boolean lit = m.drawer.getResourceKey()
+            .equals(session.hoverKey());
 
-        if (canvas() != null && canvas().isCarried(drawerId)) {
-            Hyb.rect(5, 7, W, H, 0x50000000);
-            Hyb.rect(3, 4, W, H, 0x40000000);
-        } else Hyb.dropShadow(0, 0, W, H);
-        if (session.isSelected(drawerId)) Hyb.ring(-3, -3, W + 6, H + 6, 2, Hyb.SELECTION);
-        Hyb.rect(0, 0, W, H, ring);
+        if (board != null && board.isCarried(drawerId)) {
+            Hyb.roundRect(5, 7, W, H, r, 0x50000000);
+            Hyb.roundRect(3, 4, W, H, r, 0x40000000);
+        } else {
+            for (int i = 3; i >= 0; i--)
+                Hyb.roundRect(6 - 2 * i, 8 - 2 * i, W + 4 * i, H + 4 * i, r + 2 * i, 0x1E000000);
+        }
+        if (session.isSelected(drawerId)) Hyb.roundRect(-2, -2, W + 4, H + 4, r + 2, Hyb.SELECTION);
+        if (lit) {
+            for (int i = 4; i >= 1; i--) Hyb.roundRect(-i, -i, W + 2 * i, H + 2 * i, r + i, 0x26FFCA54);
+        }
+        final int frame = accepts ? 0xFF53EAFD : lit ? Hyb.GOLD : Hyb.mix(tint, 0x262B34, 0.55f);
+        Hyb.roundRect(0, 0, W, H, r, frame);
         if (session.graph()
             .getZoom() <= com.sbancuz.plannh.ui.card.RecipeCard.GLANCE_ZOOM) {
-            drawGlance(m, z, ring);
+            drawGlance(m, z, tint, r);
             return;
         }
-        Hyb.rect(1, 1, W - 2, H - 2, Hyb.FRAME);
-        Hyb.rect(1, 1, W - 2, 1, Hyb.HIGHLIGHT);
-        Hyb.rect(1, H - 2, W - 2, 1, Hyb.SHADOW);
-        // Title band in the kind's colour, dimmed.
-        Hyb.rect(1, 1, W - 2, 18, (ring & 0x00FFFFFF) | 0x55000000);
+        Hyb.roundRect(2, 2, W - 4, H - 4, Math.max(0, r - 2), Hyb.mix(tint, 0x101318, 0.24f));
+        // The title bar, in the kind's colour deep-dimmed, a dark line under it.
+        Hyb.roundRect(2, 2, W - 4, 17, Math.max(0, r - 2), Hyb.mix(tint, 0x0B0D10, 0.30f), true, false);
+        Hyb.rect(2, 19, W - 4, 1, 0x80000000);
 
-        key(4, 4, hover == Part.DELETE);
-        Hyb.rect(4 + 3, 4 + 5, KEY - 6, 2, Hyb.INK);
+        key(5, 4, hover == Part.DELETE);
+        Hyb.rect(5 + 3, 4 + 5, KEY - 6, 2, Hyb.INK);
         if (m.kind != Drawer.Kind.SOURCE) {
-            key(W - 4 - KEY, 4, hover == Part.CYCLE);
-            cycleGlyph(W - 4 - KEY, 4);
+            key(W - 5 - KEY, 4, hover == Part.CYCLE);
+            cycleGlyph(W - 5 - KEY, 4);
         }
-        final int titleL = 4 + KEY + 3, titleR = m.kind == Drawer.Kind.SOURCE ? W - 4 : W - 4 - KEY - 3;
-        Hyb.textCentered(Hyb.fit(m.label, titleR - titleL), (titleL + titleR) / 2f, 6, 0xFFFFFFFF);
+        final int titleL = 5 + KEY + 4, titleR = m.kind == Drawer.Kind.SOURCE ? W - 6 : W - 5 - KEY - 4;
+        Hyb.text(Hyb.fit(m.label, titleR - titleL), titleL, 6, 0xFFFFFFFF);
 
-        // The resource and what the plan moves through it.
-        Hyb.slot(5, 21, m.isFluid());
-        if (m.isFluid()) Hyb.fluid(m.fluid, 6, 22, 16, z);
-        else Hyb.item(m.item, 6, 22, 16, z);
+        // The resource, bare with its shadow, and what the plan moves through it.
+        Hyb.icon(m.item, m.fluid, 7, 23, 24, z);
         final Fmt.RateUnit unit = session.rateUnit();
         final String sign = m.rate <= 0 ? "" : m.kind == Drawer.Kind.SOURCE ? "-" : "+";
         final String number = sign + Fmt.compact(m.rate * unit.perSecond);
         final String suffix = (m.isFluid() ? " L" : "") + unit.suffix;
-        final int color = m.rate <= 0 ? Hyb.MUTED : m.kind == Drawer.Kind.SOURCE ? Hyb.SOURCE_INK : Hyb.PRODUCT_INK;
-        final int room = W - 28 - 5;
+        final int color = m.rate <= 0 ? 0xFFA8AFBB : m.kind == Drawer.Kind.SOURCE ? Hyb.SOURCE_INK : Hyb.PRODUCT_INK;
+        final int textX = 37, room = W - 6 - textX;
         final boolean big = Hyb.width(number) * Hyb.FIGURE + Hyb.width(suffix) + 2 <= room;
         if (big) {
-            Hyb.text(number, 28, 25, Hyb.FIGURE, color);
-            Hyb.text(suffix, 28 + Hyb.width(number) * Hyb.FIGURE + 2, 29, Hyb.MUTED);
+            Hyb.text(number, textX, 25, Hyb.FIGURE, color);
+            Hyb.text(suffix, textX + Hyb.width(number) * Hyb.FIGURE + 2, 28.5f, Hyb.MUTED);
         } else {
-            Hyb.text(Hyb.fit(number + suffix, room), 28, 27, color);
+            Hyb.text(Hyb.fit(number + suffix, room), textX, 27, color);
         }
-
         if (hasRule()) {
+            drawRuleBar(m, textX, 39, room);
             drawRule(m, hover == Part.RULE);
             drawRate(m, hover == Part.RATE, unit);
         } else {
@@ -235,29 +256,45 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         }
     }
 
+    /**
+     * How far the plan gets toward the rule: full and green when met, red when it cannot be reached, slate for an
+     * upper bound. Nothing for Any, but the space is kept so nothing shifts.
+     */
+    private static void drawRuleBar(final DrawerModel m, final int x, final int y, final int w) {
+        if (m.rule == Drawer.Rule.ANY || m.target <= 0) return;
+        Hyb.rect(x, y, w, 3, 0xFF3C3C3C);
+        Hyb.rect(x, y, w, 1, 0x59000000);
+        final float share = (float) Math.min(1, Math.abs(m.rate) / m.target);
+        final int fill = m.unmet ? 0xFFCF3333 : m.rule == Drawer.Rule.AT_MOST ? 0xFF7B8B9C : 0xFF3FAE5C;
+        if (share <= 0) return;
+        Hyb.rect(x, y, w * share, 3, fill);
+        Hyb.rect(x, y, w * share, 1, Hyb.mix(fill, 0xFFFFFF, 0.7f));
+    }
+
     /** Zoomed out: the resource, its name and the rate, big enough to read at half zoom. */
-    private void drawGlance(final DrawerModel m, final float z, final int ring) {
-        Hyb.rect(2, 2, W - 4, H - 4, Hyb.FRAME);
-        Hyb.rect(2, 2, W - 4, H - 4, (ring & 0x00FFFFFF) | 0x33000000);
+    private void drawGlance(final DrawerModel m, final float z, final int tint, final float r) {
+        Hyb.roundRect(2, 2, W - 4, H - 4, Math.max(0, r - 2), Hyb.mix(tint, 0x101318, 0.24f));
         // The name across the top, then the icon and the rate.
         Hyb.text(Hyb.fit(m.label, (W - 12) / 2), 6, 6, 2f, 0xFFFFFFFF);
         // Far out the icon is too small to read: the rate takes its place, at a scale that stays sharp.
         final boolean far = session.graph()
             .getZoom() <= 0.25f;
-        if (!far && m.isFluid()) Hyb.fluid(m.fluid, 6, 26, 28, z);
-        else if (!far) Hyb.item(m.item, 6, 26, 28, z);
+        if (!far) Hyb.icon(m.item, m.fluid, 6, 28, 32, z);
         final Fmt.RateUnit unit = session.rateUnit();
         final String sign = m.rate <= 0 ? "" : m.kind == Drawer.Kind.SOURCE ? "-" : "+";
         final int color = m.rate <= 0 ? Hyb.MUTED : m.kind == Drawer.Kind.SOURCE ? Hyb.SOURCE_INK : Hyb.PRODUCT_INK;
         final String rate = sign + Fmt.brief(m.rate * unit.perSecond);
         // A number is never cut: if it does not fit big it drops to the next scale that stays sharp, centred.
-        final float x = far ? 6 : 40, room = W - 4 - x, big = far ? 4f : 3f, small = 2f;
+        final float x = far ? 6 : 42, room = W - 4 - x, big = far ? 4f : 3f, small = 2f;
         final float scale = Hyb.width(rate) * big <= room ? big : small;
-        Hyb.text(rate, x, (far ? 24 : 29) + (big - scale) * 9 / 2, scale, color);
+        Hyb.text(rate, x, (far ? 26 : 32) + (big - scale) * 9 / 2, scale, color);
     }
 
+    /** A title-bar key: a hard dark edge, a dark face. */
     private static void key(final int x, final int y, final boolean hover) {
-        Hyb.bevel(x, y, KEY, KEY, hover ? Hyb.KEY_HOVER : Hyb.KEY, Hyb.KEY_HI, Hyb.KEY_LO, 0, 1);
+        Hyb.rect(x, y, KEY, KEY, 0xFF111317);
+        Hyb.rect(x + 1, y + 1, KEY - 2, KEY - 2, hover ? 0xFF454952 : 0xFF34373E);
+        Hyb.rect(x + 1, y + 1, KEY - 2, 1, 0x1FFFFFFF);
     }
 
     /** A small loop arrow: product, byproduct and trash take turns. */
@@ -278,65 +315,102 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         };
     }
 
-    private void drawRule(final DrawerModel m, final boolean hover) {
-        Hyb.bevel(RULE_X, ROW_Y, RULE_W, ROW_H, hover ? Hyb.KEY_HOVER : Hyb.KEY, Hyb.KEY_HI, Hyb.KEY_LO, 0, 1);
-        Hyb.textCentered(Hyb.fit(ruleLabel(m.rule), RULE_W - 4), RULE_X + RULE_W / 2f, ROW_Y + 3, Hyb.INK);
+    private static String ruleMark(final Drawer.Rule rule) {
+        return switch (rule) {
+            case ANY -> "~";
+            case AT_LEAST -> "≥";
+            case EXACTLY -> "=";
+            case AT_MOST -> "≤";
+        };
     }
 
+    /** The rule as the website shows it: its mark in gold (muted for Any) and a chevron, on a small dark key. */
+    private void drawRule(final DrawerModel m, final boolean hover) {
+        Hyb.rect(RULE_X, ROW_Y, RULE_W, ROW_H, 0xFF111317);
+        Hyb.rect(RULE_X + 1, ROW_Y + 1, RULE_W - 2, ROW_H - 2, hover ? 0xFF454952 : 0xFF34373E);
+        Hyb.rect(RULE_X + 1, ROW_Y + 1, RULE_W - 2, 1, 0x1FFFFFFF);
+        final int markColor = m.rule == Drawer.Rule.ANY ? Hyb.MUTED : Hyb.GOLD;
+        Hyb.text(ruleMark(m.rule), RULE_X + 4, ROW_Y + 3, markColor);
+        final int cx = RULE_X + RULE_W - 9, cy = ROW_Y + 6;
+        Hyb.rect(cx, cy, 5, 1, markColor);
+        Hyb.rect(cx + 1, cy + 1, 3, 1, markColor);
+        Hyb.rect(cx + 2, cy + 2, 1, 1, markColor);
+    }
+
+    /** The rule's rate: a dark box, the number in gold and its unit at the right; red when it cannot be reached. */
     private void drawRate(final DrawerModel m, final boolean hover, final Fmt.RateUnit unit) {
         final boolean empty = m.rule == Drawer.Rule.ANY || m.target <= 0;
-        final int fill = m.unmet ? 0xFF4A2020 : hover ? Hyb.TILE_HI : Hyb.WELL;
-        Hyb.well(RATE_X, ROW_Y, RATE_W, ROW_H, fill, 0xFF282A2F, 0xFF5A5C65);
-        final String text;
-        int color = m.unmet ? Hyb.RED_INK : Hyb.INK;
+        Hyb.rect(RATE_X, ROW_Y, RATE_W, ROW_H, m.unmet ? 0xBFF87171 : hover ? Hyb.GOLD : 0xFF5A5E68);
+        Hyb.rect(RATE_X + 1, ROW_Y + 1, RATE_W - 2, ROW_H - 2, hover ? 0xFF15171C : 0xFF0F1114);
+        Hyb.rect(RATE_X + 1, ROW_Y + 1, RATE_W - 2, 1, 0xB3000000);
+        Hyb.rect(RATE_X + 1, ROW_Y + 1, 1, ROW_H - 2, 0xB3000000);
         if (empty) {
-            text = "rate?";
-            // Pulse when the plan has nothing to solve for, so the empty box reads as the next thing to do.
+            // Gold and pulsing while the plan has nothing to solve for, so the empty box reads as the next thing to do.
             final boolean idle = session.nothingToSolveFor();
-            color = idle && (System.currentTimeMillis() / 500) % 2 == 0 ? Hyb.GOLD : Hyb.MUTED;
-        } else {
-            text = Fmt.rate(m.target, unit, m.isFluid());
+            final int color = idle && (System.currentTimeMillis() / 500) % 2 == 0 ? Hyb.GOLD : 0xFF6F737C;
+            Hyb.text("§orate?", RATE_X + 5, ROW_Y + 3, color);
+            return;
         }
-        Hyb.textCentered(Hyb.fit(text, RATE_W - 4), RATE_X + RATE_W / 2f, ROW_Y + 3, color);
+        final String suffix = (m.isFluid() ? "L" : "") + unit.suffix;
+        final String number = Fmt.compact(m.target * unit.perSecond);
+        final int numberColor = m.unmet ? 0xFFF87171 : Hyb.GOLD;
+        Hyb.text(Hyb.fit(number, RATE_W - 10 - Hyb.width(suffix)), RATE_X + 5, ROW_Y + 3, numberColor);
+        Hyb.textRight(suffix, RATE_X + RATE_W - 4, ROW_Y + 3, 0xFF8A8E97);
     }
 
-    /** Tooltip lines for the part under the mouse. */
-    public List<String> hoverLines() {
+    /** The tooltip for the part under the mouse: what it is, its figures, what the mouse does. */
+    public com.sbancuz.plannh.ui.popup.Tip tip() {
         if (model == null || !isHovering()) return null;
         final Part part = partAt(localX(), localY());
-        final List<String> lines = new ArrayList<>();
-        final String hint = "§7";
         final Fmt.RateUnit unit = session.rateUnit();
-        switch (part) {
-            case DELETE -> lines.add("Delete this drawer");
-            case CYCLE -> {
-                lines.add("Product, byproduct or trash");
-                lines.add(hint + "Click: next kind");
-            }
-            case RULE -> {
-                lines.add("Rule: " + ruleLabel(model.rule));
-                lines.add(hint + "Click: pick  Wheel: next  Middle click: clear");
-            }
+        final DrawerModel m = model;
+        return switch (part) {
+            case DELETE -> com.sbancuz.plannh.ui.popup.Tip.of("Delete this drawer")
+                .action(com.sbancuz.plannh.ui.popup.Tip.Input.LEFT, "Delete");
+            case CYCLE -> com.sbancuz.plannh.ui.popup.Tip.of(kindName(m.kind))
+                .muted("Product, byproduct or trash: what happens to what arrives.")
+                .action(com.sbancuz.plannh.ui.popup.Tip.Input.LEFT, "Next kind");
+            case RULE -> com.sbancuz.plannh.ui.popup.Tip.of("Rule")
+                .sub(ruleLabel(m.rule))
+                .muted(ruleMeaning(m.kind, m.rule))
+                .action(com.sbancuz.plannh.ui.popup.Tip.Input.LEFT, "Pick")
+                .action(com.sbancuz.plannh.ui.popup.Tip.Input.WHEEL, "Next")
+                .action(com.sbancuz.plannh.ui.popup.Tip.Input.MIDDLE, "Clear");
             case RATE -> {
-                lines.add(
-                    model.rule == Drawer.Rule.ANY ? "No rate yet"
-                        : "Rate: " + Fmt.rate(model.target, unit, model.isFluid()));
-                if (model.shortfall != null) lines.add(
-                    "§cReaches " + Fmt.rate(model.shortfall.reachable(), unit, model.isFluid())
-                        + " of "
-                        + Fmt.rate(model.shortfall.target(), unit, model.isFluid()));
-                lines.add(hint + "Click: type a rate (2.5k, 1/3)  Middle click: clear");
+                final com.sbancuz.plannh.ui.popup.Tip tip = com.sbancuz.plannh.ui.popup.Tip
+                    .of(m.rule == Drawer.Rule.ANY ? "No rate yet" : "Target rate");
+                if (m.rule != Drawer.Rule.ANY) tip.row(ruleLabel(m.rule), Fmt.rate(m.target, unit, m.isFluid()));
+                if (m.shortfall != null)
+                    tip.row("Reaches", Fmt.rate(m.shortfall.reachable(), unit, m.isFluid()), Hyb.RED_INK);
+                yield tip.action(com.sbancuz.plannh.ui.popup.Tip.Input.LEFT, "Type (2.5k, 1/3)")
+                    .action(com.sbancuz.plannh.ui.popup.Tip.Input.WHEEL, "+1, Ctrl 10, Shift 100")
+                    .action(com.sbancuz.plannh.ui.popup.Tip.Input.MIDDLE, "Clear");
             }
             default -> {
-                lines.add(kindName(model.kind) + ": " + model.label);
-                lines.add(hint + Fmt.rate(model.rate, unit, model.isFluid()) + (model.linked ? "" : "  (not wired)"));
-                if (model.shortfall != null) lines.add(
-                    "§cCan't reach the target: " + Fmt.rate(model.shortfall.reachable(), unit, model.isFluid())
+                final com.sbancuz.plannh.ui.popup.Tip tip = com.sbancuz.plannh.ui.popup.Tip.of(m.label)
+                    .sub(kindName(m.kind))
+                    .row(m.kind == Drawer.Kind.SOURCE ? "Supplies" : "Takes", Fmt.rate(m.rate, unit, m.isFluid()));
+                if (!m.linked) tip.note("Unconnected", com.sbancuz.plannh.ui.popup.Tip.WARN);
+                if (m.shortfall != null) tip.note(
+                    "Can't reach the target: " + Fmt.rate(m.shortfall.reachable(), unit, m.isFluid())
                         + " of "
-                        + Fmt.rate(model.shortfall.target(), unit, model.isFluid()));
+                        + Fmt.rate(m.shortfall.target(), unit, m.isFluid()),
+                    Hyb.RED_INK);
+                yield tip.action(com.sbancuz.plannh.ui.popup.Tip.Input.DRAG, "Move")
+                    .action(com.sbancuz.plannh.ui.popup.Tip.Input.KEY, "R, U");
             }
-        }
-        return lines;
+        };
+    }
+
+    /** What a rule asks of the plan, in a sentence. */
+    private static String ruleMeaning(final Drawer.Kind kind, final Drawer.Rule rule) {
+        final String flow = kind == Drawer.Kind.SOURCE ? "draws from it" : "puts in it";
+        return switch (rule) {
+            case ANY -> "No target: the plan " + flow + " whatever it needs.";
+            case AT_LEAST -> "The plan " + flow + " at least the rate.";
+            case EXACTLY -> "The plan " + flow + " exactly the rate.";
+            case AT_MOST -> "The plan " + flow + " no more than the rate.";
+        };
     }
 
     static String kindName(final Drawer.Kind kind) {
@@ -379,9 +453,30 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
 
     @Override
     public boolean onMouseScroll(final UpOrDown direction, final int amount) {
-        if (model == null || partAt(localX(), localY()) != Part.RULE) return false;
-        stepRule(direction == UpOrDown.UP ? 1 : -1);
+        if (model == null) return false;
+        final int step = direction == UpOrDown.UP ? 1 : -1;
+        switch (partAt(localX(), localY())) {
+            case RULE -> stepRule(step);
+            case RATE -> stepRate(step);
+            default -> {
+                return false;
+            }
+        }
         return true;
+    }
+
+    /**
+     * The wheel on the rate, as on the website: one at a time in the shown unit, ten with Ctrl, a hundred with Shift.
+     */
+    private void stepRate(final int step) {
+        final Fmt.RateUnit unit = session.rateUnit();
+        final boolean ctrl = org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_LCONTROL)
+            || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_RCONTROL);
+        final boolean shift = org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_LSHIFT)
+            || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_RSHIFT);
+        final double shown = model.rule == Drawer.Rule.ANY ? 0 : model.target * unit.perSecond;
+        final double next = Math.max(0, Math.round(shown) + step * (shift ? 100 : ctrl ? 10 : 1));
+        session.setDrawerRate(model.drawer, next / unit.perSecond);
     }
 
     private void stepRule(final int step) {

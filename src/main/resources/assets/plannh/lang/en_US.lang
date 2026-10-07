@@ -196,8 +196,6 @@ plannh.solver.boundary_nothing=nothing crosses the boundary
 nei.options.plannh = "PlanNH";
 nei.options.plannh.item_columns=Item Columns
 nei.options.plannh.item_columns.tip=Number of columns in the NEI item panel (minimum: 6)
-nei.options.plannh.blur_strength=Blur Strength
-nei.options.plannh.blur_strength.tip=How much should the background be blurred (0 = off)
 nei.options.plannh.burnable_override=Show burnable setting
 nei.options.plannh.burnable_override.0=Off
 nei.options.plannh.burnable_override.1=On
@@ -206,12 +204,6 @@ nei.options.keys.plannh=PlanNH
 nei.options.keys.plannh.undo=Undo
 nei.options.keys.plannh.redo=Redo
 nei.options.keys.plannh.redo_alt=Redo (alternate)
-nei.options.plannh.show_grid=Show grid
-nei.options.plannh.show_grid.0=Off
-nei.options.plannh.show_grid.1=On
-nei.options.plannh.show_grid.tip=Hide/Show grid in the canvas
-nei.options.plannh.background_color=Background Color
-nei.options.plannh.background_color.tip=Canvas background color
 
 ## Summary panel
 plannh.summary.title.summary=Summary

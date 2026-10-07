@@ -26,6 +26,13 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   slots, solve hookup, notices, totals), `canvas/` (board, wires, port drags, arrange), `card/` (recipe card),
   `drawer/`, `popup/` (menus, number and text boxes; recipes are looked up in NEI itself). Known gaps and next
   steps are at the top of `docs/design/build-prompt.md`.
+- `docs/design/ff-card-spec.md` is Factory Flow's card measured from its source (sizes, colours, tooltips, the
+  power panel's formulas). Our card is 320 wide to its 380 with chrome kept at 1 px; `ui/card/CardLayout` holds
+  the geometry. Board tooltips are `ui/popup/Tip` panels; a multiblock's power chips show `ui/card/PowerPanel`.
+- `importer/` converts Factory Flow plans (JSON, plan codes, links) to graphs: a pure core plus `importer/game/`,
+  the NEI and GregTech side. The "+" plan tab pastes one from the clipboard; `call 'importff?file=<path>'` does it
+  from the harness. Fixtures are in `src/test/resources/factory-flow/`.
+- Saves are backed up to `plannh/backups/` beside the save, once per session and before any save that drops a plan.
 - Multiblock pictures in `assets/plannh/textures/structures/` are Factory Flow's renders (`public/power-art`: the
   owner's processing multiblocks and the Power Planner workbook's power plants), scaled to 320 px palette PNGs with
   transparency. `ui/card/StructureArt` maps in-game machine names to them; `call 'gtmachines?art=1'` checks coverage.
@@ -34,7 +41,7 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 
 - Gradle provisions the JDKs (25 for the build, JetBrains Runtime 25 for `runClient25`). Keep the checkout at a
   short path: deep Windows paths break the clone and the Minecraft dev setup (MAX_PATH).
-- `./gradlew test`: 216 headless JUnit tests (balancer, drawers, solve service, routing, layout, serialization),
+- `./gradlew test`: 277 headless JUnit tests (balancer, drawers, solve service, routing, layout, serialization),
   many over gtnh-flow YAML charts in `src/test/resources/gtnh-flow/`. About 40s, no Minecraft. `addon.gradle`
   opts `test` out of the configuration cache; without that a clean build reports `:test NO-SOURCE` and silently
   runs nothing, so if you ever see NO-SOURCE, check the count in `build/test-results/test/*.xml`.

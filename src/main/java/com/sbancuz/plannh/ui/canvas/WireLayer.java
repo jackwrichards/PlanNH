@@ -188,7 +188,7 @@ final class WireLayer {
     /** A port's anchor on its card, from the card's own layout (rows grow when a name takes two lines). */
     private static int anchorY(final Map<UUID, RecipeCard> cards, final Node n, final boolean output, final int port) {
         final RecipeCard card = cards.get(n.id);
-        return card == null || card.layout() == null ? CardLayout.RAILS_Y + 10
+        return card == null || card.layout() == null ? CardLayout.RAILS_Y + CardLayout.ROW / 2
             : card.layout()
                 .anchorY(output, port);
     }

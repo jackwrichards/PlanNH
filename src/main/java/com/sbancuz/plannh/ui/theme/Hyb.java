@@ -108,6 +108,27 @@ public final class Hyb {
         rect(x + w - band, y, band, h, dark);
     }
 
+    /**
+     * A filled rectangle with round corners of radius {@code r}, in whole-pixel steps like the game's own art: rows of
+     * rectangles at the top and bottom, one block between. {@code top}/{@code bottom} pick which corners are round.
+     */
+    public static void roundRect(final float x, final float y, final float w, final float h, final float r,
+        final int argb, final boolean top, final boolean bottom) {
+        final int rows = r <= 0 ? 0 : (int) Math.min(Math.ceil(r), Math.floor(h / 2));
+        for (int i = 0; i < rows; i++) {
+            final float dy = r - i - 0.5f;
+            final float in = Math.round(r - (float) Math.sqrt(Math.max(0, r * r - dy * dy)));
+            rect(x + (top ? in : 0), y + i, w - (top ? 2 * in : 0), 1, argb);
+            rect(x + (bottom ? in : 0), y + h - 1 - i, w - (bottom ? 2 * in : 0), 1, argb);
+        }
+        rect(x, y + rows, w, h - 2 * rows, argb);
+    }
+
+    public static void roundRect(final float x, final float y, final float w, final float h, final float r,
+        final int argb) {
+        roundRect(x, y, w, h, r, argb, true, true);
+    }
+
     /** Sunken well: dark top-left, light bottom-right. */
     public static void well(final float x, final float y, final float w, final float h, final int fill, final int dark,
         final int light) {
@@ -242,13 +263,19 @@ public final class Hyb {
 
     /** A dashed rectangle outline, 2 px on and 2 px off. */
     public static void dashed(final float x, final float y, final float w, final float h, final int color) {
-        for (float d = 0; d < w; d += 4) {
-            rect(x + d, y, Math.min(2, w - d), 1, color);
-            rect(x + d, y + h - 1, Math.min(2, w - d), 1, color);
+        dashed(x, y, w, h, color, 2, 2);
+    }
+
+    /** A dashed rectangle outline with dashes {@code on} long and gaps {@code off} long. */
+    public static void dashed(final float x, final float y, final float w, final float h, final int color, final int on,
+        final int off) {
+        for (float d = 0; d < w; d += on + off) {
+            rect(x + d, y, Math.min(on, w - d), 1, color);
+            rect(x + d, y + h - 1, Math.min(on, w - d), 1, color);
         }
-        for (float d = 0; d < h; d += 4) {
-            rect(x, y + d, 1, Math.min(2, h - d), color);
-            rect(x + w - 1, y + d, 1, Math.min(2, h - d), color);
+        for (float d = 0; d < h; d += on + off) {
+            rect(x, y + d, 1, Math.min(on, h - d), color);
+            rect(x + w - 1, y + d, 1, Math.min(on, h - d), color);
         }
     }
 
@@ -256,6 +283,36 @@ public final class Hyb {
     public static void slot(final float x, final float y, final boolean fluid) {
         if (fluid) well(x, y, 18, 18, SLOT_FLUID, SLOT_FLUID_TL, SLOT_FLUID_BR);
         else well(x, y, 18, 18, SLOT_ITEM, SLOT_ITEM_TL, SLOT_ITEM_BR);
+    }
+
+    /**
+     * An item or a fluid as Factory Flow shows one: bare, no slot, with a soft shadow under it (0 2px 3px at half
+     * strength there). A fluid is a slightly smaller square, as its sprite fills its box where an item's art does not.
+     */
+    public static void icon(final ItemStack item, final FluidStack fluid, final float x, final float y,
+        final float size, final float z) {
+        if (fluid != null) {
+            final float inset = size / 12f, side = size - 2 * inset;
+            iconShadow(null, fluid, x + inset, y + inset, side);
+            fluid(fluid, x + inset, y + inset, side, z);
+        } else if (item != null) {
+            iconShadow(item, null, x, y, size);
+            item(item, x, y, size, z);
+        }
+    }
+
+    /** The shadow alone, under the rectangle the icon fills: its silhouette, dropped and softened by spreading. */
+    public static void iconShadow(final ItemStack item, final FluidStack fluid, final float x, final float y,
+        final float size) {
+        // Three spreads, the widest faintest: about half black at the heart, fading over two pixels.
+        final float dy = size / 8f;
+        final float[] grow = { 2, 1, 0 };
+        final int[] shade = { 0x1A000000, 0x2E000000, 0x4D000000 };
+        for (int i = 0; i < 3; i++) {
+            final float g = grow[i] * size / 24f;
+            if (fluid != null) rect(x - g, y + dy - g, size + 2 * g, size + 2 * g, shade[i]);
+            else if (item != null) IconShadows.draw(item, x - g, y + dy - g, size + 2 * g, shade[i]);
+        }
     }
 
     public static void item(final ItemStack stack, final float x, final float y, final float size, final float z) {
