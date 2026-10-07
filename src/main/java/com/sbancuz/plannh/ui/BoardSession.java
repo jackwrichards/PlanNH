@@ -192,11 +192,19 @@ public final class BoardSession {
 
     /** The card added from NEI last, once, for the board to bring into view. */
     private UUID justAdded;
+    /** Whether that card is to be centred and selected (the plan button's), not just brought into view (+'s). */
+    private boolean focusAdded;
 
     public UUID takeJustAdded() {
         final UUID id = justAdded;
         justAdded = null;
         return id;
+    }
+
+    public boolean takeFocusAdded() {
+        final boolean focus = focusAdded;
+        focusAdded = false;
+        return focus;
     }
 
     /**
@@ -205,11 +213,19 @@ public final class BoardSession {
      * wires to.
      */
     public Node addRecipe(final IRecipeHandler handler, final int recipeIndex) {
-        return addRecipe(MachineChoices.newNode(handler, recipeIndex, null));
+        return add(MachineChoices.newNode(handler, recipeIndex, null), false);
     }
 
-    /** As above, for a card already set up: the plan button's, on the machine picked in its menu. */
-    public Node addRecipe(final Node node) {
+    /**
+     * As above, for a card already set up (the plan button's, on the machine picked in its menu), and then centred in
+     * view and selected: the board was just opened on it from NEI.
+     */
+    public Node addAndFocus(final Node node) {
+        return add(node, true);
+    }
+
+    private Node add(final Node node, final boolean focus) {
+        focusAdded = focus;
         final NodeLookupContext origin = pendingLookup;
         pendingLookup = null;
         final UUID joinTo = addSectionTo;

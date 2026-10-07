@@ -18,10 +18,7 @@ import com.sbancuz.plannh.data.flowchart.Graph;
 import com.sbancuz.plannh.data.flowchart.Node;
 import com.sbancuz.plannh.data.flowchart.Plan;
 import com.sbancuz.plannh.ui.BoardScreen;
-import com.sbancuz.plannh.ui.NewCards;
 import com.sbancuz.plannh.ui.Planner;
-import com.sbancuz.plannh.ui.card.CardDefaults;
-import com.sbancuz.plannh.ui.card.CardModel;
 import com.sbancuz.plannh.ui.card.MachineChoices;
 import com.sbancuz.plannh.ui.card.MachinePicks;
 import com.sbancuz.plannh.ui.popup.Tip;
@@ -34,22 +31,19 @@ import codechicken.nei.recipe.GuiRecipe;
 import codechicken.nei.recipe.RecipeHandlerRef;
 
 /**
- * What the {@link PlanButton} does: the menus it opens on NEI's recipe page (which machine, which plan), the recipe
- * going into the plan, and a short note when it went in with the planner closed. Drawn over everything NEI draws,
- * and first in line for clicks and keys while a menu is open.
+ * What the {@link PlanButton} does: the menus it opens on NEI's recipe page (which plan, which machine) and the recipe
+ * going into the plan, on the board, in view. The menus are drawn over everything NEI draws, and are first in line for
+ * clicks and keys while open.
  */
 public final class PlanMenu implements IContainerDrawHandler, IContainerInputHandler, IContainerObjectHandler {
 
     public static final PlanMenu INSTANCE = new PlanMenu();
 
-    private static final int ROW = 20, TITLE = 16, TOAST_MS = 2600;
+    private static final int ROW = 20, TITLE = 16;
 
     private record Row(@Nullable ItemStack icon, String label, String detail, boolean current, Runnable action) {}
 
     private PlanMenu() {}
-
-    /** Plan buttons drawn this frame, for right clicks. */
-    private final List<PlanButton> shown = new ArrayList<>();
 
     // The open menu: the screen it is on, where, its title and rows.
     @Nullable
@@ -58,66 +52,54 @@ public final class PlanMenu implements IContainerDrawHandler, IContainerInputHan
     private String title = "";
     private List<Row> rows = List.of();
 
-    // The note after an add.
-    @Nullable
-    private GuiContainer toastOn;
-    private String toast = "", toastDetail = "";
-    private int tx, ty;
-    private long toastUntil;
-
-    void drawn(final PlanButton button) {
-        shown.add(button);
-    }
-
     // region What the button does
 
-    /** A click: straight in when there is nothing to ask (or Shift is down), else the machine menu. */
+    /**
+     * A click: which plan, when there are several (the most recently opened first), then which machine, when the
+     * recipe's tab has several. Shift skips both: the open plan, on the machine picked last time.
+     */
     void click(final PlanButton button) {
-        offerMachines(
-            button,
-            Plan.getInstance()
-                .getActiveIndex());
+        final Plan plan = Plan.getInstance();
+        if (GuiScreen.isShiftKeyDown()) add(button, plan.getActiveIndex(), null);
+        else if (plan.getGraphs()
+            .size() > 1) offerPlans(button);
+        else offerMachines(button, plan.getActiveIndex());
+    }
+
+    private void offerPlans(final PlanButton button) {
+        final Plan plan = Plan.getInstance();
+        final List<Row> list = new ArrayList<>();
+        for (final int i : plan.byRecency()) {
+            final boolean open = i == plan.getActiveIndex();
+            list.add(new Row(null, planName(i), open ? "current" : "", open, () -> offerMachines(button, i)));
+        }
+        list.add(new Row(null, "New plan", "", false, () -> offerMachines(button, -1)));
+        open(button, "Which plan to add to?", list);
     }
 
     private void offerMachines(final PlanButton button, final int plan) {
         final RecipeHandlerRef ref = button.handlerRef;
         final List<MachineChoices.Choice> choices = button.choices();
-        if (choices.size() <= 1 || GuiScreen.isShiftKeyDown()) {
+        if (choices.size() <= 1) {
             add(button, plan, null);
             return;
         }
-        final MachineChoices.Choice remembered = MachineChoices.find(choices, MachinePicks.get(ref.handler));
+        final MachineChoices.Choice last = lastPick(button);
         final List<Row> list = new ArrayList<>();
         for (final MachineChoices.Choice c : choices) {
-            final boolean current = remembered != null ? c == remembered : c == choices.get(0);
-            list.add(new Row(c.machine(), c.label(), c.detail(), current, () -> {
+            list.add(new Row(c.machine(), c.label(), c.detail(), c == last, () -> {
                 MachinePicks.put(ref.handler, c.key());
                 add(button, plan, c);
             }));
         }
-        open(button, "Add to " + planName(plan) + " on", list);
+        open(button, "Which machine to use?", list);
     }
 
-    /** A right click: which plan, then on as a click. */
-    private void offerPlans(final PlanButton button) {
-        final List<Graph> plans = Plan.getInstance()
-            .getGraphs();
-        final int active = Plan.getInstance()
-            .getActiveIndex();
-        final List<Row> list = new ArrayList<>();
-        for (int i = 0; i < plans.size(); i++) {
-            final int plan = i;
-            list.add(
-                new Row(
-                    null,
-                    plans.get(i)
-                        .getName(),
-                    i == active ? "open" : "",
-                    i == active,
-                    () -> offerMachines(button, plan)));
-        }
-        list.add(new Row(null, "New plan", "", false, () -> offerMachines(button, -1)));
-        open(button, "Add to which plan?", list);
+    /** The machine the tab was last added on, else the first. */
+    private static MachineChoices.Choice lastPick(final PlanButton button) {
+        final List<MachineChoices.Choice> choices = button.choices();
+        final MachineChoices.Choice last = MachineChoices.find(choices, MachinePicks.get(button.handlerRef.handler));
+        return last != null ? last : choices.get(0);
     }
 
     private static String planName(final int plan) {
@@ -128,9 +110,9 @@ public final class PlanMenu implements IContainerDrawHandler, IContainerInputHan
     }
 
     /**
-     * Puts the recipe in {@code plan} (-1: a new one) on {@code choice}, or on the tab's remembered machine. With the
-     * planner under the recipe page it goes back to the board and lands as + would land it; otherwise it goes into the
-     * plan where the board would put it, and that plan becomes the open one.
+     * Puts the recipe in {@code plan} (-1: a new one) on {@code choice}, or on the tab's remembered machine, and shows
+     * it: the board opens on that plan (or the page closes back to it) with the new card centred and selected. It
+     * lands as + would land it, beside what it wires to.
      */
     private void add(final PlanButton button, int plan, @Nullable final MachineChoices.Choice choice) {
         final RecipeHandlerRef ref = button.handlerRef;
@@ -145,56 +127,47 @@ public final class PlanMenu implements IContainerDrawHandler, IContainerInputHan
         }
         final Minecraft mc = Minecraft.getMinecraft();
         final GuiContainer first = mc.currentScreen instanceof final GuiRecipe<?> recipes ? recipes.firstGui : null;
-        if (Planner.screenOf(first) instanceof final BoardScreen board) {
-            board.session()
+        final BoardScreen board;
+        if (Planner.screenOf(first) instanceof final BoardScreen open) {
+            open.session()
                 .switchSlot(plan);
             mc.displayGuiScreen(first);
-            board.session()
-                .addRecipe(node);
-            return;
+            board = open;
+        } else {
+            p.setActiveIndex(plan);
+            board = Planner.open();
         }
-        p.setActiveIndex(plan);
-        final Graph graph = p.getGraphs()
-            .get(plan);
-        NewCards.addTo(graph, node);
-        toast(button, "Added to " + graph.getName(), machineName(node));
+        board.session()
+            .addAndFocus(node);
     }
 
-    /** The name of the machine a new card runs on, for the note. */
-    private static String machineName(final Node node) {
-        for (final ItemStack s : CardModel.catalystsOf(node)) {
-            if (CardDefaults.matches(s, node.machineName)) return s.getDisplayName();
-        }
-        return node.machineName;
-    }
-
-    /** The button's tooltip: where a click puts the recipe, and the other ways in. */
+    /** The button's tooltip: where a click puts the recipe, and what Shift-click does. */
     List<String> tooltip(final PlanButton button) {
         final List<String> lines = new ArrayList<>();
         // Its menu says it all.
         if (menuOn != null) return lines;
-        final RecipeHandlerRef ref = button.handlerRef;
-        final GuiContainer first = Minecraft.getMinecraft().currentScreen instanceof final GuiRecipe<?> recipes
-            ? recipes.firstGui
-            : null;
-        final String plan = planName(
-            Plan.getInstance()
-                .getActiveIndex());
-        lines.add(Planner.isPlanner(first) ? "Add to the board" : "Add to " + plan);
-        final List<MachineChoices.Choice> choices = button.choices();
-        if (choices.size() > 1) {
-            MachineChoices.Choice last = MachineChoices.find(choices, MachinePicks.get(ref.handler));
-            if (last == null) last = choices.get(0);
-            lines.add("§7Click: pick the machine");
-            lines.add("§7Shift-click: on " + last.label() + (last.detail().isEmpty() ? "" : " (" + last.detail() + ")"));
+        final Plan p = Plan.getInstance();
+        final boolean plans = p.getGraphs()
+            .size() > 1;
+        final boolean machines = button.choices()
+            .size() > 1;
+        lines.add(plans ? "Add to a plan" : "Add to " + planName(p.getActiveIndex()));
+        if (!plans && !machines) return lines;
+        lines.add("§7Click: choose the " + (plans && machines ? "plan and the machine" : plans ? "plan" : "machine"));
+        String quick = "add to " + planName(p.getActiveIndex());
+        if (machines) {
+            final MachineChoices.Choice last = lastPick(button);
+            quick += ", using " + last.label()
+                + (last.detail()
+                    .isEmpty() ? "" : " (" + last.detail() + ")");
         }
-        lines.add("§7Right-click: pick the plan");
+        lines.add("§7Shift-click: " + quick);
         return lines;
     }
 
     // endregion
 
-    // region The menu and the note
+    // region The menu
 
     private void open(final PlanButton button, final String heading, final List<Row> list) {
         int width = Hyb.width(heading) + 12;
@@ -235,16 +208,6 @@ public final class PlanMenu implements IContainerDrawHandler, IContainerInputHan
         return y >= my + TITLE && r >= 0 && r < rows.size() ? r : -1;
     }
 
-    private void toast(final PlanButton button, final String text, final String detail) {
-        toastOn = Minecraft.getMinecraft().currentScreen instanceof final GuiContainer gui ? gui : null;
-        toast = text;
-        toastDetail = detail;
-        final int w = Math.max(Hyb.width(text), Hyb.width(detail)) + 12;
-        tx = Math.max(2, button.screenX - w - 3);
-        ty = Math.max(2, button.screenY - 6);
-        toastUntil = System.currentTimeMillis() + TOAST_MS;
-    }
-
     private void drawMenu(final int mouseX, final int mouseY) {
         // Popup chrome, as the board's menus wear it.
         Hyb.rect(mx + 4, my + 4, mw, mh, 0x59000000);
@@ -275,29 +238,12 @@ public final class PlanMenu implements IContainerDrawHandler, IContainerInputHan
         }
     }
 
-    private void drawToast() {
-        final long left = toastUntil - System.currentTimeMillis();
-        final int w = Math.max(Hyb.width(toast), Hyb.width(toastDetail)) + 12, h = toastDetail.isEmpty() ? 16 : 27;
-        // Fades over its last half second.
-        GL11.glColor4f(1, 1, 1, 1);
-        Tip.chrome(tx, ty, w, h);
-        Hyb.text(toast, tx + 6, ty + 4, left > 500 ? Hyb.INK : fade(Hyb.INK, left / 500f));
-        if (!toastDetail.isEmpty()) {
-            Hyb.text(toastDetail, tx + 6, ty + 15, left > 500 ? Hyb.MUTED : fade(Hyb.MUTED, left / 500f));
-        }
-    }
-
-    private static int fade(final int argb, final float f) {
-        return Math.max(4, (int) ((argb >>> 24) * f)) << 24 | argb & 0x00FFFFFF;
-    }
-
     // endregion
 
     // region NEI's draw hooks
 
     @Override
     public void onPreDraw(final GuiContainer gui) {
-        shown.clear();
         // The page went away under the menu.
         if (menuOn != null && Minecraft.getMinecraft().currentScreen != menuOn) close();
     }
@@ -307,12 +253,9 @@ public final class PlanMenu implements IContainerDrawHandler, IContainerInputHan
 
     @Override
     public void postRenderObjects(final GuiContainer gui, final int mouseX, final int mouseY) {
-        final boolean menu = menuOpenOn(gui);
-        final boolean note = toastOn == gui && System.currentTimeMillis() < toastUntil;
-        if (!menu && !note) return;
+        if (!menuOpenOn(gui)) return;
         Tip.beginPanel();
-        if (note && !menu) drawToast();
-        if (menu) drawMenu(mouseX, mouseY);
+        drawMenu(mouseX, mouseY);
         Tip.endPanel();
     }
 
@@ -328,25 +271,13 @@ public final class PlanMenu implements IContainerDrawHandler, IContainerInputHan
 
     @Override
     public boolean mouseClicked(final GuiContainer gui, final int mouseX, final int mouseY, final int button) {
-        if (menuOpenOn(gui)) {
-            final int row = rowAt(mouseX, mouseY);
-            final Runnable action = row >= 0 && button == 0 ? rows.get(row).action : null;
-            // Any click closes it; one outside does nothing else.
-            close();
-            if (action != null) action.run();
-            return true;
-        }
-        if (button == 1) {
-            for (final PlanButton b : shown) {
-                if (mouseX >= b.screenX && mouseX < b.screenX + b.width
-                    && mouseY >= b.screenY
-                    && mouseY < b.screenY + b.height) {
-                    offerPlans(b);
-                    return true;
-                }
-            }
-        }
-        return false;
+        if (!menuOpenOn(gui)) return false;
+        final int row = rowAt(mouseX, mouseY);
+        final Runnable action = row >= 0 && button == 0 ? rows.get(row).action : null;
+        // Any click closes it; one outside does nothing else.
+        close();
+        if (action != null) action.run();
+        return true;
     }
 
     @Override

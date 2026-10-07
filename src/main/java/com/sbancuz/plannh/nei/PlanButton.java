@@ -15,12 +15,13 @@ import codechicken.nei.recipe.RecipeHandlerRef;
 
 /**
  * The plan button, above NEI's + and star on every recipe the planner can read: puts the recipe in a plan, with the
- * planner open or not. Click: the active plan, asking which machine when the recipe's tab has several. Shift-click: on
- * the machine picked last time, without asking. Right-click: which plan. {@link PlanMenu} does the work.
+ * planner open or not, and shows it there. Click: asks which plan (when there are several) and which machine (when the
+ * recipe's tab has several). Shift-click: the open plan, on the machine picked last time. {@link PlanMenu} does the
+ * work.
  */
 public final class PlanButton extends GuiRecipeButton {
 
-    /** Where it was last drawn, in screen pixels: its menu opens beside it, and right clicks are matched to it. */
+    /** Where it was last drawn, in screen pixels: its menus open beside it. */
     int screenX, screenY;
 
     PlanButton(final RecipeHandlerRef ref, final int x, final int y) {
@@ -45,7 +46,6 @@ public final class PlanButton extends GuiRecipeButton {
         final Point mouse = GuiDraw.getMousePosition();
         screenX = xPosition + mouse.x - mouseX;
         screenY = yPosition + mouse.y - mouseY;
-        PlanMenu.INSTANCE.drawn(this);
         super.drawButton(mc, mouseX, mouseY);
     }
 

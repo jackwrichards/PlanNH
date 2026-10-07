@@ -74,6 +74,32 @@ class SerializerTest {
     }
 
     @Test
+    void plansListMostRecentlyOpenedFirstAndRememberItThroughASave() {
+        final Plan plan = Serializer.decodePlan("{}");
+        for (final String name : List.of("a", "b", "c", "d")) plan.getGraphs()
+            .add(new Graph(name));
+        plan.getGraphs()
+            .get(1)
+            .setLastOpen(100);
+        plan.getGraphs()
+            .get(3)
+            .setLastOpen(300);
+        plan.setActiveIndex(2);
+        assertEquals(
+            List.of(2, 0, 3, 1),
+            plan.byRecency(),
+            "the open one, the one it replaced, then by when each was open");
+
+        final Plan again = Serializer.decodePlan(Serializer.encodePlan(plan));
+        assertEquals(List.of(2, 0, 3, 1), again.byRecency(), "and the same after a save");
+        assertEquals(
+            300,
+            again.getGraphs()
+                .get(3)
+                .getLastOpen());
+    }
+
+    @Test
     void aPlanWithOneDamagedSlotKeepsTheOthers() {
         final LoadedChart chart = GtnhFlowLoader.load("mk1");
         final JsonObject root = new JsonObject();

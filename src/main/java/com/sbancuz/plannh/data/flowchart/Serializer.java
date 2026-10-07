@@ -111,6 +111,7 @@ public final class Serializer {
         for (final Graph graph : plan.getGraphs()) {
             final JsonObject slotObj = new JsonObject();
             slotObj.addProperty("name", graph.getName());
+            if (graph.getLastOpen() > 0) slotObj.addProperty("lastOpen", graph.getLastOpen());
             if (debug) slotObj.add("data", graphToJson(graph));
             else slotObj.addProperty("data", encode(graph));
             arr.add(slotObj);
@@ -146,6 +147,9 @@ public final class Serializer {
                     graph = new Graph(name);
                 }
                 graph.setName(name);
+                if (obj.has("lastOpen")) graph.setLastOpen(
+                    obj.get("lastOpen")
+                        .getAsLong());
                 plan.getGraphs()
                     .add(graph);
             }

@@ -23,8 +23,8 @@ After changing mod code, `tools/dev/mc.sh swap --reopen` pushes it into the runn
 [Hot swap](#hot-swap)); `tools/dev/mc.sh restart` rebuilds and relaunches (about 30s) for what swapping can't do.
 
 `mc.sh start` writes these into `run/client/options.txt` before launch (env var overrides in brackets):
-window 1920x1080 (`PLANNH_DEV_WIDTH`/`PLANNH_DEV_HEIGHT`), GUI scale 2 (`PLANNH_DEV_GUI_SCALE`), master volume 0
-(`PLANNH_DEV_SOUND`). The harness also mutes sound at runtime unless `-Dplannh.dev.sound=true`, and turns off
+window 1920x1080 (`PLANNH_DEV_WIDTH`/`PLANNH_DEV_HEIGHT`), GUI scale 2 (`PLANNH_DEV_GUI_SCALE`), master volume 1
+(`PLANNH_DEV_SOUND`; `call 'sound?volume=0..1'` changes it while running). The harness turns off
 pause-on-lost-focus so an unfocused window keeps running.
 
 `PLANNH_GTNH=1` adds `-PgtnhRecipes`: the GTNH core mod, GregTech and the pack's recipes (72 mods instead of 29;

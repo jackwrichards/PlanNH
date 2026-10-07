@@ -103,8 +103,6 @@ public final class DevHarness {
         worldRequested = true;
         // The harness drives an unfocused window; a pause menu would steal every screen.
         mc.gameSettings.pauseOnLostFocus = false;
-        // Dev runs share a desk with a person: silent unless asked for (-Dplannh.dev.sound=true).
-        if (!Boolean.getBoolean("plannh.dev.sound")) mc.gameSettings.setSoundLevel(SoundCategory.MASTER, 0.0F);
         if (WORLD.isEmpty()) {
             ready = true;
             return;
@@ -318,6 +316,18 @@ public final class DevHarness {
                         Float.parseFloat(q.getOrDefault("panY", "0")));
                     return ok();
                 });
+            case "/sound":
+                // The master volume, 0 to 1 (mc.sh starts the game at PLANNH_DEV_SOUND); no volume: just report it.
+                return onClient(() -> {
+                    if (q.containsKey("volume")) {
+                        final float v = Math.max(0f, Math.min(1f, Float.parseFloat(q.get("volume"))));
+                        mc.gameSettings.setSoundLevel(SoundCategory.MASTER, v);
+                        mc.gameSettings.saveOptions();
+                    }
+                    final Map<String, Object> r = new LinkedHashMap<>();
+                    r.put("volume", mc.gameSettings.getSoundLevel(SoundCategory.MASTER));
+                    return r;
+                });
             case "/nei":
                 // NEI's recipes for item=<modid:name[:meta] or ore name>; uses=1 for its uses; planner=0 from the
                 // inventory (the planner closed); tab=<part of a tab's name> to open on that tab.
@@ -466,6 +476,7 @@ public final class DevHarness {
                 "/addrecipe?output=dustRutile[&handler=blast][&input=ilmenite][&x&y] - put a real recipe on the board (with the board open: placed and auto-wired like NEI's +)",
                 "/recipeinfo?output[&handler][&input] - what NEI and PlanNH see in a recipe (stacks, ports), read-only",
                 "/nei?item[&uses=1][&planner=0][&tab] - open NEI's recipes for an item, over the planner or (planner=0) from the inventory",
+                "/sound[?volume=0..1] - the master volume, set or read",
                 "/gtmachines?q=turbine[&all=1][&art=1] - GregTech multiblocks (all=1: every machine) as the game names them; art=1 adds the bundled picture each resolves to",
                 "/slots[?add=name | switch=i | delete=i] - list, open, switch or delete plan slots",
                 "/clearplan - empty the active board (one undoable edit)",

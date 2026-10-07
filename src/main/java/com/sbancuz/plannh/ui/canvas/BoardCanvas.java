@@ -85,12 +85,18 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         for (final RecipeCard card : cards.values()) rebuild |= card.shapeChanged();
         if (rebuild) rebuildCards();
         final UUID added = session.takeJustAdded();
-        if (added != null) reveal = List.of(added);
+        final boolean focus = session.takeFocusAdded();
+        if (added != null) {
+            reveal = List.of(added);
+            revealFocus = focus;
+        }
         if (!reveal.isEmpty() && reveal.stream()
             .allMatch(id -> cards.containsKey(id) || drawers.containsKey(id))) {
             final int[] box = box(reveal);
-            if (box != null) revealBox(box[0], box[1], box[2], box[3]);
+            if (box != null && revealFocus) focusBox(reveal.get(0), box);
+            else if (box != null) revealBox(box[0], box[1], box[2], box[3]);
             reveal = List.of();
+            revealFocus = false;
         }
     }
 
@@ -576,11 +582,30 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     /** Cards and drawers just added (from NEI, or pasted); brought into view once their widgets exist. */
     private List<UUID> reveal = List.of();
+    /** Whether {@link #reveal} is the plan button's card, to centre and select rather than just bring into view. */
+    private boolean revealFocus;
 
     /**
      * Pans the least needed to show a world box (with a margin), keeping the zoom; frames it instead when it is bigger
      * than the view.
      */
+    /**
+     * Centres a card and selects it, at the current zoom when its ports can be read there, else the closest step where
+     * they can (never closer than fits it): what the plan button just added, from NEI.
+     */
+    private void focusBox(final UUID id, final int[] box) {
+        session.select(id, false);
+        float readable = ZOOMS[ZOOMS.length - 1];
+        for (final float z : ZOOMS) {
+            if (z > RecipeCard.GLANCE_ZOOM * 1.4f) {
+                readable = z;
+                break;
+            }
+        }
+        final float zoom = Math.min(Math.max(graph().getZoom(), readable), fitZoom(box[0], box[1], box[2], box[3]));
+        moveCamera(zoom, (box[0] + box[2]) / 2f, (box[1] + box[3]) / 2f, getArea().width / 2f, getArea().height / 2f);
+    }
+
     private void revealBox(final int x0, final int y0, final int x1, final int y1) {
         final Graph g = graph();
         final float z = g.getZoom(), m = 16;

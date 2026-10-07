@@ -37,10 +37,11 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   one card, its machine settings are copied to every recipe, and a pinned count is an exact solver pool.
 - Saves are backed up to `plannh/backups/` beside the save, once per session and before any save that drops a plan.
 - NEI's recipe pages carry a plan button above + and the star (`nei/PlanButton`, `nei/PlanMenu`, added through NEI's
-  `UpdateRecipeButtonsEvent`): it adds the recipe to the active plan with the planner open or closed, asking which
-  machine when the tab has several (`ui/card/MachineChoices`: GT single blocks are one choice at the recipe's tier).
-  The pick is remembered per tab (`MachinePicks`, `config/plannh-machine-picks.properties`) and NEI's + uses it too;
-  right-click picks the plan. `call 'nei?item=<key>&planner=0&tab=<name>'` opens a recipe page from the inventory.
+  `UpdateRecipeButtonsEvent`): it asks which plan (most recently open first, `Plan.byRecency`) and which machine
+  (`ui/card/MachineChoices`: GT single blocks are one choice at the recipe's tier), then opens the board on that plan
+  with the new card centred and selected (`BoardSession.addAndFocus`). Shift-click skips both menus. The machine pick is
+  remembered per tab (`MachinePicks`, `config/plannh-machine-picks.properties`) and NEI's + uses it too.
+  `call 'nei?item=<key>&planner=0&tab=<name>'` opens a recipe page from the inventory.
 - Multiblock pictures in `assets/plannh/textures/structures/` are Factory Flow's renders (`public/power-art`: the
   owner's processing multiblocks and the Power Planner workbook's power plants), scaled to 320 px palette PNGs with
   transparency. `ui/card/StructureArt` maps in-game machine names to them; `call 'gtmachines?art=1'` checks coverage.
@@ -81,8 +82,9 @@ tools/dev/board-check.sh  # GT runs: end-to-end board check (recipe, port drag, 
 - After changing mod code: `tools/dev/mc.sh swap --reopen`. Restart instead (`mc.sh restart`, ~30s) when swap
   exits 2 (new or not-yet-loaded classes), for mixins, resources and startup-only code, and when you add a field
   with an initialiser: widgets already on screen get it as null, and a draw that touches it crashes out of the world.
-- The game window opens on the user's desktop. It is muted and 1920x1080 at GUI scale 2 by design; keep it that
-  way. Leave it running while the user is iterating on the UI with you; stop it when the work is done.
+- The game window opens on the user's desktop at 1920x1080, GUI scale 2, with sound on (the user asked for it back,
+  2026-10-07; `PLANNH_DEV_SOUND=0` mutes, `call 'sound?volume=0'` live); keep the size and scale. Leave it running
+  while the user is iterating on the UI with you; stop it when the work is done.
 - The user can press F2 in game to screenshot what they see; when they refer to "this" or "my screenshot", Read
   the newest file in `run/client/screenshots/`. Harness screenshots land there too, under the names you gave them.
 - UI feedback loop: change code, `swap --reopen`, check with a cropped `shot`, then tell the user it's live in

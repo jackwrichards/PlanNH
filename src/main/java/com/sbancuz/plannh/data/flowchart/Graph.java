@@ -53,6 +53,13 @@ public class Graph {
     @Setter
     private boolean snapToGrid;
 
+    /**
+     * When the plan was last opened (ms since the epoch), so menus can list the most recent first. Saved with the slot.
+     */
+    @Getter
+    @Setter
+    private long lastOpen;
+
     @Getter
     private BalanceMode balanceMode = BalanceMode.AUTO;
 
@@ -115,6 +122,7 @@ public class Graph {
     /** This graph takes over {@code replaced}'s slot: it is that slot's state after an undo or redo. */
     void takeSlotOf(final Graph replaced) {
         this.slot = replaced.slot;
+        this.lastOpen = replaced.lastOpen;
     }
 
     private void bumpVersion() {

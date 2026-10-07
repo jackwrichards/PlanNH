@@ -33,6 +33,32 @@ public class Plan {
 
     private Plan() {}
 
+    /** Opens a slot: it becomes the active one. The one it replaces was open until now, and is stamped so. */
+    public void setActiveIndex(final int index) {
+        final long now = System.currentTimeMillis();
+        if (activeIndex >= 0 && activeIndex < graphs.size()) graphs.get(activeIndex)
+            .setLastOpen(now);
+        activeIndex = index;
+        if (index >= 0 && index < graphs.size()) graphs.get(index)
+            .setLastOpen(now);
+    }
+
+    /** The slots' indices, most recently open first: the active one, then by when each was last open. */
+    public List<Integer> byRecency() {
+        final List<Integer> order = new ArrayList<>();
+        for (int i = 0; i < graphs.size(); i++) order.add(i);
+        order.sort((a, b) -> {
+            if (a.equals(b)) return 0;
+            if (a == activeIndex || b == activeIndex) return a == activeIndex ? -1 : 1;
+            return Long.compare(
+                graphs.get(b)
+                    .getLastOpen(),
+                graphs.get(a)
+                    .getLastOpen());
+        });
+        return order;
+    }
+
     /** The undo history of the slot {@code graph} is; it survives undo and redo swapping the graph. */
     public UndoHistory history(final Graph graph) {
         return histories.of(graph);
