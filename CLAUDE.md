@@ -11,7 +11,8 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 
 ## Remotes and branches
 
-- `origin` = github.com/jackwrichards/PlanNH (our fork), `upstream` = github.com/sbancuz/PlanNH.
+- `origin` = github.com/jackwrichards/gtnh-planner-mod (ours; it was jackwrichards/PlanNH, a fork, until the rename),
+  `upstream` = github.com/sbancuz/PlanNH.
 - `main` is our trunk and the fork's default branch; it started from upstream `dev` (a0896df). The other branches
   on the fork are untouched copies of upstream's. The plan is to gut and rebuild the codebase in our own image, so
   upstream's branches, bugs and CI are not our concern; don't spend effort on them.

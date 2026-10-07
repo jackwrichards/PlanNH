@@ -55,7 +55,8 @@ public class OpenFlowchartButton extends Button {
     @Override
     public void draw(final int mouseX, final int mouseY) {
         super.draw(mouseX, mouseY);
-        final int size = Math.min(w, h) - 2;
+        // 12 GUI pixels for the 24-pixel logo: one to one at GUI scale 2, a pixel clear of the key's edges.
+        final int size = 12;
         final int x = this.x + (w - size) / 2, y = this.y + (h - size) / 2;
         Minecraft.getMinecraft()
             .getTextureManager()
