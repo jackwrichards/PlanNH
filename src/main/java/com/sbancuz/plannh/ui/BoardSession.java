@@ -732,6 +732,33 @@ public final class BoardSession {
         PlanAPI.save();
     }
 
+    /** Opens the library in place of the board: set by the screen, used by the plan tabs' + menu. */
+    private Runnable libraryOpener = () -> {};
+
+    public void setLibraryOpener(final Runnable opener) {
+        libraryOpener = opener;
+    }
+
+    public void openLibrary() {
+        libraryOpener.run();
+    }
+
+    /** Opens the library on what makes a resource ({@code kind:id}, Factory Flow's key, and its name). */
+    private java.util.function.BiConsumer<String, String> librarySearch = (key, label) -> {};
+
+    public void setLibrarySearch(final java.util.function.BiConsumer<String, String> search) {
+        librarySearch = search;
+    }
+
+    /** The library, showing the public setups that make a resource on the overview. */
+    public void showSetupsMaking(final TotalLine line) {
+        final String key = line.isFluid()
+            ? "fluid:" + com.sbancuz.plannh.importer.game.FactoryFlowImport.idOf(line.fluid())
+            : line.item() == null ? null
+                : "item:" + com.sbancuz.plannh.importer.game.FactoryFlowImport.idOf(line.item());
+        if (key != null) librarySearch.accept(key, line.label());
+    }
+
     public List<Graph> slots() {
         return Plan.getInstance()
             .getGraphs();

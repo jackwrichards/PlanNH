@@ -119,6 +119,7 @@ final class PlanTabs extends Widget<PlanTabs> implements Interactable {
                     Hyb.INK,
                     false,
                     session::pastePlan));
+            rows.add(new PickList.Entry(null, "Browse library", "public setups", Hyb.INK, false, session::openLibrary));
             Popup.open(
                 getPanel(),
                 PickList.popup("plannh_new_plan", null, rows, false, 190),

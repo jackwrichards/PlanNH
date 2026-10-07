@@ -24,6 +24,7 @@ import com.sbancuz.plannh.ui.card.CardModel;
 import com.sbancuz.plannh.ui.card.PortSlot;
 import com.sbancuz.plannh.ui.card.RecipeCard;
 import com.sbancuz.plannh.ui.drawer.DrawerCard;
+import com.sbancuz.plannh.ui.library.LibraryView;
 import com.sbancuz.plannh.ui.popup.Popup;
 import com.sbancuz.plannh.ui.popup.Tip;
 import com.sbancuz.plannh.ui.theme.Fmt;
@@ -42,11 +43,14 @@ public final class BoardScreen extends ModularScreen {
 
     private final BoardSession session;
     private final BoardCanvas canvas;
+    private final LibraryDoor library;
 
-    private BoardScreen(final ModularPanel panel, final BoardSession session, final BoardCanvas canvas) {
+    private BoardScreen(final ModularPanel panel, final BoardSession session, final BoardCanvas canvas,
+        final LibraryDoor library) {
         super(PlanNH.MODID, panel);
         this.session = session;
         this.canvas = canvas;
+        this.library = library;
         getContext().setSettings(new UISettings());
         getContext().getUISettings()
             .getRecipeViewerSettings()
@@ -66,6 +70,16 @@ public final class BoardScreen extends ModularScreen {
                 0);
         final BoardCanvas canvas = new BoardCanvas(session, panel);
         final OverviewRail rail = new OverviewRail(session, canvas);
+        final LibraryDoor library = new LibraryDoor();
+        library.view = new LibraryView(session, () -> library.set(false), () -> {
+            library.set(false);
+            canvas.frameAllWhenBuilt();
+        });
+        session.setLibraryOpener(() -> library.set(true));
+        session.setLibrarySearch((key, label) -> {
+            library.view.showMaking(key, label);
+            library.set(true);
+        });
 
         final Flow topBar = Flow.row()
             .widthRel(1f)
@@ -90,6 +104,14 @@ public final class BoardScreen extends ModularScreen {
                             .shadow(true)
                             .heightRel(1f)
                             .expanded());
+        topBar.child(
+            key(
+                () -> library.open ? "Board" : "Library",
+                () -> true,
+                "Public setups from gtnhplanner.com: browse them and open one as a plan\n"
+                    + "§7The same library as the website's; nothing is fetched until you open it",
+                44,
+                () -> library.set(!library.open)));
         topBar.child(
             key(
                 () -> session.rateUnit().suffix,
@@ -140,6 +162,10 @@ public final class BoardScreen extends ModularScreen {
         body.child(
             canvas.heightRel(1f)
                 .expanded());
+        library.view.heightRel(1f)
+            .expanded()
+            .setEnabled(false);
+        body.child(library.view);
         column.child(body);
         panel.child(column);
         final NoticeBar notices = new NoticeBar(session, canvas)
@@ -147,14 +173,35 @@ public final class BoardScreen extends ModularScreen {
             .right(6)
             .top(TOP_BAR + 4);
         panel.child(notices);
-        panel.child(new SelectionBar(session, canvas, notices));
-        return new BoardScreen(panel, session, canvas);
+        final SelectionBar selectionBar = new SelectionBar(session, canvas, notices);
+        panel.child(selectionBar);
+        library.body = body;
+        library.board = List.of(rail, canvas, notices, selectionBar);
+        return new BoardScreen(panel, session, canvas, library);
+    }
+
+    /** Swaps the board (the overview, the canvas and the bars over it) for the library, and back. */
+    private static final class LibraryDoor {
+
+        LibraryView view;
+        Flow body;
+        List<com.cleanroommc.modularui.widget.Widget<?>> board = List.of();
+        boolean open;
+
+        void set(final boolean open) {
+            if (open == this.open) return;
+            this.open = open;
+            view.setEnabled(open);
+            for (final com.cleanroommc.modularui.widget.Widget<?> w : board) w.setEnabled(!open);
+            if (open) view.opened();
+            body.scheduleResize();
+        }
     }
 
     /** Every gesture on the board, in one list. */
     private static void showHelp(final ModularPanel panel) {
         final List<com.sbancuz.plannh.ui.popup.PickList.Entry> rows = new ArrayList<>();
-        final String[][] tips = { { "P over any item", "its recipes in NEI, + puts one here (Shift: uses)" },
+        final String[][] tips = { { "R or U over any item", "its recipes or uses in NEI; + puts one here" },
             { "Drag an item out of NEI", "then click the board: a drawer for it" },
             { "Click a port", "NEI: what makes an input, uses an output; + wires it in" },
             { "Drag a port", "onto a card: wire it; onto the board: a drawer" },
@@ -266,6 +313,14 @@ public final class BoardScreen extends ModularScreen {
             getContext().removeFocus();
             popup.closeIfOpen();
             return true;
+        }
+        // The library: Esc closes its pane, then the library; the board's keys wait until it is closed.
+        if (library.open) {
+            if (keyCode == org.lwjgl.input.Keyboard.KEY_ESCAPE && !textFocused(this)) {
+                if (!library.view.escape()) library.set(false);
+                return true;
+            }
+            return super.onKeyPressed(typedChar, keyCode);
         }
         if (!textFocused(this)) {
             // Delete or Backspace removes the selection; Esc clears it (and only closes the planner when nothing is

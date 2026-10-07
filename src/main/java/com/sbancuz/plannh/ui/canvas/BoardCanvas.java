@@ -84,6 +84,10 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         boolean rebuild = builtStructure != session.structure();
         for (final RecipeCard card : cards.values()) rebuild |= card.shapeChanged();
         if (rebuild) rebuildCards();
+        if (frameAllPending && (!cards.isEmpty() || !drawers.isEmpty())) {
+            frameAllPending = false;
+            frameAll();
+        }
         final UUID added = session.takeJustAdded();
         final boolean focus = session.takeFocusAdded();
         if (added != null) {
@@ -846,6 +850,13 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     }
 
     /** Frames every card and drawer on the board. */
+    /** Frames the whole plan once its cards exist: a plan just opened from the library. */
+    public void frameAllWhenBuilt() {
+        frameAllPending = true;
+    }
+
+    private boolean frameAllPending;
+
     public void frameAll() {
         final List<UUID> ids = new ArrayList<>(cards.keySet());
         ids.addAll(drawers.keySet());

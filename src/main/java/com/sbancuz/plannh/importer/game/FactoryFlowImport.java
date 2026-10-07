@@ -54,6 +54,29 @@ public final class FactoryFlowImport {
         return result;
     }
 
+    /** The game's stack for a Factory Flow item id ({@code gregtech:gt.metaitem.01@2377}), or null. */
+    @javax.annotation.Nullable
+    public static net.minecraft.item.ItemStack item(final String ffId) {
+        return GameIds.stackOf(ffId);
+    }
+
+    /** The game's fluid for a Factory Flow fluid id (the registry name, lower case), or null. */
+    @javax.annotation.Nullable
+    public static net.minecraftforge.fluids.FluidStack fluid(final String ffId) {
+        final net.minecraftforge.fluids.Fluid f = net.minecraftforge.fluids.FluidRegistry.getFluid(ffId);
+        return f == null ? null : new net.minecraftforge.fluids.FluidStack(f, 1000);
+    }
+
+    /** A stack's Factory Flow id, as the website writes it ({@code gregtech:gt.metaitem.01@2377}). */
+    public static String idOf(final net.minecraft.item.ItemStack stack) {
+        return GameIds.itemId(stack);
+    }
+
+    /** A fluid's Factory Flow id. */
+    public static String idOf(final net.minecraftforge.fluids.FluidStack fluid) {
+        return GameIds.fluidId(fluid);
+    }
+
     /** Adds a graph as a new plan slot (its name made unique among the slots), switches to it and saves. */
     public static void addAsSlot(final Graph graph) {
         final Plan plan = Plan.getInstance();

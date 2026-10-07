@@ -470,6 +470,10 @@ final class OverviewRail extends ParentWidget<OverviewRail>
             session.setDrawerRate(((DrawerModel) hit.data()).drawer, 0);
             return Result.SUCCESS;
         }
+        if (mouseButton == 1 && hit.kind() == Kind.RESOURCE) {
+            session.showSetupsMaking((BoardSession.TotalLine) hit.data());
+            return Result.SUCCESS;
+        }
         if (mouseButton != 0 && hit.kind() != Kind.RULE) return Result.SUCCESS;
         final int sx = getArea().x + hit.x0(), sy = getArea().y + hit.y1() + 2;
         switch (hit.kind()) {
@@ -589,6 +593,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
                     line.label(),
                     hint + Fmt.rate(line.amount(), unit, line.isFluid()),
                     hint + "Double-click: show the cards that make or use it",
+                    hint + "Right-click: public setups that make it",
                     hint + "R, U: its recipes and uses in NEI");
             }
             case RULE -> List.of("Rule", hint + "Click: pick  Right click: previous  Wheel: step  Middle click: clear");

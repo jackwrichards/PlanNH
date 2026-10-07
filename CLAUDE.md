@@ -42,6 +42,10 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   with the new card centred and selected (`BoardSession.addAndFocus`). Shift-click skips both menus. The machine pick is
   remembered per tab (`MachinePicks`, `config/plannh-machine-picks.properties`) and NEI's + uses it too.
   `call 'nei?item=<key>&planner=0&tab=<name>'` opens a recipe page from the inventory.
+- The Library (top bar, the + tab menu, or right-click on an overview row: setups that make it) is Factory Flow's
+  public setups from gtnhplanner.com's anonymous API (`library/CommunityApi`, `LibraryFeed`; `ui/library/LibraryView`),
+  opened through the importer as a new plan. `-Dplannh.library.url` points it at another copy of the site. Signing
+  in and posting (the website's username and password accounts) are not built yet.
 - Multiblock pictures in `assets/plannh/textures/structures/` are Factory Flow's renders (`public/power-art`: the
   owner's processing multiblocks and the Power Planner workbook's power plants), scaled to 320 px palette PNGs with
   transparency. `ui/card/StructureArt` maps in-game machine names to them; `call 'gtmachines?art=1'` checks coverage.
