@@ -13,6 +13,12 @@ import com.cleanroommc.modularui.drawable.GuiDraw;
  */
 public final class Hyb {
 
+    /**
+     * The type scale: labels and body text at 1x, figures (power, machine count, drawer rates) at 1.5x. At GUI scale 2
+     * both land on whole screen pixels, so the game font stays crisp; 2x reads as shouting next to 1x.
+     */
+    public static final float FIGURE = 1.5f;
+
     // Factory Flow card ramp (globals.css tokens, resolved).
     public static final int INK = 0xFFE8E9EE;
     public static final int MUTED = 0xFF9A9CA4;
@@ -128,6 +134,57 @@ public final class Hyb {
         rect(x + 1, y + 1, w - 2, h - 2, TILE);
         rect(x + 1, y + 1, w - 2, 1, TILE_HI);
         rect(x + 1, y + 1, 1, h - 2, TILE_HI);
+    }
+
+    /** A whole texture (a bundled PNG) drawn into a rectangle, untinted. */
+    public static void texture(final net.minecraft.util.ResourceLocation loc, final float x, final float y,
+        final float w, final float h) {
+        net.minecraft.client.Minecraft.getMinecraft()
+            .getTextureManager()
+            .bindTexture(loc);
+        org.lwjgl.opengl.GL11.glEnable(org.lwjgl.opengl.GL11.GL_TEXTURE_2D);
+        org.lwjgl.opengl.GL11.glEnable(org.lwjgl.opengl.GL11.GL_BLEND);
+        net.minecraft.client.renderer.OpenGlHelper.glBlendFunc(770, 771, 1, 0);
+        org.lwjgl.opengl.GL11.glColor4f(1, 1, 1, 1);
+        final net.minecraft.client.renderer.Tessellator t = net.minecraft.client.renderer.Tessellator.instance;
+        t.startDrawingQuads();
+        t.addVertexWithUV(x, y + h, 0, 0, 1);
+        t.addVertexWithUV(x + w, y + h, 0, 1, 1);
+        t.addVertexWithUV(x + w, y, 0, 1, 0);
+        t.addVertexWithUV(x, y, 0, 0, 0);
+        t.draw();
+    }
+
+    /** A filled triangle in the current (possibly zoomed) space. */
+    public static void triangle(final float x1, final float y1, final float x2, final float y2, final float x3,
+        final float y3, final int argb) {
+        // Through ModularUI's own drawing path, so it lands at the same depth and GL state as its rectangles.
+        final int a = argb >>> 24, r = argb >> 16 & 0xFF, g = argb >> 8 & 0xFF, b = argb & 0xFF;
+        com.cleanroommc.modularui.utils.Platform.setupDrawColor();
+        com.cleanroommc.modularui.utils.Platform.startDrawing(
+            com.cleanroommc.modularui.utils.Platform.DrawMode.TRIANGLES,
+            com.cleanroommc.modularui.utils.Platform.VertexFormat.POS_COLOR,
+            buf -> {
+                buf.pos(x1, y1, 0)
+                    .color(r, g, b, a)
+                    .endVertex();
+                buf.pos(x2, y2, 0)
+                    .color(r, g, b, a)
+                    .endVertex();
+                buf.pos(x3, y3, 0)
+                    .color(r, g, b, a)
+                    .endVertex();
+                // And the other winding, so face culling cannot drop it whichever way it points.
+                buf.pos(x1, y1, 0)
+                    .color(r, g, b, a)
+                    .endVertex();
+                buf.pos(x3, y3, 0)
+                    .color(r, g, b, a)
+                    .endVertex();
+                buf.pos(x2, y2, 0)
+                    .color(r, g, b, a)
+                    .endVertex();
+            });
     }
 
     /** A dashed rectangle outline, 2 px on and 2 px off. */

@@ -41,7 +41,6 @@ final class WireLayer {
         int color, float width, double perSecond, List<int[]> path, String resource) {}
 
     private static final ArrowRouter ROUTER = new ArrowRouter(6, 12);
-    private static final int CHEVRON_EVERY = 64;
 
     private final BoardSession session;
     private List<Wire> wires = List.of();
@@ -96,21 +95,10 @@ final class WireLayer {
                 new ArrowRouter.Request(
                     e.id,
                     src.x + CardLayout.W,
-                    src.y + CardLayout.anchorY(e.sourceOutputIndex),
+                    src.y + anchorY(cards, src, true, e.sourceOutputIndex),
                     dst.x,
-                    dst.y + CardLayout.anchorY(e.targetInputIndex)));
-            pending.add(
-                new Wire(
-                    e.id,
-                    Kind.EDGE,
-                    e,
-                    null,
-                    null,
-                    colorOf(port),
-                    width(flow, port),
-                    flow,
-                    null,
-                    Resources.key(port)));
+                    dst.y + anchorY(cards, dst, false, e.targetInputIndex)));
+            pending.add(new Wire(e.id, Kind.EDGE, e, null, null, colorOf(port), 0, flow, null, Resources.key(port)));
         }
         for (final Drawer d : graph.getDrawers()) {
             final boolean source = d.getKind()
@@ -123,7 +111,7 @@ final class WireLayer {
                 final Port<?> port = ports.get(link.portIndex());
                 final UUID key = UUID.nameUUIDFromBytes(
                     (d.getId() + ":" + link.nodeId() + ":" + link.portIndex()).getBytes(StandardCharsets.UTF_8));
-                final int portY = n.y + CardLayout.anchorY(link.portIndex());
+                final int portY = n.y + anchorY(cards, n, !source, link.portIndex());
                 if (source) {
                     requests.add(
                         new ArrowRouter.Request(
@@ -142,18 +130,7 @@ final class WireLayer {
                             d.getY() + DrawerCard.ANCHOR_Y));
                 }
                 final double flow = linkFlow(result, n, source, link.portIndex());
-                pending.add(
-                    new Wire(
-                        key,
-                        Kind.LINK,
-                        null,
-                        d,
-                        link,
-                        colorOf(port),
-                        width(flow, port),
-                        flow,
-                        null,
-                        Resources.key(port)));
+                pending.add(new Wire(key, Kind.LINK, null, d, link, colorOf(port), 0, flow, null, Resources.key(port)));
             }
         }
 
@@ -176,7 +153,15 @@ final class WireLayer {
                     path,
                     w.resource()));
         }
-        return built;
+        return withWidths(built);
+    }
+
+    /** A port's anchor on its card, from the card's own layout (rows grow when a name takes two lines). */
+    private static int anchorY(final Map<UUID, RecipeCard> cards, final Node n, final boolean output, final int port) {
+        final RecipeCard card = cards.get(n.id);
+        return card == null || card.layout() == null ? CardLayout.RAILS_Y + 10
+            : card.layout()
+                .anchorY(output, port);
     }
 
     private static List<int[]> elbow(final ArrowRouter.Request r) {
@@ -208,25 +193,54 @@ final class WireLayer {
         return input ? b.inputPerSecond(port) : b.outputPerSecond(port);
     }
 
-    /** The resource's colour, lifted toward grey when it is too dark to see on the board. */
+    /**
+     * The resource's colour made to read on the dark board, as Factory Flow does: more saturated and a little
+     * brighter; near-black resources (carbon) come out a mid grey.
+     */
     private static int colorOf(final Port<?> port) {
         final int c = port.getArrowColor();
-        int r = c >> 16 & 0xFF, g = c >> 8 & 0xFF, b = c & 0xFF;
-        final double luma = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-        if (luma < 0.4) {
-            final double t = (0.4 - luma) / 0.4 * 0.6;
-            r = (int) (r + (0xB0 - r) * t);
-            g = (int) (g + (0xB2 - g) * t);
-            b = (int) (b + (0xB8 - b) * t);
-        }
-        return 0xFF000000 | r << 16 | g << 8 | b;
+        final float[] hsb = java.awt.Color.RGBtoHSB(c >> 16 & 0xFF, c >> 8 & 0xFF, c & 0xFF, null);
+        final float s = Math.min(1, hsb[1] * 1.3f + 0.05f);
+        final float b = Math.min(1, Math.max(0.55f, hsb[2] * 0.85f + 0.2f));
+        return 0xFF000000 | java.awt.Color.HSBtoRGB(hsb[0], s, b) & 0xFFFFFF;
     }
 
-    /** 1 px when nothing flows, then thicker with the logarithm of the flow; fluids count per 1000 L. */
-    private static float width(final double perSecond, final Port<?> port) {
-        if (!(perSecond > 0)) return 1;
-        final double units = Resources.isFluid(Resources.key(port)) ? perSecond / 1000 : perSecond;
-        return (float) Math.min(6, 2 + Math.log10(1 + units * 20));
+    /**
+     * Wire widths by how much each carries against the others of its kind (items and fluids ranged apart), as
+     * Factory Flow does: heat = 0.62 x rank + 0.38 x log share, then 3 px (least) to 12 px (most).
+     */
+    private static List<Wire> withWidths(final List<Wire> wires) {
+        final java.util.Map<Wire, Float> width = new java.util.IdentityHashMap<>();
+        for (final boolean fluids : new boolean[] { false, true }) {
+            final List<Wire> kind = new ArrayList<>();
+            for (final Wire w : wires) if (w.perSecond() > 0 && Resources.isFluid(w.resource()) == fluids) kind.add(w);
+            kind.sort(java.util.Comparator.comparingDouble(Wire::perSecond));
+            final double max = kind.isEmpty() ? 0
+                : kind.get(kind.size() - 1)
+                    .perSecond();
+            for (int i = 0; i < kind.size(); i++) {
+                final double rank = kind.size() == 1 ? 1 : (double) i / (kind.size() - 1);
+                final double share = Math.log1p(
+                    kind.get(i)
+                        .perSecond())
+                    / Math.log1p(max);
+                width.put(kind.get(i), (float) (3 + 9 * (0.62 * rank + 0.38 * share)));
+            }
+        }
+        final List<Wire> out = new ArrayList<>(wires.size());
+        for (final Wire w : wires) out.add(
+            new Wire(
+                w.key(),
+                w.kind(),
+                w.edge(),
+                w.drawer(),
+                w.link(),
+                w.color(),
+                width.getOrDefault(w, 2f),
+                w.perSecond(),
+                w.path(),
+                w.resource()));
+        return out;
     }
 
     // region Drawing
@@ -243,34 +257,100 @@ final class WireLayer {
         for (final Wire w : wires) drawWire(w.path(), w.color(), w.width(), w.perSecond() > 0);
     }
 
+    /**
+     * One wire, Factory Flow style: a dark casing, the core in the resource's colour, and filled arrowheads, one near
+     * the start, one every {@value #ARROW_EVERY} along the run and one just short of the end, never folded over a
+     * corner. A wire that carries nothing is dotted.
+     */
     static void drawWire(final List<int[]> path, final int color, final float width, final boolean flowing) {
-        final int under = 0xA0101114;
-        for (int i = 1; i < path.size(); i++) segment(path.get(i - 1), path.get(i), width + 2, under);
-        final int fill = flowing ? color : (color & 0x00FFFFFF) | 0x80000000;
-        for (int i = 1; i < path.size(); i++) segment(path.get(i - 1), path.get(i), width, fill);
         if (path.size() < 2) return;
-        final int dark = darker(fill);
+        if (!flowing) {
+            dotted(path, color, width);
+            return;
+        }
+        final float casing = width + Math.max(2, 0.22f * width);
+        for (int i = 1; i < path.size(); i++) segment(path.get(i - 1), path.get(i), casing, CASING);
+        for (int i = 1; i < path.size(); i++) segment(path.get(i - 1), path.get(i), width, color);
+        arrows(path, color, width);
+    }
+
+    private static final int CASING = 0xB8111827;
+    private static final int ARROW_EVERY = 160;
+
+    /** Dots along the run, for a wire nothing flows through yet. */
+    private static void dotted(final List<int[]> path, final int color, final float width) {
+        final float size = Math.max(2, width);
+        final float step = Math.max(8, 2.5f * width);
+        final float total = length(path);
+        for (float d = 0; d <= total; d += step) {
+            final float[] p = pointAt(path, d);
+            Hyb.rect(p[0] - size / 2 - 0.5f, p[1] - size / 2 - 0.5f, size + 1, size + 1, CASING);
+            Hyb.rect(p[0] - size / 2, p[1] - size / 2, size, size, color);
+        }
+    }
+
+    private static float length(final List<int[]> path) {
+        float total = 0;
+        for (int i = 1; i < path.size(); i++)
+            total += Math.abs(path.get(i)[0] - path.get(i - 1)[0]) + Math.abs(path.get(i)[1] - path.get(i - 1)[1]);
+        return total;
+    }
+
+    /** The point {@code d} along the path, and the direction of the segment it lies on. */
+    private static float[] pointAt(final List<int[]> path, final float d) {
+        float at = 0;
         for (int i = 1; i < path.size(); i++) {
             final int[] a = path.get(i - 1), b = path.get(i);
-            final int len = Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1]);
-            if (len < CHEVRON_EVERY) continue;
-            final int dx = Integer.signum(b[0] - a[0]), dy = Integer.signum(b[1] - a[1]);
-            for (int at = CHEVRON_EVERY / 2; at < len - 16; at += CHEVRON_EVERY) {
-                arrow(a[0] + dx * at, a[1] + dy * at, dx, dy, Math.max(3, width + 1), dark);
+            final float len = Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1]);
+            if (at + len >= d || i == path.size() - 1) {
+                final float t = len == 0 ? 0 : Math.min(1, (d - at) / len);
+                return new float[] { a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, Integer.signum(b[0] - a[0]),
+                    Integer.signum(b[1] - a[1]), at, at + len };
             }
+            at += len;
         }
-        final int[] end = path.get(path.size() - 1), before = path.get(path.size() - 2);
-        arrow(
-            end[0],
-            end[1],
-            Integer.signum(end[0] - before[0]),
-            Integer.signum(end[1] - before[1]),
-            Math.max(4, width + 2),
-            fill);
+        final int[] last = path.get(path.size() - 1);
+        return new float[] { last[0], last[1], 1, 0, 0, 0 };
+    }
+
+    private static void arrows(final List<int[]> path, final int color, final float width) {
+        final float len = Math.max(8, Math.min(16, 2.2f * width));
+        final float half = Math.max(4, Math.min(8, width));
+        final float total = length(path);
+        final List<Float> tips = new ArrayList<>();
+        if (total < 2 * (len + 10) + 20) tips.add(total / 2 + len / 2);
+        else {
+            for (float d = 10 + len; d < total - 10 - len; d += ARROW_EVERY) tips.add(d);
+            tips.add(total - 10);
+        }
+        final int fill = brighter(color, 0.55f), outline = darker(color);
+        for (final float tip : tips) {
+            final float[] p = pointAt(path, tip);
+            // Keep the whole head on one straight segment: slide it off a corner rather than fold it.
+            final float segStart = p[4];
+            final float[] q = tip - len < segStart ? pointAt(path, Math.min(segStart + len, p[5])) : p;
+            if (q[5] - q[4] < len) continue;
+            head(q[0], q[1], q[2], q[3], len + 1.5f, half + 1.5f, outline);
+            head(q[0] - q[2], q[1] - q[3], q[2], q[3], len, half, fill);
+        }
+    }
+
+    /** A filled triangle with its tip at (x, y), pointing along (dx, dy). */
+    private static void head(final float x, final float y, final float dx, final float dy, final float len,
+        final float half, final int color) {
+        final float bx = x - dx * len, by = y - dy * len;
+        Hyb.triangle(x, y, bx - dy * half, by + dx * half, bx + dy * half, by - dx * half, color);
+    }
+
+    private static int brighter(final int argb, final float amount) {
+        final int r = argb >> 16 & 0xFF, g = argb >> 8 & 0xFF, b = argb & 0xFF;
+        return argb & 0xFF000000 | (int) (r + (255 - r) * amount) << 16
+            | (int) (g + (255 - g) * amount) << 8
+            | (int) (b + (255 - b) * amount);
     }
 
     private static int darker(final int argb) {
-        final int r = (argb >> 16 & 0xFF) * 3 / 5, g = (argb >> 8 & 0xFF) * 3 / 5, b = (argb & 0xFF) * 3 / 5;
+        final int r = (argb >> 16 & 0xFF) * 2 / 5, g = (argb >> 8 & 0xFF) * 2 / 5, b = (argb & 0xFF) * 2 / 5;
         return argb & 0xFF000000 | r << 16 | g << 8 | b;
     }
 
@@ -286,16 +366,6 @@ final class WireLayer {
             // Not orthogonal (the router never does this, a fallback might): draw it as an elbow.
             segment(a, new int[] { b[0], a[1] }, width, color);
             segment(new int[] { b[0], a[1] }, b, width, color);
-        }
-    }
-
-    /** A filled arrowhead with its tip at (x, y), pointing along (dx, dy), {@code size} long. */
-    private static void arrow(final int x, final int y, final int dx, final int dy, final float size, final int color) {
-        final int len = Math.round(size * 1.5f);
-        for (int k = 0; k < len; k++) {
-            final float half = (len - k) * size / (2f * len) + 0.5f;
-            if (dx != 0) Hyb.rect(x - dx * (len - k), y - half, 1, half * 2, color);
-            else Hyb.rect(x - half, y - dy * (len - k), half * 2, 1, color);
         }
     }
 

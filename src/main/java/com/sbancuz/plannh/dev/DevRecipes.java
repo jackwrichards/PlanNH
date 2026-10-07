@@ -89,6 +89,76 @@ final class DevRecipes {
         return m;
     }
 
+    /**
+     * What NEI and PlanNH see in the first matching recipe, without touching the plan: NEI's ingredient, result and
+     * other stacks (registry name, meta, size), the catalysts, and the ports a node built from it would have.
+     */
+    static Map<String, Object> recipeInfo(final String output, final String handlerFilter, final String inputFilter) {
+        final ItemStack stack = resolveStack(output);
+        if (stack == null) throw new IllegalArgumentException("no item for '" + output + "'");
+        final String hf = handlerFilter.toLowerCase(Locale.ROOT);
+        final String inf = inputFilter.toLowerCase(Locale.ROOT);
+        for (final ICraftingHandler handler : GuiCraftingRecipe.getCraftingHandlers("item", stack)) {
+            if (!handler.getRecipeName()
+                .toLowerCase(Locale.ROOT)
+                .contains(hf)) continue;
+            for (int i = 0; i < handler.numRecipes(); i++) {
+                if (!inf.isEmpty() && !hasIngredient(handler, i, inf)) continue;
+                final Map<String, Object> m = new LinkedHashMap<>();
+                m.put(
+                    "handler",
+                    handler.getRecipeName()
+                        .trim());
+                m.put(
+                    "handlerClass",
+                    handler.getClass()
+                        .getName());
+                m.put("recipeIndex", i);
+                m.put("ingredients", describe(handler.getIngredientStacks(i)));
+                m.put(
+                    "result",
+                    describe(handler.getResultStack(i) == null ? List.of() : List.of(handler.getResultStack(i))));
+                m.put("others", describe(handler.getOtherStacks(i)));
+                m.put("catalysts", describe(codechicken.nei.recipe.RecipeCatalysts.getRecipeCatalysts(handler)));
+                final Node node = new Node(handler, i, 0, 0);
+                final List<String> ports = new ArrayList<>();
+                node.inputs.forEach(
+                    p -> ports.add("in  " + p.getDisplayName() + " x" + p.getAmount() + " chance " + p.getChance()));
+                node.outputs.forEach(
+                    p -> ports.add("out " + p.getDisplayName() + " x" + p.getAmount() + " chance " + p.getChance()));
+                m.put("ports", ports);
+                final List<String> props = new ArrayList<>();
+                node.properties.forEach((k, v) -> props.add(k + " = " + v));
+                m.put("properties", props);
+                return m;
+            }
+        }
+        throw new IllegalArgumentException("no matching recipe");
+    }
+
+    private static List<String> describe(final List<PositionedStack> stacks) {
+        final List<String> out = new ArrayList<>();
+        if (stacks == null) return out;
+        for (final PositionedStack ps : stacks) {
+            if (ps == null) continue;
+            final ItemStack s = ps.item;
+            out.add(
+                s == null ? "(empty)"
+                    : Item.itemRegistry.getNameForObject(s.getItem()) + ":"
+                        + s.getItemDamage()
+                        + " x"
+                        + s.stackSize
+                        + " '"
+                        + s.getDisplayName()
+                        + "' at "
+                        + ps.relx
+                        + ","
+                        + ps.rely
+                        + (ps.items.length > 1 ? " (+" + (ps.items.length - 1) + " alts)" : ""));
+        }
+        return out;
+    }
+
     private static boolean hasIngredient(final ICraftingHandler handler, final int recipe, final String filter) {
         for (final PositionedStack ps : handler.getIngredientStacks(recipe)) {
             for (final ItemStack s : ps.items) {

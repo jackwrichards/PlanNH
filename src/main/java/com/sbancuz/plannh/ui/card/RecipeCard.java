@@ -104,6 +104,9 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             layout = nextLayout;
             size(CardLayout.W, layout.height);
             scheduleResize();
+            for (final com.cleanroommc.modularui.api.widget.IWidget child : getChildren()) {
+                if (child instanceof final PortSlot slot) slot.place(layout);
+            }
         } else {
             layout = nextLayout;
         }
@@ -217,7 +220,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         }
         final Part hover = isHovering() ? partAt(localX(), localY()) : null;
         Hyb.cardFrame(0, 0, CardLayout.W, layout.height);
-        if (tierTooLow(m)) {
+        if (m.tierTooLow()) {
             // Can't run: the tier is below the recipe's. Red ring outside the card; the POWER tile says TIER!.
             Hyb.rect(-2, -2, CardLayout.W + 4, 2, Hyb.RED_INK);
             Hyb.rect(-2, layout.height, CardLayout.W + 4, 2, Hyb.RED_INK);
@@ -250,7 +253,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final Hyb.Tier tier = Hyb.tier(m.tier);
         if (m.gregtech) Hyb.text(tier.name(), tx, 36, 2f, tier.bg());
         final String count = "x" + Fmt.machines(m.machines);
-        Hyb.text(count, tx, h - 70, 4f, m.pinned ? Hyb.GOLD : m.machines <= 0 ? Hyb.MUTED : Hyb.INK);
+        Hyb.text(count, tx, h - 60, 3f, m.pinned ? Hyb.GOLD : m.machines <= 0 ? Hyb.MUTED : Hyb.INK);
         Hyb.text(Fmt.power(session.power(m)) + " EU/t", tx, h - 28, 2f, Hyb.MUTED);
     }
 
@@ -315,20 +318,24 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     private void drawRail(final List<CardModel.PortView> ports, final boolean output, final float z) {
         final int x = CardLayout.railX(output);
         final Fmt.RateUnit unit = session.rateUnit();
+        final PortSlot hoveredSlot = getContext().getHovered() instanceof final PortSlot s && s.card() == this ? s : null;
         for (final CardModel.PortView p : ports) {
-            final int y = CardLayout.portRowY(p.index());
+            final int y = layout.rowY(output, p.index());
+            // The whole row is the handle; show it.
+            if (hoveredSlot != null && hoveredSlot.output == output && hoveredSlot.index == p.index())
+                Hyb.rect(x - 1, y - 1, CardLayout.RAIL_W + 1, layout.rowH(output, p.index()) + 2, 0x18FFFFFF);
             Hyb.slot(x, y + 1, p.isFluid());
             if (!p.wired()) Hyb.dashed(x - 2, y - 1, 22, 22, Hyb.AMBER_INK);
             if (p.key()
                 .equals(session.hoverKey())) glow(x, y + 1);
             if (p.isFluid()) Hyb.fluid(p.fluid(), x + 1, y + 2, 16, z);
             else Hyb.item(p.item(), x + 1, y + 2, 16, z);
-            final int textX = x + 21;
-            final int room = CardLayout.RAIL_W - 21;
-            Hyb.text(Hyb.fit(p.name(), room), textX, y + 2, Hyb.INK);
+            final int textX = x + CardLayout.TEXT_X;
+            final List<String> name = layout.nameLines(output, p.index());
+            for (int line = 0; line < name.size(); line++) Hyb.text(name.get(line), textX, y + 2 + line * 9, Hyb.INK);
             String rate = Fmt.rate(p.perSecond(), unit, p.isFluid());
-            if (p.chance() < 0.9999f) rate += " " + Fmt.compact(p.chance() * 100) + "%";
-            Hyb.text(Hyb.fit(rate, room), textX, y + 11, Hyb.MUTED);
+            if (p.chance() < 0.9999f) rate += " 00b7 " + Fmt.compact(p.chance() * 100) + "%";
+            Hyb.text(Hyb.fit(rate, CardLayout.TEXT_W), textX, y + 2 + name.size() * 9, Hyb.MUTED);
         }
     }
 
@@ -343,6 +350,13 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     private void drawPicture(final CardModel m, final float z) {
         final int x = CardLayout.PICTURE_X, y = CardLayout.RAILS_Y, w = CardLayout.PICTURE_W, h = layout.railsH;
         Hyb.well(x, y, w, h, Hyb.PICTURE, Hyb.SHADOW, Hyb.TILE_EDGE);
+        // A multiblock with a bundled render shows the whole structure; anything else its machine block.
+        final net.minecraft.util.ResourceLocation art = StructureArt.forMachine(m.machineName);
+        if (art != null) {
+            final int size = Math.min(w, h) - 4;
+            Hyb.texture(art, x + (w - size) / 2f, y + (h - size) / 2f, size, size);
+            return;
+        }
         if (m.machineStack != null) Hyb.item(m.machineStack, x + (w - 64) / 2f, y + (h - 64) / 2f, 64, z);
     }
 
@@ -371,14 +385,14 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
         Hyb.tile(x, y, 150, CardLayout.FOOT);
         Hyb.text("POWER", x + 4, y + 3, Hyb.MUTED);
-        final boolean tooLow = tierTooLow(m);
+        final boolean tooLow = m.tierTooLow();
         final double eu = session.power(m);
         final int tierIdx = CardDefaults.tierIndex(m.tier);
         final boolean amps = session.powerKey() == BoardSession.PowerKey.AMPS && m.gregtech && tierIdx >= 0;
         final String power = tooLow ? "TIER!" : amps ? Fmt.compact(eu / (8L << (2 * tierIdx))) : Fmt.power(eu);
         final String unit = amps ? "A " + m.tier : "EU/t";
-        Hyb.text(power, x + 4, y + 13, 2f, tooLow ? Hyb.RED_INK : Hyb.INK);
-        if (!tooLow) Hyb.text(unit, x + 6 + Hyb.width(power) * 2, y + 20, Hyb.MUTED);
+        Hyb.text(power, x + 4, y + 14, Hyb.FIGURE, tooLow ? Hyb.RED_INK : Hyb.INK);
+        if (!tooLow) Hyb.text(unit, x + 7 + Hyb.width(power) * Hyb.FIGURE, y + 18, Hyb.MUTED);
 
         if (hoverMachines) Hyb.rect(MACHINES_X, y, MACHINES_W, CardLayout.FOOT, Hyb.TILE_HI);
         else Hyb.tile(MACHINES_X, y, MACHINES_W, CardLayout.FOOT);
@@ -386,27 +400,23 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         if (m.parallels > 1) Hyb.textRight("PARALLEL x" + m.parallels, MACHINES_X + MACHINES_W - 4, y + 3, Hyb.MUTED);
         final String count = "x" + Fmt.machines(m.machines);
         final int color = m.pinned ? Hyb.GOLD : m.machines <= 0 ? Hyb.MUTED : Hyb.INK;
-        Hyb.text(count, MACHINES_X + 4, y + 13, 2f, color);
-        final int cw = Hyb.width(count) * 2;
-        for (int dx = 0; dx < cw; dx += 3) Hyb.rect(MACHINES_X + 4 + dx, y + 29, 1, 1, Hyb.MUTED);
-        for (int i = 0; i < 6; i++) Hyb.rect(MACHINES_X + 8 + cw + i, y + 24 - i, 2, 2, Hyb.MUTED);
+        Hyb.text(count, MACHINES_X + 4, y + 14, Hyb.FIGURE, color);
+        final int cw = Math.round(Hyb.width(count) * Hyb.FIGURE);
+        for (int dx = 0; dx < cw; dx += 3) Hyb.rect(MACHINES_X + 4 + dx, y + 27, 1, 1, Hyb.MUTED);
+        for (int i = 0; i < 5; i++) Hyb.rect(MACHINES_X + 8 + cw + i, y + 24 - i, 2, 2, Hyb.MUTED);
 
         final int cx = CardLayout.W - CardLayout.PAD - 30;
         if (m.circuit != null) {
             Hyb.tile(cx, y, 30, CardLayout.FOOT);
-            Hyb.item(m.circuit, cx + 7, y + 7, 16, z);
+            Hyb.item(m.circuit, cx + 7, y + 5, 16, z);
+            // Every programmed circuit looks alike; its number is what matters.
+            Hyb.textRight(Integer.toString(m.circuit.getItemDamage()), cx + 27, y + 19, Hyb.INK);
         } else {
             Hyb.well(cx, y, 30, CardLayout.FOOT, Hyb.TILE_EDGE, Hyb.SHADOW, 0xFF2A2C31);
         }
     }
 
     /** A GregTech recipe set below its own tier cannot run. */
-    private static boolean tierTooLow(final CardModel m) {
-        if (!m.gregtech || !(m.node.properties.get(GTProvider.EU_PER_TICK) instanceof final Number eut)) return false;
-        final int t = CardDefaults.tierIndex(m.tier);
-        return t >= 0 && eut.longValue() > (8L << (2 * t)) * (m.multiblock ? Math.max(1, m.amps) : 1);
-    }
-
     /** Tooltip lines for the part under the mouse, Factory Flow style: what it is, then what the mouse does. */
     public List<String> hoverLines() {
         if (model == null || !isHovering()) return null;

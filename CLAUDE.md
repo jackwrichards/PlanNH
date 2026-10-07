@@ -22,9 +22,12 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   and drawers with NEI parts, what every control does, what we keep from the engine, and the porting order.
 - Mockups live on the design canvas linked from that file (row 4, "Hybrid", is the chosen direction).
 - All six porting steps are on `main` (2026-10-06) and the old `gui/` package is gone. `ui/` map: `BoardScreen`
-  (top bar, notices, totals rail), `BoardSession` (the open plan: every edit, undo, slots, solve hookup, notices,
-  totals), `canvas/` (board, wires, port drags, arrange), `card/` (recipe card), `drawer/`, `popup/` (menus, number
-  and text boxes, the recipe picker). Known gaps and next steps are at the top of `docs/design/build-prompt.md`.
+  (top bar, notices), `OverviewRail` (the overview on the left), `BoardSession` (the open plan: every edit, undo,
+  slots, solve hookup, notices, totals), `canvas/` (board, wires, port drags, arrange), `card/` (recipe card),
+  `drawer/`, `popup/` (menus, number and text boxes, the recipe picker). Known gaps and next steps are at the top of
+  `docs/design/build-prompt.md`.
+- Multiblock pictures in `assets/plannh/textures/structures/` are the owner's renders from Factory Flow
+  (`public/power-art`), scaled to 320 px RGBA; `ui/card/StructureArt` maps machine names to them.
 
 ## Build and test
 

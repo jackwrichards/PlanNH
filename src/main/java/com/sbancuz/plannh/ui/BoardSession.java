@@ -2,6 +2,7 @@ package com.sbancuz.plannh.ui;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -111,7 +112,14 @@ public final class BoardSession {
 
     /** The resource under the mouse (a port, drawer or wire), so everything carrying it can glow; null for none. */
     public String hoverKey() {
-        return hoverKey;
+        return railHoverKey != null ? railHoverKey : hoverKey;
+    }
+
+    private String railHoverKey;
+
+    /** The resource under the mouse in the overview rail; it wins over the board's while set. */
+    public void setRailHoverKey(final String key) {
+        railHoverKey = key == null || key.isEmpty() ? null : key;
     }
 
     public void setHoverKey(final String key) {
@@ -457,7 +465,7 @@ public final class BoardSession {
     /** Rough card height from its port count, for placement before the card has been drawn. */
     private static int estimatedHeight(final Node node) {
         final int rows = Math.max(1, Math.max(node.inputs.size(), node.outputs.size()));
-        return CardLayout.RAILS_Y + Math.max(rows * CardLayout.ROW_STEP, CardLayout.PICTURE_MIN) + 70;
+        return CardLayout.RAILS_Y + Math.max(rows * (CardLayout.ROW + CardLayout.ROW_GAP), CardLayout.PICTURE_MIN) + 70;
     }
 
     private boolean overlapsAnything(final Node node) {
@@ -765,14 +773,27 @@ public final class BoardSession {
 
     // region Totals
 
-    /** One line of the totals rail: a resource (or machine) and its rate (or count). */
+    /** One resource line of the overview: what it is and its rate (per second). */
     public record TotalLine(String key, String label, ItemStack item, net.minecraftforge.fluids.FluidStack fluid,
-        double amount) {}
+        double amount) {
 
-    /** What the whole plan takes in and gives out, its power, and the machines to build. */
-    public record Totals(List<TotalLine> inputs, List<TotalLine> outputs, double euPerTick, List<TotalLine> machines) {
+        public boolean isFluid() {
+            return fluid != null;
+        }
+    }
 
-        static final Totals EMPTY = new Totals(List.of(), List.of(), 0, List.of());
+    /** One card in the overview's machine list. */
+    public record MachineLine(UUID nodeId, String name, ItemStack stack, double machines, boolean pinned, String tier,
+        int amps, boolean multiblock, boolean gregtech, double euPerTick, boolean tooLow) {}
+
+    /**
+     * The overview, Factory Flow's resources column: per resource what the plan needs from outside (deficit), what it
+     * gives out (surplus) and what it makes and uses itself (internal); its power; one line per card to build.
+     */
+    public record Totals(List<TotalLine> inputs, List<TotalLine> outputs, List<TotalLine> internal, double euPerTick,
+        List<MachineLine> machines) {
+
+        static final Totals EMPTY = new Totals(List.of(), List.of(), List.of(), 0, List.of());
     }
 
     private Totals totals = Totals.EMPTY;
@@ -781,58 +802,77 @@ public final class BoardSession {
         return totals;
     }
 
-    /**
-     * Sums per resource what crosses the plan's edge: sources and unwired inputs come in, products, byproducts,
-     * trash and unwired outputs go out. Machines are counted whole, per machine type.
-     */
+    /** A resource's name and icon, from the first port or drawer that holds it. */
+    private record Look(String label, ItemStack item, net.minecraftforge.fluids.FluidStack fluid) {}
+
+    /** Below this a rate (per second) is solver noise, not a flow worth a line. */
+    private static final double EPS = 1e-6;
+
     private Totals buildTotals(final Map<UUID, CardModel> cards) {
-        final Map<String, TotalLine> in = new LinkedHashMap<>(), out = new LinkedHashMap<>();
-        final Map<String, TotalLine> machines = new LinkedHashMap<>();
+        final Map<String, double[]> flow = new LinkedHashMap<>();
+        final Map<String, Look> looks = new HashMap<>();
         double eu = 0;
-        for (final DrawerModel d : drawerModels.values()) {
-            add(d.kind == Drawer.Kind.SOURCE ? in : out, d.drawer.getResourceKey(), d.label, d.item, d.fluid, d.rate);
-        }
+        final List<MachineLine> machines = new ArrayList<>();
         for (final CardModel card : cards.values()) {
-            for (final CardModel.PortView p : card.inputs) {
-                if (!p.wired())
-                    add(in, keyOfPort(card.node, false, p.index()), p.name(), p.item(), p.fluid(), p.perSecond());
-            }
             for (final CardModel.PortView p : card.outputs) {
-                if (!p.wired())
-                    add(out, keyOfPort(card.node, true, p.index()), p.name(), p.item(), p.fluid(), p.perSecond());
+                flow.computeIfAbsent(p.key(), k -> new double[2])[0] += p.perSecond();
+                looks.putIfAbsent(p.key(), new Look(p.name(), p.item(), p.fluid()));
             }
-            eu += power(card);
-            if (card.machines > 0) add(
-                machines,
-                card.machineName,
-                card.machineName,
-                card.machineStack,
-                null,
-                Math.ceil(card.machines - 1e-9));
+            for (final CardModel.PortView p : card.inputs) {
+                flow.computeIfAbsent(p.key(), k -> new double[2])[1] += p.perSecond();
+                looks.putIfAbsent(p.key(), new Look(p.name(), p.item(), p.fluid()));
+            }
+            final double power = power(card);
+            eu += power;
+            if (card.machines > 0 || card.pinned) machines.add(
+                new MachineLine(
+                    card.node.id,
+                    card.machineName,
+                    card.machineStack,
+                    card.machines,
+                    card.pinned,
+                    card.tier,
+                    card.amps,
+                    card.multiblock,
+                    card.gregtech,
+                    power,
+                    card.tierTooLow()));
         }
-        return new Totals(sorted(in.values()), sorted(out.values()), eu, sorted(machines.values()));
+        final List<TotalLine> in = new ArrayList<>(), out = new ArrayList<>(), internal = new ArrayList<>();
+        for (final Map.Entry<String, double[]> e : flow.entrySet()) {
+            final double made = e.getValue()[0], used = e.getValue()[1];
+            final Look look = looks.get(e.getKey());
+            if (used - made > EPS) in.add(line(e.getKey(), look, used - made));
+            if (made - used > EPS) out.add(line(e.getKey(), look, made - used));
+            if (Math.min(made, used) > EPS) internal.add(line(e.getKey(), look, Math.min(made, used)));
+        }
+        sortByAmount(in);
+        sortByAmount(out);
+        sortByAmount(internal);
+        // A resource with a drawer stays listed at 0, so its rule and rate can be set from here.
+        for (final DrawerModel d : drawerModels.values()) {
+            final String key = d.drawer.getResourceKey();
+            final List<TotalLine> side = d.kind == Drawer.Kind.SOURCE ? in : out;
+            if (side.stream()
+                .noneMatch(
+                    l -> l.key()
+                        .equals(key)))
+                side.add(new TotalLine(key, d.label, d.item, d.fluid, 0));
+        }
+        machines.sort(
+            java.util.Comparator.<MachineLine>comparingInt(m -> -CardDefaults.tierIndex(m.tier()))
+                .thenComparing(m -> -m.euPerTick())
+                .thenComparing(MachineLine::name));
+        return new Totals(in, out, internal, eu, machines);
     }
 
-    private static String keyOfPort(final Node node, final boolean output, final int index) {
-        final List<Port<?>> ports = output ? node.outputs : node.inputs;
-        return index < ports.size() ? Resources.key(ports.get(index)) : "";
+    private static TotalLine line(final String key, final Look look, final double amount) {
+        return look == null ? new TotalLine(key, Resources.name(key), Resources.item(key), Resources.fluid(key), amount)
+            : new TotalLine(key, look.label(), look.item(), look.fluid(), amount);
     }
 
-    private static void add(final Map<String, TotalLine> into, final String key, final String label,
-        final ItemStack item, final net.minecraftforge.fluids.FluidStack fluid, final double amount) {
-        if (!(amount > 0)) return;
-        final String k = key.isEmpty() ? label : key;
-        final TotalLine was = into.get(k);
-        into.put(
-            k,
-            was == null ? new TotalLine(k, label, item, fluid, amount)
-                : new TotalLine(k, was.label(), was.item(), was.fluid(), was.amount() + amount));
-    }
-
-    private static List<TotalLine> sorted(final java.util.Collection<TotalLine> lines) {
-        final List<TotalLine> list = new ArrayList<>(lines);
-        list.sort((a, b) -> Double.compare(b.amount(), a.amount()));
-        return list;
+    private static void sortByAmount(final List<TotalLine> lines) {
+        lines.sort((a, b) -> Double.compare(b.amount(), a.amount()));
     }
 
     // endregion

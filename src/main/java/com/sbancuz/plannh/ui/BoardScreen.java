@@ -67,7 +67,7 @@ public final class BoardScreen extends ModularScreen {
                     / Minecraft.getMinecraft().currentScreen.width,
                 0);
         final BoardCanvas canvas = new BoardCanvas(session, panel);
-        final TotalsRail rail = new TotalsRail(session);
+        final OverviewRail rail = new OverviewRail(session, canvas);
 
         final Flow topBar = Flow.row()
             .widthRel(1f)
@@ -117,25 +117,34 @@ public final class BoardScreen extends ModularScreen {
         topBar
             .child(key(() -> "Arrange", () -> true, "Lay the plan out left to right (undoable)", 42, canvas::arrange));
         topBar.child(key(() -> "Fit", () -> true, "Fit the whole plan in view", 24, canvas::frameAll));
-        topBar.child(key(() -> "Totals", () -> true, "What the plan takes in and gives out", 38, rail::toggle));
+        topBar.child(
+            key(
+                () -> rail.isOpen() ? "Hide overview" : "Overview",
+                () -> true,
+                "The overview rail: what the plan takes in and gives out, its power, the machines to build",
+                66,
+                rail::toggle));
 
         final Flow column = Flow.column()
             .widthRel(1f)
             .heightRel(1f);
         column.child(topBar);
-        column.child(
-            canvas.widthRel(1f)
+        // The overview rail is part of the layout, left of the board, and folds away to give the board its width.
+        final Flow body = Flow.row()
+            .widthRel(1f)
+            .expanded()
+            .collapseDisabledChild();
+        body.child(rail.heightRel(1f));
+        body.child(
+            canvas.heightRel(1f)
                 .expanded());
+        column.child(body);
         panel.child(column);
         panel.child(
-            new NoticeBar(session, canvas).left(6)
+            new NoticeBar(session, canvas)
+                .left(() -> rail.currentWidth() + 6, com.cleanroommc.modularui.widget.sizer.Unit.Measure.PIXEL)
                 .right(6)
                 .top(TOP_BAR + 4));
-        panel.child(
-            rail.right(0)
-                .top(TOP_BAR)
-                .bottom(0)
-                .width(TotalsRail.W));
         return new BoardScreen(panel, session, canvas);
     }
 
@@ -234,6 +243,9 @@ public final class BoardScreen extends ModularScreen {
             if (lines == null) return;
         } else if (hovered instanceof final PlanTabs tabs) {
             lines = tabs.hoverLines();
+            if (lines == null) return;
+        } else if (hovered instanceof final OverviewRail overview) {
+            lines = overview.hoverLines();
             if (lines == null) return;
         } else if (hovered instanceof final PortSlot slot) {
             final ItemStack stack = slot.stack();

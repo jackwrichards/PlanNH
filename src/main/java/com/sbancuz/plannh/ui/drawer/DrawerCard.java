@@ -9,6 +9,7 @@ import org.jetbrains.annotations.Nullable;
 import com.cleanroommc.modularui.api.UpOrDown;
 import com.cleanroommc.modularui.api.widget.IDraggable;
 import com.cleanroommc.modularui.api.widget.Interactable;
+import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.viewport.ModularGuiContext;
 import com.cleanroommc.modularui.theme.WidgetThemeEntry;
 import com.cleanroommc.modularui.widget.Widget;
@@ -30,10 +31,10 @@ import com.sbancuz.plannh.ui.theme.Hyb;
  */
 public final class DrawerCard extends Widget<DrawerCard> implements Interactable, IDraggable {
 
-    public static final int W = 120;
-    public static final int H = 80;
+    public static final int W = 136;
+    public static final int H = 62;
     /** Where wires meet a drawer: its left edge for kinds that take outputs, its right edge for sources. */
-    public static final int ANCHOR_Y = 31;
+    public static final int ANCHOR_Y = 30;
 
     public enum Part {
         DELETE,
@@ -44,7 +45,7 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
     }
 
     private static final int KEY = 12;
-    private static final int RULE_X = 5, RULE_W = 56, ROW_Y = 48, ROW_H = 14;
+    private static final int RULE_X = 5, RULE_W = 56, ROW_Y = 43, ROW_H = 14;
     private static final int RATE_X = 63, RATE_W = W - 5 - 63;
 
     private final BoardSession session;
@@ -183,27 +184,26 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         Hyb.textCentered(Hyb.fit(m.label, titleR - titleL), (titleL + titleR) / 2f, 6, 0xFFFFFFFF);
 
         // The resource and what the plan moves through it.
-        Hyb.slot(5, 23, m.isFluid());
-        if (m.isFluid()) Hyb.fluid(m.fluid, 6, 24, 16, z);
-        else Hyb.item(m.item, 6, 24, 16, z);
+        Hyb.slot(5, 21, m.isFluid());
+        if (m.isFluid()) Hyb.fluid(m.fluid, 6, 22, 16, z);
+        else Hyb.item(m.item, 6, 22, 16, z);
         final Fmt.RateUnit unit = session.rateUnit();
         final String sign = m.rate <= 0 ? "" : m.kind == Drawer.Kind.SOURCE ? "-" : "+";
         final String number = sign + Fmt.compact(m.rate * unit.perSecond);
         final String suffix = (m.isFluid() ? " L" : "") + unit.suffix;
         final int color = m.rate <= 0 ? Hyb.MUTED : m.kind == Drawer.Kind.SOURCE ? Hyb.SOURCE_INK : Hyb.PRODUCT_INK;
         final int room = W - 28 - 5;
-        final boolean big = Hyb.width(number) * 2 + Hyb.width(suffix) + 2 <= room;
+        final boolean big = Hyb.width(number) * Hyb.FIGURE + Hyb.width(suffix) + 2 <= room;
         if (big) {
-            Hyb.text(number, 28, 24, 2f, color);
-            Hyb.text(suffix, 28 + Hyb.width(number) * 2 + 2, 31, Hyb.MUTED);
+            Hyb.text(number, 28, 25, Hyb.FIGURE, color);
+            Hyb.text(suffix, 28 + Hyb.width(number) * Hyb.FIGURE + 2, 29, Hyb.MUTED);
         } else {
-            Hyb.text(Hyb.fit(number + suffix, room), 28, 28, color);
+            Hyb.text(Hyb.fit(number + suffix, room), 28, 27, color);
         }
 
         if (hasRule()) {
             drawRule(m, hover == Part.RULE);
             drawRate(m, hover == Part.RATE, unit);
-            if (m.kind == Drawer.Kind.PRODUCT && m.target > 0 && m.rule != Drawer.Rule.ANY) drawBar(m);
         } else {
             Hyb.textCentered(
                 m.kind == Drawer.Kind.TRASH ? "voids what arrives" : "takes the surplus",
@@ -226,7 +226,7 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         Hyb.rect(x + 7, y + 4, 3, 1, Hyb.INK);
     }
 
-    static String ruleLabel(final Drawer.Rule rule) {
+    public static String ruleLabel(final Drawer.Rule rule) {
         return switch (rule) {
             case ANY -> "~ Any";
             case AT_LEAST -> "≥ At least";
@@ -255,13 +255,6 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
             text = Fmt.rate(m.target, unit, m.isFluid());
         }
         Hyb.textCentered(Hyb.fit(text, RATE_W - 4), RATE_X + RATE_W / 2f, ROW_Y + 3, color);
-    }
-
-    private void drawBar(final DrawerModel m) {
-        final int x = 5, y = ROW_Y + ROW_H + 5, w = W - 10, h = 4;
-        Hyb.rect(x, y, w, h, Hyb.SHADOW);
-        final double f = Math.max(0, Math.min(1, m.rate / m.target));
-        Hyb.rect(x, y, (float) (w * f), h, m.unmet ? Hyb.RED_INK : Hyb.PRODUCT_INK);
     }
 
     /** Tooltip lines for the part under the mouse. */
@@ -355,6 +348,16 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
     }
 
     private void openRules() {
+        openRules(getPanel(), session, model, screenX(RULE_X), screenY(ROW_Y + ROW_H + 2));
+    }
+
+    private void openRate() {
+        openRate(getPanel(), session, model, screenX(RATE_X), screenY(ROW_Y + ROW_H + 2));
+    }
+
+    /** The rule list for a drawer; the overview's drawer rows open the same one. */
+    public static void openRules(final ModularPanel panel, final BoardSession session, final DrawerModel model,
+        final int screenX, final int screenY) {
         final List<PickList.Entry> rows = new ArrayList<>();
         for (final Drawer.Rule rule : Drawer.Rule.values()) {
             rows.add(
@@ -366,18 +369,16 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
                     rule == model.rule,
                     () -> session.setDrawerRule(model.drawer, rule)));
         }
-        Popup.open(
-            getPanel(),
-            PickList.popup("plannh_rule", null, rows, false, 110),
-            screenX(RULE_X),
-            screenY(ROW_Y + ROW_H + 2));
+        Popup.open(panel, PickList.popup("plannh_rule", null, rows, false, 110), screenX, screenY);
     }
 
-    private void openRate() {
+    /** The rate box for a drawer, in the board's unit; the overview's drawer rows open the same one. */
+    public static void openRate(final ModularPanel panel, final BoardSession session, final DrawerModel model,
+        final int screenX, final int screenY) {
         final Fmt.RateUnit unit = session.rateUnit();
         final double current = model.rule == Drawer.Rule.ANY ? 0 : model.target * unit.perSecond;
         Popup.open(
-            getPanel(),
+            panel,
             NumberPopup.create(
                 "Rate in " + (model.isFluid() ? "L" : "") + unit.suffix + " (empty: no rule)",
                 "2.5k, 1/3",
@@ -385,8 +386,8 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
                 0,
                 Double.MAX_VALUE,
                 v -> session.setDrawerRate(model.drawer, v / unit.perSecond)),
-            screenX(RATE_X),
-            screenY(ROW_Y + ROW_H + 2));
+            screenX,
+            screenY);
     }
 
     // endregion

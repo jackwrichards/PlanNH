@@ -80,10 +80,10 @@ final class DevBoard {
                         y1 = canvas.screenY(model.node.y + r[1] + r[3]);
                     parts.put(part.name(), rect(x0, y0, x1 - x0, y1 - y0));
                 }
-                for (final CardModel.PortView p : model.inputs)
-                    parts.put("IN" + p.index(), slot(canvas, model.node.x, model.node.y, false, p.index()));
-                for (final CardModel.PortView p : model.outputs)
-                    parts.put("OUT" + p.index(), slot(canvas, model.node.x, model.node.y, true, p.index()));
+                for (final CardModel.PortView p : model.inputs) parts
+                    .put("IN" + p.index(), slot(canvas, card.layout(), model.node.x, model.node.y, false, p.index()));
+                for (final CardModel.PortView p : model.outputs) parts
+                    .put("OUT" + p.index(), slot(canvas, card.layout(), model.node.x, model.node.y, true, p.index()));
                 c.put("parts", parts);
             }
             cards.add(c);
@@ -164,9 +164,9 @@ final class DevBoard {
     }
 
     /** A port's NEI slot on screen. */
-    private static Map<String, Object> slot(final BoardCanvas canvas, final int nx, final int ny, final boolean output,
-        final int index) {
-        final int lx = CardLayout.railX(output), ly = CardLayout.portRowY(index) + 1;
+    private static Map<String, Object> slot(final BoardCanvas canvas, final CardLayout layout, final int nx,
+        final int ny, final boolean output, final int index) {
+        final int lx = CardLayout.railX(output), ly = layout.rowY(output, index) + 1;
         final int x0 = canvas.screenX(nx + lx), y0 = canvas.screenY(ny + ly);
         return rect(x0, y0, canvas.screenX(nx + lx + 18) - x0, canvas.screenY(ny + ly + 18) - y0);
     }

@@ -286,6 +286,11 @@ public final class DevHarness {
                         Float.parseFloat(q.getOrDefault("panY", "0")));
                     return ok();
                 });
+            case "/recipeinfo":
+                requireWorld();
+                return onClient(
+                    () -> DevRecipes
+                        .recipeInfo(arg(q, "output"), q.getOrDefault("handler", ""), q.getOrDefault("input", "")));
             case "/clearplan":
                 requireWorld();
                 return onClient(DevRecipes::clearPlan);
@@ -310,6 +315,7 @@ public final class DevHarness {
                 "/key?code[&char][&mods=ctrl,shift,alt] - LWJGL2 key code, /type?text - text into the focused field",
                 "/cmd?c=/time set day - run a command as the player",
                 "/addrecipe?output=dustRutile[&handler=blast][&input=ilmenite][&x&y] - put a real recipe on the board (with the board open: placed and auto-wired like NEI's +)",
+                "/recipeinfo?output[&handler][&input] - what NEI and PlanNH see in a recipe (stacks, ports), read-only",
                 "/clearplan - empty the active board (one undoable edit)",
                 "/board - open board as data: view, and per card its state and every control's GUI rect (cx, cy)",
                 "/view?zoom&panX&panY - set the board view (defaults 1, 0, 0)",

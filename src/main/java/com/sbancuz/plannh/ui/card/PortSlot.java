@@ -13,7 +13,8 @@ import com.cleanroommc.modularui.widget.sizer.Area;
 import com.sbancuz.plannh.ui.canvas.BoardCanvas;
 
 /**
- * The NEI slot of one port, as its own widget so NEI's R/U and the item tooltip see exactly this stack. Drawing is
+ * One port row (NEI slot, name and rate) as its own widget, so NEI's R/U and the item tooltip see exactly this stack.
+ * Drawing is
  * done by the card; this widget only answers "what is under the mouse".
  */
 public final class PortSlot extends Widget<PortSlot>
@@ -27,8 +28,13 @@ public final class PortSlot extends Widget<PortSlot>
         this.card = card;
         this.output = output;
         this.index = index;
-        size(18, 18);
-        pos(CardLayout.railX(output), CardLayout.portRowY(index) + 1);
+        if (card.layout() != null) place(card.layout());
+    }
+
+    /** The whole row (icon, name, rate) is the handle: drag a wire from anywhere on it, click it for the picker. */
+    void place(final CardLayout layout) {
+        size(CardLayout.RAIL_W, layout.rowH(output, index));
+        pos(CardLayout.railX(output), layout.rowY(output, index));
     }
 
     public CardModel.PortView view() {

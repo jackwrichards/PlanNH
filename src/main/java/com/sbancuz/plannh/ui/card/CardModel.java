@@ -95,6 +95,14 @@ public final class CardModel {
         return euPerTick * machines;
     }
 
+    /** A GregTech recipe set below its own tier cannot run: its EU/t is more than the tier's voltage and amps. */
+    public boolean tierTooLow() {
+        if (!gregtech || !(node.properties.get(com.sbancuz.plannh.data.provider.GTProvider.EU_PER_TICK) instanceof final Number eut))
+            return false;
+        final int t = CardDefaults.tierIndex(tier);
+        return t >= 0 && eut.longValue() > (8L << (2 * t)) * (multiblock ? Math.max(1, amps) : 1);
+    }
+
     /** Whether a node's port (output or input, by index) has a wire or drawer on it. */
     public interface Wired {
 

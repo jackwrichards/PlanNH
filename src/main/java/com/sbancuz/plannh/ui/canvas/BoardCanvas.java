@@ -171,6 +171,19 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         return r < 0 ? r + m : r;
     }
 
+    /**
+     * Cards and drawers are only under the mouse when the mouse is on the board: the board clips what it draws to its
+     * area, but ModularUI would otherwise still find a card panned under the overview rail.
+     */
+    @Override
+    public void getWidgetsAt(final IViewportStack stack,
+        final com.cleanroommc.modularui.utils.HoveredWidgetList widgets, final int x, final int y) {
+        final Area a = getArea();
+        final int mx = getContext().getAbsMouseX(), my = getContext().getAbsMouseY();
+        if (mx < a.x || my < a.y || mx >= a.x + a.width || my >= a.y + a.height) return;
+        IViewport.super.getWidgetsAt(stack, widgets, x, y);
+    }
+
     @Override
     public void transformChildren(final IViewportStack stack) {
         stack.translate(graph().getPanX(), graph().getPanY());
@@ -271,7 +284,10 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             final Node n = cards.get(origin.nodeId())
                 .model().node;
             x = screenX(n.x + CardLayout.anchorX(origin.output())) + (origin.output() ? 4 : -RecipePicker.ROW * 16);
-            y = screenY(n.y + CardLayout.anchorY(origin.portIndex()));
+            y = screenY(
+                n.y + cards.get(origin.nodeId())
+                    .layout()
+                    .anchorY(origin.output(), origin.portIndex()));
         } else {
             x = getArea().x + getArea().width / 2 - 180;
             y = getArea().y + 30;
@@ -309,7 +325,8 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         if (card == null || card.model() == null) return;
         final Node n = card.model().node;
         final int sx = n.x + CardLayout.anchorX(portDrag.output());
-        final int sy = n.y + CardLayout.anchorY(portDrag.port());
+        final int sy = n.y + card.layout()
+            .anchorY(portDrag.output(), portDrag.port());
         final int mx = Math.round(worldX(getContext().getAbsMouseX()));
         final int my = Math.round(worldY(getContext().getAbsMouseY()));
         final List<int[]> path = portDrag.output()
@@ -380,11 +397,11 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     /** A card or drawer as the layered layout sees it; drawers have one port, at their anchor. */
     private record LayoutItem(UUID id, String machineName, int worldWidth, int worldHeight, int inputCount,
-        int outputCount, boolean drawer) implements AutoLayout.LayoutNode {
+        int outputCount, CardLayout layout) implements AutoLayout.LayoutNode {
 
         @Override
         public int portY(final boolean output, final int index) {
-            return drawer ? DrawerCard.ANCHOR_Y : CardLayout.anchorY(index);
+            return layout == null ? DrawerCard.ANCHOR_Y : layout.anchorY(output, index);
         }
     }
 
@@ -407,7 +424,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
                     card.layout().height,
                     m.inputs.size(),
                     m.outputs.size(),
-                    false));
+                    card.layout()));
         }
         for (final Drawer d : g.getDrawers()) {
             final boolean source = d.getKind()
@@ -420,7 +437,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
                     DrawerCard.H,
                     source ? 0 : 1,
                     source ? 1 : 0,
-                    true));
+                    null));
             for (final Drawer.Link link : d.getLinks()) {
                 if (!cards.containsKey(link.nodeId())) continue;
                 final UUID id = UUID.nameUUIDFromBytes(
