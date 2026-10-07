@@ -343,6 +343,7 @@ public final class BoardScreen extends ModularScreen {
     @Override
     public void onOpen() {
         super.onOpen();
+        session.reopen();
         session.disarmPending();
     }
 

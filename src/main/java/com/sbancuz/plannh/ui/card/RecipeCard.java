@@ -1019,7 +1019,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             case AMPS -> session.setSetting(node, "amp", stepAmps(model.amps, step));
             case COIL -> stepCoil(step);
             case MACHINE -> stepMachine(step);
-            case MACHINES -> session.pin(node, Math.max(1, Math.round(model.machines) + step));
+            case MACHINES -> session.pin(node, Math.max(1, Math.round(machinesTotal()) + step));
             default -> {
                 return false;
             }

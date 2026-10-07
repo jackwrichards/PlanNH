@@ -59,7 +59,9 @@ public final class BoardSession {
     private int structure;
     private Fmt.RateUnit rateUnit = Fmt.RateUnit.SECOND;
     private NodeLookupContext pendingLookup;
-    private final SolveService solver = new SolveService();
+    private SolveService solver = new SolveService();
+    /** Set when the board closed; NEI's pages close it too, and closing back to it reopens it. */
+    private boolean closed;
     private SolveService.Result lastResult;
 
     BoardSession() {
@@ -73,9 +75,22 @@ public final class BoardSession {
     }
 
     void close() {
+        closed = true;
         solver.close();
         PlanAPI.save();
         if (current == this) current = null;
+    }
+
+    /**
+     * The board is showing again after a close it came back from: an NEI page opened over it (clicking a port, adding a
+     * recipe) closes the board's screen and closes back to the same one. The old solver stopped with the close, so a
+     * fresh one, or every edit after the visit would wait on a solve that never comes.
+     */
+    void reopen() {
+        if (!closed) return;
+        closed = false;
+        solver = new SolveService();
+        current = this;
     }
 
     public Graph graph() {

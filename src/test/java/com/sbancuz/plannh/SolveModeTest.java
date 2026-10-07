@@ -103,6 +103,25 @@ class SolveModeTest {
     }
 
     @Test
+    void aPinnedRecipeOnAPinnedSharedMachineHoldsBoth() {
+        // The lathe is pinned at 3 machines and shares one machine of 4 with the assembler: both hold, 3 and 1, the
+        // gears the assembler cannot take leaving the plan rather than a pin giving way.
+        final LoadedChart chart = chart("shared-pins", gearLine(", number: 3", ""));
+        drawer(chart, Kind.SOURCE, Rule.ANY, 0, 0, 0);
+        drawer(chart, Kind.PRODUCT, Rule.ANY, 0, 1, 0);
+        final com.sbancuz.plannh.data.flowchart.MachineGroup shared = new com.sbancuz.plannh.data.flowchart.MachineGroup();
+        shared.addSection(chart.machine(0).id);
+        shared.addSection(chart.machine(1).id);
+        shared.setMachineCapacity(4);
+        shared.setPinned(true);
+        chart.graph().groups.put(shared.getId(), shared);
+        final SolutionView s = solved(chart);
+
+        assertEquals(3, count(s, chart, 0), EPS);
+        assertEquals(1, count(s, chart, 1), EPS);
+    }
+
+    @Test
     void anUnpinnedSharedMachineOnlyCapsItsRecipes() {
         // Unpinned the shared count is a cap, not a demand: with nothing asking, nothing runs.
         final LoadedChart chart = chart("shared-cap", gearLine("", ""));
