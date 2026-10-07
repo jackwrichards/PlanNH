@@ -58,6 +58,7 @@ is a thin curl wrapper. Every request waits until the game has processed it, so 
 | `/view?zoom&panX&panY` | set the board view (defaults 1, 0, 0) so tests start from a known place |
 | `/gtmachines?q&all=1&art=1` | GregTech multiblocks (all=1: every machine) by meta and in-game name; art=1 adds the bundled picture each resolves to |
 | `/recipeinfo?output&handler&input` | what NEI and PlanNH see in a recipe (ingredient, result and other stacks with registry names, catalysts, the ports a card would get), read-only |
+| `/structurepic?meta=1000` | GT runs only: (re)build that multiblock controller's recipe-card picture (structure built in BlockRenderer6343's fake world, replaces the cached one so an open board shows it), save it as `screenshots/structure-<meta>.png`; returns `status` (ok, too big, empty, not a multiblock, failed: ...), `size`, `blocks`, timings and `path`. Without `meta`: every constructable controller as `{meta, name}` |
 | `/frame` | run one ModularUI frame update and report what is hovered and below the mouse (hover debugging) |
 | `/quit` | ask the game to quit (with GT this can stop on a "really close?" dialog; `mc.sh stop` kills instead) |
 

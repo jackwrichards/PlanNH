@@ -26,6 +26,7 @@ import com.sbancuz.plannh.ui.BoardSession;
 import com.sbancuz.plannh.ui.canvas.BoardCanvas;
 import com.sbancuz.plannh.ui.gt.GtCoils;
 import com.sbancuz.plannh.ui.gt.GtMachines;
+import com.sbancuz.plannh.ui.gt.MultiblockPictures;
 import com.sbancuz.plannh.ui.popup.NumberPopup;
 import com.sbancuz.plannh.ui.popup.PickList;
 import com.sbancuz.plannh.ui.popup.Popup;
@@ -359,7 +360,10 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             Hyb.texture(art.location(), x + (w - pw) / 2f, y + (h - ph) / 2f, pw, ph);
             return;
         }
-        if (m.machineStack != null) Hyb.item(m.machineStack, x + (w - 64) / 2f, y + (h - 64) / 2f, 64, z);
+        // Otherwise, for any other GregTech multiblock, its structure rendered in game (built once, then cached).
+        final MultiblockPictures.Picture structure = MultiblockPictures.get(m.machineStack);
+        if (structure != null) structure.draw(x + 2, y + 2, w - 4, h - 4);
+        else if (m.machineStack != null) Hyb.item(m.machineStack, x + (w - 64) / 2f, y + (h - 64) / 2f, 64, z);
     }
 
     private void drawCoil(final CardModel m, final float z, final boolean hover) {
