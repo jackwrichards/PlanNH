@@ -190,6 +190,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         boolean changed = false;
         for (int s = 0; s < sections.size() && !changed; s++) changed = session.model(sections.get(s)) != models.get(s);
         if (changed || sections.isEmpty()) refresh();
+        if (model != null) commitWheel();
         if (reopenSettingsAfter != null && model != reopenSettingsAfter) {
             reopenSettingsAfter = null;
             openSettings();
@@ -391,7 +392,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         if (m.tierTooLow()) Hyb.ring(-rim, -rim, w + 2 * rim, h + 2 * rim, rim, Hyb.RED_INK);
         if (session.isSelected(nodeId)) Hyb.ring(-3 * rim, -3 * rim, w + 6 * rim, h + 6 * rim, 2 * rim, Hyb.SELECTION);
         // The machine, big and centred: the whole structure where there is a picture of it.
-        final float side = h - 2 * rim - 12;
+        // As large as the tile allows either way: a tall card (a shared machine) is no wider for it.
+        final float side = Math.min(w, h) - 2 * rim - 12;
         drawMachineArt(m, (w - side) / 2f, (h - side) / 2f, side, side, side, z, true);
         // How many, in a dark pill in the corner, at whole screen pixels per font pixel so it stays sharp.
         final String count = "×" + Fmt.machines(machinesTotal());
@@ -506,8 +508,15 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         if (m.gregtech) {
             // Amps wear the tier's colours too: together they read as one figure, 16A UV.
             final Hyb.Tier tier = Hyb.tier(m.tier);
-            if (m.multiblock)
-                chip(AMPS_X, y, CHIP_W, CHIP_H, tier, Fmt.compact(m.amps) + "A", false, hover == Part.AMPS);
+            if (m.multiblock) chip(
+                AMPS_X,
+                y,
+                CHIP_W,
+                CHIP_H,
+                tier,
+                Fmt.compact(pendingAmps > 0 ? pendingAmps : m.amps) + "A",
+                false,
+                hover == Part.AMPS);
             chip(tierX(), y, tierW(), CHIP_H, tier, tier.name(), tier.underline(), hover == Part.TIER);
         }
 
@@ -805,8 +814,9 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final String aside = shared() ? models.size() + " RECIPES"
             : m.parallels > 1 ? "PARALLEL ×" + m.parallels : null;
         if (aside != null) Hyb.textRight(aside, MACHINES_X + mw - 4, y + 3, Hyb.MUTED);
-        final String count = "×" + Fmt.machines(machines);
-        final int color = pinned() ? Hyb.GOLD : machines <= 0 ? Hyb.MUTED : Hyb.INK;
+        // A count being wheeled shows at once, gold (it will be a pin), before the solve catches up.
+        final String count = "×" + Fmt.machines(pendingCount > 0 ? pendingCount : machines);
+        final int color = pendingCount > 0 || pinned() ? Hyb.GOLD : machines <= 0 ? Hyb.MUTED : Hyb.INK;
         Hyb.text(count, MACHINES_X + 4, y + 14, Hyb.FIGURE, color);
         final int cw = Math.round(Hyb.width(count) * Hyb.FIGURE);
         for (int dx = 0; dx < cw; dx += 3) Hyb.rect(MACHINES_X + 4 + dx, y + 27, 1, 1, Hyb.MUTED);
@@ -1009,6 +1019,25 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         return Result.SUCCESS;
     }
 
+    /**
+     * A count or amps being wheeled: shown on the card at once, committed (one edit, one solve) once the wheel has been
+     * still for {@value #WHEEL_COMMIT_MS} ms, so a fast spin is one change and not a solve and a save per notch. 0 for
+     * none.
+     */
+    private long pendingCount;
+    private int pendingAmps;
+    private long wheelAt;
+    private static final long WHEEL_COMMIT_MS = 500;
+
+    /** Commits a wheeled count or amps once the wheel has gone still. */
+    private void commitWheel() {
+        if (pendingCount <= 0 && pendingAmps <= 0 || System.currentTimeMillis() - wheelAt < WHEEL_COMMIT_MS) return;
+        if (pendingCount > 0) session.pin(model.node, pendingCount);
+        if (pendingAmps > 0) session.setSetting(model.node, "amp", pendingAmps);
+        pendingCount = 0;
+        pendingAmps = 0;
+    }
+
     @Override
     public boolean onMouseScroll(final UpOrDown direction, final int amount) {
         if (model == null) return false;
@@ -1016,10 +1045,16 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final Node node = model.node;
         switch (partAt(localX(), localY())) {
             case TIER -> stepTier(step);
-            case AMPS -> session.setSetting(node, "amp", stepAmps(model.amps, step));
+            case AMPS -> {
+                pendingAmps = stepAmps(pendingAmps > 0 ? pendingAmps : model.amps, step);
+                wheelAt = System.currentTimeMillis();
+            }
             case COIL -> stepCoil(step);
             case MACHINE -> stepMachine(step);
-            case MACHINES -> session.pin(node, Math.max(1, Math.round(machinesTotal()) + step));
+            case MACHINES -> {
+                pendingCount = Math.max(1, (pendingCount > 0 ? pendingCount : Math.round(machinesTotal())) + step);
+                wheelAt = System.currentTimeMillis();
+            }
             default -> {
                 return false;
             }

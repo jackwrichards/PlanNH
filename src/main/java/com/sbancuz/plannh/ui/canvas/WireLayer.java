@@ -107,13 +107,15 @@ final class WireLayer {
                 || e.targetInputIndex >= dst.inputs.size()) continue;
             final Port<?> port = src.outputs.get(e.sourceOutputIndex);
             final double flow = edgeFlow(result, e);
+            // Anywhere on either card's edge, as on the website; a wire from a card back to itself (two recipes on one
+            // shared machine) leaves its right side and comes round into its left, so it reads as a loop.
+            final boolean loop = cards.get(src.id) != null && cards.get(src.id) == cards.get(dst.id);
             requests.add(
-                new ArrowRouter.Request(
+                ArrowRouter.Request.docked(
                     e.id,
-                    src.x + CardLayout.W,
-                    src.y + anchorY(cards, src, true, e.sourceOutputIndex),
-                    dst.x,
-                    dst.y + anchorY(cards, dst, false, e.targetInputIndex)));
+                    docks(cardRect(cards, src), loop ? ArrowRouter.Side.RIGHT : null),
+                    docks(cardRect(cards, dst), loop ? ArrowRouter.Side.LEFT : null),
+                    0));
             pending.add(new Wire(e.id, Kind.EDGE, e, null, null, colorOf(port), 0, flow, null, Resources.key(port)));
         }
         for (final Drawer d : graph.getDrawers()) {
@@ -127,24 +129,12 @@ final class WireLayer {
                 final Port<?> port = ports.get(link.portIndex());
                 final UUID key = UUID.nameUUIDFromBytes(
                     (d.getId() + ":" + link.nodeId() + ":" + link.portIndex()).getBytes(StandardCharsets.UTF_8));
-                final int portY = n.y + anchorY(cards, n, !source, link.portIndex());
-                if (source) {
-                    requests.add(
-                        new ArrowRouter.Request(
-                            key,
-                            d.getX() + DrawerCard.W,
-                            d.getY() + DrawerCard.ANCHOR_Y,
-                            n.x,
-                            portY));
-                } else {
-                    requests.add(
-                        new ArrowRouter.Request(
-                            key,
-                            n.x + CardLayout.W,
-                            portY,
-                            d.getX(),
-                            d.getY() + DrawerCard.ANCHOR_Y));
-                }
+                final List<ArrowRouter.Dock> drawerDocks = docks(
+                    new ArrowRouter.Rect(d.getX(), d.getY(), DrawerCard.W, DrawerCard.H),
+                    null), cardDocks = docks(cardRect(cards, n), null);
+                requests.add(
+                    source ? ArrowRouter.Request.docked(key, drawerDocks, cardDocks, 0)
+                        : ArrowRouter.Request.docked(key, cardDocks, drawerDocks, 0));
                 final double flow = linkFlow(result, n, source, link.portIndex());
                 pending.add(new Wire(key, Kind.LINK, null, d, link, colorOf(port), 0, flow, null, Resources.key(port)));
             }
@@ -163,7 +153,9 @@ final class WireLayer {
                     r.dx(),
                     r.dy(),
                     sized.get(i)
-                        .width()));
+                        .width(),
+                    r.sources(),
+                    r.targets()));
         }
         final Map<UUID, List<int[]>> routes = ROUTER.route(obstacles, List.of(), weighted, null, thorough);
         final List<Wire> built = new ArrayList<>(pending.size());
@@ -185,6 +177,22 @@ final class WireLayer {
                     w.resource()));
         }
         return withWidths(built);
+    }
+
+    /** A card's box on the board: a shared machine's recipes all have their card's. */
+    private static ArrowRouter.Rect cardRect(final Map<UUID, RecipeCard> cards, final Node n) {
+        final RecipeCard card = cards.get(n.id);
+        final int h = card == null || card.layout() == null ? 100 : card.layout().height;
+        return new ArrowRouter.Rect(n.x, n.y, CardLayout.W, h);
+    }
+
+    /** Where a wire may meet a box: anywhere on its edge, or only on {@code side} when given. */
+    private static List<ArrowRouter.Dock> docks(final ArrowRouter.Rect box, final ArrowRouter.Side side) {
+        final List<ArrowRouter.Dock> all = ArrowRouter.perimeterDocks(box);
+        if (side == null) return all;
+        final List<ArrowRouter.Dock> out = new ArrayList<>();
+        for (final ArrowRouter.Dock d : all) if (d.side() == side) out.add(d);
+        return out;
     }
 
     /** A port's anchor on its card, from the card's own layout (rows grow when a name takes two lines). */

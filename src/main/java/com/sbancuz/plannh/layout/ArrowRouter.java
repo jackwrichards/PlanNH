@@ -86,12 +86,104 @@ public final class ArrowRouter {
      * A single wire to route, from a source output port to a target input port. {@code weight} orders the routing,
      * heaviest first (the caller passes the wire's width), so the busiest wires get the cleanest lines.
      */
-    public record Request(UUID key, int sx, int sy, int dx, int dy, double weight) {
+    public record Request(UUID key, int sx, int sy, int dx, int dy, double weight, List<Dock> sources,
+        List<Dock> targets) {
+
+        public Request(final UUID key, final int sx, final int sy, final int dx, final int dy, final double weight) {
+            this(key, sx, sy, dx, dy, weight, null, null);
+        }
 
         public Request(final UUID key, final int sx, final int sy, final int dx, final int dy) {
             this(key, sx, sy, dx, dy, 0);
         }
+
+        /**
+         * A wire that may leave its source and land on its target anywhere on their edges, as Factory Flow routes: the
+         * router picks one dock at each end. (sx, sy) and (dx, dy) are the docks' middles, for ordering.
+         */
+        public static Request docked(final UUID key, final List<Dock> sources, final List<Dock> targets,
+            final double weight) {
+            return new Request(
+                key,
+                middle(sources, true),
+                middle(sources, false),
+                middle(targets, true),
+                middle(targets, false),
+                weight,
+                List.copyOf(sources),
+                List.copyOf(targets));
+        }
+
+        private static int middle(final List<Dock> docks, final boolean x) {
+            long sum = 0;
+            for (final Dock d : docks) sum += x ? d.x() : d.y();
+            return docks.isEmpty() ? 0 : (int) (sum / docks.size());
+        }
+
+        boolean isDocked() {
+            return sources != null && targets != null && !sources.isEmpty() && !targets.isEmpty();
+        }
     }
+
+    /** A side of a card, the heading a wire leaves it on, and its outward normal. */
+    public enum Side {
+
+        RIGHT(0, 1, 0),
+        BOTTOM(2, 0, 1),
+        LEFT(4, -1, 0),
+        TOP(6, 0, -1);
+
+        final int outward, nx, ny;
+
+        Side(final int outward, final int nx, final int ny) {
+            this.outward = outward;
+            this.nx = nx;
+            this.ny = ny;
+        }
+    }
+
+    /**
+     * Where a wire may meet a card: a point on its edge, the side it is on, and how far it is from that side's
+     * middle (world px), which docking there costs: Factory Flow's centre bias, so facing wires meet middle to middle
+     * and a wire slides toward a corner only when the route earns it.
+     */
+    public record Dock(int x, int y, Side side, int offCentre) {}
+
+    /** The grid docks sit on, in world px: Factory Flow's board grid. */
+    public static final int DOCK_GRID = 20;
+
+    /**
+     * Every place a wire may meet a box (a card, a drawer): each grid line crossing its edge, every other line on a
+     * very large one so the candidates stay few, none closer than a cell to a corner (a wire off the very corner reads
+     * as clipped through it). Factory Flow's {@code resolveGridRouteEndpoints}.
+     */
+    public static List<Dock> perimeterDocks(final Rect r) {
+        final int left = r.x, right = r.x + r.w, top = r.y, bottom = r.y + r.h;
+        final int cells = (r.w + r.h) / DOCK_GRID;
+        final int step = cells > 60 ? 2 * DOCK_GRID : DOCK_GRID;
+        final int keepX = r.w >= 2 * DOCK_GRID ? DOCK_GRID : 0, keepY = r.h >= 2 * DOCK_GRID ? DOCK_GRID : 0;
+        final int cx = (left + right) / 2, cy = (top + bottom) / 2;
+        final List<Dock> out = new ArrayList<>();
+        // From the middle out each way, so the middle itself is always a dock.
+        for (int d = 0; cx + d <= right - keepX; d += step) {
+            out.add(new Dock(cx + d, top, Side.TOP, d));
+            out.add(new Dock(cx + d, bottom, Side.BOTTOM, d));
+            if (d == 0 || cx - d < left + keepX) continue;
+            out.add(new Dock(cx - d, top, Side.TOP, d));
+            out.add(new Dock(cx - d, bottom, Side.BOTTOM, d));
+        }
+        for (int d = 0; cy + d <= bottom - keepY; d += step) {
+            out.add(new Dock(left, cy + d, Side.LEFT, d));
+            out.add(new Dock(right, cy + d, Side.RIGHT, d));
+            if (d == 0 || cy - d < top + keepY) continue;
+            out.add(new Dock(left, cy - d, Side.LEFT, d));
+            out.add(new Dock(right, cy - d, Side.RIGHT, d));
+        }
+        return out;
+    }
+
+    /** What a dock's distance from its side's middle costs, per world px: mid-way out a long side, about a turn. */
+    private static final int DOCK_CENTRE_COST = 10;
 
     private final int baseCell;
     private final int margin;
@@ -169,6 +261,15 @@ public final class ArrowRouter {
             minY = Math.min(minY, Math.min(q.sy, q.dy));
             maxX = Math.max(maxX, Math.max(q.sx, q.dx) + stub);
             maxY = Math.max(maxY, Math.max(q.sy, q.dy));
+            if (!q.isDocked()) continue;
+            for (final List<Dock> docks : List.of(q.sources, q.targets)) {
+                for (final Dock d : docks) {
+                    minX = Math.min(minX, d.x - stub);
+                    minY = Math.min(minY, d.y - stub);
+                    maxX = Math.max(maxX, d.x + stub);
+                    maxY = Math.max(maxY, d.y + stub);
+                }
+            }
         }
         minX -= PAD;
         minY -= PAD;
@@ -210,8 +311,10 @@ public final class ArrowRouter {
             // state machine without looping around themselves; draw the canonical Z directly. Forward edges only: for a
             // backward edge the gap
             // is negative, and the Z would cut straight through every node between the two ports.
-            if (q.dx > q.sx && q.dx - q.sx < 2 * stub + 2 * cell && Math.abs(q.dy - q.sy) < 10 * baseCell) continue;
-            routes[i] = grid.search(q, i);
+            if (!q.isDocked() && q.dx > q.sx
+                && q.dx - q.sx < 2 * stub + 2 * cell
+                && Math.abs(q.dy - q.sy) < 10 * baseCell) continue;
+            routes[i] = q.isDocked() ? grid.searchDocks(q, i) : grid.search(q, i);
             if (routes[i] != null) grid.occupy(routes[i], 1);
         }
 
@@ -232,7 +335,8 @@ public final class ArrowRouter {
                     continue;
                 }
                 budget--;
-                final Route again = grid.search(requests.get(i), i);
+                final Route again = requests.get(i)
+                    .isDocked() ? grid.searchDocks(requests.get(i), i) : grid.search(requests.get(i), i);
                 if (again != null && grid.crossings(again) < before) {
                     routes[i] = again;
                     improved = true;
@@ -246,9 +350,9 @@ public final class ArrowRouter {
             final Request q = requests.get(i);
             if (routes[i] == null) {
                 if (fellBack != null) fellBack.add(q.key);
-                result.put(q.key, simplify(fallback(q, stub)));
+                result.put(q.key, simplify(q.isDocked() ? fallbackDocked(q) : fallback(q, stub)));
             } else {
-                result.put(q.key, grid.toWorld(routes[i], q));
+                result.put(q.key, q.isDocked() ? grid.toWorldDocked(routes[i], q) : grid.toWorld(routes[i], q));
             }
         }
         return result;
@@ -256,6 +360,22 @@ public final class ArrowRouter {
 
     private static int span(final Request q) {
         return Math.abs(q.dx - q.sx) + Math.abs(q.dy - q.sy);
+    }
+
+    /** A docked wire A* could not route: from the source dock nearest the target to the target dock nearest it. */
+    private static List<int[]> fallbackDocked(final Request q) {
+        Dock s = q.sources.getFirst(), t = q.targets.getFirst();
+        for (final Dock d : q.sources) if (dist2(d, q.dx, q.dy) < dist2(s, q.dx, q.dy)) s = d;
+        for (final Dock d : q.targets) if (dist2(d, s.x, s.y) < dist2(t, s.x, s.y)) t = d;
+        final List<int[]> p = new ArrayList<>(4);
+        p.add(new int[] { s.x, s.y });
+        p.add(new int[] { t.x, s.y });
+        p.add(new int[] { t.x, t.y });
+        return p;
+    }
+
+    private static long dist2(final Dock d, final int x, final int y) {
+        return (long) (d.x - x) * (d.x - x) + (long) (d.y - y) * (d.y - y);
     }
 
     /** Simple direct route used when A* finds no path (degenerate layouts). */
@@ -276,7 +396,12 @@ public final class ArrowRouter {
     }
 
     /** A routed wire: the cells it runs through, start to goal, the heading it runs each one on, and what it cost. */
-    private record Route(int[] cells, int[] headings, int cost) {}
+    private record Route(int[] cells, int[] headings, int cost, int source, int target) {
+
+        Route(final int[] cells, final int[] headings, final int cost) {
+            this(cells, headings, cost, -1, -1);
+        }
+    }
 
     private final class Grid {
 
@@ -368,6 +493,7 @@ public final class ArrowRouter {
         void reserveAnchors(final List<Request> requests) {
             for (int i = 0; i < requests.size(); i++) {
                 final Request q = requests.get(i);
+                if (q.isDocked()) continue;
                 markAnchor(gx(q.sx), gx(q.sx + stub), gy(q.sy), i);
                 markAnchor(gx(q.dx - stub), gx(q.dx), gy(q.dy), i);
             }
@@ -575,6 +701,166 @@ public final class ArrowRouter {
             return new Route(cells, headings, cost);
         }
 
+        // region Docked wires (Factory Flow's: either end anywhere on its card's edge)
+
+        /** A docked wire: close in first, wider only when that found nothing, as {@link #search(Request, int)}. */
+        Route searchDocks(final Request q, final int requestIndex) {
+            Route best = searchDocks(q, requestIndex, WINDOW_CELLS);
+            if (best == null) best = searchDocks(q, requestIndex, WIDE_WINDOW_CELLS);
+            if (best == null) best = searchDocks(q, requestIndex, Integer.MAX_VALUE / 4);
+            return best;
+        }
+
+        /**
+         * A* from every source dock at once (each leaving its side straight out, from an apron a stub off the card,
+         * starting at its centre cost) to whichever target dock is cheapest to land on (arriving straight in, plus its
+         * centre cost). Goals are priced as they are reached, and the search stops once nothing still open could beat
+         * the best one: the dock at each end is the router's call, as on the website.
+         */
+        private Route searchDocks(final Request q, final int requestIndex, final int window) {
+            final List<Dock> sources = q.sources, targets = q.targets;
+            final int[] sx = new int[sources.size()], sy = new int[sources.size()];
+            final int[] tx = new int[targets.size()], ty = new int[targets.size()];
+            int ax0 = Integer.MAX_VALUE, ay0 = Integer.MAX_VALUE, ax1 = Integer.MIN_VALUE, ay1 = Integer.MIN_VALUE;
+            int tx0 = Integer.MAX_VALUE, ty0 = Integer.MAX_VALUE, tx1 = Integer.MIN_VALUE, ty1 = Integer.MIN_VALUE;
+            for (int s = 0; s < sources.size(); s++) {
+                final Dock d = sources.get(s);
+                sx[s] = gx(d.x + d.side.nx * stub);
+                sy[s] = gy(d.y + d.side.ny * stub);
+                ax0 = Math.min(ax0, sx[s]);
+                ay0 = Math.min(ay0, sy[s]);
+                ax1 = Math.max(ax1, sx[s]);
+                ay1 = Math.max(ay1, sy[s]);
+            }
+            for (int t = 0; t < targets.size(); t++) {
+                final Dock d = targets.get(t);
+                tx[t] = gx(d.x + d.side.nx * stub);
+                ty[t] = gy(d.y + d.side.ny * stub);
+                tx0 = Math.min(tx0, tx[t]);
+                ty0 = Math.min(ty0, ty[t]);
+                tx1 = Math.max(tx1, tx[t]);
+                ty1 = Math.max(ty1, ty[t]);
+            }
+            final int wx0 = Math.min(ax0, tx0) - window, wx1 = Math.max(ax1, tx1) + window;
+            final int wy0 = Math.min(ay0, ty0) - window, wy1 = Math.max(ay1, ty1) + window;
+            // Diagonals once the ends are far enough apart; close by, square corners read better.
+            final boolean diagonals = Math.max(Math.abs(q.dx - q.sx), Math.abs(q.dy - q.sy)) >= DIAGONAL_MIN_SPAN;
+            final int run = nextRun();
+            open.clear();
+
+            final Map<Integer, Integer> startOf = new HashMap<>();
+            for (int s = 0; s < sources.size(); s++) {
+                final int idx = sy[s] * cols + sx[s];
+                if (blocked[idx]) continue;
+                final int state = idx * 8 + sources.get(s).side.outward;
+                final int g = sources.get(s).offCentre * DOCK_CENTRE_COST;
+                if (g >= score(state, run)) continue;
+                setScore(state, g, -1, run);
+                startOf.put(state, s);
+                open.push(g + dockHeuristic(sx[s], sy[s], tx0, ty0, tx1, ty1, diagonals), g, state);
+            }
+            // Landing: on a target dock's apron, heading straight in; the cheaper dock where two share an apron.
+            final Map<Integer, Integer> goalOf = new HashMap<>(), goalCost = new HashMap<>();
+            for (int t = 0; t < targets.size(); t++) {
+                final int idx = ty[t] * cols + tx[t];
+                if (blocked[idx]) continue;
+                final int state = idx * 8 + (targets.get(t).side.outward + 4) % 8;
+                final int cost = targets.get(t).offCentre * DOCK_CENTRE_COST;
+                if (cost < goalCost.getOrDefault(state, Integer.MAX_VALUE)) {
+                    goalCost.put(state, cost);
+                    goalOf.put(state, t);
+                }
+            }
+
+            int bestState = -1, bestCost = Integer.MAX_VALUE, pops = 0;
+            while (!open.isEmpty()) {
+                if (++pops > MAX_POPS) break;
+                final long top = open.pop();
+                // Nothing still open can land cheaper than the best landing found.
+                if (OpenSet.f(top) >= bestCost) break;
+                final int state = OpenSet.state(top);
+                final int g = score(state, run);
+                if (OpenSet.g(top) != Math.min(g, OpenSet.MASK)) continue;
+                final Integer landing = goalCost.get(state);
+                if (landing != null && g + landing < bestCost) {
+                    bestCost = g + landing;
+                    bestState = state;
+                }
+                final int idx = state >> 3, dir = state & 7;
+                final int cx = idx % cols, cy = idx / cols;
+                for (int nd = 0; nd < 8; nd++) {
+                    final int turn = turnCost(dir, nd);
+                    if (turn < 0 || (nd & 1) == 1 && !diagonals) continue;
+                    if (nd != dir && straightOnly[idx]) continue;
+                    final int steps = (nd & 1) == 1 && nd != dir ? DIAGONAL_MIN_STEPS : 1;
+                    int x = cx, y = cy, cost = turn;
+                    boolean ok = true;
+                    for (int k = 0; k < steps && ok; k++) {
+                        final int nx = x + DX[nd], ny = y + DY[nd];
+                        if (nx < 0 || nx >= cols || ny < 0 || ny >= rows || blocked[ny * cols + nx]) ok = false;
+                        else if (nx < wx0 || nx > wx1 || ny < wy0 || ny > wy1) ok = false;
+                        else if ((nd & 1) == 1 && (blocked[y * cols + nx] || blocked[ny * cols + x])) ok = false;
+                        else if (k == 0 && nd != dir && straightOnly[ny * cols + nx]) ok = false;
+                        else {
+                            cost += stepCost(ny * cols + nx, nd, requestIndex);
+                            x = nx;
+                            y = ny;
+                        }
+                    }
+                    if (!ok) continue;
+                    final int ng = g + cost;
+                    final int nState = (y * cols + x) * 8 + nd;
+                    if (ng < score(nState, run)) {
+                        setScore(nState, ng, state, run);
+                        open.push(ng + dockHeuristic(x, y, tx0, ty0, tx1, ty1, diagonals), ng, nState);
+                    }
+                }
+            }
+            if (bestState < 0) return null;
+            final Route route = reconstruct(bestState, bestCost);
+            int first = bestState;
+            while (cameFrom[first] != -1) first = cameFrom[first];
+            return new Route(route.cells, route.headings, bestCost, startOf.get(first), goalOf.get(bestState));
+        }
+
+        /** A lower bound on the way to any target apron: the distance to their bounding box, octile with diagonals. */
+        private int dockHeuristic(final int x, final int y, final int tx0, final int ty0, final int tx1, final int ty1,
+            final boolean diagonals) {
+            final int ax = Math.max(0, Math.max(tx0 - x, x - tx1)), ay = Math.max(0, Math.max(ty0 - y, y - ty1));
+            if (!diagonals) return (ax + ay) * orthStep;
+            return (Math.max(ax, ay) - Math.min(ax, ay)) * orthStep + Math.min(ax, ay) * diagStep;
+        }
+
+        /** A docked route in world points: out of its source dock straight, its corners, straight into its target. */
+        List<int[]> toWorldDocked(final Route route, final Request q) {
+            final Dock s = q.sources.get(route.source), t = q.targets.get(route.target);
+            final List<int[]> pts = new ArrayList<>();
+            pts.add(new int[] { s.x, s.y });
+            final int n = route.cells.length;
+            for (int k = 0; k < n; k++) {
+                if (k == 0 || k == n - 1 || route.headings[k + 1] != route.headings[k]) {
+                    final int idx = route.cells[k];
+                    pts.add(new int[] { centerX(idx % cols), centerY(idx / cols) });
+                }
+            }
+            pts.add(new int[] { t.x, t.y });
+            // The end runs leave and land square to their sides: on the docks' own lines.
+            lineUp(pts, true, s, n > 1 && route.headings[1] == s.side.outward);
+            lineUp(pts, false, t, n > 1 && route.headings[n - 1] == (t.side.outward + 4) % 8);
+            return simplify(true45(simplify(pts)));
+        }
+
+        /** Puts the corner next to an end (and the one past it, when the run goes on straight) on its dock's line. */
+        private void lineUp(final List<int[]> pts, final boolean start, final Dock d, final boolean straightOn) {
+            final int axis = d.side == Side.LEFT || d.side == Side.RIGHT ? 1 : 0;
+            final int value = axis == 1 ? d.y : d.x;
+            final int i = start ? 1 : pts.size() - 2, next = start ? 2 : pts.size() - 3;
+            pts.get(i)[axis] = value;
+            if (straightOn && next > 0 && next < pts.size() - 1) pts.get(next)[axis] = value;
+        }
+
+        // endregion
+
         /** Converts a route to world waypoints, snapping the end runs to the exact ports. */
         List<int[]> toWorld(final Route route, final Request q) {
             // The corners: the start, every cell the heading changes after, and the goal.
@@ -722,6 +1008,10 @@ public final class ArrowRouter {
 
         static int g(final long key) {
             return (int) (MASK - (key >>> BITS & MASK));
+        }
+
+        static int f(final long key) {
+            return (int) (key >>> 2 * BITS);
         }
     }
 }

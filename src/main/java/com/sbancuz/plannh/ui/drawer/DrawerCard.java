@@ -345,7 +345,10 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
 
     /** The rule's rate: a dark box, the number in gold and its unit at the right; red when it cannot be reached. */
     private void drawRate(final DrawerModel m, final boolean hover, final Fmt.RateUnit unit) {
-        final boolean empty = m.rule == Drawer.Rule.ANY || m.target <= 0;
+        // A rate being wheeled shows at once, before it is set.
+        final Double wheeled = session.wheeledRate(m.drawer.getId());
+        final double target = wheeled != null ? wheeled : m.target;
+        final boolean empty = wheeled != null ? wheeled <= 0 : m.rule == Drawer.Rule.ANY || m.target <= 0;
         Hyb.rect(RATE_X, ROW_Y, RATE_W, ROW_H, m.unmet ? 0xBFF87171 : hover ? Hyb.GOLD : 0xFF5A5E68);
         Hyb.rect(RATE_X + 1, ROW_Y + 1, RATE_W - 2, ROW_H - 2, hover ? 0xFF15171C : 0xFF0F1114);
         Hyb.rect(RATE_X + 1, ROW_Y + 1, RATE_W - 2, 1, 0xB3000000);
@@ -358,7 +361,7 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
             return;
         }
         final String suffix = (m.isFluid() ? "L" : "") + unit.suffix;
-        final String number = Fmt.compact(m.target * unit.perSecond);
+        final String number = Fmt.compact(target * unit.perSecond);
         final int numberColor = m.unmet ? 0xFFF87171 : Hyb.GOLD;
         Hyb.text(Hyb.fit(number, RATE_W - 10 - Hyb.width(suffix)), RATE_X + 5, ROW_Y + 3, numberColor);
         Hyb.textRight(suffix, RATE_X + RATE_W - 4, ROW_Y + 3, 0xFF8A8E97);
@@ -489,9 +492,11 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
             || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_RCONTROL);
         final boolean shift = org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_LSHIFT)
             || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_RSHIFT);
-        final double shown = model.rule == Drawer.Rule.ANY ? 0 : model.target * unit.perSecond;
+        final Double wheeled = session.wheeledRate(model.drawer.getId());
+        final double shown = wheeled != null ? wheeled * unit.perSecond
+            : model.rule == Drawer.Rule.ANY ? 0 : model.target * unit.perSecond;
         final double next = Math.max(0, Math.round(shown) + step * (shift ? 100 : ctrl ? 10 : 1));
-        session.setDrawerRate(model.drawer, next / unit.perSecond);
+        session.wheelDrawerRate(model.drawer, next / unit.perSecond);
     }
 
     /** The wheel on a drawer's rule: the next or previous rule. */

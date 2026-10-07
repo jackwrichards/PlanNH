@@ -465,6 +465,34 @@ public final class BoardSession {
                     .next()));
     }
 
+    /** Rates being wheeled, per drawer (per second), shown at once and set once the wheel is still; null for none. */
+    private Map<UUID, Double> wheeledRates;
+    private long rateWheelAt;
+
+    /**
+     * A drawer rate from the wheel: shown at once, set (one edit, one solve) once the wheel has been still a moment.
+     */
+    public void wheelDrawerRate(final Drawer drawer, final double perSecond) {
+        if (wheeledRates == null) wheeledRates = new HashMap<>();
+        wheeledRates.put(drawer.getId(), perSecond);
+        rateWheelAt = System.currentTimeMillis();
+    }
+
+    /** The rate a drawer is being wheeled to, per second; null when it is not. */
+    public Double wheeledRate(final UUID drawerId) {
+        return wheeledRates == null ? null : wheeledRates.get(drawerId);
+    }
+
+    private void commitWheeledRates() {
+        if (wheeledRates == null || wheeledRates.isEmpty() || System.currentTimeMillis() - rateWheelAt < 500) return;
+        final Map<UUID, Double> rates = new HashMap<>(wheeledRates);
+        wheeledRates.clear();
+        rates.forEach((id, rate) -> {
+            final Drawer d = graph.getDrawer(id);
+            if (d != null) setDrawerRate(d, rate);
+        });
+    }
+
     public void setDrawerRule(final Drawer drawer, final Drawer.Rule rule) {
         edit(() -> drawer.setRule(rule));
     }
@@ -1253,6 +1281,7 @@ public final class BoardSession {
      * came back. Until then the cards keep showing the last answer.
      */
     public void tick() {
+        commitWheeledRates();
         if (disarmOnTick) {
             disarmOnTick = false;
             pendingLookup = null;

@@ -384,13 +384,15 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         Hyb.rect(bx, y, BOX_W, h, d.unmet ? 0xBFF87171 : rateHot ? Hyb.GOLD : 0xFF5A5E68);
         Hyb.rect(bx + 1, y + 1, BOX_W - 2, h - 2, rateHot ? 0xFF15171C : 0xFF0F1114);
         Hyb.rect(bx + 1, y + 1, BOX_W - 2, 1, 0xB3000000);
-        final boolean empty = d.rule == Drawer.Rule.ANY || d.target <= 0;
+        final Double wheeled = session.wheeledRate(d.drawer.getId());
+        final double target = wheeled != null ? wheeled : d.target;
+        final boolean empty = wheeled != null ? wheeled <= 0 : d.rule == Drawer.Rule.ANY || d.target <= 0;
         if (empty) Hyb.text("§orate?", bx + 4, y + 3, 0xFF6F737C);
         else {
             final Fmt.RateUnit unit = session.rateUnit();
             final String suffix = (d.isFluid() ? "L" : "") + unit.suffix;
             Hyb.text(
-                Hyb.fit(Fmt.compact(d.target * unit.perSecond), BOX_W - 8 - Hyb.width(suffix)),
+                Hyb.fit(Fmt.compact(target * unit.perSecond), BOX_W - 8 - Hyb.width(suffix)),
                 bx + 4,
                 y + 3,
                 d.unmet ? 0xFFF87171 : Hyb.GOLD);

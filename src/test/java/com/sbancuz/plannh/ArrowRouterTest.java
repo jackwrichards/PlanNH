@@ -304,4 +304,58 @@ class ArrowRouterTest {
         }
         return out.toString();
     }
+
+    // Docked wires, as Factory Flow routes them: either end anywhere on its box's edge.
+
+    private static List<int[]> docked(final Rect from, final Rect to, final List<Rect> obstacles) {
+        final UUID key = UUID.randomUUID();
+        return new ArrowRouter(10, 12).route(
+            obstacles,
+            List.of(
+                ArrowRouter.Request.docked(key, ArrowRouter.perimeterDocks(from), ArrowRouter.perimeterDocks(to), 4)))
+            .get(key);
+    }
+
+    private static boolean onEdge(final int[] p, final Rect r) {
+        final boolean inX = p[0] >= r.x() && p[0] <= r.x() + r.w(), inY = p[1] >= r.y() && p[1] <= r.y() + r.h();
+        return inX && (p[1] == r.y() || p[1] == r.y() + r.h()) || inY && (p[0] == r.x() || p[0] == r.x() + r.w());
+    }
+
+    @Test
+    void aDockedWireBetweenSideBySideBoxesJoinsTheirFacingSides() {
+        final Rect a = new Rect(0, 0, 200, 120), b = new Rect(400, 0, 200, 120);
+        final List<int[]> path = docked(a, b, List.of(a, b));
+        assertEquals(200, path.getFirst()[0], "leaves the right side");
+        assertEquals(400, path.getLast()[0], "lands on the left side");
+        assertEquals(2, path.size(), "straight across, middle to middle");
+        assertEquals(60, path.getFirst()[1]);
+    }
+
+    @Test
+    void aDockedWireToABoxBelowLeavesTheBottomAndLandsOnTheTop() {
+        final Rect a = new Rect(0, 0, 200, 120), b = new Rect(0, 400, 200, 120);
+        final List<int[]> path = docked(a, b, List.of(a, b));
+        assertEquals(120, path.getFirst()[1], "leaves the bottom");
+        assertEquals(400, path.getLast()[1], "lands on the top");
+        assertEquals(2, path.size(), "straight down, middle to middle");
+    }
+
+    @Test
+    void aDockedWireStartsAndEndsOnItsBoxesAndNeverCrossesOne() {
+        final Rect a = new Rect(0, 0, 200, 120), b = new Rect(500, 300, 200, 120), wall = new Rect(260, 100, 60, 260);
+        final List<int[]> path = docked(a, b, List.of(a, b, wall));
+        assertTrue(onEdge(path.getFirst(), a), "starts on the first box");
+        assertTrue(onEdge(path.getLast(), b), "ends on the second");
+        for (int i = 1; i < path.size(); i++) {
+            final int[] p = path.get(i - 1), q = path.get(i);
+            for (int k = 1; k < 20; k++) {
+                final double x = p[0] + (q[0] - p[0]) * k / 20.0, y = p[1] + (q[1] - p[1]) * k / 20.0;
+                for (final Rect r : List.of(a, b, wall)) {
+                    assertFalse(
+                        x > r.x() + 1 && x < r.x() + r.w() - 1 && y > r.y() + 1 && y < r.y() + r.h() - 1,
+                        "runs through a box at " + x + "," + y);
+                }
+            }
+        }
+    }
 }
