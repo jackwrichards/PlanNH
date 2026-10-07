@@ -61,8 +61,11 @@ public final class StructureArt {
         Map.entry("compact-fusion-computer-mk-iv-prototype", "compact-fusion-reactor"),
         Map.entry("compact-fusion-computer-mk-v", "compact-fusion-reactor"));
 
-    /** A bundled picture and its size in pixels, so the card can fit it without stretching. */
-    public record Art(ResourceLocation location, int width, int height) {}
+    /**
+     * A bundled picture, its size in pixels (so the card can fit it without stretching), and the average colour of its
+     * opaque pixels (the zoomed-out card is tinted with it).
+     */
+    public record Art(ResourceLocation location, int width, int height, int tint) {}
 
     private static final Map<String, Art> FOUND = new HashMap<>();
 
@@ -79,6 +82,22 @@ public final class StructureArt {
         return art;
     }
 
+    /** The average colour of a picture's opaque pixels (every other pixel is plenty). */
+    private static int averageColor(final java.awt.image.BufferedImage image) {
+        long r = 0, g = 0, b = 0, n = 0;
+        for (int y = 0; y < image.getHeight(); y += 2) {
+            for (int x = 0; x < image.getWidth(); x += 2) {
+                final int p = image.getRGB(x, y);
+                if (p >>> 24 < 128) continue;
+                r += p >> 16 & 0xFF;
+                g += p >> 8 & 0xFF;
+                b += p & 0xFF;
+                n++;
+            }
+        }
+        return n == 0 ? 0x8A93A6 : (int) (r / n) << 16 | (int) (g / n) << 8 | (int) (b / n);
+    }
+
     private static Art find(final String displayName) {
         String id = displayName.toLowerCase(Locale.ROOT)
             .replaceAll("[^a-z0-9]+", "-")
@@ -90,7 +109,7 @@ public final class StructureArt {
             .getResource(loc)
             .getInputStream()) {
             final java.awt.image.BufferedImage image = javax.imageio.ImageIO.read(in);
-            return image == null ? null : new Art(loc, image.getWidth(), image.getHeight());
+            return image == null ? null : new Art(loc, image.getWidth(), image.getHeight(), averageColor(image));
         } catch (final java.io.FileNotFoundException e) {
             return null;
         } catch (final IOException | RuntimeException e) {

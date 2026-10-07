@@ -225,7 +225,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             // Lifted while it is carried: a soft shadow under it.
             Hyb.rect(5, 7, CardLayout.W, layout.height, 0x50000000);
             Hyb.rect(3, 4, CardLayout.W, layout.height, 0x40000000);
-        }
+        } else Hyb.dropShadow(0, 0, CardLayout.W, layout.height);
         if (session.isSelected(nodeId)) Hyb.ring(-3, -3, CardLayout.W + 6, layout.height + 6, 2, Hyb.SELECTION);
         Hyb.cardFrame(0, 0, CardLayout.W, layout.height);
         if (m.tierTooLow()) {
@@ -243,8 +243,11 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         drawFooter(m, z, hover == Part.MACHINES);
     }
 
-    /** At this zoom and below the 1x text is too small to read; the card shows the glance view instead. */
-    public static final float GLANCE_ZOOM = 0.5f;
+    /**
+     * At this zoom and below the card shows the glance view instead (the step out from half size, where its text is
+     * still crisp at one screen pixel per font pixel).
+     */
+    public static final float GLANCE_ZOOM = 0.25f;
 
     private boolean glance() {
         return session.graph()
@@ -256,27 +259,83 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
      * read at half zoom or less. Ports stay where they are so wires still meet the card.
      */
     private void drawGlance(final CardModel m, final float z) {
-        final int h = layout.height;
-        Hyb.cardFrame(0, 0, CardLayout.W, h);
-        if (session.isSelected(nodeId)) Hyb.ring(-6, -6, CardLayout.W + 12, h + 12, 4, Hyb.SELECTION);
-        final int icon = Math.min(96, h - 24);
-        if (m.machineStack != null) Hyb.item(m.machineStack, CardLayout.PAD + 8, (h - icon) / 2f, icon, z);
-        final int tx = CardLayout.PAD + 16 + icon;
-        final int room = (CardLayout.W - tx - 8) / 2;
-        Hyb.text(Hyb.fit(m.machineName, room), tx, 12, 2f, 0xFFFFFFFF);
-        final Hyb.Tier tier = Hyb.tier(m.tier);
-        if (m.gregtech) Hyb.text(tier.name(), tx, 36, 2f, tier.bg());
+        final int w = CardLayout.W, h = layout.height;
+        final float zoom = session.graph()
+            .getZoom();
+        // Factory Flow's identity tile: the card keeps its frame and takes the machine's colour, deep-dimmed, so the
+        // picture is the bright thing; the rim holds two screen pixels however far out.
+        Hyb.dropShadow(0, 0, w, h);
+        final StructureArt.Art art = StructureArt.forMachine(m.machineName);
+        int tint = art != null ? art.tint()
+            : m.machineStack != null ? com.sbancuz.plannh.client.IngredientColors.itemColor(m.machineStack) : -1;
+        if (tint < 0) tint = 0x8A93A6;
+        final float rim = Math.max(2, 1 / zoom);
+        Hyb.rect(0, 0, w, h, Hyb.mix(tint, 0x262B34, 0.55f));
+        Hyb.rect(rim, rim, w - 2 * rim, h - 2 * rim, Hyb.mix(tint, 0x07090C, 0.26f));
+        if (m.tierTooLow()) Hyb.ring(-rim, -rim, w + 2 * rim, h + 2 * rim, rim, Hyb.RED_INK);
+        if (session.isSelected(nodeId)) Hyb.ring(-3 * rim, -3 * rim, w + 6 * rim, h + 6 * rim, 2 * rim, Hyb.SELECTION);
+        // The machine, big and centred: the whole structure where there is a picture of it.
+        final float side = h - 2 * rim - 12;
+        drawMachineArt(m, (w - side) / 2f, (h - side) / 2f, side, side, side, z, true);
+        // How many, in a dark pill in the corner, at whole screen pixels per font pixel so it stays sharp.
         final String count = "x" + Fmt.machines(m.machines);
-        // Whole screen pixels per font pixel at either glance zoom, so the number stays sharp.
-        final float cs = session.graph()
-            .getZoom() <= 0.25f ? 4f : 3f;
-        Hyb.text(
-            Hyb.fit(count, (int) ((CardLayout.W - tx - 8) / cs)),
-            tx,
-            h - 32 - 9 * cs,
-            cs,
-            m.pinned ? Hyb.GOLD : m.machines <= 0 ? Hyb.MUTED : Hyb.INK);
-        Hyb.text(Fmt.power(session.power(m)) + " EU/t", tx, h - 28, 2f, Hyb.MUTED);
+        final float cs = 1 / zoom, pad = cs;
+        final float tw = Hyb.width(count) * cs, th = 8 * cs;
+        final float px = w - rim - 4 - tw - 2 * pad, py = h - rim - 4 - th - 2 * pad;
+        Hyb.rect(px, py, tw + 2 * pad, th + 2 * pad, 0xC0101114);
+        Hyb.text(count, px + pad, py + pad, cs, m.pinned ? Hyb.GOLD : m.machines <= 0 ? Hyb.MUTED : Hyb.INK);
+    }
+
+    /**
+     * Zoomed out, hovering a card shows what it is, as Factory Flow's glance does: a panel at the screen's own scale
+     * with the name, the count, tier and power, and what goes in and comes out with its rates. Drawn in the screen's
+     * foreground; false when the card is not in the glance view (the ordinary tooltip applies).
+     */
+    public boolean drawReveal(final int mouseX, final int mouseY, final int right, final int bottom) {
+        final CardModel m = model;
+        if (m == null || !glance() || !isHovering()) return false;
+        final int rows = Math.max(1, Math.max(m.inputs.size(), m.outputs.size()));
+        final int colW = 136, rowH = 22, w = 2 * colW + 28, h = 6 + 18 + 6 + 10 + 6 + rows * rowH + 4;
+        int x = mouseX + 14, y = mouseY + 14;
+        if (x + w > right) x = Math.max(2, mouseX - 14 - w);
+        if (y + h > bottom) y = Math.max(2, bottom - h);
+        org.lwjgl.opengl.GL11
+            .glPushAttrib(org.lwjgl.opengl.GL11.GL_ENABLE_BIT | org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT);
+        org.lwjgl.opengl.GL11.glDisable(org.lwjgl.opengl.GL11.GL_DEPTH_TEST);
+        Hyb.rect(x + 4, y + 4, w, h, 0x59000000);
+        Hyb.rect(x, y, w, h, Hyb.KEY_EDGE);
+        Hyb.rect(x + 1, y + 1, w - 2, h - 2, Hyb.MENU);
+        // The name bar the card wears zoomed in.
+        Hyb.bevel(x + 6, y + 6, w - 12, 18, Hyb.KEY, Hyb.KEY_HI, Hyb.KEY_LO, Hyb.KEY_EDGE, 1);
+        Hyb.textCentered(Hyb.fit(m.machineName, w - 24), x + w / 2f, y + 11, Hyb.INK);
+        // How many, at what tier, drawing how much.
+        float lx = x + 8;
+        final int ly = y + 30;
+        final String count = "x" + Fmt.machines(m.machines);
+        Hyb.text(count, lx, ly, m.pinned ? Hyb.GOLD : Hyb.INK);
+        lx += Hyb.width(count) + 8;
+        if (m.gregtech) {
+            final Hyb.Tier tier = Hyb.tier(m.tier);
+            Hyb.text(tier.name(), lx, ly, tier.bg());
+            lx += Hyb.width(tier.name()) + 8;
+        }
+        Hyb.text(Fmt.power(session.power(m)) + " EU/t", lx, ly, Hyb.MUTED);
+        // Inputs, the arrow, outputs: the card's own reading order.
+        final int top = y + 46;
+        for (int i = 0; i < m.inputs.size(); i++) revealPort(m.inputs.get(i), x + 8, top + i * rowH, colW - 8);
+        for (int i = 0; i < m.outputs.size(); i++)
+            revealPort(m.outputs.get(i), x + 8 + colW + 20, top + i * rowH, colW - 8);
+        final float ax = x + 8 + colW + 4, ay = top + 8;
+        Hyb.triangle(ax + 8, ay, ax, ay - 4, ax, ay + 4, Hyb.MUTED);
+        org.lwjgl.opengl.GL11.glPopAttrib();
+        return true;
+    }
+
+    private void revealPort(final CardModel.PortView p, final float x, final float y, final int width) {
+        if (p.isFluid()) Hyb.fluid(p.fluid(), x, y + 2, 16, 300);
+        else if (p.item() != null) Hyb.item(p.item(), x, y + 2, 16, 300);
+        Hyb.text(Hyb.fit(p.name(), width - 22), x + 20, y, Hyb.INK);
+        Hyb.text(Fmt.rate(p.perSecond(), session.rateUnit(), p.isFluid()), x + 20, y + 10, Hyb.MUTED);
     }
 
     private void drawHead(final CardModel m, final Part hover) {
@@ -378,19 +437,40 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     private void drawPicture(final CardModel m, final float z) {
         final int x = CardLayout.PICTURE_X, y = CardLayout.RAILS_Y, w = CardLayout.PICTURE_W, h = layout.railsH;
         Hyb.well(x, y, w, h, Hyb.PICTURE, Hyb.SHADOW, Hyb.TILE_EDGE);
-        // A multiblock with a bundled render shows the whole structure; anything else its machine block.
+        drawMachineArt(m, x + 2, y + 2, w - 4, h - 4, 64, z, false);
+    }
+
+    /**
+     * The machine in a box: a multiblock with a bundled render shows the whole structure (fitted, keeping its shape:
+     * the power plants are not square); any other GregTech multiblock its structure rendered in game (built once, then
+     * cached); anything else its block, at most {@code itemSize}. {@code shadow}: the art casts Factory Flow's shadow.
+     */
+    private static void drawMachineArt(final CardModel m, final float x, final float y, final float w, final float h,
+        final float itemSize, final float z, final boolean shadow) {
         final StructureArt.Art art = StructureArt.forMachine(m.machineName);
         if (art != null) {
-            // Fit the picture in the well, keeping its shape (the power plants are not square).
-            final float scale = Math.min((w - 4f) / art.width(), (h - 4f) / art.height());
+            final float scale = Math.min(w / art.width(), h / art.height());
             final float pw = art.width() * scale, ph = art.height() * scale;
-            Hyb.texture(art.location(), x + (w - pw) / 2f, y + (h - ph) / 2f, pw, ph);
+            final float px = x + (w - pw) / 2f, py = y + (h - ph) / 2f;
+            if (shadow) Hyb.texture(art.location(), px + 4, py + 6, pw, ph, 0x73000000);
+            Hyb.texture(art.location(), px, py, pw, ph);
             return;
         }
-        // Otherwise, for any other GregTech multiblock, its structure rendered in game (built once, then cached).
         final MultiblockPictures.Picture structure = MultiblockPictures.get(m.machineStack);
-        if (structure != null) structure.draw(x + 2, y + 2, w - 4, h - 4);
-        else if (m.machineStack != null) Hyb.item(m.machineStack, x + (w - 64) / 2f, y + (h - 64) / 2f, 64, z);
+        if (structure != null) {
+            final float side = Math.min(w, h);
+            if (shadow) Hyb.texture(
+                structure.location(),
+                x + (w - side) / 2f + 4,
+                y + (h - side) / 2f + 6,
+                side,
+                side,
+                0x73000000);
+            structure.draw(x, y, w, h);
+        } else if (m.machineStack != null) {
+            final float side = Math.min(itemSize, Math.min(w, h));
+            Hyb.item(m.machineStack, x + (w - side) / 2f, y + (h - side) / 2f, side, z);
+        }
     }
 
     private void drawCoil(final CardModel m, final float z, final boolean hover) {

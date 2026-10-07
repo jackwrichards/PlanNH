@@ -182,7 +182,7 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         if (canvas() != null && canvas().isCarried(drawerId)) {
             Hyb.rect(5, 7, W, H, 0x50000000);
             Hyb.rect(3, 4, W, H, 0x40000000);
-        }
+        } else Hyb.dropShadow(0, 0, W, H);
         if (session.isSelected(drawerId)) Hyb.ring(-3, -3, W + 6, H + 6, 2, Hyb.SELECTION);
         Hyb.rect(0, 0, W, H, ring);
         if (session.graph()

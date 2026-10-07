@@ -361,6 +361,12 @@ public final class BoardScreen extends ModularScreen {
         final List<String> lines;
         int tipX = getContext().getAbsMouseX() + 12;
         if (hovered instanceof final RecipeCard card) {
+            // Zoomed out, a card answers with its own panel: name, numbers, ins and outs.
+            if (card.drawReveal(
+                getContext().getAbsMouseX(),
+                getContext().getAbsMouseY(),
+                getMainPanel().getArea().x + getMainPanel().getArea().width,
+                getMainPanel().getArea().y + getMainPanel().getArea().height)) return;
             lines = card.hoverLines();
             if (lines == null) return;
         } else if (hovered instanceof final DrawerCard drawer) {

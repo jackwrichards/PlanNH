@@ -159,11 +159,45 @@ public final class PlanAPI {
         return stack;
     }
 
+    /** Plans in the last save, to tell when one was deleted; -1 before the first save of the session. */
+    private static int lastSavedPlans = -1;
+    private static boolean backedUpThisSession;
+
+    /**
+     * Keeps old saves in a {@code backups} folder beside the save: one per session (the state the session started
+     * from), and one before any save with fewer plans than the last (a plan was deleted). The newest ten are kept.
+     */
+    private static void backUp(final File saveFile, final int plans) {
+        final boolean fewer = lastSavedPlans >= 0 && plans < lastSavedPlans;
+        lastSavedPlans = plans;
+        if (!saveFile.isFile() || backedUpThisSession && !fewer) return;
+        backedUpThisSession = true;
+        try {
+            final File dir = new File(saveFile.getParentFile(), "backups");
+            dir.mkdirs();
+            final String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss").format(new java.util.Date());
+            final File copy = new File(dir, "plannh-" + stamp + (fewer ? "-before-delete" : "") + ".dat");
+            Files.copy(saveFile.toPath(), copy.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            final File[] all = dir.listFiles((d, name) -> name.startsWith("plannh-") && name.endsWith(".dat"));
+            if (all != null && all.length > 10) {
+                java.util.Arrays.sort(all, java.util.Comparator.comparing(File::getName));
+                for (int i = 0; i < all.length - 10; i++) all[i].delete();
+            }
+        } catch (final Exception e) {
+            com.sbancuz.plannh.PlanNH.LOG.warn("Could not back up the plans", e);
+        }
+    }
+
     public static void save() {
         try {
             File saveFile = getSaveFile();
             saveFile.getParentFile()
                 .mkdirs();
+            backUp(
+                saveFile,
+                Plan.getInstance()
+                    .getGraphs()
+                    .size());
             Files.writeString(saveFile.toPath(), Serializer.encodePlan(Plan.getInstance()), StandardCharsets.UTF_8);
 
             saveFile = getDebugSaveFile();

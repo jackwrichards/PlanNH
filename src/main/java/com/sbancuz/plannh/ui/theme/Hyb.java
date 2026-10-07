@@ -155,6 +155,50 @@ public final class Hyb {
         t.draw();
     }
 
+    /** A picture drawn in one colour by its shape alone, e.g. black at 45% for the shadow it casts. */
+    public static void texture(final net.minecraft.util.ResourceLocation loc, final float x, final float y,
+        final float w, final float h, final int argb) {
+        texture(loc, x, y, w, h);
+        // Redrawn over itself in the colour: the texture's own alpha with the colour multiplied in.
+        org.lwjgl.opengl.GL11.glColor4f(
+            (argb >> 16 & 0xFF) / 255f,
+            (argb >> 8 & 0xFF) / 255f,
+            (argb & 0xFF) / 255f,
+            (argb >>> 24) / 255f);
+        org.lwjgl.opengl.GL11.glTexEnvi(
+            org.lwjgl.opengl.GL11.GL_TEXTURE_ENV,
+            org.lwjgl.opengl.GL11.GL_TEXTURE_ENV_MODE,
+            org.lwjgl.opengl.GL11.GL_MODULATE);
+        final net.minecraft.client.renderer.Tessellator t = net.minecraft.client.renderer.Tessellator.instance;
+        t.startDrawingQuads();
+        t.addVertexWithUV(x, y + h, 0, 0, 1);
+        t.addVertexWithUV(x + w, y + h, 0, 1, 1);
+        t.addVertexWithUV(x + w, y, 0, 1, 0);
+        t.addVertexWithUV(x, y, 0, 0, 0);
+        t.draw();
+        org.lwjgl.opengl.GL11.glColor4f(1, 1, 1, 1);
+    }
+
+    /** {@code a} mixed into {@code b}, {@code share} of a (0 to 1); opaque. */
+    public static int mix(final int a, final int b, final float share) {
+        final float s = Math.max(0, Math.min(1, share));
+        final int r = Math.round((a >> 16 & 0xFF) * s + (b >> 16 & 0xFF) * (1 - s));
+        final int g = Math.round((a >> 8 & 0xFF) * s + (b >> 8 & 0xFF) * (1 - s));
+        final int bl = Math.round((a & 0xFF) * s + (b & 0xFF) * (1 - s));
+        return 0xFF000000 | r << 16 | g << 8 | bl;
+    }
+
+    /**
+     * The shadow everything on the board casts, as Factory Flow's (6 right, 8 down, 7 soft, 45% at its heart): four
+     * stacked translucent rectangles, each a little larger, so the edge fades out.
+     */
+    public static void dropShadow(final float x, final float y, final float w, final float h) {
+        for (int i = 3; i >= 0; i--) {
+            final float grow = i * 2;
+            rect(x + 6 - grow, y + 8 - grow, w + 2 * grow, h + 2 * grow, 0x1E000000);
+        }
+    }
+
     /** A filled triangle in the current (possibly zoomed) space. */
     public static void triangle(final float x1, final float y1, final float x2, final float y2, final float x3,
         final float y3, final int argb) {

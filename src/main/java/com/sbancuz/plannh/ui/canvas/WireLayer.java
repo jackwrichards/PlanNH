@@ -287,6 +287,16 @@ final class WireLayer {
                 for (int i = 1; i < path.size(); i++) segment(path.get(i - 1), path.get(i), w.width() + 7, halo);
             }
         }
+        // The shadow the wire layer casts (Factory Flow: 4 right, 5 down, soft, 35%), under every wire.
+        for (final Wire w : wires) {
+            if (w.perSecond() <= 0) continue;
+            final List<int[]> path = w.path();
+            final float width = w.width() + Math.max(2, 0.22f * w.width()) + 2;
+            for (int i = 1; i < path.size(); i++) {
+                final int[] a = path.get(i - 1), b = path.get(i);
+                segment(a[0] + 4, a[1] + 5, b[0] + 4, b[1] + 5, width, 0x3C000000);
+            }
+        }
         // Thickest first, so thinner wires lie on top, as in Factory Flow.
         final List<Wire> order = new ArrayList<>(wires);
         order.sort((a, b) -> Float.compare(b.width(), a.width()));
