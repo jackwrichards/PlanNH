@@ -386,9 +386,14 @@ final class OverviewRail extends ParentWidget<OverviewRail> implements Interacta
             if (matches(m.name())) groups.computeIfAbsent(m.name(), k -> new ArrayList<>())
                 .add(m);
         }
-        int whole = 0;
-        for (final BoardSession.MachineLine m : t.machines()) whole += (int) Math.ceil(m.machines() - 1e-9);
-        y = section("MACHINES", whole, whole, y, w, Hyb.INK, hover);
+        // Whole machines to build: all of them, and those the filter lets through.
+        int whole = 0, shown = 0;
+        for (final BoardSession.MachineLine m : t.machines()) {
+            final int n = (int) Math.ceil(m.machines() - 1e-9);
+            whole += n;
+            if (groups.containsKey(m.name())) shown += n;
+        }
+        y = section("MACHINES", whole, shown, y, w, Hyb.INK, hover);
         // Peak / average, at the right of the section heading.
         final int px = w - 6 - TOGGLE_W;
         final boolean peakHot = hover != null && hover.kind() == Kind.PEAK;
