@@ -24,7 +24,7 @@ import com.sbancuz.plannh.importer.ImportReport.Kind;
 
 /**
  * Whole FF plans converted against a game whose recipes are the plans' own, so every card matches. The expected
- * counts come from FF's rules applied to the fixtures by hand: cards (a shared machine's recipes each a card), wires
+ * counts come from FF's rules applied to the fixtures by hand: cards (a shared machine's recipes each a node), wires
  * between cards (a buffer drawer's feeders wired to its takers), and drawers.
  */
 class FfConverterTest {
@@ -189,28 +189,53 @@ class FfConverterTest {
     }
 
     @Test
-    void aSharedMachineSplitsIntoACardPerRecipe() {
+    void aSharedMachineStaysOneCardWithItsRecipes() {
         final FfConverter.Result r = fixture("alumina-line-shared-reactor.json");
         final Graph g = r.graph();
         assertEquals(11, g.nodes.size(), "7 cards, one with 1 extra recipe and one with 3");
         assertEquals(12, g.edges.size());
         assertEquals(28, g.drawers.size(), "26 drawers and 2 water hatches");
+        // The two shared machines, a reactor of four recipes and one of two, each one card at its place.
+        final List<com.sbancuz.plannh.data.flowchart.MachineGroup> shared = g.getGroups()
+            .stream()
+            .filter(x -> x instanceof com.sbancuz.plannh.data.flowchart.MachineGroup)
+            .map(x -> (com.sbancuz.plannh.data.flowchart.MachineGroup) x)
+            .sorted(
+                java.util.Comparator.comparingInt(
+                    x -> x.getSections()
+                        .size()))
+            .collect(Collectors.toList());
+        assertEquals(2, shared.size());
         assertEquals(
             2,
-            r.report()
-                .entries(Kind.CONVERTED)
-                .stream()
-                .filter(
-                    e -> e.message()
-                        .contains("shared machine"))
-                .count());
+            shared.get(0)
+                .getSections()
+                .size());
+        assertEquals(
+            4,
+            shared.get(1)
+                .getSections()
+                .size());
+        for (final com.sbancuz.plannh.data.flowchart.MachineGroup m : shared) {
+            final Node host = g.nodes.get(
+                m.getSections()
+                    .getFirst());
+            for (final java.util.UUID id : m.getSections()) {
+                assertEquals(host.x, g.nodes.get(id).x, "a section sits where its card does");
+                assertEquals(host.y, g.nodes.get(id).y);
+                assertFalse(
+                    g.nodes.get(id)
+                        .isMachineCountFixed(),
+                    "the pin is the machine's, not a recipe's");
+            }
+        }
         assertTrue(has(r.report(), Kind.CONVERTED, "water hatch"));
         assertTrue(has(r.report(), Kind.CONVERTED, "itemPipeCasing"));
 
         final FakeGame game = new FakeGame();
         final List<Node> reactors = nodes(g, "Large Chemical Reactor");
         assertEquals(6, reactors.size(), "two plain reactors, and the shared one's four recipes");
-        // Section 2 of the shared reactor makes aluminium hydroxide for section 0: a wire between two cards now.
+        // Section 2 of the shared reactor makes aluminium hydroxide for section 0: a wire between two of its recipes.
         final Node hydroxideUser = reactors.stream()
             .filter(n -> game.port(n, false, "gregtech:gt.metaitem.01@2698") >= 0)
             .findFirst()
@@ -221,7 +246,11 @@ class FfConverterTest {
         final Edge e = edgesInto(g, hydroxideUser, game.port(hydroxideUser, false, "gregtech:gt.metaitem.01@2698"))
             .getFirst();
         assertFalse(e.sourceNodeId.equals(e.targetNodeId));
-        assertTrue(g.nodes.get(e.sourceNodeId).y > hydroxideUser.y, "an extra recipe sits below its card");
+        assertTrue(
+            shared.get(1)
+                .getSections()
+                .containsAll(List.of(e.sourceNodeId, e.targetNodeId)),
+            "both recipes on the shared reactor");
 
         final Node ebf = node(g, "Blast Furnace");
         assertEquals(8101, ebf.machineConfig.settings.get("machine_heat"), "naquadah alloy coils");

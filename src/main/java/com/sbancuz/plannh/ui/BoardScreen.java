@@ -133,11 +133,12 @@ public final class BoardScreen extends ModularScreen {
                 .expanded());
         column.child(body);
         panel.child(column);
-        panel.child(
-            new NoticeBar(session, canvas)
-                .left(() -> rail.currentWidth() + 6, com.cleanroommc.modularui.widget.sizer.Unit.Measure.PIXEL)
-                .right(6)
-                .top(TOP_BAR + 4));
+        final NoticeBar notices = new NoticeBar(session, canvas)
+            .left(() -> rail.currentWidth() + 6, com.cleanroommc.modularui.widget.sizer.Unit.Measure.PIXEL)
+            .right(6)
+            .top(TOP_BAR + 4);
+        panel.child(notices);
+        panel.child(new SelectionBar(session, canvas, notices));
         return new BoardScreen(panel, session, canvas);
     }
 
@@ -340,6 +341,12 @@ public final class BoardScreen extends ModularScreen {
     }
 
     @Override
+    public void onOpen() {
+        super.onOpen();
+        session.disarmPending();
+    }
+
+    @Override
     public void onClose() {
         session.close();
         super.onClose();
@@ -393,6 +400,9 @@ public final class BoardScreen extends ModularScreen {
             return;
         } else if (hovered == null || hovered == canvas) {
             tip = Tip.ofLines(canvas.wireLines());
+        } else if (hovered instanceof SelectionBar) {
+            tip = Tip.of("One machine runs all of these recipes")
+                .muted("Their recipes become one card: the machine and its settings shared, the count all of theirs together.");
         } else if (hovered instanceof final PortSlot slot) {
             tip = portTip(slot);
         } else if (hovered instanceof final IWidget w && KEY_TIPS.containsKey(w)) {

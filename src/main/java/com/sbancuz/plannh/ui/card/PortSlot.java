@@ -21,11 +21,14 @@ public final class PortSlot extends Widget<PortSlot>
     implements RecipeViewerIngredientProvider, Interactable, IDraggable {
 
     private final RecipeCard card;
+    /** Which recipe on the card the port is on: 0, or a later one on a shared machine. */
+    public final int section;
     public final boolean output;
     public final int index;
 
-    PortSlot(final RecipeCard card, final boolean output, final int index) {
+    PortSlot(final RecipeCard card, final int section, final boolean output, final int index) {
         this.card = card;
+        this.section = section;
         this.output = output;
         this.index = index;
         if (card.layout() != null) place(card.layout());
@@ -34,11 +37,11 @@ public final class PortSlot extends Widget<PortSlot>
     /** The whole row (icon, name, rate) is the handle: drag a wire from anywhere on it, click it for NEI's recipes. */
     void place(final CardLayout layout) {
         size(CardLayout.RAIL_W, layout.rowH(output, index));
-        pos(CardLayout.railX(output), layout.rowY(output, index));
+        pos(CardLayout.railX(output), layout.rowY(section, output, index));
     }
 
     public CardModel.PortView view() {
-        final CardModel model = card.model();
+        final CardModel model = card.modelOf(section);
         if (model == null) return null;
         final java.util.List<CardModel.PortView> ports = output ? model.outputs : model.inputs;
         return index < ports.size() ? ports.get(index) : null;
@@ -46,6 +49,11 @@ public final class PortSlot extends Widget<PortSlot>
 
     public RecipeCard card() {
         return card;
+    }
+
+    /** The node the port belongs to: its recipe's, which on a shared machine is not the card's own. */
+    public java.util.UUID node() {
+        return card.sectionId(section);
     }
 
     /** Far out the ports are not drawn: they take no hover, clicks or drags, and the card under them does. */
@@ -86,7 +94,7 @@ public final class PortSlot extends Widget<PortSlot>
         if (mouseButton != 0 || !pressed) return false;
         pressed = false;
         final BoardCanvas canvas = canvas();
-        if (canvas != null) canvas.clickPort(card.nodeId, output, index);
+        if (canvas != null) canvas.clickPort(node(), output, index);
         return true;
     }
 
@@ -95,7 +103,7 @@ public final class PortSlot extends Widget<PortSlot>
         final BoardCanvas canvas = canvas();
         if (button != 0 || canvas == null) return false;
         pressed = false;
-        canvas.beginPortDrag(card.nodeId, output, index);
+        canvas.beginPortDrag(node(), output, index);
         return true;
     }
 
@@ -134,7 +142,7 @@ public final class PortSlot extends Widget<PortSlot>
         if (!isValid()) return null;
         // NEI asks this when R or U is pressed: remember the port so the recipe added next wires into it.
         card.session()
-            .armLookup(card.nodeId, output, index);
+            .armLookup(node(), output, index);
         return stack();
     }
 }

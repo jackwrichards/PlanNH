@@ -163,6 +163,18 @@ public final class BoardSession {
         pendingLookup = null;
     }
 
+    /** Set when the board comes back; its next tick forgets what is still armed. */
+    private boolean disarmOnTick;
+
+    /**
+     * Forgets every armed lookup (a port's, or a card's "Add another recipe") on the tick after the board is back. NEI
+     * shows the board again and then hands it the recipe picked with "+", in the same click, so that add still finds
+     * its lookup; anything armed after it was for a page closed without one.
+     */
+    public void disarmPending() {
+        disarmOnTick = true;
+    }
+
     /** The card added from NEI last, once, for the board to bring into view. */
     private UUID justAdded;
 
@@ -179,11 +191,18 @@ public final class BoardSession {
     public Node addRecipe(final IRecipeHandler handler, final int recipeIndex) {
         final NodeLookupContext origin = pendingLookup;
         pendingLookup = null;
+        final UUID joinTo = addSectionTo;
+        addSectionTo = null;
         final Node node = new Node(handler, recipeIndex, 0, 0);
         CardDefaults.apply(node);
-        justAdded = node.id;
+        justAdded = joinTo != null && graph.nodes.containsKey(joinTo) ? joinTo : node.id;
         edit(() -> {
             graph.addNode(node);
+            // "Add another recipe" on a card: it joins that machine, wired like any add.
+            if (joinTo != null && joinArmedCard(node, joinTo)) {
+                autoWire(node);
+                return;
+            }
             final Node from = origin == null ? null : graph.nodes.get(origin.nodeId());
             if (from != null && wireToOrigin(node, from, origin)) {
                 node.x = origin.output() ? from.x + CardLayout.W + GAP : from.x - CardLayout.W - GAP;
@@ -275,6 +294,14 @@ public final class BoardSession {
      * first output there that fits. False when nothing on that card matches.
      */
     public boolean dropPortOnCard(final UUID fromNode, final boolean output, final int port, final UUID toNode) {
+        // A shared machine's recipes in turn: the first with a matching port takes the wire, as on the website.
+        for (final UUID section : sectionsOf(toNode)) {
+            if (!section.equals(fromNode) && dropPortOnRecipe(fromNode, output, port, section)) return true;
+        }
+        return false;
+    }
+
+    private boolean dropPortOnRecipe(final UUID fromNode, final boolean output, final int port, final UUID toNode) {
         final Node src = graph.nodes.get(fromNode), dst = graph.nodes.get(toNode);
         if (src == null || dst == null || src == dst) return false;
         if (output) {
@@ -702,7 +729,9 @@ public final class BoardSession {
     /** Deletes every selected card and drawer as one undoable step. */
     public void deleteSelected() {
         if (selection.isEmpty()) return;
-        final List<UUID> ids = new ArrayList<>(selection);
+        // A shared machine goes whole: every recipe on its card.
+        final List<UUID> ids = new ArrayList<>();
+        for (final UUID id : selection) for (final UUID s : sectionsOf(id)) if (!ids.contains(s)) ids.add(s);
         selection.clear();
         edit(() -> {
             for (final UUID id : ids) {
@@ -836,10 +865,272 @@ public final class BoardSession {
 
     // endregion
 
+    // region Shared machines (Factory Flow's: one card, several recipes time-sharing one machine)
+
+    /** Each section's shared machine, as of the last tick. */
+    private Map<UUID, com.sbancuz.plannh.data.flowchart.MachineGroup> sharedBySection = Map.of();
+
+    /** The settings that belong to the machine rather than the recipe: a shared card keeps them the same throughout. */
+    private static final Set<String> RECIPE_SETTINGS = Set.of("duration_ticks", "recipe_heat", "machines");
+
+    /** The shared machine a recipe is a section of, or null when its card is its own. */
+    public com.sbancuz.plannh.data.flowchart.MachineGroup sharedOf(final UUID nodeId) {
+        return sharedBySection.get(nodeId);
+    }
+
+    /** The recipes on the card a node is on, top first: its shared machine's sections, or just itself. */
+    public List<UUID> sectionsOf(final UUID nodeId) {
+        final com.sbancuz.plannh.data.flowchart.MachineGroup g = sharedBySection.get(nodeId);
+        return g == null ? List.of(nodeId) : List.copyOf(g.getSections());
+    }
+
+    /** The node whose card a node is drawn on: the first section of its shared machine, or itself. */
+    public UUID hostOf(final UUID nodeId) {
+        final com.sbancuz.plannh.data.flowchart.MachineGroup g = sharedBySection.get(nodeId);
+        return g == null ? nodeId
+            : g.getSections()
+                .get(0);
+    }
+
+    /** The cards a set of ids covers, each once, by host: what a selection of cards is. */
+    public List<UUID> cardsIn(final java.util.Collection<UUID> ids) {
+        final List<UUID> out = new ArrayList<>();
+        for (final UUID id : ids) {
+            if (!graph.nodes.containsKey(id)) continue;
+            final UUID host = hostOf(id);
+            if (!out.contains(host)) out.add(host);
+        }
+        return out;
+    }
+
+    /**
+     * Rebuilds the section index, and keeps every shared machine in shape: a recipe that left the plan leaves its
+     * machine, a machine left with one recipe is an ordinary card again, and every section sits where its card does
+     * (wires find its ports from there).
+     */
+    private void indexSharedMachines() {
+        final Map<UUID, com.sbancuz.plannh.data.flowchart.MachineGroup> index = new HashMap<>();
+        for (final com.sbancuz.plannh.data.flowchart.Group group : new ArrayList<>(graph.getGroups())) {
+            if (!(group instanceof final com.sbancuz.plannh.data.flowchart.MachineGroup g) || g.getSections()
+                .isEmpty()) continue;
+            for (final UUID id : new ArrayList<>(g.getSections())) if (!graph.nodes.containsKey(id)) g.removeSection(id);
+            if (!g.isShared()) {
+                graph.removeGroup(g.getId());
+                continue;
+            }
+            final Node host = graph.nodes.get(
+                g.getSections()
+                    .get(0));
+            for (final UUID id : g.getSections()) {
+                final Node n = graph.nodes.get(id);
+                n.x = host.x;
+                n.y = host.y;
+                index.put(id, g);
+            }
+        }
+        sharedBySection = index;
+    }
+
+    /** The machines (by NEI catalyst) that run every one of these recipes, in the first one's order. */
+    public List<ItemStack> commonMachines(final List<UUID> nodeIds) {
+        List<ItemStack> common = null;
+        for (final UUID id : nodeIds) {
+            final CardModel m = models.get(id);
+            if (m == null) return List.of();
+            if (common == null) common = new ArrayList<>(m.catalysts);
+            else common.removeIf(
+                c -> m.catalysts.stream()
+                    .noneMatch(o -> ItemStack.areItemStacksEqual(o, c)));
+        }
+        return common == null ? List.of() : common;
+    }
+
+    /** Every recipe on these cards, card by card, each card's sections in order. */
+    private List<UUID> allSections(final List<UUID> cards) {
+        final List<UUID> out = new ArrayList<>();
+        for (final UUID card : cards) for (final UUID s : sectionsOf(card)) if (!out.contains(s)) out.add(s);
+        return out;
+    }
+
+    /** Whether these ids are two or more recipe cards that one machine can run all of. */
+    public boolean canCombine(final java.util.Collection<UUID> ids) {
+        for (final UUID id : ids) if (!graph.nodes.containsKey(id)) return false;
+        final List<UUID> cards = cardsIn(ids);
+        return cards.size() >= 2 && !commonMachines(allSections(cards)).isEmpty();
+    }
+
+    /**
+     * Puts these cards' recipes on one machine, Factory Flow's "Combine N into one machine". The top-left card is the
+     * host: it stays where it is and keeps its machine and settings, which every recipe then takes; the other cards'
+     * recipes become its sections, their wires with them. A pinned count on the host becomes the machine's. One undo
+     * step. Returns the host, or null when they cannot share a machine.
+     */
+    public UUID combine(final java.util.Collection<UUID> ids) {
+        if (!canCombine(ids)) return null;
+        final List<UUID> cards = cardsIn(ids);
+        cards.sort(
+            java.util.Comparator.comparingInt((UUID id) -> graph.nodes.get(id).y)
+                .thenComparingInt(id -> graph.nodes.get(id).x));
+        final UUID hostId = cards.get(0);
+        final List<UUID> sections = allSections(cards);
+        final List<ItemStack> common = commonMachines(sections);
+        edit(() -> {
+            final Node host = graph.nodes.get(hostId);
+            com.sbancuz.plannh.data.flowchart.MachineGroup g = sharedOf(hostId);
+            final int capacity = g != null ? g.getMachineCapacity()
+                : host.isMachineCountFixed() ? host.machineConfig.getMachineCount() : 0;
+            final boolean pinned = g != null ? g.isPinned() : host.isMachineCountFixed();
+            for (final UUID card : cards) {
+                final com.sbancuz.plannh.data.flowchart.MachineGroup old = sharedOf(card);
+                if (old != null) graph.removeGroup(old.getId());
+            }
+            g = new com.sbancuz.plannh.data.flowchart.MachineGroup();
+            g.setHeader("Shared machine");
+            for (final UUID s : sections) g.addSection(s);
+            g.setMachineCapacity(capacity);
+            g.setPinned(pinned && capacity > 0);
+            graph.groups.put(g.getId(), g);
+            // The host's machine when every recipe runs on it, else the first that runs them all.
+            final CardModel hostModel = models.get(hostId);
+            final boolean hostCommon = hostModel != null && hostModel.machineStack != null
+                && common.stream()
+                    .anyMatch(c -> ItemStack.areItemStacksEqual(c, hostModel.machineStack));
+            if (!hostCommon) host.machineName = CardDefaults.itemKey(common.get(0));
+            for (final UUID s : sections) {
+                final Node n = graph.nodes.get(s);
+                n.setMachineCountFixed(false);
+                n.x = host.x;
+                n.y = host.y;
+            }
+            copyMachineSettings(host, sections);
+        });
+        selection.clear();
+        selection.add(hostId);
+        return hostId;
+    }
+
+    /** Gives every section the host's machine and its machine settings; each keeps its own recipe's. */
+    private void copyMachineSettings(final Node host, final List<UUID> sections) {
+        for (final UUID s : sections) {
+            final Node n = graph.nodes.get(s);
+            if (n == null || n == host) continue;
+            n.machineName = host.machineName;
+            for (final Map.Entry<String, Object> e : host.machineConfig.settings.entrySet()) {
+                if (!RECIPE_SETTINGS.contains(e.getKey())) n.machineConfig.settings.put(e.getKey(), e.getValue());
+            }
+        }
+    }
+
+    /** An edit to a card's machine (one undo step); a shared machine's other recipes take it too. */
+    public void editMachine(final Node node, final Runnable change) {
+        edit(() -> {
+            change.run();
+            syncShared(node);
+        });
+    }
+
+    /** After an edit to a card's machine, the same on every other recipe of its shared machine. */
+    private void syncShared(final Node node) {
+        final com.sbancuz.plannh.data.flowchart.MachineGroup g = sharedOf(node.id);
+        if (g != null) copyMachineSettings(node, g.getSections());
+    }
+
+    /** Takes a recipe off its shared machine: the recipe and its wires go, as Factory Flow's X does. */
+    public void removeSection(final UUID nodeId) {
+        final com.sbancuz.plannh.data.flowchart.MachineGroup g = sharedOf(nodeId);
+        if (g == null) return;
+        edit(() -> {
+            g.removeSection(nodeId);
+            graph.removeNode(nodeId);
+            if (!g.isShared()) graph.removeGroup(g.getId());
+        });
+    }
+
+    /** Moves a recipe up (-1) or down (+1) on its shared card; the first one is the host. */
+    public void moveSection(final UUID nodeId, final int step) {
+        final com.sbancuz.plannh.data.flowchart.MachineGroup g = sharedOf(nodeId);
+        if (g == null) return;
+        final List<UUID> sections = g.getSections();
+        final int i = sections.indexOf(nodeId), j = i + step;
+        if (i < 0 || j < 0 || j >= sections.size()) return;
+        editLayout(() -> java.util.Collections.swap(sections, i, j));
+    }
+
+    /** Pins a shared machine's count (zero unpins): its recipes' machines then add up to exactly that. */
+    public void pinShared(final com.sbancuz.plannh.data.flowchart.MachineGroup g, final double count) {
+        edit(() -> {
+            g.setPinned(count > 0);
+            g.setMachineCapacity(count > 0 ? Math.max(1, (int) Math.round(count)) : 0);
+        });
+    }
+
+    /** The shared card the next recipe added from NEI joins, armed by its "Add another recipe". */
+    private UUID addSectionTo;
+
+    /**
+     * Opens NEI on the card's machine and arms the card, so the recipe picked there with "+" joins it as another
+     * section: the machine's whole recipe list when NEI has one (as its progress arrow opens it), else the machine's
+     * uses. False when NEI shows neither.
+     */
+    public boolean addRecipeTo(final UUID nodeId) {
+        final CardModel m = models.get(hostOf(nodeId));
+        if (m == null) return false;
+        addSectionTo = hostOf(nodeId);
+        final RecipeHandlerRef ref = RecipeHandlerRef.of(m.node.recipeId);
+        if (ref != null && com.sbancuz.plannh.ui.Planner.browse(ref.handler.getOverlayIdentifier())) return true;
+        if (m.machineStack != null && com.sbancuz.plannh.ui.Planner.lookUp(m.machineStack.copy(), true)) return true;
+        addSectionTo = null;
+        return false;
+    }
+
+    /**
+     * Makes a just-added recipe a section of the armed card, when one machine runs it and everything already there.
+     * Inside the add's edit, so it is one undo step with it. False (with a notice) when no machine runs both.
+     */
+    private boolean joinArmedCard(final Node node, final UUID hostId) {
+        final Node host = graph.nodes.get(hostId);
+        if (host == null) return false;
+        final List<UUID> sections = new ArrayList<>(sectionsOf(hostId));
+        final List<ItemStack> machines = new ArrayList<>(commonMachines(sections));
+        final List<ItemStack> mine = CardModel.catalystsOf(node);
+        machines.removeIf(
+            c -> mine.stream()
+                .noneMatch(o -> ItemStack.areItemStacksEqual(o, c)));
+        if (machines.isEmpty()) {
+            flash(
+                Severity.WARN,
+                "No machine runs this recipe and what the " + models.get(hostId).machineName
+                    + " already has: added as its own card");
+            return false;
+        }
+        com.sbancuz.plannh.data.flowchart.MachineGroup g = sharedOf(hostId);
+        if (g == null) {
+            g = new com.sbancuz.plannh.data.flowchart.MachineGroup();
+            g.setHeader("Shared machine");
+            g.addSection(hostId);
+            if (host.isMachineCountFixed()) {
+                g.setMachineCapacity(host.machineConfig.getMachineCount());
+                g.setPinned(true);
+                host.setMachineCountFixed(false);
+            }
+            graph.groups.put(g.getId(), g);
+        }
+        g.addSection(node.id);
+        node.x = host.x;
+        node.y = host.y;
+        copyMachineSettings(host, List.of(node.id));
+        return true;
+    }
+
+    // endregion
+
     // region Card edits (each one undoable, saved, re-solved)
 
     public void setVoltage(final Node node, final String tier) {
-        edit(() -> node.machineConfig.setString("voltage", tier));
+        edit(() -> {
+            node.machineConfig.setString("voltage", tier);
+            syncShared(node);
+        });
     }
 
     public void setSetting(final Node node, final String key, final Object value) {
@@ -847,6 +1138,7 @@ public final class BoardSession {
             if (value instanceof final Boolean b) node.machineConfig.setBoolean(key, b);
             else if (value instanceof final Integer i) node.machineConfig.setInt(key, i);
             else node.machineConfig.setString(key, String.valueOf(value));
+            syncShared(node);
         });
     }
 
@@ -854,18 +1146,29 @@ public final class BoardSession {
     public void chooseMachine(final Node node, final ItemStack machine, final boolean gregtech) {
         edit(() -> {
             node.machineName = CardDefaults.itemKey(machine);
-            if (!gregtech) return;
-            final GtMachines.Kind kind = GtMachines.of(machine);
-            if (kind == null) return;
-            node.machineConfig.setBoolean("gt_multiblock", kind.multiblock());
-            if (!kind.multiblock() && kind.tier() >= 0 && kind.tier() < CardDefaults.TIERS.length) {
-                node.machineConfig.setString("voltage", CardDefaults.TIERS[kind.tier()]);
+            if (gregtech) {
+                final GtMachines.Kind kind = GtMachines.of(machine);
+                if (kind != null) {
+                    node.machineConfig.setBoolean("gt_multiblock", kind.multiblock());
+                    if (!kind.multiblock() && kind.tier() >= 0 && kind.tier() < CardDefaults.TIERS.length) {
+                        node.machineConfig.setString("voltage", CardDefaults.TIERS[kind.tier()]);
+                    }
+                }
             }
+            syncShared(node);
         });
     }
 
-    /** Pins the machine count (gold on the card); zero or less unpins and lets the plan decide. */
+    /**
+     * Pins the machine count (gold on the card); zero or less unpins and lets the plan decide. On a shared machine the
+     * count is the machine's: its recipes' machines add up to it.
+     */
     public void pin(final Node node, final double count) {
+        final com.sbancuz.plannh.data.flowchart.MachineGroup g = sharedOf(node.id);
+        if (g != null) {
+            pinShared(g, count);
+            return;
+        }
         edit(() -> {
             if (count <= 0) {
                 node.setMachineCountFixed(false);
@@ -876,19 +1179,36 @@ public final class BoardSession {
         });
     }
 
+    /** Deletes a card: every recipe on it, when it is a shared machine. */
     public void delete(final Node node) {
-        edit(() -> graph.removeNode(node.id));
+        final List<UUID> sections = sectionsOf(node.id);
+        edit(() -> { for (final UUID s : sections) graph.removeNode(s); });
     }
 
-    /** A copy of the card beside it, with the same machine and settings, not wired. */
+    /**
+     * A copy of the card beside it, with the same machine and settings, not wired; a shared machine with its recipes.
+     */
     public void cloneNode(final Node node) {
-        final RecipeHandlerRef ref = RecipeHandlerRef.of(node.recipeId);
-        if (ref == null) return;
-        final Node copy = new Node(ref.handler, ref.recipeIndex, node.x + 24, node.y + 24);
+        final List<Node> copies = new ArrayList<>();
+        for (final UUID s : sectionsOf(node.id)) {
+            final Node from = graph.nodes.get(s);
+            final RecipeHandlerRef ref = from == null ? null : RecipeHandlerRef.of(from.recipeId);
+            if (ref == null) return;
+            final Node copy = new Node(ref.handler, ref.recipeIndex, node.x + 24, node.y + 24);
+            copy.machineConfig.copySettingsFrom(from.machineConfig);
+            copy.machineName = from.machineName;
+            copies.add(copy);
+        }
+        final com.sbancuz.plannh.data.flowchart.MachineGroup shared = sharedOf(node.id);
         edit(() -> {
-            copy.machineConfig.copySettingsFrom(node.machineConfig);
-            copy.machineName = node.machineName;
-            graph.addNode(copy);
+            for (final Node copy : copies) graph.addNode(copy);
+            if (shared == null) return;
+            final com.sbancuz.plannh.data.flowchart.MachineGroup g = new com.sbancuz.plannh.data.flowchart.MachineGroup();
+            g.setHeader("Shared machine");
+            for (final Node copy : copies) g.addSection(copy.id);
+            g.setMachineCapacity(shared.getMachineCapacity());
+            g.setPinned(shared.isPinned());
+            graph.groups.put(g.getId(), g);
         });
     }
 
@@ -918,6 +1238,11 @@ public final class BoardSession {
      * came back. Until then the cards keep showing the last answer.
      */
     public void tick() {
+        if (disarmOnTick) {
+            disarmOnTick = false;
+            pendingLookup = null;
+            addSectionTo = null;
+        }
         final Graph active = Plan.getActiveGraph();
         if (active != graph) {
             graph = active;
@@ -936,6 +1261,7 @@ public final class BoardSession {
         } else if (graph.version() == seenVersion) {
             return;
         }
+        indexSharedMachines();
         seenVersion = graph.version();
         final Set<String> wired = wiredPorts();
         final Map<UUID, CardModel> next = new LinkedHashMap<>();

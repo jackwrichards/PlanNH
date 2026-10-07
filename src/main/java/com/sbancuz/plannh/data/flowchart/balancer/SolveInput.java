@@ -99,11 +99,19 @@ public record SolveInput(BalanceMode mode, @Nullable ChoiceKey choice, List<Mach
     /** One drawn edge, by node id and port index. */
     public record EdgeIn(UUID id, UUID source, int sourceOutput, UUID target, int targetInput) {}
 
-    /** A capped machine group: its member node ids and how many machines it is. */
-    public record PoolIn(List<UUID> machines, int capacity) {
+    /**
+     * A machine group: its member node ids and how many machines it is. A cap by default (the recipes fit in that many
+     * machines); {@code exact}, the count is pinned and the recipes' machine time adds up to exactly that many, as a
+     * pinned shared machine on Factory Flow's board.
+     */
+    public record PoolIn(List<UUID> machines, int capacity, boolean exact) {
 
         public PoolIn {
             machines = List.copyOf(machines);
+        }
+
+        public PoolIn(final List<UUID> machines, final int capacity) {
+            this(machines, capacity, false);
         }
     }
 
@@ -156,7 +164,7 @@ public record SolveInput(BalanceMode mode, @Nullable ChoiceKey choice, List<Mach
                 // Sorted: the group's id set is a HashSet, and the pool's member order should be the chart's.
                 final List<UUID> members = new ArrayList<>(group.getNodeIds());
                 members.sort(UUID::compareTo);
-                pools.add(new PoolIn(members, machineGroup.getMachineCapacity()));
+                pools.add(new PoolIn(members, machineGroup.getMachineCapacity(), machineGroup.isPinned()));
             }
         }
         final List<DrawerIn> drawers = new ArrayList<>(graph.drawers.size());

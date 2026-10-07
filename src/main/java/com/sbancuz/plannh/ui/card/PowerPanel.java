@@ -34,7 +34,7 @@ final class PowerPanel {
 
     /** What the panel shows, worked out once per model. */
     record Facts(int amps, String tier, long volt, Run now, Integer nextAmps, Run next, int overclocks, int perfect,
-        double machines) {}
+        double machines, double demand, boolean shared) {}
 
     private PowerPanel() {}
 
@@ -51,7 +51,8 @@ final class PowerPanel {
         return a.runsPerSecond() > b.runsPerSecond() * 1.0001;
     }
 
-    static Facts facts(final CardModel m) {
+    /** For a card; {@code demand} is its whole draw (every recipe's, on a shared machine). */
+    static Facts facts(final CardModel m, final double demand, final boolean shared) {
         final int t = CardDefaults.tierIndex(m.tier);
         final long volt = t < 0 ? 0 : 8L << (2 * t);
         final Run now = runAt(m.node, m.amps);
@@ -87,7 +88,7 @@ final class PowerPanel {
             final int halvings = Math.max(0, (int) Math.round(Math.log(faster) / Math.log(2)));
             perfect = Math.max(0, Math.min(overclocks, halvings - overclocks));
         }
-        return new Facts(m.amps, m.tier, volt, now, nextAmps, next, overclocks, perfect, m.machines);
+        return new Facts(m.amps, m.tier, volt, now, nextAmps, next, overclocks, perfect, m.machines, demand, shared);
     }
 
     static int height(final Facts f) {
@@ -208,8 +209,12 @@ final class PowerPanel {
         Hyb.rect(left, ty, cw, 1, Tip.RULE);
         ty += 5;
         Hyb.text("Demand for this card", left, ty, Tip.SUBTLE);
-        Hyb.textRight(Fmt.power(now.eut() * f.machines()) + " EU/t", right, ty, Tip.TITLE);
-        Hyb.text("Across the required machines.", left, ty + 10, Tip.SUBTLE);
+        Hyb.textRight(Fmt.power(f.demand()) + " EU/t", right, ty, Tip.TITLE);
+        Hyb.text(
+            f.shared() ? "All recipes, across the required machines." : "Across the required machines.",
+            left,
+            ty + 10,
+            Tip.SUBTLE);
         Tip.endPanel();
     }
 

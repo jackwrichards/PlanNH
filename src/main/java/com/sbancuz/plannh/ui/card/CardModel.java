@@ -178,6 +178,11 @@ public final class CardModel {
         return views;
     }
 
+    /** The machines NEI says run a node's recipe. */
+    public static List<ItemStack> catalystsOf(final Node node) {
+        return catalysts(RecipeHandlerRef.of(node.recipeId));
+    }
+
     private static List<ItemStack> catalysts(final RecipeHandlerRef ref) {
         if (ref == null) return Collections.emptyList();
         final List<ItemStack> out = new ArrayList<>();

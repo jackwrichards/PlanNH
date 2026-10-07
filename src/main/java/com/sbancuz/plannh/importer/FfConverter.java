@@ -35,7 +35,7 @@ import com.sbancuz.plannh.importer.RecipeIndex.Lookup;
  *
  * <ul>
  * <li>Cards become nodes, each FF recipe matched to an in-game one ({@link RecipeMatcher}); a card with no match is
- * left out. A shared machine's extra recipes become cards of their own below it.</li>
+ * left out. A shared machine stays one: its recipes become the sections of one shared card.</li>
  * <li>Wires become edges, landing on the port that holds the wire's resource (FF names ports by resource, never by
  * slot index). A buffer drawer (fed and drawn from) has no PlanNH counterpart: each feeder is wired straight to each
  * taker.</li>
@@ -54,8 +54,6 @@ public final class FfConverter {
     /** PlanNH's port rows are half FF's height; drawers and the gaps between cards are not, so a bit over half. */
     static final double SCALE_Y = 0.6;
     static final int MARGIN = 40;
-    /** How far below its card a shared machine's extra recipe lands, in PlanNH pixels. */
-    static final int SECTION_STEP = 240;
     /** Where a hatch's source drawer sits, left of its card, in PlanNH pixels. */
     static final int HATCH_DRAWER_DX = 180;
 
@@ -195,31 +193,50 @@ public final class FfConverter {
             final List<FfSection> sections = new ArrayList<>();
             sections.add(new FfSection(card.recipeId(), card.overrides()));
             sections.addAll(card.extraRecipes());
-            if (sections.size() > 1) report.add(
-                Kind.CONVERTED,
-                recipe.name(),
-                "a shared machine running " + sections.size()
-                    + " recipes, split into a card per recipe; they no longer share machine time");
+            final List<Node> made = new ArrayList<>();
             for (int i = 0; i < sections.size(); i++) {
                 final FfRecipe r = recipes.get(
                     sections.get(i)
                         .recipeId());
-                final String name = r == null ? card.recipeId() : i == 0 ? r.name() : r.name() + " (shared machine)";
+                final String name = r == null ? card.recipeId() : r.name();
                 if (r == null) {
                     report.add(Kind.UNMATCHED, name, "the plan does not carry this recipe");
                     continue;
                 }
-                placeSection(
+                final Node node = placeSection(
                     card,
                     r,
                     sections.get(i)
                         .overrides(),
                     i,
                     name);
+                if (node != null) made.add(node);
             }
+            if (made.size() > 1) share(made);
         }
 
-        void placeSection(final FfNode card, final FfRecipe recipe, final Map<Integer, FfSlot> overrides,
+        /**
+         * A shared machine's recipes on one machine again: one card, its recipes as sections at its place, the
+         * card's pin (set on the first) the machine's count, which its recipes' machines then add up to.
+         */
+        void share(final List<Node> made) {
+            final com.sbancuz.plannh.data.flowchart.MachineGroup g = new com.sbancuz.plannh.data.flowchart.MachineGroup();
+            g.setHeader("Shared machine");
+            final Node host = made.getFirst();
+            if (host.isMachineCountFixed()) {
+                g.setMachineCapacity(host.machineConfig.getMachineCount());
+                g.setPinned(true);
+            }
+            for (final Node n : made) {
+                g.addSection(n.id);
+                n.setMachineCountFixed(false);
+                n.x = host.x;
+                n.y = host.y;
+            }
+            graph.groups.put(g.getId(), g);
+        }
+
+        Node placeSection(final FfNode card, final FfRecipe recipe, final Map<Integer, FfSlot> overrides,
             final int section, final String name) {
             final Lookup lookup = index.find(recipe);
             final RecipeMatcher.Match match = RecipeMatcher.match(recipe, overrides, lookup.candidates());
@@ -227,7 +244,7 @@ public final class FfConverter {
                 String why = match.detail();
                 if (why.isEmpty()) why = lookup.note() != null ? lookup.note() : "no recipe like it in game";
                 report.add(Kind.UNMATCHED, name, why);
-                return;
+                return null;
             }
             final RecipeIndex.GameRecipe game = match.recipe();
             if (match.grade() == RecipeMatcher.Grade.SAME_RESOURCES)
@@ -240,10 +257,10 @@ public final class FfConverter {
             final Node node = maker.make(game, mapped.machineLabel());
             if (node == null) {
                 report.add(Kind.UNMATCHED, name, "the game could not build a card for it");
-                return;
+                return null;
             }
             node.x = px(card.x());
-            node.y = py(card.y()) + section * SECTION_STEP;
+            node.y = py(card.y());
             maker.applySettings(node, mapped.settings());
             node.machineConfig.setMachineCount(mapped.machines());
             node.setMachineCountFixed(mapped.pinned());
@@ -260,6 +277,7 @@ public final class FfConverter {
                 else report
                     .add(Kind.WIRE, name, "its target rate names " + target.resourceId() + ", which it does not make");
             }
+            return node;
         }
 
         void customRate(final FfNode card, final FfRecipe recipe) {

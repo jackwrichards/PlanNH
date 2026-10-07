@@ -50,6 +50,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         MACHINES,
         POWER,
         CIRCUIT,
+        /** A key on a shared machine's recipe rule: up, down or off. */
+        SECTION,
         BODY
     }
 
@@ -75,8 +77,12 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     private static final int MACHINES_W = CIRCUIT_X - 4 - MACHINES_X;
 
     private final BoardSession session;
+    /** The card's own node: the recipe it was made for, the first on a shared machine. */
     public final UUID nodeId;
     private CardModel model;
+    /** Every recipe on the card, top first, and their models: one, or several on a shared machine. */
+    private List<UUID> sections = List.of();
+    private List<CardModel> models = List.of();
     private CardLayout layout;
 
     private boolean moving;
@@ -85,15 +91,50 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         this.session = session;
         this.nodeId = nodeId;
         refresh();
-        final CardModel m = model;
-        if (m != null) {
-            for (int i = 0; i < m.inputs.size(); i++) child(new PortSlot(this, false, i));
-            for (int i = 0; i < m.outputs.size(); i++) child(new PortSlot(this, true, i));
+        for (int s = 0; s < models.size(); s++) {
+            final CardModel m = models.get(s);
+            for (int i = 0; i < m.inputs.size(); i++) child(new PortSlot(this, s, false, i));
+            for (int i = 0; i < m.outputs.size(); i++) child(new PortSlot(this, s, true, i));
         }
     }
 
     public CardModel model() {
         return model;
+    }
+
+    /** A recipe's model, by its place on the card. */
+    public CardModel modelOf(final int section) {
+        return section >= 0 && section < models.size() ? models.get(section) : null;
+    }
+
+    /** A recipe's node id, by its place on the card. */
+    public UUID sectionId(final int section) {
+        return section >= 0 && section < sections.size() ? sections.get(section) : nodeId;
+    }
+
+    /** Where a recipe is on the card; -1 when it is not on it. */
+    public int sectionOf(final UUID id) {
+        return sections.indexOf(id);
+    }
+
+    public boolean shared() {
+        return models.size() > 1;
+    }
+
+    /** Where a wire meets the card for one recipe's port. */
+    public int anchorY(final UUID node, final boolean output, final int port) {
+        return layout.anchorY(Math.max(0, sectionOf(node)), output, port);
+    }
+
+    /** Where a wire meets the card for a port counted across all its recipes, one after another (for Arrange). */
+    public int anchorYAcross(final boolean output, final int index) {
+        int i = index;
+        for (int s = 0; s < models.size(); s++) {
+            final int n = (output ? models.get(s).outputs : models.get(s).inputs).size();
+            if (i < n) return layout.anchorY(s, output, i);
+            i -= n;
+        }
+        return layout.anchorY(0, output, 0);
     }
 
     public BoardSession session() {
@@ -104,11 +145,19 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         return layout;
     }
 
-    /** Re-reads the model after a solve; resizes when the card's shape changed. */
+    /** Re-reads the models after a solve; resizes when the card's shape changed. */
     public void refresh() {
-        final CardModel next = session.model(nodeId);
-        if (next == null) return;
-        model = next;
+        final List<UUID> ids = session.sectionsOf(nodeId);
+        final List<CardModel> next = new ArrayList<>(ids.size());
+        for (final UUID id : ids) {
+            final CardModel m = session.model(id);
+            if (m == null) return;
+            next.add(m);
+        }
+        if (next.isEmpty()) return;
+        sections = ids;
+        models = next;
+        model = next.get(0);
         final CardLayout nextLayout = new CardLayout(next);
         if (layout == null || layout.height != nextLayout.height) {
             layout = nextLayout;
@@ -120,24 +169,56 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         } else {
             layout = nextLayout;
         }
-        pos(next.node.x, next.node.y);
+        pos(model.node.x, model.node.y);
     }
 
-    /** True when the port count no longer matches the slot widgets (the recipe was replaced). */
+    /** True when the recipes or their port counts no longer match the slot widgets. */
     public boolean shapeChanged() {
-        final CardModel next = session.model(nodeId);
-        return next != null && model != null
-            && (next.inputs.size() != model.inputs.size() || next.outputs.size() != model.outputs.size());
+        final List<UUID> ids = session.sectionsOf(nodeId);
+        if (!ids.equals(sections)) return true;
+        for (int s = 0; s < ids.size(); s++) {
+            final CardModel next = session.model(ids.get(s)), was = models.get(s);
+            if (next != null && (next.inputs.size() != was.inputs.size() || next.outputs.size() != was.outputs.size()))
+                return true;
+        }
+        return false;
     }
 
     @Override
     public void onUpdate() {
         super.onUpdate();
-        if (session.model(nodeId) != model) refresh();
+        boolean changed = false;
+        for (int s = 0; s < sections.size() && !changed; s++) changed = session.model(sections.get(s)) != models.get(s);
+        if (changed || sections.isEmpty()) refresh();
         if (reopenSettingsAfter != null && model != reopenSettingsAfter) {
             reopenSettingsAfter = null;
             openSettings();
         }
+    }
+
+    /** The machines the card runs: all its recipes' together on a shared machine. */
+    private double machinesTotal() {
+        double total = 0;
+        for (final CardModel m : models) total += m.machines;
+        return total;
+    }
+
+    /** What the card draws, as the board's power switches say: all its recipes' together. */
+    private double powerTotal() {
+        double total = 0;
+        for (final CardModel m : models) total += session.power(m);
+        return total;
+    }
+
+    /** Whether the machine count is pinned: the node's, or a shared machine's own. */
+    private boolean pinned() {
+        final com.sbancuz.plannh.data.flowchart.MachineGroup g = session.sharedOf(nodeId);
+        return g != null ? g.isPinned() : model.pinned;
+    }
+
+    private boolean anyTierTooLow() {
+        for (final CardModel m : models) if (m.tierTooLow()) return true;
+        return false;
     }
 
     /** ModularUI only counts a parent widget as hovered when it has a background or tooltip; the card draws itself. */
@@ -186,8 +267,9 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         if (model == null) return null;
         // Far out the controls are not drawn, so nothing invisible answers a click or the wheel.
         if (glance()) return Part.BODY;
+        if (sectionKeyAt(x, y) != null) return Part.SECTION;
         for (final Part part : Part.values()) {
-            if (part == Part.BODY) continue;
+            if (part == Part.BODY || part == Part.SECTION) continue;
             final int[] r = partRect(part);
             if (r != null && in(x, y, r[0], r[1], r[2], r[3])) return part;
         }
@@ -212,9 +294,11 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             case COIL -> layout.settingRows > 0 ? new int[] { COIL_X, layout.settingsY + COIL_DY, COIL_W, COIL_H }
                 : null;
             case POWER -> new int[] { POWER_X, layout.footY, POWER_W, CardLayout.FOOT };
-            case MACHINES -> new int[] { MACHINES_X, layout.footY, MACHINES_W, CardLayout.FOOT };
-            case CIRCUIT -> model.circuit != null ? new int[] { CIRCUIT_X, layout.footY, CIRCUIT_W, CardLayout.FOOT }
+            case MACHINES -> new int[] { MACHINES_X, layout.footY, machinesW(), CardLayout.FOOT };
+            case CIRCUIT -> model.circuit != null && !shared()
+                ? new int[] { CIRCUIT_X, layout.footY, CIRCUIT_W, CardLayout.FOOT }
                 : null;
+            case SECTION -> null;
             case BODY -> new int[] { 0, 0, CardLayout.W, layout.height };
         };
     }
@@ -250,11 +334,13 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             Hyb.rect(5, 7, CardLayout.W, layout.height, 0x50000000);
             Hyb.rect(3, 4, CardLayout.W, layout.height, 0x40000000);
         } else Hyb.dropShadow(0, 0, CardLayout.W, layout.height);
-        if (anyUnwired(m)) drawUnwiredRing();
+        boolean unwired = false;
+        for (final CardModel each : models) unwired |= anyUnwired(each);
+        if (unwired) drawUnwiredRing();
         if (session.isSelected(nodeId)) Hyb.ring(0, 0, CardLayout.W, layout.height, 2, Hyb.SELECTION);
         Hyb.cardFrame(0, 0, CardLayout.W, layout.height);
         Hyb.rect(CardLayout.PAD, layout.hairY, CardLayout.W - 2 * CardLayout.PAD, 1, 0xFF2A2C31);
-        if (m.tierTooLow()) {
+        if (anyTierTooLow()) {
             // Can't run: the tier is below the recipe's. Red ring outside the card; the POWER tile says TIER!.
             Hyb.rect(-2, -2, CardLayout.W + 4, 2, Hyb.RED_INK);
             Hyb.rect(-2, layout.height, CardLayout.W + 4, 2, Hyb.RED_INK);
@@ -262,9 +348,13 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             Hyb.rect(CardLayout.W, 0, 2, layout.height, Hyb.RED_INK);
         }
         drawHead(m, hover);
-        drawRail(m.inputs, false, z);
-        drawRail(m.outputs, true, z);
         drawPicture(m, z);
+        final int[] key = shared() ? sectionKeyAt(localX(), localY()) : null;
+        for (int s = 0; s < models.size(); s++) {
+            drawRail(s, models.get(s).inputs, false, z);
+            drawRail(s, models.get(s).outputs, true, z);
+            if (shared()) drawSectionRule(s, z, isHovering() && key != null && key[0] == s ? key[1] : -1);
+        }
         if (layout.settingRows > 0) drawCoil(m, z, hover == Part.COIL);
         drawFooter(m, z, hover);
     }
@@ -304,7 +394,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final float side = h - 2 * rim - 12;
         drawMachineArt(m, (w - side) / 2f, (h - side) / 2f, side, side, side, z, true);
         // How many, in a dark pill in the corner, at whole screen pixels per font pixel so it stays sharp.
-        final String count = "×" + Fmt.machines(m.machines);
+        final String count = "×" + Fmt.machines(machinesTotal());
         // Two screen pixels per font pixel, or one far out: whole pixels at every wheel step, so it stays sharp.
         float cs = 1 / zoom;
         if (cs > 4) cs /= 2;
@@ -313,7 +403,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final float tw = Hyb.width(count) * cs, th = 8 * cs;
         final float px = w - rim - 4 - tw - 2 * pad, py = h - rim - 4 - th - 2 * pad;
         Hyb.rect(px, py, tw + 2 * pad, th + 2 * pad, 0xC0101114);
-        Hyb.text(count, px + pad, py + pad, cs, m.pinned ? Hyb.GOLD : m.machines <= 0 ? Hyb.MUTED : Hyb.INK);
+        Hyb.text(count, px + pad, py + pad, cs, pinned() ? Hyb.GOLD : machinesTotal() <= 0 ? Hyb.MUTED : Hyb.INK);
     }
 
     /**
@@ -324,7 +414,13 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     public boolean drawReveal(final int mouseX, final int mouseY, final int right, final int bottom) {
         final CardModel m = model;
         if (m == null || !glance() || !isHovering()) return false;
-        final int rows = Math.max(1, Math.max(m.inputs.size(), m.outputs.size()));
+        // Every recipe's ports, on a shared machine one after another.
+        final List<CardModel.PortView> ins = new ArrayList<>(), outs = new ArrayList<>();
+        for (final CardModel each : models) {
+            ins.addAll(each.inputs);
+            outs.addAll(each.outputs);
+        }
+        final int rows = Math.max(1, Math.max(ins.size(), outs.size()));
         final int colW = 136, rowH = 22, w = 2 * colW + 28, h = 6 + 18 + 6 + 10 + 6 + rows * rowH + 4;
         int x = mouseX + 14, y = mouseY + 14;
         if (x + w > right) x = Math.max(2, mouseX - 14 - w);
@@ -337,20 +433,19 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         // How many, at what tier, drawing how much.
         float lx = x + 8;
         final int ly = y + 30;
-        final String count = "×" + Fmt.machines(m.machines);
-        Hyb.text(count, lx, ly, m.pinned ? Hyb.GOLD : Hyb.INK);
+        final String count = "×" + Fmt.machines(machinesTotal());
+        Hyb.text(count, lx, ly, pinned() ? Hyb.GOLD : Hyb.INK);
         lx += Hyb.width(count) + 8;
         if (m.gregtech) {
             final Hyb.Tier tier = Hyb.tier(m.tier);
             Hyb.text(tier.name(), lx, ly, tier.bg());
             lx += Hyb.width(tier.name()) + 8;
         }
-        Hyb.text(Fmt.power(session.power(m)) + " EU/t", lx, ly, Hyb.MUTED);
+        Hyb.text(Fmt.power(powerTotal()) + " EU/t", lx, ly, Hyb.MUTED);
         // Inputs, the arrow, outputs: the card's own reading order.
         final int top = y + 46;
-        for (int i = 0; i < m.inputs.size(); i++) revealPort(m.inputs.get(i), x + 8, top + i * rowH, colW - 8);
-        for (int i = 0; i < m.outputs.size(); i++)
-            revealPort(m.outputs.get(i), x + 8 + colW + 20, top + i * rowH, colW - 8);
+        for (int i = 0; i < ins.size(); i++) revealPort(ins.get(i), x + 8, top + i * rowH, colW - 8);
+        for (int i = 0; i < outs.size(); i++) revealPort(outs.get(i), x + 8 + colW + 20, top + i * rowH, colW - 8);
         final float ax = x + 8 + colW + 4, ay = top + 8;
         Hyb.triangle(ax + 8, ay, ax, ay - 4, ax, ay + 4, Hyb.MUTED);
         Tip.endPanel();
@@ -428,7 +523,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             Hyb.SHADOW,
             1);
         // The chevron says the bar is a menu: only when there is another machine to pick.
-        final boolean menu = m.catalysts.size() > 1;
+        // The bar is always a menu: the machines that run the card, and another recipe for it.
+        final boolean menu = true;
         if (menu) chevron(BAR_X + 5, y + 8, 0xFFFFFFFF);
         final int left = menu ? 15 : 6, room = bw - left - 6;
         final String name = Hyb.fit(m.machineName, room);
@@ -466,24 +562,33 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     /**
      * Each port is a tile of its own, as on the website: the icon bare with its shadow, the name on one or two lines,
      * the rate under it. A port still to wire is dashed and breathes. The tiles go down first, then what lights them,
-     * so a glow is never covered by the tile below.
+     * so a glow is never covered by the tile below. On a shared machine a recipe with nothing on one side says so.
      */
-    private void drawRail(final List<CardModel.PortView> ports, final boolean output, final float z) {
+    private void drawRail(final int section, final List<CardModel.PortView> ports, final boolean output,
+        final float z) {
         final int x = CardLayout.railX(output), w = CardLayout.RAIL_W, h = CardLayout.ROW;
         final Fmt.RateUnit unit = session.rateUnit();
         final PortSlot hoveredSlot = getContext().getHovered() instanceof final PortSlot s && s.card() == this ? s
             : null;
+        if (ports.isEmpty() && shared()) {
+            final int y = layout.railsY(section);
+            Hyb.dashed(x, y, w, h, 0xFF25272C, 3, 3);
+            final String none = output ? "No output" : "No input";
+            Hyb.text(none, crisp(x + (w - Hyb.width(none)) / 2f), y + 13, 0xB39A9CA4);
+            return;
+        }
         for (final CardModel.PortView p : ports) {
-            final int y = layout.rowY(output, p.index());
+            final int y = layout.rowY(section, output, p.index());
             if (p.wired()) Hyb.tile(x, y, w, h);
             else {
                 Hyb.rect(x, y, w, h, 0xFF2F3640);
                 Hyb.dashed(x, y, w, h, 0xFF8F9BAD, 3, 3);
             }
-            if (hoveredSlot != null && hoveredSlot.output == output && hoveredSlot.index == p.index())
-                Hyb.rect(x + 1, y + 1, w - 2, h - 2, 0x14FFFFFF);
+            if (hoveredSlot != null && hoveredSlot.section == section
+                && hoveredSlot.output == output
+                && hoveredSlot.index == p.index()) Hyb.rect(x + 1, y + 1, w - 2, h - 2, 0x14FFFFFF);
             Hyb.icon(p.item(), p.fluid(), x + CardLayout.ICON_X, y + CardLayout.ICON_Y, CardLayout.ICON, z);
-            final List<String> name = layout.nameLines(output, p.index());
+            final List<String> name = layout.nameLines(section, output, p.index());
             final float textX = x + CardLayout.TEXT_X;
             final float top = crisp(y + (h - ((name.size() + 1) * 9 - 1)) / 2f);
             for (int line = 0; line < name.size(); line++) Hyb.text(name.get(line), textX, top + line * 9, Hyb.INK);
@@ -496,7 +601,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final BoardCanvas board = canvas();
         final float b = breathe();
         for (final CardModel.PortView p : ports) {
-            final int y = layout.rowY(output, p.index());
+            final int y = layout.rowY(section, output, p.index());
             if (!p.wired()) {
                 Hyb.dashed(x - 1, y - 1, w + 2, h + 2, alpha(0xFFFFFF, 0.75f * b), 3, 3);
                 Hyb.ring(x - 1, y - 1, w + 2, h + 2, 1, alpha(0xEEF2F8, 0.3f * b));
@@ -504,12 +609,82 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             if (p.key()
                 .equals(session.hoverKey())) glow(x, y, w, h);
             // While a wire is dragged out of another card, the ports that would take it light up.
-            if (board != null && board.acceptsDrag(nodeId, output, p.key())) {
+            if (board != null && board.acceptsDrag(sectionId(section), output, p.key())) {
                 Hyb.rect(x + 1, y + 1, w - 2, h - 2, 0x2053EAFD);
                 Hyb.ring(x, y, w, h, 1, 0xFF53EAFD);
             }
         }
     }
+
+    // region Shared machine sections
+
+    /** The keys on a recipe's rule row, from the right: take it off, move it down, move it up. */
+    private static final int SECTION_KEY = 12;
+    private static final int KEY_OFF_X = RIGHT - SECTION_KEY;
+    private static final int KEY_DOWN_X = KEY_OFF_X - 6 - SECTION_KEY;
+    private static final int KEY_UP_X = KEY_DOWN_X - 2 - SECTION_KEY;
+
+    /** {section, key} under a card-local point (key 0 up, 1 down, 2 off), or null. */
+    private int[] sectionKeyAt(final float x, final float y) {
+        if (layout == null || !shared() || glance()) return null;
+        for (int s = 0; s < models.size(); s++) {
+            final int ky = layout.ruleY(s) + 2;
+            if (y < ky || y >= ky + SECTION_KEY) continue;
+            if (in(x, y, KEY_UP_X, ky, SECTION_KEY, SECTION_KEY)) return new int[] { s, 0 };
+            if (in(x, y, KEY_DOWN_X, ky, SECTION_KEY, SECTION_KEY)) return new int[] { s, 1 };
+            if (in(x, y, KEY_OFF_X, ky, SECTION_KEY, SECTION_KEY)) return new int[] { s, 2 };
+        }
+        return null;
+    }
+
+    /**
+     * A recipe's rule row on a shared machine. On the left its share: what part of the machine's time it takes and its
+     * own machines (or why it takes none); on the right its programmed circuit and the keys that move it up, down, or
+     * off the machine.
+     */
+    private void drawSectionRule(final int s, final float z, final int hotKey) {
+        final CardModel m = models.get(s);
+        final int y = layout.ruleY(s), h = CardLayout.SECTION_RULE;
+        // The share, Factory Flow's little reading tile.
+        final double total = machinesTotal();
+        final String pct = total > 0 ? Math.round(100 * m.machines / total) + "%" : "0%";
+        final boolean unwired = anyUnwired(m);
+        final String word = unwired ? "NO WIRES" : m.machines <= 0 ? "UNUSED" : "×" + Fmt.machines(m.machines);
+        final int wordColor = unwired ? Hyb.AMBER_INK : Hyb.MUTED;
+        final int tx = CardLayout.IN_RAIL_X, tw = Hyb.width(pct) + Hyb.width(word) + 14;
+        Hyb.tile(tx, y + 1, tw, h - 2);
+        Hyb.text(pct, tx + 4, y + 4, Hyb.INK);
+        Hyb.rect(tx + 7 + Hyb.width(pct), y + 3, 1, h - 6, Hyb.TILE_EDGE);
+        Hyb.text(word, tx + 10 + Hyb.width(pct), y + 4, wordColor);
+        // The recipe's circuit, then its keys.
+        if (m.circuit != null) Hyb.icon(m.circuit, null, CardLayout.OUT_RAIL_X, y, 16, z);
+        final int ky = y + 2;
+        sectionKey(KEY_UP_X, ky, 0, s > 0, hotKey == 0);
+        sectionKey(KEY_DOWN_X, ky, 1, s < models.size() - 1, hotKey == 1);
+        sectionKey(KEY_OFF_X, ky, 2, true, hotKey == 2);
+    }
+
+    private static void sectionKey(final int x, final int y, final int kind, final boolean enabled, final boolean hot) {
+        final int ink = !enabled ? 0x4D9A9CA4 : hot ? 0xFFFFFFFF : Hyb.MUTED;
+        if (hot && enabled) Hyb.rect(x, y, SECTION_KEY, SECTION_KEY, 0x1AFFFFFF);
+        final int cx = x + SECTION_KEY / 2, cy = y + SECTION_KEY / 2;
+        switch (kind) {
+            case 0 -> {
+                for (int i = 0; i < 3; i++) Hyb.rect(cx - i - 1, cy - 2 + i, 2 * i + 2, 1, ink);
+            }
+            case 1 -> {
+                for (int i = 0; i < 3; i++) Hyb.rect(cx - i - 1, cy + 1 - i, 2 * i + 2, 1, ink);
+            }
+            default -> {
+                for (int i = -3; i <= 2; i++) {
+                    Hyb.rect(cx + i, cy + i, 1, 1, ink);
+                    Hyb.rect(cx + i, cy - 1 - i, 1, 1, ink);
+                }
+            }
+        }
+    }
+
+    // endregion
 
     /** A gold ring with a soft halo around a tile whose resource is the one under the mouse. */
     private static void glow(final float x, final float y, final float w, final float h) {
@@ -600,14 +775,19 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         return name;
     }
 
+    /** The MACHINES tile: as far as the circuit, or to the edge on a shared machine, whose circuits are per recipe. */
+    private int machinesW() {
+        return shared() ? RIGHT - MACHINES_X : MACHINES_W;
+    }
+
     private void drawFooter(final CardModel m, final float z, final Part hover) {
         final int y = layout.footY;
 
         Hyb.tile(POWER_X, y, POWER_W, CardLayout.FOOT);
         if (hover == Part.POWER) Hyb.rect(POWER_X + 1, y + 1, POWER_W - 2, CardLayout.FOOT - 2, 0x10FFFFFF);
         Hyb.text("POWER", POWER_X + 4, y + 3, Hyb.MUTED);
-        final boolean tooLow = m.tierTooLow();
-        final double eu = session.power(m);
+        final boolean tooLow = anyTierTooLow();
+        final double eu = powerTotal();
         final int tierIdx = CardDefaults.tierIndex(m.tier);
         final boolean amps = session.powerKey() == BoardSession.PowerKey.AMPS && m.gregtech && tierIdx >= 0;
         final String power = tooLow ? "TIER!" : amps ? Fmt.compact(eu / (8L << (2 * tierIdx))) : Fmt.power(eu);
@@ -615,18 +795,25 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         Hyb.text(power, POWER_X + 4, y + 14, Hyb.FIGURE, tooLow ? Hyb.RED_INK : Hyb.INK);
         if (!tooLow) Hyb.text(unit, POWER_X + 7 + Hyb.width(power) * Hyb.FIGURE, y + 17.5f, Hyb.MUTED);
 
-        Hyb.tile(MACHINES_X, y, MACHINES_W, CardLayout.FOOT);
-        if (hover == Part.MACHINES) Hyb.rect(MACHINES_X + 1, y + 1, MACHINES_W - 2, CardLayout.FOOT - 2, 0x10FFFFFF);
+        // A shared machine's count is all its recipes' together, and takes the circuit's room: each recipe's circuit
+        // is on its own rule.
+        final int mw = machinesW();
+        final double machines = machinesTotal();
+        Hyb.tile(MACHINES_X, y, mw, CardLayout.FOOT);
+        if (hover == Part.MACHINES) Hyb.rect(MACHINES_X + 1, y + 1, mw - 2, CardLayout.FOOT - 2, 0x10FFFFFF);
         Hyb.text("MACHINES", MACHINES_X + 4, y + 3, Hyb.MUTED);
-        if (m.parallels > 1) Hyb.textRight("PARALLEL ×" + m.parallels, MACHINES_X + MACHINES_W - 4, y + 3, Hyb.MUTED);
-        final String count = "×" + Fmt.machines(m.machines);
-        final int color = m.pinned ? Hyb.GOLD : m.machines <= 0 ? Hyb.MUTED : Hyb.INK;
+        final String aside = shared() ? models.size() + " RECIPES"
+            : m.parallels > 1 ? "PARALLEL ×" + m.parallels : null;
+        if (aside != null) Hyb.textRight(aside, MACHINES_X + mw - 4, y + 3, Hyb.MUTED);
+        final String count = "×" + Fmt.machines(machines);
+        final int color = pinned() ? Hyb.GOLD : machines <= 0 ? Hyb.MUTED : Hyb.INK;
         Hyb.text(count, MACHINES_X + 4, y + 14, Hyb.FIGURE, color);
         final int cw = Math.round(Hyb.width(count) * Hyb.FIGURE);
         for (int dx = 0; dx < cw; dx += 3) Hyb.rect(MACHINES_X + 4 + dx, y + 27, 1, 1, Hyb.MUTED);
         final int pencil = hover == Part.MACHINES ? Hyb.INK : Hyb.MUTED;
         for (int i = 0; i < 5; i++) Hyb.rect(MACHINES_X + 8 + cw + i, y + 24 - i, 2, 2, pencil);
 
+        if (shared()) return;
         if (m.circuit != null) {
             // The pack draws each circuit's number on its icon, so the icon alone, as large as the tile allows.
             Hyb.tile(CIRCUIT_X, y, CIRCUIT_W, CardLayout.FOOT);
@@ -670,7 +857,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final BoardCanvas c = canvas();
         if (c == null) return false;
         if (powerFactsFor != model) {
-            powerFacts = PowerPanel.facts(model);
+            powerFacts = PowerPanel.facts(model, powerTotal(), shared());
             powerFactsFor = model;
         }
         final int w = PowerPanel.W, h = PowerPanel.height(powerFacts);
@@ -702,17 +889,29 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final CardModel m = model;
         return switch (part) {
             case ACTIONS -> Tip.of("Card actions")
-                .action(Tip.Input.LEFT, "Clone, settings, delete");
+                .action(Tip.Input.LEFT, "Clone, add a recipe, settings, delete");
+            case SECTION -> {
+                final int[] key = sectionKeyAt(localX(), localY());
+                if (key == null) yield null;
+                yield switch (key[1]) {
+                    case 0 -> Tip.of("Move this recipe up");
+                    case 1 -> Tip.of("Move this recipe down");
+                    default -> Tip.of("Take this recipe off the machine")
+                        .muted("The recipe and its wires go.");
+                };
+            }
             case MACHINE -> {
                 final Tip tip = Tip.of(m.machineName)
                     .sub(m.multiblock ? "Multiblock" : "Machine")
-                    .row(m.pinned ? "Pinned machines" : "Required machines", "×" + Fmt.machines(m.machines));
+                    .row(pinned() ? "Pinned machines" : "Required machines", "×" + Fmt.machines(machinesTotal()));
+                if (shared()) tip.row("Recipes", Integer.toString(models.size()));
                 if (m.gregtech) tip.row("Configured tier", m.tier);
                 tip.row("Time per operation", Fmt.compact(m.durationTicks / 20.0) + " s")
                     .row("Draw per machine", Fmt.power(m.euPerTick) + " EU/t");
                 if (m.parallels > 1) tip.row("Parallel operations", Integer.toString(m.parallels));
-                if (m.catalysts.size() > 1)
-                    tip.action(Tip.Input.LEFT, "Machines that run it")
+                if (shared()) tip.muted("Runs its recipes one at a time; each row says how its share goes.");
+                if (machineChoices().size() > 1)
+                    tip.action(Tip.Input.LEFT, shared() ? "Machines that run them all" : "Machines that run it")
                         .action(Tip.Input.WHEEL, "Next machine");
                 yield tip;
             }
@@ -746,13 +945,16 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                     .action(Tip.Input.WHEEL, "Step");
             }
             case MACHINES -> {
-                final Tip tip = Tip.of(m.pinned ? "Pinned machines" : "Required machines")
-                    .row(m.pinned ? "Pinned" : "Calculated", "×" + Fmt.machines(m.machines));
-                final double whole = Math.ceil(m.machines - 1e-9);
-                if (m.machines > 0 && whole != m.machines) tip.row("Whole machines", "×" + (long) whole)
-                    .row("Average utilization", Fmt.compact(100 * m.machines / whole) + "%");
-                if (m.machines <= 0) tip.muted("No production target requires this machine.");
-                yield tip.action(Tip.Input.LEFT, m.pinned ? "Change or unpin" : "Pin count")
+                final double machines = machinesTotal();
+                final boolean pin = pinned();
+                final Tip tip = Tip.of(pin ? "Pinned machines" : "Required machines")
+                    .row(pin ? "Pinned" : "Calculated", "×" + Fmt.machines(machines));
+                final double whole = Math.ceil(machines - 1e-9);
+                if (machines > 0 && whole != machines) tip.row("Whole machines", "×" + (long) whole)
+                    .row("Average utilization", Fmt.compact(100 * machines / whole) + "%");
+                if (shared()) tip.muted("All its recipes' machines together: they take turns on the same ones.");
+                if (machines <= 0) tip.muted("No production target requires this machine.");
+                yield tip.action(Tip.Input.LEFT, pin ? "Change or unpin" : "Pin count")
                     .action(Tip.Input.WHEEL, "+1 / -1");
             }
             case CIRCUIT -> Tip.of("Programmed circuit")
@@ -777,6 +979,14 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         switch (part) {
             case ACTIONS -> {
                 if (mouseButton == 0) openActions();
+            }
+            case SECTION -> {
+                final int[] key = sectionKeyAt(localX(), localY());
+                if (mouseButton == 0 && key != null) {
+                    final UUID section = sectionId(key[0]);
+                    if (key[1] == 2) session.removeSection(section);
+                    else session.moveSection(section, key[1] == 0 ? -1 : 1);
+                }
             }
             case MACHINE -> {
                 if (mouseButton == 0) openMachines();
@@ -850,18 +1060,24 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     }
 
     private void setCoil(final GtCoils.Coil coil) {
-        session.edit(() -> {
+        session.editMachine(model.node, () -> {
             final MachineConfig cfg = model.node.machineConfig;
             cfg.setBoolean("gt_multiblock", true);
             cfg.setInt("machine_heat", coil.heat());
         });
     }
 
+    /** The machines the card can run on: its recipe's, or on a shared machine those that run every recipe on it. */
+    private List<ItemStack> machineChoices() {
+        return shared() ? session.commonMachines(sections) : model.catalysts;
+    }
+
     private void stepMachine(final int step) {
-        final List<ItemStack> machines = model.catalysts;
+        final List<ItemStack> machines = machineChoices();
         if (machines.size() < 2) return;
         int i = 0;
-        for (int k = 0; k < machines.size(); k++) if (machines.get(k) == model.machineStack) i = k;
+        for (int k = 0; k < machines.size(); k++)
+            if (ItemStack.areItemStacksEqual(machines.get(k), model.machineStack)) i = k;
         i = (i + step + machines.size()) % machines.size();
         session.chooseMachine(model.node, machines.get(i), model.gregtech);
     }
@@ -870,6 +1086,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final Node node = model.node;
         final List<PickList.Entry> rows = new ArrayList<>();
         rows.add(PickList.Entry.of("Clone node", () -> session.cloneNode(node)));
+        rows.add(PickList.Entry.of("Add another recipe", () -> session.addRecipeTo(node.id)));
         rows.add(PickList.Entry.of("Machine settings", this::openSettings));
         rows.add(new PickList.Entry(null, "Delete node", "", Hyb.RED_INK, false, () -> session.delete(node)));
         Popup.open(
@@ -881,7 +1098,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
     private void openMachines() {
         final List<PickList.Entry> rows = new ArrayList<>();
-        for (final ItemStack machine : model.catalysts) {
+        for (final ItemStack machine : machineChoices()) {
             String detail = "";
             if (model.gregtech) {
                 final GtMachines.Kind kind = GtMachines.of(machine);
@@ -895,13 +1112,26 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                     machine.getDisplayName(),
                     detail,
                     Hyb.INK,
-                    machine == model.machineStack,
+                    ItemStack.areItemStacksEqual(machine, model.machineStack),
                     () -> session.chooseMachine(model.node, machine, model.gregtech)));
         }
-        if (rows.isEmpty()) return;
+        // The machine menu's last row: another recipe for this machine, as on the website.
+        rows.add(
+            new PickList.Entry(
+                null,
+                "+  Add another recipe to this machine",
+                "",
+                Hyb.MUTED,
+                false,
+                () -> session.addRecipeTo(nodeId)));
         Popup.open(
             getPanel(),
-            PickList.popup("plannh_machines", "MACHINES THAT RUN THIS RECIPE", rows, rows.size() > 8, 240),
+            PickList.popup(
+                "plannh_machines",
+                shared() ? "MACHINES THAT RUN EVERY RECIPE ON THIS CARD" : "MACHINES THAT RUN THIS RECIPE",
+                rows,
+                rows.size() > 8,
+                240),
             screenX(BAR_X),
             screenY(CHIP_Y + CHIP_H + 2));
     }
@@ -949,7 +1179,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             NumberPopup.create(
                 "Pin the machine count (empty unpins)",
                 "machines",
-                model.pinned ? model.machines : 0,
+                pinned() ? machinesTotal() : 0,
                 0,
                 100_000,
                 v -> session.pin(model.node, v)),

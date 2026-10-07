@@ -171,6 +171,8 @@ public final class SolveContext {
             }
             if (asksForFlow) anchor = true;
         }
+        // A pinned shared machine is a pin too: its recipes' machines add up to its count.
+        for (final ModelData.Pool pool : model.pools) anchor |= pool.exact() && pool.capacity() > 0;
         this.anchored = any || anchor;
     }
 

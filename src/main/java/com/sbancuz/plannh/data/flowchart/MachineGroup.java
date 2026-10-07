@@ -27,6 +27,36 @@ public class MachineGroup extends Group {
      */
     private int machineCapacity;
 
+    /**
+     * Whether {@link #machineCapacity} is the count rather than a cap: a shared machine whose count the player
+     * pinned runs exactly that many, its recipes' machine time adding up to it.
+     */
+    private boolean pinned;
+
+    /**
+     * The recipes in the order the shared card shows them, top first: the first is the host, whose card it is. Kept
+     * alongside the group's node ids, which have no order. Empty in a group from an older save, which is not drawn as
+     * a shared card.
+     */
+    private final java.util.List<java.util.UUID> sections = new java.util.ArrayList<>();
+
+    /** A shared machine: a group drawn as one card, its recipes as sections. */
+    public boolean isShared() {
+        return sections.size() >= 2;
+    }
+
+    /** Adds a recipe as the last section. */
+    public void addSection(final java.util.UUID nodeId) {
+        if (sections.contains(nodeId)) return;
+        sections.add(nodeId);
+        getNodeIds().add(nodeId);
+    }
+
+    public void removeSection(final java.util.UUID nodeId) {
+        sections.remove(nodeId);
+        getNodeIds().remove(nodeId);
+    }
+
     public MachineGroup() {
         // GraphData names a fresh chart element after its type, which spells this one "Machine_group".
         setHeader("Machine Group");

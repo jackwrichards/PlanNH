@@ -46,4 +46,14 @@ public final class Planner {
         if (!isPlanner(Minecraft.getMinecraft().currentScreen)) open();
         return uses ? GuiUsageRecipe.openRecipeGui("item", stack) : GuiCraftingRecipe.openRecipeGui("item", stack);
     }
+
+    /**
+     * NEI's page of every recipe one handler holds (a machine's recipe list, as its progress arrow opens it), over the
+     * planner. False when the handler lists none that way.
+     */
+    public static boolean browse(final String overlayId) {
+        if (overlayId == null || overlayId.isEmpty()) return false;
+        if (!isPlanner(Minecraft.getMinecraft().currentScreen)) open();
+        return GuiCraftingRecipe.openRecipeGui(overlayId);
+    }
 }

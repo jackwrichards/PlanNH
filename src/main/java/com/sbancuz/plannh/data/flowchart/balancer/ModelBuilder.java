@@ -149,7 +149,9 @@ public final class ModelBuilder {
                     extentVars[machine],
                     countsSpace ? 1.0 : model.machines.get(machine).durTicks / (double) Numerics.TICKS_PER_SECOND);
             }
-            row.upper(pool.capacity());
+            // A cap, or for a pinned shared machine the count itself.
+            if (pool.exact()) row.level(pool.capacity());
+            else row.upper(pool.capacity());
         }
         return this;
     }

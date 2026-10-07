@@ -41,7 +41,18 @@ JAVA="${JAVA_HOME:+$JAVA_HOME/bin/}java"  # any JDK 17+: runs tools/dev/Hotswap.
 
 die() { echo "mc.sh: $*" >&2; exit 1; }
 
-call() { curl -sS --max-time 45 "$BASE/$1"; }
+call() {
+    # Synthetic input waits for the owner: held back unless they are away from the game (see idle), so a script
+    # never clicks under their hand. PLANNH_FORCE_INPUT=1 overrides.
+    case "${1%%\?*}" in
+        click | move | drag | key | type | scroll)
+            if [ "${PLANNH_FORCE_INPUT:-0}" != 1 ] && ! idle "${PLANNH_IDLE_SECONDS:-30}" >/dev/null 2>&1; then
+                die "the owner is using the game: $1 held back (PLANNH_FORCE_INPUT=1 overrides)"
+            fi
+            ;;
+    esac
+    curl -sS --max-time 45 "$BASE/$1"
+}
 
 is_up() { curl -s --max-time 2 "$BASE/status" >/dev/null 2>&1; }
 

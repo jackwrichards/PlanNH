@@ -81,6 +81,47 @@ class SolveModeTest {
     }
 
     @Test
+    void aPinnedSharedMachineRunsExactlyThatManyAcrossItsRecipes() {
+        // Factory Flow: "pins a solve-mode count on the whole card, sections sharing it". The lathe (2 gears from an
+        // ore) feeds the assembler (a kit from a gear), both on one machine pinned at 4. Nothing else asks, so the
+        // pin drives the line: the assembler needs twice the lathe's machines, 8/3 and 4/3, adding up to 4.
+        final LoadedChart chart = chart("shared", gearLine("", ""));
+        drawer(chart, Kind.SOURCE, Rule.ANY, 0, 0, 0);
+        drawer(chart, Kind.PRODUCT, Rule.ANY, 0, 1, 0);
+        final com.sbancuz.plannh.data.flowchart.MachineGroup shared = new com.sbancuz.plannh.data.flowchart.MachineGroup();
+        shared.addSection(chart.machine(0).id);
+        shared.addSection(chart.machine(1).id);
+        shared.setMachineCapacity(4);
+        shared.setPinned(true);
+        chart.graph().groups.put(shared.getId(), shared);
+
+        final SolutionView s = solved(chart);
+
+        assertEquals(4, count(s, chart, 0) + count(s, chart, 1), EPS);
+        assertEquals(4 / 3.0, count(s, chart, 0), EPS);
+        assertEquals(8 / 3.0, count(s, chart, 1), EPS);
+    }
+
+    @Test
+    void anUnpinnedSharedMachineOnlyCapsItsRecipes() {
+        // Unpinned the shared count is a cap, not a demand: with nothing asking, nothing runs.
+        final LoadedChart chart = chart("shared-cap", gearLine("", ""));
+        drawer(chart, Kind.SOURCE, Rule.ANY, 0, 0, 0);
+        final Drawer kit = drawer(chart, Kind.PRODUCT, Rule.AT_LEAST, 1, 1, 0);
+        final com.sbancuz.plannh.data.flowchart.MachineGroup shared = new com.sbancuz.plannh.data.flowchart.MachineGroup();
+        shared.addSection(chart.machine(0).id);
+        shared.addSection(chart.machine(1).id);
+        shared.setMachineCapacity(4);
+        chart.graph().groups.put(shared.getId(), shared);
+
+        final SolutionView s = solved(chart);
+
+        assertEquals(0.5, count(s, chart, 0), EPS);
+        assertEquals(1, count(s, chart, 1), EPS);
+        assertTrue(s.drawers.met(kit.getId()));
+    }
+
+    @Test
     void aMachineStrandedFromEveryAskReadsZero() {
         // The kit asks for 1/s, so one brewery runs. Nothing asks the lathe for anything and no wire
         // ties it to what does, so it stays at zero rather than at a size nobody set.

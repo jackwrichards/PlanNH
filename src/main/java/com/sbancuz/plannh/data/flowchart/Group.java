@@ -8,8 +8,6 @@ import java.util.UUID;
 
 import org.jetbrains.annotations.NotNull;
 
-import com.cleanroommc.modularui.utils.Color;
-
 import lombok.Getter;
 import lombok.Setter;
 
@@ -49,6 +47,9 @@ public class Group extends GraphData {
     }
 
     private int getRandomColor() {
-        return Color.argb(colorRandom.nextFloat(), colorRandom.nextFloat(), colorRandom.nextFloat(), 0.5f);
+        // Plain ARGB, half opaque: the data model stays free of the UI library (and testable without it).
+        final int r = (int) (colorRandom.nextFloat() * 255), g = (int) (colorRandom.nextFloat() * 255);
+        final int b = (int) (colorRandom.nextFloat() * 255);
+        return 0x7F000000 | r << 16 | g << 8 | b;
     }
 }

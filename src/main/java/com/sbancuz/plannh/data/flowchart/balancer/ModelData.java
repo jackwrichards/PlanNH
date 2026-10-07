@@ -107,7 +107,7 @@ public final class ModelData {
      * many machines that hardware is. Only groups the player capped are built - a sharing group
      * without a capacity constrains nothing, so it never reaches the model.
      */
-    public record Pool(List<Integer> machines, int capacity) {}
+    public record Pool(List<Integer> machines, int capacity, boolean exact) {}
 
     /**
      * A drawer as the solver sees it: who it is, the rule it asks for, and the terms of the total
@@ -200,7 +200,7 @@ public final class ModelData {
                 if (m != null && !members.contains(m)) members.add(m);
             }
             if (members.isEmpty()) continue;
-            pools.add(new Pool(List.copyOf(members), pool.capacity()));
+            pools.add(new Pool(List.copyOf(members), pool.capacity(), pool.exact()));
         }
     }
 

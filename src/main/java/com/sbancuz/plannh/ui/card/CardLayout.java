@@ -47,16 +47,53 @@ public final class CardLayout {
     public final int footY;
     public final int height;
 
-    private final int inRows, outRows;
-    private final List<List<String>> inNames, outNames;
+    /** On a shared machine, the rule row over each recipe's rails, and the gap before every recipe after the first. */
+    public static final int SECTION_RULE = 16, SECTION_GAP = 8;
+
+    /** Each recipe on the card: one, or several on a shared machine. */
+    private final int sections;
+    private final int[] inRows, outRows, ruleY, railsY;
+    private final List<List<List<String>>> inNames, outNames;
+    /** Where the rails end: below the last recipe's. */
+    public final int railsEnd;
 
     public CardLayout(final CardModel model) {
-        inNames = names(model.inputs);
-        outNames = names(model.outputs);
-        inRows = model.inputs.size();
-        outRows = model.outputs.size();
-        railsH = Math.max(Math.max(inRows, outRows) * ROW, PICTURE_MIN);
-        settingRows = model.usesHeat ? 1 : 0;
+        this(List.of(model));
+    }
+
+    /**
+     * A card for its recipes, top first. A shared machine gives each recipe a rule row (its share on the left, its
+     * circuit and keys on the right) over its rails, which are as tall as its longer side so its inputs and outputs
+     * face
+     * each other, as Factory Flow draws it.
+     */
+    public CardLayout(final List<CardModel> models) {
+        sections = models.size();
+        final boolean shared = sections > 1;
+        inRows = new int[sections];
+        outRows = new int[sections];
+        ruleY = new int[sections];
+        railsY = new int[sections];
+        inNames = new ArrayList<>(sections);
+        outNames = new ArrayList<>(sections);
+        int y = RAILS_Y;
+        for (int s = 0; s < sections; s++) {
+            final CardModel model = models.get(s);
+            inNames.add(names(model.inputs));
+            outNames.add(names(model.outputs));
+            inRows[s] = model.inputs.size();
+            outRows[s] = model.outputs.size();
+            if (shared) {
+                if (s > 0) y += SECTION_GAP;
+                ruleY[s] = y;
+                y += SECTION_RULE;
+            }
+            railsY[s] = y;
+            y += Math.max(shared ? 1 : 0, Math.max(inRows[s], outRows[s])) * ROW;
+        }
+        railsEnd = y;
+        railsH = Math.max(railsEnd - RAILS_Y, PICTURE_MIN);
+        settingRows = models.get(0).usesHeat ? 1 : 0;
         hairY = RAILS_Y + railsH + 5;
         settingsY = hairY + 6;
         footY = settingsY + settingRows * (SETTING_ROW + 4);
@@ -89,10 +126,36 @@ public final class CardLayout {
         return out;
     }
 
+    public int sections() {
+        return sections;
+    }
+
+    /** Top of a shared machine's rule row over a recipe. */
+    public int ruleY(final int section) {
+        return ruleY[clampSection(section)];
+    }
+
+    /** Top of a recipe's rails. */
+    public int railsY(final int section) {
+        return railsY[clampSection(section)];
+    }
+
+    public int rows(final int section, final boolean output) {
+        return (output ? outRows : inRows)[clampSection(section)];
+    }
+
+    private int clampSection(final int section) {
+        return Math.max(0, Math.min(section, sections - 1));
+    }
+
     /** Top of a port tile, card-local. */
+    public int rowY(final int section, final boolean output, final int index) {
+        final int s = clampSection(section), rows = (output ? outRows : inRows)[s];
+        return railsY[s] + Math.max(0, Math.min(index, Math.max(0, rows - 1))) * ROW;
+    }
+
     public int rowY(final boolean output, final int index) {
-        final int rows = output ? outRows : inRows;
-        return RAILS_Y + Math.max(0, Math.min(index, Math.max(0, rows - 1))) * ROW;
+        return rowY(0, output, index);
     }
 
     public int rowH(final boolean output, final int index) {
@@ -100,14 +163,22 @@ public final class CardLayout {
     }
 
     /** The port's name, one or two lines. */
-    public List<String> nameLines(final boolean output, final int index) {
-        final List<List<String>> names = output ? outNames : inNames;
+    public List<String> nameLines(final int section, final boolean output, final int index) {
+        final List<List<String>> names = (output ? outNames : inNames).get(clampSection(section));
         return index >= 0 && index < names.size() ? names.get(index) : List.of();
     }
 
+    public List<String> nameLines(final boolean output, final int index) {
+        return nameLines(0, output, index);
+    }
+
     /** Where a wire meets the card: the card edge, level with the middle of the port's tile. */
+    public int anchorY(final int section, final boolean output, final int index) {
+        return rowY(section, output, index) + ROW / 2;
+    }
+
     public int anchorY(final boolean output, final int index) {
-        return rowY(output, index) + ROW / 2;
+        return anchorY(0, output, index);
     }
 
     public static int railX(final boolean output) {

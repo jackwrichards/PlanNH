@@ -87,7 +87,8 @@ final class WireLayer {
         final boolean thorough) {
         final Graph graph = session.graph();
         final List<ArrowRouter.Rect> obstacles = new ArrayList<>();
-        for (final RecipeCard card : cards.values()) {
+        // Once per card: a shared machine's recipes all find the same one.
+        for (final RecipeCard card : new java.util.LinkedHashSet<>(cards.values())) {
             if (card.model() == null || card.layout() == null) continue;
             final Node n = card.model().node;
             obstacles.add(new ArrowRouter.Rect(n.x, n.y, CardLayout.W, card.layout().height));
@@ -190,8 +191,7 @@ final class WireLayer {
     private static int anchorY(final Map<UUID, RecipeCard> cards, final Node n, final boolean output, final int port) {
         final RecipeCard card = cards.get(n.id);
         return card == null || card.layout() == null ? CardLayout.RAILS_Y + CardLayout.ROW / 2
-            : card.layout()
-                .anchorY(output, port);
+            : card.anchorY(n.id, output, port);
     }
 
     private static List<int[]> elbow(final ArrowRouter.Request r) {

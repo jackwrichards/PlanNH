@@ -113,8 +113,11 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         }
         for (final CardModel model : session.models()
             .values()) {
-            final RecipeCard card = new RecipeCard(session, model.node.id);
-            cards.put(model.node.id, card);
+            // A shared machine is one card: its first recipe makes it, and every recipe on it finds it.
+            final UUID host = session.hostOf(model.node.id);
+            if (!host.equals(model.node.id)) continue;
+            final RecipeCard card = new RecipeCard(session, host);
+            for (final UUID section : session.sectionsOf(host)) cards.put(section, card);
             child(card);
         }
         scheduleResize();
@@ -262,6 +265,9 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         if (session.isSelected(id)) {
             for (final UUID s : session.selection()) ids.add(s);
         } else ids.add(id);
+        // A shared machine moves whole: every recipe on its card.
+        for (final UUID s : new ArrayList<>(ids))
+            for (final UUID section : session.sectionsOf(s)) if (!ids.contains(section)) ids.add(section);
         moveStart = new HashMap<>();
         for (final UUID m : ids) {
             final Node n = graph().nodes.get(m);
@@ -380,12 +386,18 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     private PortDrag portDrag;
 
+    /** The model of the recipe a port is on: on a shared machine, its own section's, not the card's first. */
+    private CardModel portModel(final UUID nodeId) {
+        final RecipeCard card = cards.get(nodeId);
+        return card == null ? null : card.modelOf(Math.max(0, card.sectionOf(nodeId)));
+    }
+
     /** The resource a wire being dragged carries, or null when no port is being dragged. */
     public String dragResource() {
         if (portDrag == null) return null;
-        final RecipeCard card = cards.get(portDrag.nodeId());
-        if (card == null || card.model() == null) return null;
-        final List<CardModel.PortView> ports = portDrag.output() ? card.model().outputs : card.model().inputs;
+        final CardModel m = portModel(portDrag.nodeId());
+        if (m == null) return null;
+        final List<CardModel.PortView> ports = portDrag.output() ? m.outputs : m.inputs;
         return portDrag.port() < ports.size() ? ports.get(portDrag.port())
             .key() : null;
     }
@@ -482,8 +494,9 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
      */
     private void lookUpPort(final PortDrag drag) {
         final RecipeCard card = cards.get(drag.nodeId());
-        if (card == null || card.model() == null) return;
-        final List<CardModel.PortView> ports = drag.output() ? card.model().outputs : card.model().inputs;
+        final CardModel model = portModel(drag.nodeId());
+        if (card == null || model == null) return;
+        final List<CardModel.PortView> ports = drag.output() ? model.outputs : model.inputs;
         if (drag.port() >= ports.size()) return;
         final ItemStack stack = ports.get(drag.port())
             .lookupStack();
@@ -502,9 +515,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
                 false,
                 160),
             screenX(n.x + CardLayout.anchorX(drag.output())) + (drag.output() ? 4 : -164),
-            screenY(
-                n.y + card.layout()
-                    .anchorY(drag.output(), drag.port())));
+            screenY(n.y + card.anchorY(drag.nodeId(), drag.output(), drag.port())));
     }
 
     private static boolean inside(final int x, final int y, final int w, final int h, final float px, final float py) {
@@ -516,8 +527,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         if (card == null || card.model() == null) return;
         final Node n = card.model().node;
         final int sx = n.x + CardLayout.anchorX(portDrag.output());
-        final int sy = n.y + card.layout()
-            .anchorY(portDrag.output(), portDrag.port());
+        final int sy = n.y + card.anchorY(portDrag.nodeId(), portDrag.output(), portDrag.port());
         final int mx = Math.round(worldX(getContext().getAbsMouseX()));
         final int my = Math.round(worldY(getContext().getAbsMouseY()));
         // The bend stays on the port's own side, so the wire in hand never cuts back across its card.
@@ -632,11 +642,11 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     /** A card or drawer as the layered layout sees it; drawers have one port, at their anchor. */
     private record LayoutItem(UUID id, String machineName, int worldWidth, int worldHeight, int inputCount,
-        int outputCount, CardLayout layout) implements AutoLayout.LayoutNode {
+        int outputCount, RecipeCard card) implements AutoLayout.LayoutNode {
 
         @Override
         public int portY(final boolean output, final int index) {
-            return layout == null ? DrawerCard.ANCHOR_Y : layout.anchorY(output, index);
+            return card == null ? DrawerCard.ANCHOR_Y : card.anchorYAcross(output, index);
         }
     }
 
@@ -647,19 +657,41 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     public void arrange() {
         final Graph g = graph();
         final List<LayoutItem> items = new ArrayList<>();
-        final List<Edge> links = new ArrayList<>(g.getEdges());
-        for (final RecipeCard card : cards.values()) {
+        // A shared machine is one box: its recipes' ports numbered one after another, every wire on one of them
+        // moved onto the card.
+        final java.util.Map<UUID, int[]> base = new HashMap<>();
+        final java.util.Map<UUID, UUID> owner = new HashMap<>();
+        for (final RecipeCard card : new java.util.LinkedHashSet<>(cards.values())) {
             if (card.model() == null || card.layout() == null) continue;
-            final CardModel m = card.model();
+            int ins = 0, outs = 0;
+            for (int s = 0; s < card.layout()
+                .sections(); s++) {
+                base.put(card.sectionId(s), new int[] { ins, outs });
+                owner.put(card.sectionId(s), card.nodeId);
+                ins += card.modelOf(s).inputs.size();
+                outs += card.modelOf(s).outputs.size();
+            }
             items.add(
                 new LayoutItem(
-                    m.node.id,
-                    m.machineName,
+                    card.nodeId,
+                    card.model().machineName,
                     CardLayout.W,
                     card.layout().height,
-                    m.inputs.size(),
-                    m.outputs.size(),
-                    card.layout()));
+                    ins,
+                    outs,
+                    card));
+        }
+        final List<Edge> links = new ArrayList<>();
+        for (final Edge e : g.getEdges()) {
+            final int[] from = base.get(e.sourceNodeId), to = base.get(e.targetNodeId);
+            if (from == null || to == null) continue;
+            links.add(
+                new Edge(
+                    e.id,
+                    owner.get(e.sourceNodeId),
+                    owner.get(e.targetNodeId),
+                    from[1] + e.sourceOutputIndex,
+                    to[0] + e.targetInputIndex));
         }
         for (final Drawer d : g.getDrawers()) {
             final boolean source = d.getKind()
@@ -674,13 +706,15 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
                     source ? 1 : 0,
                     null));
             for (final Drawer.Link link : d.getLinks()) {
-                if (!cards.containsKey(link.nodeId())) continue;
+                final int[] at = base.get(link.nodeId());
+                if (at == null) continue;
                 final UUID id = UUID.nameUUIDFromBytes(
                     (d.getId() + ":" + link.nodeId() + ":" + link.portIndex())
                         .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                final UUID card = owner.get(link.nodeId());
                 links.add(
-                    source ? new Edge(id, d.getId(), link.nodeId(), 0, link.portIndex())
-                        : new Edge(id, link.nodeId(), d.getId(), link.portIndex(), 0));
+                    source ? new Edge(id, d.getId(), card, 0, at[0] + link.portIndex())
+                        : new Edge(id, card, d.getId(), at[1] + link.portIndex(), 0));
             }
         }
         if (items.isEmpty()) return;
@@ -747,6 +781,14 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
                 n.y = e.getValue()[1];
                 final RecipeCard card = cards.get(n.id);
                 if (card != null) card.pos(n.x, n.y);
+                // A shared machine's recipes all sit where its card does.
+                for (final UUID s : session.sectionsOf(n.id)) {
+                    final Node section = g.nodes.get(s);
+                    if (section != null) {
+                        section.x = n.x;
+                        section.y = n.y;
+                    }
+                }
                 continue;
             }
             final Drawer d = g.getDrawer(e.getKey());
