@@ -1,5 +1,6 @@
 package com.sbancuz.plannh.harness;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -100,6 +101,14 @@ public final class GtnhFlowLoader {
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /**
+     * Loads a chart written inline in a test, so a two-machine case can sit next to the numbers
+     * derived from it. Same format and wiring as the corpus files.
+     */
+    public static LoadedChart parse(final String name, final String yaml) {
+        return load(name, new ByteArrayInputStream(yaml.getBytes(StandardCharsets.UTF_8)));
     }
 
     /**
