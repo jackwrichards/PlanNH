@@ -116,6 +116,9 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
     }
 
     public Part partAt(final float x, final float y) {
+        // Far out the controls are not drawn, so nothing invisible answers a click or the wheel.
+        if (session.graph()
+            .getZoom() <= com.sbancuz.plannh.ui.card.RecipeCard.GLANCE_ZOOM) return Part.BODY;
         if (in(x, y, 4, 4, KEY, KEY)) return Part.DELETE;
         if (model.kind != Drawer.Kind.SOURCE && in(x, y, W - 4 - KEY, 4, KEY, KEY)) return Part.CYCLE;
         if (hasRule() && in(x, y, RULE_X, ROW_Y, RULE_W, ROW_H)) return Part.RULE;

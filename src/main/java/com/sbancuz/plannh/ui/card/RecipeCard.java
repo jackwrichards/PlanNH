@@ -163,6 +163,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
     public Part partAt(final float x, final float y) {
         if (model == null) return null;
+        // Far out the controls are not drawn, so nothing invisible answers a click or the wheel.
+        if (glance()) return Part.BODY;
         if (in(x, y, KEY_X, CHIP_Y, 16, 16)) return Part.ACTIONS;
         if (model.gregtech && in(x, y, TIER_X, CHIP_Y, TIER_W, 16)) return Part.TIER;
         if (model.multiblock && in(x, y, AMPS_X, CHIP_Y, AMPS_W, 16)) return Part.AMPS;
@@ -243,6 +245,11 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
     /** At this zoom and below the 1x text is too small to read; the card shows the glance view instead. */
     public static final float GLANCE_ZOOM = 0.5f;
+
+    private boolean glance() {
+        return session.graph()
+            .getZoom() <= GLANCE_ZOOM;
+    }
 
     /**
      * The zoomed-out card: the machine, its name and tier, and the two numbers that matter, in type large enough to
@@ -491,7 +498,17 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 lines.add(hint + "Wheel: +/-1");
             }
             default -> {
-                return null;
+                // Far out the card is a summary, its name maybe cut: say what it is.
+                if (!glance()) return null;
+                lines.add(model.machineName);
+                lines.add(
+                    hint + "x"
+                        + Fmt.machines(model.machines)
+                        + (model.gregtech ? " at " + model.tier : "")
+                        + ", "
+                        + Fmt.power(session.power(model))
+                        + " EU/t");
+                lines.add(hint + "Zoom in to change it");
             }
         }
         return lines;

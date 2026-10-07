@@ -48,6 +48,14 @@ public final class PortSlot extends Widget<PortSlot>
         return card;
     }
 
+    /** Far out the ports are not drawn: they take no hover, clicks or drags, and the card under them does. */
+    @Override
+    public boolean canHover() {
+        return card.session()
+            .graph()
+            .getZoom() > RecipeCard.GLANCE_ZOOM;
+    }
+
     /** The stack for tooltips. Unlike {@link #getStackForRecipeViewer()} it never arms an NEI lookup. */
     public ItemStack stack() {
         final CardModel.PortView view = view();
