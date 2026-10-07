@@ -534,6 +534,7 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
     public Result onMousePressed(final int mouseButton) {
         final Hit hit = hitAt(lastHits);
         if (hit == null || mouseButton != 0) return hit == null ? Result.IGNORE : Result.SUCCESS;
+        Hyb.click();
         final CommunityApi.Query q = feed.query();
         switch (hit.kind()) {
             case CLOSE -> close.run();

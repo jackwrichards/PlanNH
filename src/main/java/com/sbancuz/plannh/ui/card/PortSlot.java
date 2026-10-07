@@ -11,6 +11,7 @@ import com.cleanroommc.modularui.screen.viewport.ModularGuiContext;
 import com.cleanroommc.modularui.widget.Widget;
 import com.cleanroommc.modularui.widget.sizer.Area;
 import com.sbancuz.plannh.ui.canvas.BoardCanvas;
+import com.sbancuz.plannh.ui.theme.Hyb;
 
 /**
  * One port row (NEI slot, name and rate) as its own widget, so NEI's R/U and the item tooltip see exactly this stack.
@@ -94,7 +95,10 @@ public final class PortSlot extends Widget<PortSlot>
         if (mouseButton != 0 || !pressed) return false;
         pressed = false;
         final BoardCanvas canvas = canvas();
-        if (canvas != null) canvas.clickPort(node(), output, index);
+        if (canvas != null) {
+            Hyb.click();
+            canvas.clickPort(node(), output, index);
+        }
         return true;
     }
 

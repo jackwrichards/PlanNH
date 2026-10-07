@@ -88,6 +88,7 @@ final class SelectionBar extends Widget<SelectionBar> implements Interactable {
     @Override
     public Result onMousePressed(final int mouseButton) {
         if (mouseButton != 0 || shownW <= 0) return Result.IGNORE;
+        Hyb.click();
         session.combine(new ArrayList<>(session.selection()));
         return Result.SUCCESS;
     }

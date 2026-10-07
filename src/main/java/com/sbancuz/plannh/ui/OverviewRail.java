@@ -467,15 +467,18 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         if (hit == null) return open ? Result.SUCCESS : Result.IGNORE;
         // Middle-click on a rule or rate clears the drawer back to "rate?", as on the website.
         if (mouseButton == 2 && (hit.kind() == Kind.RULE || hit.kind() == Kind.RATE)) {
+            Hyb.click();
             session.setDrawerRate(((DrawerModel) hit.data()).drawer, 0);
             return Result.SUCCESS;
         }
         if (mouseButton == 1 && hit.kind() == Kind.RESOURCE) {
+            Hyb.click();
             session.showSetupsMaking((BoardSession.TotalLine) hit.data());
             return Result.SUCCESS;
         }
         if (mouseButton != 0 && hit.kind() != Kind.RULE) return Result.SUCCESS;
         final int sx = getArea().x + hit.x0(), sy = getArea().y + hit.y1() + 2;
+        if (hit.kind() != Kind.RESOURCE) Hyb.click();
         switch (hit.kind()) {
             case FOLD -> toggle();
             case ADD -> {
@@ -490,7 +493,10 @@ final class OverviewRail extends ParentWidget<OverviewRail>
                 final BoardSession.TotalLine line = (BoardSession.TotalLine) hit.data();
                 final long now = System.currentTimeMillis();
                 if (line.key()
-                    .equals(lastClickKey) && now - lastClick < 400) flyTo(line.key());
+                    .equals(lastClickKey) && now - lastClick < 400) {
+                    Hyb.click();
+                    flyTo(line.key());
+                }
                 lastClick = now;
                 lastClickKey = line.key();
             }

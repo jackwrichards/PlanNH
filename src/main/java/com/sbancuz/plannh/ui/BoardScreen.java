@@ -258,7 +258,9 @@ public final class BoardScreen extends ModularScreen {
                     y + (h - 8) / 2f,
                     enabled.getAsBoolean() ? Hyb.INK : 0xFF5A5C65))
             .onMousePressed(b -> {
-                if (b == 0 && enabled.getAsBoolean()) action.run();
+                // True makes ModularUI play its click: only when the key did something.
+                if (b != 0 || !enabled.getAsBoolean()) return false;
+                action.run();
                 return true;
             });
         KEY_TIPS.put(button, tooltip);

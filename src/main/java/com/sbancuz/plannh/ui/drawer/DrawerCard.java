@@ -457,6 +457,7 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
                 return mouseButton == 0 ? Result.ACCEPT : Result.IGNORE;
             }
         }
+        Hyb.click();
         return Result.SUCCESS;
     }
 

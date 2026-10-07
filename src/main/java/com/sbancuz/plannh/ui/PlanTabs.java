@@ -106,6 +106,7 @@ final class PlanTabs extends Widget<PlanTabs> implements Interactable {
     public Result onMousePressed(final int mouseButton) {
         final int i = indexAtMouse();
         if (i < 0) return Result.IGNORE;
+        if (mouseButton == 0 || mouseButton == 1) Hyb.click();
         final List<int[]> tabs = layout();
         if (i == tabs.size() - 1) {
             if (mouseButton != 0 && mouseButton != 1) return Result.IGNORE;

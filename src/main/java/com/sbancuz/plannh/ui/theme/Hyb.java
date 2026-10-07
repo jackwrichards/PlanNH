@@ -78,6 +78,11 @@ public final class Hyb {
 
     private Hyb() {}
 
+    /** Minecraft's button click, for every control that acts on a click (ModularUI's own buttons already make it). */
+    public static void click() {
+        com.cleanroommc.modularui.api.widget.Interactable.playButtonClickSound();
+    }
+
     public static Tier tier(final String name) {
         for (final Tier t : TIERS) if (t.name.equalsIgnoreCase(name)) return t;
         return NO_TIER;

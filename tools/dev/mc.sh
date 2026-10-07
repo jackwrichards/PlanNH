@@ -14,7 +14,7 @@
 #   tools/dev/mc.sh idle [seconds]      exit 0 when the person is away from the game (unfocused, or no input for 30 s)
 #
 # Env: PLANNH_DEV_PORT (25599), PLANNH_RUN_TASK (runClient25), PLANNH_DEV_WIDTH/HEIGHT (1920x1080),
-#      PLANNH_DEV_GUI_SCALE (2), PLANNH_DEV_SOUND (master volume, 1.0; 0.0 mutes),
+#      PLANNH_DEV_GUI_SCALE (2), PLANNH_DEV_SOUND (master volume, 0.0 = muted),
 #      PLANNH_GTNH=1 (load GregTech and the pack's recipes; slow first start).
 set -uo pipefail
 
@@ -31,7 +31,7 @@ GAME_PIDFILE="$ROOT/run/client/plannh-dev.pid"
 WIDTH="${PLANNH_DEV_WIDTH:-1920}"
 HEIGHT="${PLANNH_DEV_HEIGHT:-1080}"
 GUI_SCALE="${PLANNH_DEV_GUI_SCALE:-2}"
-SOUND="${PLANNH_DEV_SOUND:-1.0}"
+SOUND="${PLANNH_DEV_SOUND:-0.0}"
 HOTSWAP="${PLANNH_HOTSWAP:-1}"
 JDWP_PORT="${PLANNH_JDWP_PORT:-5005}"
 GTNH="${PLANNH_GTNH:-0}"

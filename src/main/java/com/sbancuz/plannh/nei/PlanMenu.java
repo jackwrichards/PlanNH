@@ -41,7 +41,17 @@ public final class PlanMenu implements IContainerDrawHandler, IContainerInputHan
 
     private static final int ROW = 20, TITLE = 16;
 
-    private record Row(@Nullable ItemStack icon, String label, String detail, boolean current, Runnable action) {}
+    private record Row(@Nullable ItemStack icon, String label, String detail, boolean current, int ink,
+        Runnable action) {
+
+        Row(@Nullable final ItemStack icon, final String label, final String detail, final boolean current,
+            final Runnable action) {
+            this(icon, label, detail, current, Hyb.INK, action);
+        }
+    }
+
+    /** A new plan's row: the board's cyan, as its other adding keys. */
+    private static final int NEW_INK = 0xFF22D3EE;
 
     private PlanMenu() {}
 
@@ -55,25 +65,23 @@ public final class PlanMenu implements IContainerDrawHandler, IContainerInputHan
     // region What the button does
 
     /**
-     * A click: which plan, when there are several (the most recently opened first), then which machine, when the
+     * A click: which plan (a new one, or one of the plans, the most recently open first), then which machine, when the
      * recipe's tab has several. Shift skips both: the open plan, on the machine picked last time.
      */
     void click(final PlanButton button) {
         final Plan plan = Plan.getInstance();
         if (GuiScreen.isShiftKeyDown()) add(button, plan.getActiveIndex(), null);
-        else if (plan.getGraphs()
-            .size() > 1) offerPlans(button);
-        else offerMachines(button, plan.getActiveIndex());
+        else offerPlans(button);
     }
 
     private void offerPlans(final PlanButton button) {
         final Plan plan = Plan.getInstance();
         final List<Row> list = new ArrayList<>();
+        list.add(new Row(null, "+ New plan", "", false, NEW_INK, () -> offerMachines(button, -1)));
         for (final int i : plan.byRecency()) {
             final boolean open = i == plan.getActiveIndex();
             list.add(new Row(null, planName(i), open ? "current" : "", open, () -> offerMachines(button, i)));
         }
-        list.add(new Row(null, "New plan", "", false, () -> offerMachines(button, -1)));
         open(button, "Which plan to add to?", list);
     }
 
@@ -147,13 +155,10 @@ public final class PlanMenu implements IContainerDrawHandler, IContainerInputHan
         // Its menu says it all.
         if (menuOn != null) return lines;
         final Plan p = Plan.getInstance();
-        final boolean plans = p.getGraphs()
-            .size() > 1;
         final boolean machines = button.choices()
             .size() > 1;
-        lines.add(plans ? "Add to a plan" : "Add to " + planName(p.getActiveIndex()));
-        if (!plans && !machines) return lines;
-        lines.add("§7Click: choose the " + (plans && machines ? "plan and the machine" : plans ? "plan" : "machine"));
+        lines.add("Add to a plan");
+        lines.add("§7Click: choose the plan (or a new one)" + (machines ? " and the machine" : ""));
         String quick = "add to " + planName(p.getActiveIndex());
         if (machines) {
             final MachineChoices.Choice last = lastPick(button);
@@ -233,7 +238,7 @@ public final class PlanMenu implements IContainerDrawHandler, IContainerInputHan
                 x += 20;
             }
             final int detailW = r.detail.isEmpty() ? 0 : Hyb.width(r.detail) + 8;
-            Hyb.text(Hyb.fit(r.label, mx + mw - 6 - detailW - x), x, y + 6, Hyb.INK);
+            Hyb.text(Hyb.fit(r.label, mx + mw - 6 - detailW - x), x, y + 6, r.ink);
             if (!r.detail.isEmpty()) Hyb.textRight(r.detail, mx + mw - 6, y + 6, Hyb.MUTED);
         }
     }
@@ -276,7 +281,10 @@ public final class PlanMenu implements IContainerDrawHandler, IContainerInputHan
         final Runnable action = row >= 0 && button == 0 ? rows.get(row).action : null;
         // Any click closes it; one outside does nothing else.
         close();
-        if (action != null) action.run();
+        if (action != null) {
+            Hyb.click();
+            action.run();
+        }
         return true;
     }
 

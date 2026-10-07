@@ -164,6 +164,7 @@ public final class PickList extends Widget<PickList> implements Interactable {
         if (mouseButton != 0 || i < 0 || i >= shown.size()) return Result.IGNORE;
         final Entry e = shown.get(i);
         final ModularPanel panel = getPanel();
+        Hyb.click();
         panel.closeIfOpen();
         e.action.run();
         return Result.SUCCESS;

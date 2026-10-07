@@ -120,6 +120,7 @@ final class NoticeBar extends Widget<NoticeBar> implements Interactable {
         if (n.focus()
             .isEmpty() || localX() < rw - Hyb.width(SHOW_ME) - 8) return Result.SUCCESS;
         // All at once while that still shows their ports; else one at a time, in turn, close enough to read.
+        Hyb.click();
         final List<UUID> focus = n.focus();
         if (focus.size() == 1 || canvas.framesReadably(focus)) canvas.frame(focus);
         else canvas.frame(List.of(focus.get((turns.merge(n.text(), 1, Integer::sum) - 1) % focus.size())));

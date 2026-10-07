@@ -1016,6 +1016,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 return mouseButton == 0 ? Result.ACCEPT : Result.IGNORE;
             }
         }
+        Hyb.click();
         return Result.SUCCESS;
     }
 

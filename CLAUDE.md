@@ -86,9 +86,9 @@ tools/dev/board-check.sh  # GT runs: end-to-end board check (recipe, port drag, 
 - After changing mod code: `tools/dev/mc.sh swap --reopen`. Restart instead (`mc.sh restart`, ~30s) when swap
   exits 2 (new or not-yet-loaded classes), for mixins, resources and startup-only code, and when you add a field
   with an initialiser: widgets already on screen get it as null, and a draw that touches it crashes out of the world.
-- The game window opens on the user's desktop at 1920x1080, GUI scale 2, with sound on (the user asked for it back,
-  2026-10-07; `PLANNH_DEV_SOUND=0` mutes, `call 'sound?volume=0'` live); keep the size and scale. Leave it running
-  while the user is iterating on the UI with you; stop it when the work is done.
+- The game window opens on the user's desktop at 1920x1080, GUI scale 2, muted (`PLANNH_DEV_SOUND=1.0` for sound,
+  `call 'sound?volume=1'` live); keep it that way. Leave it running while the user is iterating on the UI with you;
+  stop it when the work is done.
 - The user can press F2 in game to screenshot what they see; when they refer to "this" or "my screenshot", Read
   the newest file in `run/client/screenshots/`. Harness screenshots land there too, under the names you gave them.
 - UI feedback loop: change code, `swap --reopen`, check with a cropped `shot`, then tell the user it's live in
