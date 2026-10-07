@@ -537,7 +537,8 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
                 "",
                 Hyb.PRODUCT_INK,
                 false,
-                () -> session.addDrawer(Drawer.Kind.PRODUCT, key, label, wx, wy - DrawerCard.ANCHOR_Y)));
+                () -> session
+                    .addDrawer(Drawer.Kind.PRODUCT, key, label, wx - DrawerCard.W / 2, wy - DrawerCard.ANCHOR_Y)));
         rows.add(
             new PickList.Entry(
                 stack,
@@ -545,7 +546,8 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
                 "",
                 Hyb.SOURCE_INK,
                 false,
-                () -> session.addDrawer(Drawer.Kind.SOURCE, key, label, wx - DrawerCard.W, wy - DrawerCard.ANCHOR_Y)));
+                () -> session
+                    .addDrawer(Drawer.Kind.SOURCE, key, label, wx - DrawerCard.W / 2, wy - DrawerCard.ANCHOR_Y)));
         rows.add(PickList.Entry.of("What makes this?", () -> openRecipePicker(stack, false, null)));
         rows.add(PickList.Entry.of("What uses this?", () -> openRecipePicker(stack, true, null)));
         Popup.open(getPanel(), PickList.popup("plannh_drop", null, rows, false, 150), screenX, screenY);

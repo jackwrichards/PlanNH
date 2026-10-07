@@ -149,6 +149,7 @@ public final class BoardScreen extends ModularScreen {
     private static void showHelp(final ModularPanel panel) {
         final List<com.sbancuz.plannh.ui.popup.PickList.Entry> rows = new ArrayList<>();
         final String[][] tips = { { "P over any item", "what makes it (Shift+P: what uses it)" },
+            { "Drag an item out of NEI", "then click the board: a drawer, or its recipes" },
             { "Click a port", "what makes this input, or uses this output" },
             { "Drag a port", "onto a card: wire it; onto the board: a drawer" },
             { "Right-click a wire", "a drawer on it, or delete it" },
@@ -256,6 +257,28 @@ public final class BoardScreen extends ModularScreen {
             }
         }
         return super.onKeyPressed(typedChar, keyCode);
+    }
+
+    /**
+     * An item dragged out of NEI's list is carried until the next click, which NEI turns into a drop through its GUI
+     * handlers. On a ModularUI screen the board takes that click first and NEI never sees it, so the board drops the
+     * item itself: on the canvas it offers a drawer or its recipes there; anywhere else in the planner the carry just
+     * ends, as it does off a container.
+     */
+    @Override
+    public boolean onMousePressed(final int mouseButton) {
+        final ItemStack carried = codechicken.nei.ItemPanels.itemPanel.draggedStack;
+        final int mx = getContext().getAbsMouseX(), my = getContext().getAbsMouseY();
+        if (carried == null || !getMainPanel().getArea()
+            .isInside(mx, my)) return super.onMousePressed(mouseButton);
+        codechicken.nei.ItemPanels.itemPanel.draggedStack = null;
+        if (mouseButton == 0 && canvas.getArea()
+            .isInside(mx, my) && !(getPanelManager().getTopMostPanel() instanceof Popup)) {
+            final ItemStack one = carried.copy();
+            one.stackSize = 1;
+            canvas.dropNeiItem(one, mx, my);
+        }
+        return true;
     }
 
     @Override

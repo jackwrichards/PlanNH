@@ -580,6 +580,8 @@ public final class DevHarness {
         final List<Runnable> actions = new ArrayList<>();
         for (final int m : mods) actions.add(() -> SyntheticInput.key(m, 0, true));
         actions.add(() -> moveTo(x, y));
+        actions.add(() -> {});
+        actions.add(() -> {});
         // Consecutive ticks are 50ms apart, well inside any double-click window.
         for (int i = 0; i < count; i++) {
             actions.add(() -> SyntheticInput.button(button, true));
@@ -596,6 +598,10 @@ public final class DevHarness {
         final List<Runnable> actions = new ArrayList<>();
         for (final int m : mods) actions.add(() -> SyntheticInput.key(m, 0, true));
         actions.add(() -> moveTo(x1, y1));
+        // Two drawn frames before the press, so it lands on what is under the mouse now (after a hot-swap stall the
+        // first frame can still show the old hover).
+        actions.add(() -> {});
+        actions.add(() -> {});
         actions.add(() -> SyntheticInput.button(button, true));
         for (int i = 1; i <= steps; i++) {
             final int sx = x1 + (x2 - x1) * i / steps, sy = y1 + (y2 - y1) * i / steps;

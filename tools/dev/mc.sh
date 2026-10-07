@@ -168,7 +168,7 @@ smoke() {
     local fail=0 game_log="$LOG"
     call open | grep -q '"ok": true' || { echo "open failed" >&2; fail=1; }
     sleep 1
-    call status | grep -q '"muiScreen": "com.sbancuz.plannh.gui.FlowchartScreen"' ||
+    call status | grep -q '"muiScreen": "com.sbancuz.plannh.ui.BoardScreen"' ||
         { echo "flowchart screen not showing" >&2; fail=1; }
     shot smoke-flowchart.png || fail=1
     stop

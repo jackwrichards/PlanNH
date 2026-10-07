@@ -346,7 +346,6 @@ public final class BoardSession {
             x = d.getX();
             break;
         }
-        for (int tries = 0; tries < 100 && overlapsAnything(x, y, DrawerCard.W, DrawerCard.H, null); tries++) y += 20;
         addDrawer(source ? Drawer.Kind.SOURCE : Drawer.Kind.PRODUCT, key, label, x, y);
     }
 
@@ -356,7 +355,11 @@ public final class BoardSession {
         final Drawer drawer = new Drawer(kind, resourceKey);
         drawer.setLabel(label);
         drawer.setX(x);
-        drawer.setY(y);
+        // Never under or over a card or another drawer: step down until it is clear.
+        int clear = y;
+        for (int tries = 0; tries < 100 && overlapsAnything(x, clear, DrawerCard.W, DrawerCard.H, null); tries++)
+            clear += 20;
+        drawer.setY(clear);
         edit(() -> {
             graph.addDrawer(drawer);
             // Take the ports already waiting for this resource.
