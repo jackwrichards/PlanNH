@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import net.minecraft.item.ItemStack;
+
 import org.jetbrains.annotations.Nullable;
 
 import com.cleanroommc.modularui.api.UpOrDown;
@@ -28,7 +30,8 @@ import com.sbancuz.plannh.ui.theme.Hyb;
  * goes (byproduct, trash). Title bar with delete and cycle keys, the resource and the rate the plan moves through it,
  * then for sources and products the rule and its rate.
  */
-public final class DrawerCard extends Widget<DrawerCard> implements Interactable, IDraggable {
+public final class DrawerCard extends Widget<DrawerCard> implements Interactable, IDraggable,
+    com.cleanroommc.modularui.integration.recipeviewer.RecipeViewerIngredientProvider {
 
     public static final int W = 136;
     public static final int H = 62;
@@ -58,6 +61,13 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         this.drawerId = drawerId;
         size(W, H);
         refresh();
+    }
+
+    /** NEI's keys (R, U, bookmarks) work over a drawer, on its resource. */
+    @Override
+    public ItemStack getStackForRecipeViewer() {
+        if (!isValid() || model == null) return null;
+        return com.sbancuz.plannh.ui.Resources.lookupStack(model.item, model.fluid);
     }
 
     public DrawerModel model() {
@@ -305,7 +315,7 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
             }
             case RULE -> {
                 lines.add("Rule: " + ruleLabel(model.rule));
-                lines.add(hint + "Click: pick  Wheel: next");
+                lines.add(hint + "Click: pick  Wheel: next  Middle click: clear");
             }
             case RATE -> {
                 lines.add(
@@ -315,7 +325,7 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
                     "§cReaches " + Fmt.rate(model.shortfall.reachable(), unit, model.isFluid())
                         + " of "
                         + Fmt.rate(model.shortfall.target(), unit, model.isFluid()));
-                lines.add(hint + "Click: type a rate (2.5k, 1/3)  Empty: no rule");
+                lines.add(hint + "Click: type a rate (2.5k, 1/3)  Middle click: clear");
             }
             default -> {
                 lines.add(kindName(model.kind) + ": " + model.label);

@@ -959,6 +959,9 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         final int y = (held(org.lwjgl.input.Keyboard.KEY_W, org.lwjgl.input.Keyboard.KEY_UP) ? 1 : 0)
             - (held(org.lwjgl.input.Keyboard.KEY_S, org.lwjgl.input.Keyboard.KEY_DOWN) ? 1 : 0);
         if (x == 0 && y == 0) return null;
+        // Over NEI's list the keys are NEI's (A bookmarks the item under the mouse).
+        if (!getPanel().getArea()
+            .isInside(getContext().getAbsMouseX(), getContext().getAbsMouseY())) return null;
         if (com.sbancuz.plannh.ui.BoardScreen.textFocused(getScreen())
             || codechicken.nei.LayoutManager.getInputFocused() != null
             || getScreen().getPanelManager()

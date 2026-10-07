@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import net.minecraft.item.ItemStack;
+
 import org.lwjgl.opengl.GL11;
 
 import com.cleanroommc.modularui.api.UpOrDown;
@@ -32,7 +34,8 @@ import com.sbancuz.plannh.ui.theme.Hyb;
  * that hold it and their rule and rate; then the machines to build, with power. Hovering a resource lights it up on the
  * board; double-clicking flies to the cards that use it. Folds to a thin strip.
  */
-final class OverviewRail extends ParentWidget<OverviewRail> implements Interactable {
+final class OverviewRail extends ParentWidget<OverviewRail>
+    implements Interactable, com.cleanroommc.modularui.integration.recipeviewer.RecipeViewerIngredientProvider {
 
     static final int W = 200;
     static final int W_FOLDED = 14;
@@ -555,6 +558,25 @@ final class OverviewRail extends ParentWidget<OverviewRail> implements Interacta
     }
 
     /** Tooltip lines for the row under the mouse. */
+    /** NEI's keys (R, U, bookmarks) work on a resource row and its drawer controls, as on a port. */
+    @Override
+    public ItemStack getStackForRecipeViewer() {
+        if (!isValid()) return null;
+        final Hit hit = hitAtMouseFromLastFrame();
+        if (hit == null) return null;
+        return switch (hit.kind()) {
+            case RESOURCE, ADD -> {
+                final BoardSession.TotalLine line = (BoardSession.TotalLine) hit.data();
+                yield Resources.lookupStack(line.item(), line.fluid());
+            }
+            case RULE, RATE -> {
+                final DrawerModel d = (DrawerModel) hit.data();
+                yield Resources.lookupStack(d.item, d.fluid);
+            }
+            default -> null;
+        };
+    }
+
     List<String> hoverLines() {
         final Hit hit = hitAtMouseFromLastFrame();
         if (hit == null) return null;
@@ -573,10 +595,11 @@ final class OverviewRail extends ParentWidget<OverviewRail> implements Interacta
                 yield List.of(
                     line.label(),
                     hint + Fmt.rate(line.amount(), unit, line.isFluid()),
-                    hint + "Double-click: show the cards that make or use it");
+                    hint + "Double-click: show the cards that make or use it",
+                    hint + "R, U: its recipes and uses in NEI");
             }
-            case RULE -> List.of("Rule", hint + "Click: pick  Right click: previous");
-            case RATE -> List.of("Rate", hint + "Click: type a rate (2.5k, 1/3)  Empty: no rule");
+            case RULE -> List.of("Rule", hint + "Click: pick  Right click: previous  Middle click: clear");
+            case RATE -> List.of("Rate", hint + "Click: type a rate (2.5k, 1/3)  Middle click: clear");
             case PEAK -> List.of(
                 session.peakPower() ? "Peak: every machine running at once"
                     : "Average: the solved fraction of a machine",

@@ -45,6 +45,17 @@ public final class Resources {
         return FluidRegistry.getFluidStack(key.substring("fluid:".length()), 1000);
     }
 
+    /**
+     * The stack NEI should see for a resource (R, U, bookmarks): the item itself, or for a fluid GregTech's display
+     * item, as NEI shows fluids; null when there is none.
+     */
+    @Nullable
+    public static ItemStack lookupStack(@Nullable final ItemStack item, @Nullable final FluidStack fluid) {
+        if (item != null) return item.copy();
+        if (fluid == null || !com.sbancuz.plannh.Compat.GREGTECH.isLoaded) return null;
+        return com.sbancuz.plannh.data.provider.gregtech.GTHooks.fluidDisplayStack(fluid);
+    }
+
     @Nullable
     public static ItemStack item(final String key) {
         if (!key.startsWith("item:")) return null;
