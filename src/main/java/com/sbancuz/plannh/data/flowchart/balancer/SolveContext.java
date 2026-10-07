@@ -454,7 +454,7 @@ public final class SolveContext {
         pinned.sort(Comparator.comparingInt(m -> PIN_STRENGTH.indexOf(pinKind[m])));
 
         final Map<Integer, Double> saved = new HashMap<>();
-        final List<String> dropped = new ArrayList<>();
+        final List<Note> dropped = new ArrayList<>();
         try {
             for (final int m : pinned) {
                 if (!Solver.externalsLp(this, null)
@@ -462,13 +462,14 @@ public final class SolveContext {
                 if (saved.size() == pinned.size() - 1) return null; // one pin left: not a conflict
                 saved.put(m, pinnedExtent[m]);
                 pinnedExtent[m] = Double.NaN;
-                dropped.add("'" + model.machines.get(m).spec.name() + "' (" + pinKind[m].describe() + ")");
+                dropped
+                    .add(new Note(SolverMessage.PIN_DROPPED, model.machines.get(m).spec.name(), pinKind[m].toNote()));
             }
         } finally {
             saved.forEach((m, value) -> pinnedExtent[m] = value);
         }
         if (dropped.isEmpty()) return null;
-        return new Note(SolverMessage.PIN_CONFLICT, String.join(", ", dropped));
+        return new Note(SolverMessage.PIN_CONFLICT, List.copyOf(dropped));
     }
 
     /** "Every machine runs" pass-2 floors; empty when every unpinned machine already runs. */

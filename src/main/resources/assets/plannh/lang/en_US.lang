@@ -143,6 +143,7 @@ plannh.solver.choice_no_longer_fits=The saved excess choice no longer fits this 
 plannh.solver.choice_needs_more_gates=The saved excess choice needs more gates than the solver's answer, so it was dropped
 ## Pipeline diagnostics
 plannh.solver.pins_conflict=These pins cannot hold together, and dropping them makes the chart solvable: %s
+plannh.solver.pin_dropped='%s' (%s)
 plannh.solver.stage_failed=%s %s
 plannh.solver.machines_cannot_run=%d machines cannot run: %s
 plannh.solver.budget=Ran out of solve budget, solver state %s

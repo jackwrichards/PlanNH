@@ -42,6 +42,8 @@ public enum SolverMessage {
     // Pipeline diagnostics - the solver explaining a rejection or a conflict
     // -----------------------------------------------------------------------------------------
     PIN_CONFLICT(Severity.ERROR, "plannh.solver.pins_conflict"),
+    /** One pin a conflict had to drop. Args: machine name, the pin kind (a nested PIN_* note). */
+    PIN_DROPPED(Severity.INFO, "plannh.solver.pin_dropped"),
     STAGE_FAILED(Severity.ERROR, "plannh.solver.stage_failed"),
     MACHINES_CANNOT_RUN(Severity.ERROR, "plannh.solver.machines_cannot_run"),
     SOLVER_BUDGET(Severity.ERROR, "plannh.solver.budget"),

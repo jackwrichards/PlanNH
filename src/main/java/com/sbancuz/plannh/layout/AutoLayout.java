@@ -90,6 +90,8 @@ public final class AutoLayout {
     // layer spacing must stay above ~30 or the inter-layer corridors close entirely.
     private static final double LAYER_SPACING = 50.0;
     private static final double NODE_SPACING = 25.0;
+    /** Between groups with no wire between them: clearly apart, and room for the router's margins. */
+    private static final double COMPONENT_SPACING = 60.0;
     // Per-edge channel width ELK reserves in a layer gap (the router uses 6-unit cells and
     // keeps a cell of clearance between arrows, so ~2 cells per arrow), and the clearance
     // between those channels and the nodes flanking the gap - generous so downstream nodes
@@ -204,6 +206,7 @@ public final class AutoLayout {
         root.setProperty(CoreOptions.DIRECTION, Direction.RIGHT);
         root.setProperty(CoreOptions.RANDOM_SEED, 1);
         root.setProperty(CoreOptions.SPACING_NODE_NODE, NODE_SPACING);
+        root.setProperty(CoreOptions.SPACING_COMPONENT_COMPONENT, COMPONENT_SPACING);
         root.setProperty(LayeredOptions.SPACING_NODE_NODE_BETWEEN_LAYERS, LAYER_SPACING);
         // Orthogonal edge routing makes ELK reserve a channel per edge crossing each layer
         // gap, so gaps widen with edge count instead of every corridor being LAYER_SPACING.

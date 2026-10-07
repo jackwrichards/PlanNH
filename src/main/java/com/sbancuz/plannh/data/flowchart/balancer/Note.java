@@ -27,14 +27,21 @@ public record Note(SolverMessage message, Object... args) {
     }
 
     /**
-     * The localized sentence; needs a live client, so the GUI is the only caller. Nested notes render too.
+     * The localized sentence; needs a live client, so the GUI is the only caller. Nested notes render too, and a list
+     * of them renders as one, comma-separated.
      */
     public String render() {
         final Object[] rendered = new Object[args.length];
-        for (int i = 0; i < args.length; i++) {
-            rendered[i] = args[i] instanceof final Note note ? note.render() : args[i];
-        }
+        for (int i = 0; i < args.length; i++) rendered[i] = renderArg(args[i]);
         return message.render(rendered);
+    }
+
+    private static Object renderArg(final Object arg) {
+        if (arg instanceof final Note note) return note.render();
+        if (!(arg instanceof final java.util.List<?> list)) return arg;
+        final java.util.List<String> parts = new java.util.ArrayList<>();
+        for (final Object o : list) parts.add(String.valueOf(renderArg(o)));
+        return String.join(", ", parts);
     }
 
     /**
@@ -51,6 +58,8 @@ public record Note(SolverMessage message, Object... args) {
         if (message == target) return true;
         for (final Object a : args) {
             if (a instanceof final Note note && note.containsMessage(target)) return true;
+            if (a instanceof final java.util.List<?> list) for (final Object o : list)
+                if (o instanceof final Note note && note.containsMessage(target)) return true;
         }
         return false;
     }

@@ -15,7 +15,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import com.sbancuz.plannh.data.flowchart.Edge;
@@ -91,7 +90,6 @@ class AutoLayoutTest {
     }
 
     @Test
-    @Disabled("finding: islands are packed 20 apart (ELK's default component spacing), under two router margins")
     void separateIslandsStandAClearGapApart() {
         // A clear gap is at least the router's margin on both sides, so a wire passing between keeps
         // its clearance from both islands. It is also the least that reads as two islands: cards in

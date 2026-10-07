@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -207,9 +208,15 @@ class SolveModeTest {
         final Answer.Failed failed = assertInstanceOf(Answer.Failed.class, answer, () -> "solved: " + answer);
         final Note conflict = find(failed.failure(), SolverMessage.PIN_CONFLICT);
         assertNotNull(conflict, "the failure names the conflict: " + failed.failure());
-        final String dropped = String.valueOf(conflict.args()[0]);
-        assertTrue(dropped.contains("'lathe'"), dropped);
-        assertFalse(dropped.contains("'assembler'"), dropped);
+        // Each dropped pin is a nested note: the machine, then its kind (rendered in game, not a raw key).
+        final List<Object> dropped = new ArrayList<>();
+        for (final Object pin : (List<?>) conflict.args()[0]) {
+            final Note note = assertInstanceOf(Note.class, pin);
+            assertEquals(SolverMessage.PIN_DROPPED, note.message());
+            assertEquals(SolverMessage.PIN_COUNT, assertInstanceOf(Note.class, note.args()[1]).message());
+            dropped.add(note.args()[0]);
+        }
+        assertEquals(List.of("lathe"), dropped);
 
         // And dropping the named pin is enough. With the lathe free the group's last machine goes to
         // it: one lathe makes 2 gear/s for an assembler eating 3, and the other 1/s comes in.
