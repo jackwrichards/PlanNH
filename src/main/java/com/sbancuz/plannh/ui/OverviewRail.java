@@ -179,6 +179,13 @@ final class OverviewRail extends ParentWidget<OverviewRail> implements Interacta
         y = machines(t, y, w, z, hover);
         contentH = y + scroll - listY;
         Stencil.remove();
+        // Folding a section can leave the list scrolled past its end; a thin bar says when there is more.
+        final int visible = h - listY, max = Math.max(0, contentH - visible);
+        if (scroll > max) scroll = max;
+        if (max > 0) {
+            final int thumb = Math.max(10, visible * visible / contentH);
+            Hyb.rect(w - 4, listY + (visible - thumb) * scroll / max, 2, thumb, Hyb.MUTED);
+        }
         // Keep what is on screen of the list; the heading's fold key stays as it is.
         final List<Hit> moved = new ArrayList<>(hits.size());
         for (final Hit hit : hits) {
