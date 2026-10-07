@@ -568,9 +568,10 @@ class GroundTruthTest {
 
     /**
      * Every port must balance: what the machine produces or consumes there equals the flows on
-     * its edges plus whatever external the solver attached to it.
+     * its edges plus whatever external the solver attached to it. Shared with the other solver
+     * tests in this package.
      */
-    private static void assertPortsConserve(final String name, final LoadedChart chart, final SolutionView s) {
+    static void assertPortsConserve(final String name, final LoadedChart chart, final SolutionView s) {
         final Map<PortRef, Double> externals = new HashMap<>();
         for (final External e : List.of(s.gatedSources, s.gatedSinks, s.terminalInputs, s.terminalOutputs)
             .stream()
