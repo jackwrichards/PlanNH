@@ -145,7 +145,12 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             // An empty board says how to start.
             Hyb.textCentered("Nothing here yet.", a.width / 2f, a.height / 2f - 14, Hyb.MUTED);
             Hyb.textCentered("Press P over any item for its recipes,", a.width / 2f, a.height / 2f, 0xFF6A6C74);
-            Hyb.textCentered("or + on an NEI recipe page.", a.width / 2f, a.height / 2f + 11, 0xFF6A6C74);
+            Hyb.textCentered("press + on an NEI recipe page,", a.width / 2f, a.height / 2f + 11, 0xFF6A6C74);
+            Hyb.textCentered(
+                "or drag an item out of NEI's list and click here.",
+                a.width / 2f,
+                a.height / 2f + 22,
+                0xFF6A6C74);
         }
         final float zoom = graph().getZoom();
         final float step = GRID * zoom;
