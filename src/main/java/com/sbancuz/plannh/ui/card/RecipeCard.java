@@ -351,10 +351,12 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final int x = CardLayout.PICTURE_X, y = CardLayout.RAILS_Y, w = CardLayout.PICTURE_W, h = layout.railsH;
         Hyb.well(x, y, w, h, Hyb.PICTURE, Hyb.SHADOW, Hyb.TILE_EDGE);
         // A multiblock with a bundled render shows the whole structure; anything else its machine block.
-        final net.minecraft.util.ResourceLocation art = StructureArt.forMachine(m.machineName);
+        final StructureArt.Art art = StructureArt.forMachine(m.machineName);
         if (art != null) {
-            final int size = Math.min(w, h) - 4;
-            Hyb.texture(art, x + (w - size) / 2f, y + (h - size) / 2f, size, size);
+            // Fit the picture in the well, keeping its shape (the power plants are not square).
+            final float scale = Math.min((w - 4f) / art.width(), (h - 4f) / art.height());
+            final float pw = art.width() * scale, ph = art.height() * scale;
+            Hyb.texture(art.location(), x + (w - pw) / 2f, y + (h - ph) / 2f, pw, ph);
             return;
         }
         if (m.machineStack != null) Hyb.item(m.machineStack, x + (w - 64) / 2f, y + (h - 64) / 2f, 64, z);

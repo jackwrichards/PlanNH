@@ -56,6 +56,7 @@ is a thin curl wrapper. Every request waits until the game has processed it, so 
 | `/cmd?c=/time%20set%20day` | run a command as the player (client commands first, then chat) |
 | `/board` | the open board as data: zoom/pan, per card its state (tier, amps, coil, machines, pinned, ports) and the GUI rect of each control and port (`parts.TIER`, `parts.OUT1`, with `cx/cy`), per drawer its kind, rule, target, rate, unmet flag and parts, the edge count, `solving`, and the notices |
 | `/view?zoom&panX&panY` | set the board view (defaults 1, 0, 0) so tests start from a known place |
+| `/gtmachines?q&all=1&art=1` | GregTech multiblocks (all=1: every machine) by meta and in-game name; art=1 adds the bundled picture each resolves to |
 | `/recipeinfo?output&handler&input` | what NEI and PlanNH see in a recipe (ingredient, result and other stacks with registry names, catalysts, the ports a card would get), read-only |
 | `/frame` | run one ModularUI frame update and report what is hovered and below the mouse (hover debugging) |
 | `/quit` | ask the game to quit (with GT this can stop on a "really close?" dialog; `mc.sh stop` kills instead) |

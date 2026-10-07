@@ -291,6 +291,15 @@ public final class DevHarness {
                 return onClient(
                     () -> DevRecipes
                         .recipeInfo(arg(q, "output"), q.getOrDefault("handler", ""), q.getOrDefault("input", "")));
+            case "/gtmachines":
+                return onClient(() -> {
+                    try {
+                        return DevMachines
+                            .list(q.getOrDefault("q", ""), "1".equals(q.get("all")), "1".equals(q.get("art")));
+                    } catch (final LinkageError e) {
+                        return error("GregTech is not loaded (start with PLANNH_GTNH=1)");
+                    }
+                });
             case "/clearplan":
                 requireWorld();
                 return onClient(DevRecipes::clearPlan);
@@ -316,6 +325,7 @@ public final class DevHarness {
                 "/cmd?c=/time set day - run a command as the player",
                 "/addrecipe?output=dustRutile[&handler=blast][&input=ilmenite][&x&y] - put a real recipe on the board (with the board open: placed and auto-wired like NEI's +)",
                 "/recipeinfo?output[&handler][&input] - what NEI and PlanNH see in a recipe (stacks, ports), read-only",
+                "/gtmachines?q=turbine[&all=1][&art=1] - GregTech multiblocks (all=1: every machine) as the game names them; art=1 adds the bundled picture each resolves to",
                 "/clearplan - empty the active board (one undoable edit)",
                 "/board - open board as data: view, and per card its state and every control's GUI rect (cx, cy)",
                 "/view?zoom&panX&panY - set the board view (defaults 1, 0, 0)",

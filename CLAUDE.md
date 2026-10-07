@@ -26,8 +26,9 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   slots, solve hookup, notices, totals), `canvas/` (board, wires, port drags, arrange), `card/` (recipe card),
   `drawer/`, `popup/` (menus, number and text boxes, the recipe picker). Known gaps and next steps are at the top of
   `docs/design/build-prompt.md`.
-- Multiblock pictures in `assets/plannh/textures/structures/` are the owner's renders from Factory Flow
-  (`public/power-art`), scaled to 320 px RGBA; `ui/card/StructureArt` maps machine names to them.
+- Multiblock pictures in `assets/plannh/textures/structures/` are Factory Flow's renders (`public/power-art`: the
+  owner's processing multiblocks and the Power Planner workbook's power plants), scaled to 320 px palette PNGs with
+  transparency. `ui/card/StructureArt` maps in-game machine names to them; `call 'gtmachines?art=1'` checks coverage.
 
 ## Build and test
 
