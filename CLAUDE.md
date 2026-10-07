@@ -34,7 +34,7 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 
 - Gradle provisions the JDKs (25 for the build, JetBrains Runtime 25 for `runClient25`). Keep the checkout at a
   short path: deep Windows paths break the clone and the Minecraft dev setup (MAX_PATH).
-- `./gradlew test`: 181 headless JUnit tests (balancer, drawers, solve service, routing, layout, serialization),
+- `./gradlew test`: 216 headless JUnit tests (balancer, drawers, solve service, routing, layout, serialization),
   many over gtnh-flow YAML charts in `src/test/resources/gtnh-flow/`. About 40s, no Minecraft. `addon.gradle`
   opts `test` out of the configuration cache; without that a clean build reports `:test NO-SOURCE` and silently
   runs nothing, so if you ever see NO-SOURCE, check the count in `build/test-results/test/*.xml`.

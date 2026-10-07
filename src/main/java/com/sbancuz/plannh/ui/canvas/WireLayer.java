@@ -40,7 +40,8 @@ final class WireLayer {
     record Wire(UUID key, Kind kind, @Nullable Edge edge, @Nullable Drawer drawer, @Nullable Drawer.Link link,
         int color, float width, double perSecond, List<int[]> path, String resource) {}
 
-    private static final ArrowRouter ROUTER = new ArrowRouter(6, 12);
+    /** Ten-unit cells: parallel wires sit a cell apart, and routing a busy board stays quick. */
+    private static final ArrowRouter ROUTER = new ArrowRouter(10, 12);
 
     private final BoardSession session;
     private List<Wire> wires = List.of();
@@ -50,12 +51,16 @@ final class WireLayer {
         this.session = session;
     }
 
-    List<Wire> wires(final Map<UUID, RecipeCard> cards, final Map<UUID, DrawerCard> drawers) {
-        final long signature = signature(cards);
+    /**
+     * The wires, routed again when anything they depend on moved. {@code moving}: a card or drawer is being dragged, so
+     * route quickly (no rip-up pass) on each step, and thoroughly once it lands.
+     */
+    List<Wire> wires(final Map<UUID, RecipeCard> cards, final Map<UUID, DrawerCard> drawers, final boolean moving) {
+        final long signature = signature(cards) * 31 + (moving ? 1 : 0);
         if (signature != builtSignature) {
             builtSignature = signature;
             final long started = System.nanoTime();
-            wires = build(cards, drawers);
+            wires = build(cards, drawers, !moving);
             final long ms = (System.nanoTime() - started) / 1_000_000;
             if (ms > 8) com.sbancuz.plannh.PlanNH.LOG.info("[wires] routed {} wires in {} ms", wires.size(), ms);
         }
@@ -77,7 +82,8 @@ final class WireLayer {
         return sig;
     }
 
-    private List<Wire> build(final Map<UUID, RecipeCard> cards, final Map<UUID, DrawerCard> drawers) {
+    private List<Wire> build(final Map<UUID, RecipeCard> cards, final Map<UUID, DrawerCard> drawers,
+        final boolean thorough) {
         final Graph graph = session.graph();
         final List<ArrowRouter.Rect> obstacles = new ArrayList<>();
         for (final RecipeCard card : cards.values()) {
@@ -142,7 +148,22 @@ final class WireLayer {
             }
         }
 
-        final Map<UUID, List<int[]>> routes = ROUTER.route(obstacles, requests);
+        // Weighted by width: the router routes the busiest wires first, so they get the cleanest lines.
+        final List<Wire> sized = withWidths(pending);
+        final List<ArrowRouter.Request> weighted = new ArrayList<>(requests.size());
+        for (int i = 0; i < requests.size(); i++) {
+            final ArrowRouter.Request r = requests.get(i);
+            weighted.add(
+                new ArrowRouter.Request(
+                    r.key(),
+                    r.sx(),
+                    r.sy(),
+                    r.dx(),
+                    r.dy(),
+                    sized.get(i)
+                        .width()));
+        }
+        final Map<UUID, List<int[]>> routes = ROUTER.route(obstacles, List.of(), weighted, null, thorough);
         final List<Wire> built = new ArrayList<>(pending.size());
         for (int i = 0; i < pending.size(); i++) {
             final Wire w = pending.get(i);
@@ -288,31 +309,35 @@ final class WireLayer {
                 final List<int[]> q = o.path();
                 for (int j = 1; j < q.size(); j++) {
                     final int[] c = q.get(j - 1), d = q.get(j);
-                    final int[] at = crossing(a, b, c, d);
+                    final float[] at = crossing(a, b, c, d);
                     if (at == null) continue;
-                    final float reach = o.width() / 2 + 4;
-                    final boolean horizontal = a[1] == b[1];
-                    final int[] s0 = horizontal ? new int[] { Math.round(at[0] - reach), at[1] }
-                        : new int[] { at[0], Math.round(at[1] - reach) };
-                    final int[] s1 = horizontal ? new int[] { Math.round(at[0] + reach), at[1] }
-                        : new int[] { at[0], Math.round(at[1] + reach) };
-                    segment(s0, s1, top.width() + 5, 0xE0101114);
-                    segment(s0, s1, top.width(), top.color());
+                    // Across the other wire and a little beyond, longer the more slanted the crossing.
+                    final float reach = (o.width() / 2 + 4) / at[2];
+                    final float run = dist(a, b), ux = (b[0] - a[0]) / run, uy = (b[1] - a[1]) / run;
+                    final float x0 = at[0] - ux * reach, y0 = at[1] - uy * reach;
+                    final float x1 = at[0] + ux * reach, y1 = at[1] + uy * reach;
+                    segment(x0, y0, x1, y1, top.width() + 5, 0xE0101114);
+                    segment(x0, y0, x1, y1, top.width(), top.color());
                 }
             }
         }
     }
 
-    /** Where a horizontal and a vertical segment cross inside both (not at an end), or null. */
-    private static int[] crossing(final int[] a, final int[] b, final int[] c, final int[] d) {
-        final boolean abH = a[1] == b[1], cdH = c[1] == d[1];
-        if (abH == cdH) return null;
-        final int[] h0 = abH ? a : c, h1 = abH ? b : d, v0 = abH ? c : a, v1 = abH ? d : b;
-        final int x = v0[0], y = h0[1];
-        final int hx0 = Math.min(h0[0], h1[0]), hx1 = Math.max(h0[0], h1[0]);
-        final int vy0 = Math.min(v0[1], v1[1]), vy1 = Math.max(v0[1], v1[1]);
-        if (x <= hx0 + 2 || x >= hx1 - 2 || y <= vy0 + 2 || y >= vy1 - 2) return null;
-        return new int[] { x, y };
+    /**
+     * Where two runs cross inside both (not at or near an end, so wires meeting at a port do not bridge): {x, y, sine
+     * of
+     * the angle between them}, or null when they are parallel or miss.
+     */
+    private static float[] crossing(final int[] a, final int[] b, final int[] c, final int[] d) {
+        final float rx = b[0] - a[0], ry = b[1] - a[1], sx = d[0] - c[0], sy = d[1] - c[1];
+        final float denom = rx * sy - ry * sx;
+        if (Math.abs(denom) < 1e-3f) return null;
+        final float t = ((c[0] - a[0]) * sy - (c[1] - a[1]) * sx) / denom;
+        final float u = ((c[0] - a[0]) * ry - (c[1] - a[1]) * rx) / denom;
+        final float lr = (float) Math.hypot(rx, ry), ls = (float) Math.hypot(sx, sy);
+        // At least 2 units in from either end of both runs.
+        if (t * lr <= 2 || (1 - t) * lr <= 2 || u * ls <= 2 || (1 - u) * ls <= 2) return null;
+        return new float[] { a[0] + rx * t, a[1] + ry * t, Math.abs(denom) / (lr * ls) };
     }
 
     /**
@@ -348,21 +373,24 @@ final class WireLayer {
 
     private static float length(final List<int[]> path) {
         float total = 0;
-        for (int i = 1; i < path.size(); i++)
-            total += Math.abs(path.get(i)[0] - path.get(i - 1)[0]) + Math.abs(path.get(i)[1] - path.get(i - 1)[1]);
+        for (int i = 1; i < path.size(); i++) total += dist(path.get(i - 1), path.get(i));
         return total;
     }
 
-    /** The point {@code d} along the path, and the direction of the segment it lies on. */
+    private static float dist(final int[] a, final int[] b) {
+        return (float) Math.hypot(b[0] - a[0], b[1] - a[1]);
+    }
+
+    /** The point {@code d} along the path, and the unit direction of the run it lies on. */
     private static float[] pointAt(final List<int[]> path, final float d) {
         float at = 0;
         for (int i = 1; i < path.size(); i++) {
             final int[] a = path.get(i - 1), b = path.get(i);
-            final float len = Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1]);
+            final float len = dist(a, b);
             if (at + len >= d || i == path.size() - 1) {
                 final float t = len == 0 ? 0 : Math.min(1, (d - at) / len);
-                return new float[] { a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, Integer.signum(b[0] - a[0]),
-                    Integer.signum(b[1] - a[1]), at, at + len };
+                final float ux = len == 0 ? 1 : (b[0] - a[0]) / len, uy = len == 0 ? 0 : (b[1] - a[1]) / len;
+                return new float[] { a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, ux, uy, at, at + len };
             }
             at += len;
         }
@@ -385,7 +413,7 @@ final class WireLayer {
         boolean any = false;
         for (int i = 1; i < path.size(); i++) {
             final int[] a = path.get(i - 1), b = path.get(i);
-            final float run = Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1]);
+            final float run = dist(a, b);
             if (run > longestLen) {
                 longestLen = run;
                 longest = i;
@@ -402,7 +430,7 @@ final class WireLayer {
     /** An arrowhead on the run from a to b, its tip {@code tip} along it. */
     private static void arrowOn(final int[] a, final int[] b, final float tip, final float len, final float half,
         final int fill, final int outline) {
-        final int dx = Integer.signum(b[0] - a[0]), dy = Integer.signum(b[1] - a[1]);
+        final float run = dist(a, b), dx = (b[0] - a[0]) / run, dy = (b[1] - a[1]) / run;
         final float x = a[0] + dx * tip, y = a[1] + dy * tip;
         head(x, y, dx, dy, len + 1.5f, half + 1.5f, outline);
         head(x - dx, y - dy, dx, dy, len, half, fill);
@@ -428,17 +456,27 @@ final class WireLayer {
     }
 
     private static void segment(final int[] a, final int[] b, final float width, final int color) {
+        segment(a[0], a[1], b[0], b[1], width, color);
+    }
+
+    /**
+     * A run of wire, square-ended half its width past each end so runs meeting at a corner close up. Straight runs are
+     * rectangles; a diagonal one is the same rectangle turned, as two triangles.
+     */
+    private static void segment(final float ax, final float ay, final float bx, final float by, final float width,
+        final int color) {
         final float h = width / 2;
-        if (a[1] == b[1]) {
-            final int x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]);
-            Hyb.rect(x0 - h, a[1] - h, x1 - x0 + width, width, color);
-        } else if (a[0] == b[0]) {
-            final int y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
-            Hyb.rect(a[0] - h, y0 - h, width, y1 - y0 + width, color);
+        if (ay == by) {
+            Hyb.rect(Math.min(ax, bx) - h, ay - h, Math.abs(bx - ax) + width, width, color);
+        } else if (ax == bx) {
+            Hyb.rect(ax - h, Math.min(ay, by) - h, width, Math.abs(by - ay) + width, color);
         } else {
-            // Not orthogonal (the router never does this, a fallback might): draw it as an elbow.
-            segment(a, new int[] { b[0], a[1] }, width, color);
-            segment(new int[] { b[0], a[1] }, b, width, color);
+            final float len = (float) Math.hypot(bx - ax, by - ay), ux = (bx - ax) / len, uy = (by - ay) / len;
+            // Along (u) and across (v) the run, half a width each way.
+            final float x0 = ax - ux * h, y0 = ay - uy * h, x1 = bx + ux * h, y1 = by + uy * h;
+            final float vx = -uy * h, vy = ux * h;
+            Hyb.triangle(x0 + vx, y0 + vy, x1 + vx, y1 + vy, x1 - vx, y1 - vy, color);
+            Hyb.triangle(x0 + vx, y0 + vy, x1 - vx, y1 - vy, x0 - vx, y0 - vy, color);
         }
     }
 
@@ -453,9 +491,10 @@ final class WireLayer {
             final List<int[]> path = w.path();
             for (int k = 1; k < path.size(); k++) {
                 final int[] a = path.get(k - 1), b = path.get(k);
-                final float x0 = Math.min(a[0], b[0]) - tolerance, x1 = Math.max(a[0], b[0]) + tolerance;
-                final float y0 = Math.min(a[1], b[1]) - tolerance, y1 = Math.max(a[1], b[1]) + tolerance;
-                if (wx >= x0 && wx <= x1 && wy >= y0 && wy <= y1) return w;
+                // Distance from the point to the run, diagonal runs included.
+                final float vx = b[0] - a[0], vy = b[1] - a[1], len2 = vx * vx + vy * vy;
+                final float t = len2 == 0 ? 0 : Math.max(0, Math.min(1, ((wx - a[0]) * vx + (wy - a[1]) * vy) / len2));
+                if (Math.hypot(wx - (a[0] + vx * t), wy - (a[1] + vy * t)) <= tolerance) return w;
             }
         }
         return null;

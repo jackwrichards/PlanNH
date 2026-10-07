@@ -140,6 +140,7 @@ final class DevBoard {
             "edges",
             graph.getEdges()
                 .size());
+        m.put("wires", canvas.wirePaths());
         m.put(
             "solving",
             screen.session()

@@ -3,73 +3,104 @@ package com.sbancuz.plannh.layout;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 /**
- * Orthogonal connector router. Routes arrows between recipe-node ports using only 90-degree segments,
- * avoiding node boxes and previously routed arrows, minimizing the number of bends and keeping a
- * consistent minimum spacing between arrows and around boxes.
+ * The wire router, after Factory Flow's: wires run on a grid in eight directions, straight, at right angles, or along
+ * real 45-degree runs, around node boxes and clear of each other. Every wire leaves its output and lands on its input
+ * heading right, along a straight run.
  * <p>
- * All coordinates are in graph/world space (un-zoomed, un-panned). Routing in world space keeps the
- * produced paths stable while the user pans (a pure translation) and lets the caller cache them.
+ * All coordinates are in graph/world space (un-zoomed, un-panned). Routing in world space keeps the produced paths
+ * stable while the user pans (a pure translation) and lets the caller cache them.
  * <p>
- * The router lays a uniform grid over the bounding region and runs A* where the search state is
- * {@code (cell, incoming-direction)} so that turns can be penalized. Node rectangles are hard
- * obstacles; their surrounding margin ring and cells already occupied by a routed arrow carry soft
- * penalties, so arrows keep clearance where there is room but can squeeze through tight gaps.
+ * A* runs over {@code (cell, heading)} so that bends can be priced: a 45-degree bend costs less than a right angle, so
+ * where two cards are far enough apart a wire goes out straight, crosses on the diagonal and comes in straight, like a
+ * metro map. Node rectangles are hard obstacles and their margin ring is dear; a cell another wire already runs along
+ * is dear, and crossing another wire dearer still. Wires are routed heaviest first, then longest, and the ones that
+ * still cross are ripped up and routed again around the rest while that removes crossings.
  */
 public final class ArrowRouter {
 
-    /** Per-cell movement cost. */
-    private static final int STEP = 1;
-    /** Extra cost per direction change; high relative to STEP so paths don't micro-dodge. */
-    private static final int TURN = 24;
+    // Costs are in tenths of a world unit of travel, after Factory Flow's (whose are pixels): a right angle is worth an
+    // 80-unit detour to avoid, a 45-degree bend 35. Making a turn cheaper than a right angle is what puts diagonals in.
+    private static final int TURN45 = 350, TURN90 = 800;
+    /** Turning within the clean run at either end: wires leave and land straight. */
+    private static final int EARLY_TURN = 1000;
+    /** Running into a cell another wire runs through along another line: a crossing. */
+    private static final int CROSS = 4000;
+    /** Per step, in steps, along a line another wire already runs on: the two would draw as one. */
+    private static final int OVERLAP_STEPS = 6;
+    /** Per step, in steps, beside another wire, so wires keep a cell apart where there is room. */
+    private static final int NEAR_STEPS = 1;
     /**
-     * Extra cost per cell already carrying another arrow; low, so sharing a long corridor
-     * stays cheaper than detouring around the chart.
+     * Per step, in steps, in a node's margin ring. Soft rather than blocked: hard margins seal any gap narrower than
+     * two
+     * margins and force whole-chart detours.
      */
-    private static final int ARROW = 2;
-    /** Smaller penalty around an occupied cell, so arrows keep at least one cell of clearance. */
-    private static final int NEAR = 1;
+    private static final int MARGIN_STEPS = 8;
+    /** Per step, in steps, on another wire's port approach, keeping each port's first and last run its own. */
+    private static final int ANCHOR_STEPS = 30;
+
+    /** Diagonals only between ends at least this far apart on one axis (Factory Flow: six of its 20-unit cells). */
+    private static final int DIAGONAL_MIN_SPAN = 120;
+    /** A diagonal run is at least this many cells long: a one-cell diagonal reads as a kink, not a direction. */
+    private static final int DIAGONAL_MIN_STEPS = 4;
+    /** Cells past the stub that count as the clean run at either end. */
+    private static final int CLEAN_CELLS = 2;
+    /** Rip-up-and-reroute rounds for wires that still cross, and the time they may take in all. */
+    private static final int ROUNDS = 4;
+    private static final long REROUTE_NANOS = 10_000_000;
     /**
-     * Penalty per cell in a node's margin ring. Soft rather than blocked: hard margins seal
-     * any gap narrower than two margins and force whole-chart detours.
+     * A wire is first searched for within this many cells of the box round its two ends (Factory Flow: four of its
+     * 20-unit cells), then within the wider window when that found nothing or still crosses a wire, and only then on
+     * the whole board: most wires stay near their ends, and a wide search for each one is what makes routing slow.
      */
-    private static final int MARGIN_COST = 8;
-    /**
-     * Penalty for crossing another edge's port anchor (the straight approach run beside a
-     * pin), keeping each pin's first and last segment visually its own.
-     */
-    private static final int ANCHOR_COST = 30;
+    private static final int WINDOW_CELLS = 13, WIDE_WINDOW_CELLS = 50;
+    /** A search that has looked at this many states gives up (the wire falls back to a plain elbow). */
+    private static final int MAX_POPS = 400_000;
 
     /**
-     * World units a no-turn zone is grown by. One router cell, because that is the granularity the
-     * grid can actually express: a smaller pad would round away to nothing on most edges and to a
-     * whole cell on others, which is worse than either.
+     * World units a no-turn zone is grown by. One router cell, because that is the granularity the grid can actually
+     * express: a smaller pad would round away to nothing on most edges and to a whole cell on others.
      */
     private static final int NO_TURN_PAD = 6;
-
-    /** Hard cap on grid cells; the cell size is grown if a region would exceed it. */
-    private static final int MAX_CELLS = 200_000;
-    /** Padding added around the bounding region so arrows can route around outer nodes. */
+    /** Hard cap on grid cells; the cell size is grown if a region would exceed it. Eight states per cell. */
+    private static final int MAX_CELLS = 150_000;
+    /** Padding added around the bounding region so wires can route around outer nodes. */
     private static final int PAD = 48;
 
-    // (+x, -x, +y, -y); reverse of d is (d ^ 1).
-    private static final int[] DX = { 1, -1, 0, 0 };
-    private static final int[] DY = { 0, 0, 1, -1 };
+    // Headings 0 E, 1 SE, 2 S, 3 SW, 4 W, 5 NW, 6 N, 7 NE: odd ones are diagonal, d ^ 4 is the reverse.
+    private static final int[] DX = { 1, 1, 0, -1, -1, -1, 0, 1 };
+    private static final int[] DY = { 0, 1, 1, 1, 0, -1, -1, -1 };
+    /** The line a heading runs along: 0 horizontal, 1 vertical, 2 falling diagonal, 3 rising diagonal. */
+    private static final int[] LINE = { 0, 2, 1, 3, 0, 2, 1, 3 };
 
     /** A rectangular obstacle (a recipe node) in world space. */
     public record Rect(int x, int y, int w, int h) {}
 
-    /** A single arrow to route, from a source output port to a target input port. */
-    public record Request(UUID key, int sx, int sy, int dx, int dy) {}
+    /**
+     * A single wire to route, from a source output port to a target input port. {@code weight} orders the routing,
+     * heaviest first (the caller passes the wire's width), so the busiest wires get the cleanest lines.
+     */
+    public record Request(UUID key, int sx, int sy, int dx, int dy, double weight) {
+
+        public Request(final UUID key, final int sx, final int sy, final int dx, final int dy) {
+            this(key, sx, sy, dx, dy, 0);
+        }
+    }
 
     private final int baseCell;
     private final int margin;
+
+    // Search buffers, kept between calls: the board routes on every layout change. Scores carry the run they belong to,
+    // so they never need clearing. Not thread-safe; one router per thread.
+    private int[] gScore = new int[0], cameFrom = new int[0], scoreRun = new int[0];
+    private int runId = 1;
+    private final OpenSet open = new OpenSet();
 
     /**
      * @param cell   nominal grid cell size in world units (also the minimum spacing granularity)
@@ -80,25 +111,18 @@ public final class ArrowRouter {
         this.margin = Math.max(0, margin);
     }
 
-    /**
-     * Routes every request. Requests are routed in order; each routed arrow makes the cells it uses
-     * less attractive to subsequent arrows, which spreads parallel connections apart.
-     *
-     * @return a map from {@link Request#key()} to a list of {@code {x, y}} world-space waypoints
-     */
+    /** @return a map from {@link Request#key()} to a list of {@code {x, y}} world-space waypoints */
     public Map<UUID, List<int[]>> route(final List<Rect> obstacles, final List<Request> requests) {
         return route(obstacles, List.of(), requests);
     }
 
     /**
-     * @param noTurn regions an arrow may cross but may not change direction inside.
+     * @param noTurn regions a wire may cross but may not change direction inside.
      *
      *               <p>
-     *               For the boundary chips: blocking them outright seals the approach to any pin
-     *               one is parked in front of, and a request that cannot be served falls back to a
-     *               straight line that ignores every obstacle - worse than the overlap, and silent.
-     *               A straight run behind a label reads fine; it is the corner that looks like the
-     *               arrow terminates there.
+     *               For the boundary chips: blocking them outright seals the approach to any pin one is parked in
+     *               front of. A straight run behind a label reads fine; it is the corner that looks like the wire
+     *               ends there.
      */
     public Map<UUID, List<int[]>> route(final List<Rect> obstacles, final List<Rect> noTurn,
         final List<Request> requests) {
@@ -106,13 +130,21 @@ public final class ArrowRouter {
     }
 
     /**
-     * @param fellBack if given, receives the key of every request A* could not serve, which came
-     *                 back as the obstacle-ignoring {@link #fallback}. A route that quietly gives up
-     *                 looks identical on screen to one that went somewhere silly on purpose, and
-     *                 only one of those is worth investigating.
+     * @param fellBack if given, receives the key of every request A* could not serve, which came back as the
+     *                 obstacle-ignoring {@link #fallback}. A route that quietly gives up looks identical on screen to
+     *                 one that went somewhere silly on purpose, and only one of those is worth investigating.
      */
     public Map<UUID, List<int[]>> route(final List<Rect> obstacles, final List<Rect> noTurn,
         final List<Request> requests, final Collection<UUID> fellBack) {
+        return route(obstacles, noTurn, requests, fellBack, true);
+    }
+
+    /**
+     * As above. {@code thorough} false skips the rip-up-and-reroute pass: for routing on every step of a drag, where
+     * speed matters more than the last crossing; route thoroughly again once the drag ends.
+     */
+    public Map<UUID, List<int[]>> route(final List<Rect> obstacles, final List<Rect> noTurn,
+        final List<Request> requests, final Collection<UUID> fellBack, final boolean thorough) {
         final Map<UUID, List<int[]>> result = new HashMap<>();
         if (requests.isEmpty()) return result;
 
@@ -158,29 +190,72 @@ public final class ArrowRouter {
         grid.markNoTurn(noTurn, NO_TURN_PAD);
         grid.reserveAnchors(requests);
 
+        // Heaviest first, then longest, then top to bottom, so the order (and so the result) never depends on the
+        // order the caller happened to list the wires in.
+        final List<Integer> order = new ArrayList<>(requests.size());
+        for (int i = 0; i < requests.size(); i++) order.add(i);
+        order.sort(
+            Comparator.<Integer>comparingDouble(i -> -requests.get(i).weight)
+                .thenComparingInt(i -> -span(requests.get(i)))
+                .thenComparingInt(i -> requests.get(i).sy)
+                .thenComparingInt(i -> requests.get(i).sx)
+                .thenComparingInt(i -> requests.get(i).dy)
+                .thenComparingInt(i -> requests.get(i).dx));
+
+        final Route[] routes = new Route[requests.size()];
+        for (final int i : order) {
+            final Request q = requests.get(i);
+            // Ports closer than two anchor stubs and room to turn between them cannot satisfy the
+            // leave-right/arrive-right
+            // state machine without looping around themselves; draw the canonical Z directly. Forward edges only: for a
+            // backward edge the gap
+            // is negative, and the Z would cut straight through every node between the two ports.
+            if (q.dx > q.sx && q.dx - q.sx < 2 * stub + 2 * cell && Math.abs(q.dy - q.sy) < 10 * baseCell) continue;
+            routes[i] = grid.search(q, i);
+            if (routes[i] != null) grid.occupy(routes[i], 1);
+        }
+
+        // Wires that still cross: route each again around all the others, and keep it when it crosses less. Bounded in
+        // count and time, so a tangled board still routes quickly; what is left crossing bridges when drawn.
+        final long started = System.nanoTime();
+        int budget = Math.max(12, 2 * requests.size());
+        rounds: for (int round = 0; thorough && round < ROUNDS; round++) {
+            boolean improved = false;
+            for (final int i : order) {
+                final Route old = routes[i];
+                if (old == null) continue;
+                if (budget <= 0 || System.nanoTime() - started > REROUTE_NANOS) break rounds;
+                grid.occupy(old, -1);
+                final int before = grid.crossings(old);
+                if (before == 0) {
+                    grid.occupy(old, 1);
+                    continue;
+                }
+                budget--;
+                final Route again = grid.search(requests.get(i), i);
+                if (again != null && grid.crossings(again) < before) {
+                    routes[i] = again;
+                    improved = true;
+                }
+                grid.occupy(routes[i], 1);
+            }
+            if (!improved) break;
+        }
+
         for (int i = 0; i < requests.size(); i++) {
             final Request q = requests.get(i);
-            // Ports closer than two anchor stubs cannot satisfy the leave-right/arrive-right
-            // state machine without looping around themselves; draw the canonical Z directly.
-            // Forward edges only: for a backward edge the gap is negative, and the Z would cut
-            // straight through every node between the two ports.
-            if (q.dx > q.sx && q.dx - q.sx < 2 * stub && Math.abs(q.dy - q.sy) < 10 * baseCell) {
+            if (routes[i] == null) {
                 if (fellBack != null) fellBack.add(q.key);
-                result.put(q.key, fallback(q, stub));
-                continue;
-            }
-            final List<int[]> cellPath = grid.search(q, i);
-            final List<int[]> path;
-            if (cellPath == null) {
-                if (fellBack != null) fellBack.add(q.key);
-                path = fallback(q, stub);
+                result.put(q.key, simplify(fallback(q, stub)));
             } else {
-                path = grid.toWorld(cellPath, q);
-                grid.occupy(cellPath);
+                result.put(q.key, grid.toWorld(routes[i], q));
             }
-            result.put(q.key, path);
         }
         return result;
+    }
+
+    private static int span(final Request q) {
+        return Math.abs(q.dx - q.sx) + Math.abs(q.dy - q.sy);
     }
 
     /** Simple direct route used when A* finds no path (degenerate layouts). */
@@ -194,19 +269,29 @@ public final class ArrowRouter {
         return p;
     }
 
-    private static final class Grid {
+    /** The cost of turning from one heading to another; -1 when not allowed (135 degrees, or straight back). */
+    private static int turnCost(final int from, final int to) {
+        final int d = Math.abs(from - to), steps = Math.min(d, 8 - d);
+        return steps == 0 ? 0 : steps == 1 ? TURN45 : steps == 2 ? TURN90 : -1;
+    }
+
+    /** A routed wire: the cells it runs through, start to goal, the heading it runs each one on, and what it cost. */
+    private record Route(int[] cells, int[] headings, int cost) {}
+
+    private final class Grid {
 
         final int originX, originY, cols, rows, cell, stub;
+        /** Step costs: a straight step is a cell, a diagonal step a cell times the square root of two. */
+        final int orthStep, diagStep;
         final boolean[] blocked;
-        /** Cells an arrow may pass straight through but may not turn in. */
+        /** Cells a wire may pass straight through but may not turn in. */
         final boolean[] straightOnly;
-        final int[] occupancy;
+        /** What a step into each cell costs on top of its length: margin rings covering it, wires running beside it. */
+        final int[] penalty;
+        /** Wires running through each cell, per line (four per cell), and which lines carry any (a bit each). */
+        final int[] lines;
+        final byte[] lineMask;
         final int[] anchorOwner;
-        final int[] gScore;
-        final int[] cameFrom;
-        final int[] scoreRun;
-        int runId = 1;
-        final OpenSet open = new OpenSet();
 
         Grid(final int originX, final int originY, final int cols, final int rows, final int cell, final int stub) {
             this.originX = originX;
@@ -215,15 +300,23 @@ public final class ArrowRouter {
             this.rows = rows;
             this.cell = cell;
             this.stub = stub;
-            this.blocked = new boolean[cols * rows];
-            this.straightOnly = new boolean[cols * rows];
-            this.occupancy = new int[cols * rows];
-            this.anchorOwner = new int[cols * rows];
+            this.orthStep = cell * 10;
+            this.diagStep = (int) Math.round(cell * 10 * Math.sqrt(2));
+            final int cells = cols * rows;
+            this.blocked = new boolean[cells];
+            this.straightOnly = new boolean[cells];
+            this.penalty = new int[cells];
+            this.lines = new int[cells * 4];
+            this.lineMask = new byte[cells];
+            this.anchorOwner = new int[cells];
             Arrays.fill(anchorOwner, -1);
-            final int states = cols * rows * 4;
-            this.gScore = new int[states];
-            this.cameFrom = new int[states];
-            this.scoreRun = new int[states];
+            final int states = cells * 8;
+            if (gScore.length < states) {
+                gScore = new int[states];
+                cameFrom = new int[states];
+                scoreRun = new int[states];
+                runId = 1;
+            }
         }
 
         int gx(final int wx) {
@@ -250,21 +343,16 @@ public final class ArrowRouter {
                 final int by0 = gy(r.y), by1 = gy(r.y + r.h);
                 for (int y = y0; y <= y1; y++) {
                     for (int x = x0; x <= x1; x++) {
-                        if (x >= bx0 && x <= bx1 && y >= by0 && y <= by1) {
-                            blocked[y * cols + x] = true;
-                        } else {
-                            occupancy[y * cols + x] += MARGIN_COST;
-                        }
+                        if (x >= bx0 && x <= bx1 && y >= by0 && y <= by1) blocked[y * cols + x] = true;
+                        else penalty[y * cols + x] += MARGIN_STEPS * orthStep;
                     }
                 }
             }
         }
 
         /**
-         * @param pad world units grown around each zone before it is rasterized. A corner sitting
-         *            exactly on a label's edge still reads as a corner in the label; pushing the
-         *            zone out slightly moves it clear. Cells are {@code cell} units wide, so a pad
-         *            below that only takes effect where the edge already sits near a cell boundary.
+         * @param pad world units grown around each zone before it is rasterized. A corner sitting exactly on a label's
+         *            edge still reads as a corner in the label; pushing the zone out slightly moves it clear.
          */
         void markNoTurn(final List<Rect> zones, final int pad) {
             for (final Rect r : zones) {
@@ -276,7 +364,7 @@ public final class ArrowRouter {
             }
         }
 
-        /** Marks every request's port-approach runs so other arrows keep out of them. */
+        /** Marks every request's port-approach runs so other wires keep out of them. */
         void reserveAnchors(final List<Request> requests) {
             for (int i = 0; i < requests.size(); i++) {
                 final Request q = requests.get(i);
@@ -292,66 +380,117 @@ public final class ArrowRouter {
             }
         }
 
-        void occupy(final List<int[]> cellPath) {
-            for (final int[] c : cellPath) {
-                final int gx = c[0], gy = c[1];
-                occupancy[gy * cols + gx] += ARROW;
-                for (int d = 0; d < 4; d++) {
-                    final int nx = gx + DX[d], ny = gy + DY[d];
-                    if (nx >= 0 && nx < cols && ny >= 0 && ny < rows) {
-                        occupancy[ny * cols + nx] += NEAR;
-                    }
+        /** Adds a wire to the board ({@code sign} 1) or takes it off again (-1). */
+        void occupy(final Route route, final int sign) {
+            for (int k = 0; k < route.cells.length; k++) {
+                final int idx = route.cells[k];
+                final int line = LINE[route.headings[k]];
+                lines[idx * 4 + line] += sign;
+                if (lines[idx * 4 + line] > 0) lineMask[idx] |= (byte) (1 << line);
+                else lineMask[idx] &= (byte) ~(1 << line);
+                final int x = idx % cols, y = idx / cols;
+                for (int d = 0; d < 8; d += 2) {
+                    final int nx = x + DX[d], ny = y + DY[d];
+                    if (nx >= 0 && nx < cols && ny >= 0 && ny < rows)
+                        penalty[ny * cols + nx] += sign * NEAR_STEPS * orthStep;
                 }
             }
         }
 
-        /** A* over (cell, direction); returns the list of {@code {gx, gy}} cells or null. */
-        List<int[]> search(final Request q, final int requestIndex) {
+        /** Cells where a wire runs through another one along a different line. */
+        int crossings(final Route route) {
+            int n = 0;
+            for (int k = 0; k < route.cells.length; k++) {
+                if ((lineMask[route.cells[k]] & ~(1 << LINE[route.headings[k]])) != 0) n++;
+            }
+            return n;
+        }
+
+        /** What a step into cell {@code idx} heading {@code dir} costs, beyond the turn. */
+        private int stepCost(final int idx, final int dir, final int requestIndex) {
+            final int step = (dir & 1) == 1 ? diagStep : orthStep;
+            int cost = step + penalty[idx];
+            final int mask = lineMask[idx], own = 1 << LINE[dir];
+            if ((mask & own) != 0) cost += OVERLAP_STEPS * step;
+            if ((mask & ~own) != 0) cost += CROSS;
+            if (anchorOwner[idx] != -1 && anchorOwner[idx] != requestIndex) cost += ANCHOR_STEPS * orthStep;
+            return cost;
+        }
+
+        /** A* over (cell, heading), near the wire's ends first; null when the goal cannot be reached. */
+        Route search(final Request q, final int requestIndex) {
+            // Close in first, wider only when that found nothing: a crossing left is the rip-up pass's to undo.
+            Route best = search(q, requestIndex, WINDOW_CELLS);
+            if (best == null) {
+                final Route wider = search(q, requestIndex, WIDE_WINDOW_CELLS);
+                if (wider != null && (best == null || wider.cost < best.cost)) best = wider;
+            }
+            if (best == null) best = search(q, requestIndex, Integer.MAX_VALUE / 4);
+            return best;
+        }
+
+        private Route search(final Request q, final int requestIndex, final int window) {
             final int sgx = gx(q.sx + stub), sgy = gy(q.sy);
             final int ggx = gx(q.dx - stub), ggy = gy(q.dy);
+            final int wx0 = Math.min(sgx, ggx) - window, wx1 = Math.max(sgx, ggx) + window;
+            final int wy0 = Math.min(sgy, ggy) - window, wy1 = Math.max(sgy, ggy) + window;
+            int pops = 0;
+            // Diagonals on forward wires that go far enough; one looping back round its cards keeps square corners.
+            final boolean diagonals = q.dx > q.sx
+                && Math.max(Math.abs(q.dx - q.sx), Math.abs(q.dy - q.sy)) >= DIAGONAL_MIN_SPAN;
             final int run = nextRun();
 
-            // Start heading +x (direction 0) so the arrow leaves the output port to the right.
-            final int startState = ((sgy * cols + sgx) * 4);
+            // Start heading +x (heading 0) so the wire leaves the output port to the right.
+            final int startState = (sgy * cols + sgx) * 8;
             setScore(startState, 0, -1, run);
-
             open.clear();
-            open.push(heuristic(sgx, sgy, 0, ggx, ggy), 0, startState);
+            open.push(heuristic(sgx, sgy, 0, ggx, ggy, diagonals), 0, startState);
 
             while (!open.isEmpty()) {
+                if (++pops > MAX_POPS) return null;
                 final long top = open.pop();
                 final int state = OpenSet.state(top);
                 final int g = score(state, run);
                 // A stale entry: the state was reached more cheaply since it was pushed.
                 if (OpenSet.g(top) != Math.min(g, OpenSet.MASK)) continue;
 
-                final int idx = state >> 2;
-                final int dir = state & 3;
-                final int cx = idx % cols;
-                final int cy = idx / cols;
+                final int idx = state >> 3, dir = state & 7;
+                final int cx = idx % cols, cy = idx / cols;
+                if (cx == ggx && cy == ggy && dir == 0) return reconstruct(state, g);
 
-                if (cx == ggx && cy == ggy && dir == 0) {
-                    return reconstruct(cameFrom, state);
-                }
+                for (int nd = 0; nd < 8; nd++) {
+                    final int turn = turnCost(dir, nd);
+                    if (turn < 0 || (nd & 1) == 1 && !diagonals) continue;
+                    // A corner inside a label reads as the wire ending there. Crossing it does not.
+                    if (nd != dir && straightOnly[idx]) continue;
+                    // Onto a diagonal: the whole minimum run at once.
+                    final int steps = (nd & 1) == 1 && nd != dir ? DIAGONAL_MIN_STEPS : 1;
+                    int x = cx, y = cy, cost = turn;
+                    boolean ok = true;
+                    for (int k = 0; k < steps && ok; k++) {
+                        final int nx = x + DX[nd], ny = y + DY[nd];
+                        if (nx < 0 || nx >= cols || ny < 0 || ny >= rows || blocked[ny * cols + nx]) ok = false;
+                        else if (nx < wx0 || nx > wx1 || ny < wy0 || ny > wy1) ok = false;
+                        // No cutting a corner on a diagonal.
+                        else if ((nd & 1) == 1 && (blocked[y * cols + nx] || blocked[ny * cols + x])) ok = false;
+                        else if (k == 0 && nd != dir && straightOnly[ny * cols + nx]) ok = false;
+                        else {
+                            cost += stepCost(ny * cols + nx, nd, requestIndex);
+                            x = nx;
+                            y = ny;
+                        }
+                    }
+                    if (!ok) continue;
+                    // Leaving and landing straight: a turn within the clean run at either end costs extra.
+                    if (nd != dir && dir == 0 && cy == sgy && cx - sgx >= 0 && cx - sgx < CLEAN_CELLS)
+                        cost += EARLY_TURN;
+                    if (nd == 0 && nd != dir && y == ggy && ggx - x >= 0 && ggx - x < CLEAN_CELLS) cost += EARLY_TURN;
 
-                for (int nd = 0; nd < 4; nd++) {
-                    if (nd == (dir ^ 1)) continue; // no immediate U-turn
-                    final int nx = cx + DX[nd];
-                    final int ny = cy + DY[nd];
-                    if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
-                    final int nIdx = ny * cols + nx;
-                    if (blocked[nIdx]) continue;
-                    // A corner inside a label reads as the arrow ending there. Crossing it does not.
-                    if (nd != dir && (straightOnly[nIdx] || straightOnly[idx])) continue;
-
-                    final int foreignAnchor = anchorOwner[nIdx] != -1 && anchorOwner[nIdx] != requestIndex ? ANCHOR_COST
-                        : 0;
-                    final int cost = STEP + (nd != dir ? TURN : 0) + occupancy[nIdx] + foreignAnchor;
                     final int ng = g + cost;
-                    final int nState = nIdx * 4 + nd;
+                    final int nState = (y * cols + x) * 8 + nd;
                     if (ng < score(nState, run)) {
                         setScore(nState, ng, state, run);
-                        open.push(ng + heuristic(nx, ny, nd, ggx, ggy), ng, nState);
+                        open.push(ng + heuristic(x, y, nd, ggx, ggy, diagonals), ng, nState);
                     }
                 }
             }
@@ -359,23 +498,39 @@ public final class ArrowRouter {
         }
 
         /**
-         * A lower bound on the cost to the goal, arriving heading +x: the Manhattan distance plus the turns no path can
-         * avoid. Turns cost far more than steps, so counting them keeps A* from fanning out over every equally short
-         * detour.
+         * A lower bound on the cost to the goal, arriving heading +x: the distance on the grid (octile when diagonals
+         * are allowed) plus the turns no path can avoid. Turns cost far more than steps, so counting them keeps A*
+         * from fanning out over every equally short detour.
          */
-        private static int heuristic(final int x, final int y, final int dir, final int gx, final int gy) {
-            final int dx = gx - x, dy = gy - y;
+        private int heuristic(final int x, final int y, final int dir, final int gx, final int gy,
+            final boolean diagonals) {
+            final int dx = gx - x, dy = gy - y, ax = Math.abs(dx), ay = Math.abs(dy);
+            if (!diagonals) {
+                final int turns = switch (dir) {
+                    case 0 -> dy == 0 && dx >= 0 ? 0 : 2;
+                    case 4 -> 2;
+                    case 2 -> dy < 0 ? 3 : 1;
+                    default -> dy > 0 ? 3 : 1;
+                };
+                return (ax + ay) * orthStep + turns * TURN90;
+            }
+            // In 45-degree steps. Wherever the goal is further down (or up) than it is ahead, a 45-degree run cannot
+            // cover the drop, so there is an upright stretch to turn onto and off again: that is what the bound must
+            // know, or A* fans out over every way to make the drop.
+            final boolean steep = ay > dx;
             final int turns = switch (dir) {
-                // Heading +x: none if the goal is straight ahead, else off this row and back.
-                case 0 -> dy == 0 && dx >= 0 ? 0 : 2;
-                // Heading -x: round to a vertical and then to +x.
-                case 1 -> 2;
-                // Heading +y: one turn to +x, three if the goal row is behind.
-                case 2 -> dy < 0 ? 3 : 1;
-                // Heading -y.
-                default -> dy > 0 ? 3 : 1;
+                case 0 -> dy == 0 && dx >= 0 ? 0 : steep ? 4 : 2;
+                // Heading down-right (1) or up-right (7): one bend back level, three if the goal is the other way up
+                // or too steep for the diagonal.
+                case 1 -> dy < 0 || steep ? 3 : 1;
+                case 7 -> dy > 0 || steep ? 3 : 1;
+                // Heading down (2) or up (6): two bends back level, four if the goal is the other way.
+                case 2 -> dy < 0 ? 4 : 2;
+                case 6 -> dy > 0 ? 4 : 2;
+                case 3, 5 -> 3;
+                default -> 4;
             };
-            return (Math.abs(dx) + Math.abs(dy)) * STEP + turns * TURN;
+            return (Math.max(ax, ay) - Math.min(ax, ay)) * orthStep + Math.min(ax, ay) * diagStep + turns * TURN45;
         }
 
         private int nextRun() {
@@ -396,52 +551,120 @@ public final class ArrowRouter {
             cameFrom[state] = previousState;
         }
 
-        private List<int[]> reconstruct(final int[] cameFrom, final int goalState) {
-            final List<int[]> cells = new ArrayList<>();
-            int s = goalState;
-            while (s != -1) {
-                final int idx = s >> 2;
-                cells.add(new int[] { idx % cols, idx / cols });
-                s = cameFrom[s];
+        /** The cells from start to goal, filling in the cells a multi-cell diagonal step jumped over. */
+        private Route reconstruct(final int goalState, final int cost) {
+            final List<Integer> states = new ArrayList<>();
+            for (int s = goalState; s != -1; s = cameFrom[s]) states.add(s);
+            final List<int[]> out = new ArrayList<>();
+            final int first = states.getLast();
+            out.add(new int[] { first >> 3, first & 7 });
+            for (int i = states.size() - 2; i >= 0; i--) {
+                final int s = states.get(i), from = states.get(i + 1) >> 3, to = s >> 3, dir = s & 7;
+                int x = from % cols, y = from / cols;
+                while (y * cols + x != to) {
+                    x += DX[dir];
+                    y += DY[dir];
+                    out.add(new int[] { y * cols + x, dir });
+                }
             }
-            Collections.reverse(cells);
-            return cells;
+            final int[] cells = new int[out.size()], headings = new int[out.size()];
+            for (int i = 0; i < out.size(); i++) {
+                cells[i] = out.get(i)[0];
+                headings[i] = out.get(i)[1];
+            }
+            return new Route(cells, headings, cost);
         }
 
-        /** Converts a cell path to world waypoints, snapping the stub segments to the exact ports. */
-        List<int[]> toWorld(final List<int[]> cells, final Request q) {
-            // Keep only corners (cells where the direction changes), plus the two ends.
-            final List<int[]> corners = new ArrayList<>();
-            corners.add(cells.getFirst());
-            for (int i = 1; i < cells.size() - 1; i++) {
-                final int[] a = cells.get(i - 1), b = cells.get(i), c = cells.get(i + 1);
-                final int d1x = Integer.signum(b[0] - a[0]), d1y = Integer.signum(b[1] - a[1]);
-                final int d2x = Integer.signum(c[0] - b[0]), d2y = Integer.signum(c[1] - b[1]);
-                if (d1x != d2x || d1y != d2y) corners.add(b);
-            }
-            if (cells.size() > 1) corners.add(cells.getLast());
-
-            final int m = corners.size();
-            final int[] xs = new int[m];
-            final int[] ys = new int[m];
-            for (int i = 0; i < m; i++) {
-                xs[i] = centerX(corners.get(i)[0]);
-                ys[i] = centerY(corners.get(i)[1]);
-            }
-            // Snap the source stub run to the port's exact Y (removes the half-cell jog at the port).
-            ys[0] = q.sy;
-            if (m >= 2 && corners.get(0)[1] == corners.get(1)[1]) ys[1] = q.sy;
-            // Snap the target stub run to the port's exact Y.
-            ys[m - 1] = q.dy;
-            if (m >= 2 && corners.get(m - 1)[1] == corners.get(m - 2)[1]) ys[m - 2] = q.dy;
-
-            final List<int[]> pts = new ArrayList<>(m + 2);
+        /** Converts a route to world waypoints, snapping the end runs to the exact ports. */
+        List<int[]> toWorld(final Route route, final Request q) {
+            // The corners: the start, every cell the heading changes after, and the goal.
+            final List<int[]> pts = new ArrayList<>();
             pts.add(new int[] { q.sx, q.sy });
-            for (int i = 0; i < m; i++) pts.add(new int[] { xs[i], ys[i] });
+            final int n = route.cells.length;
+            for (int k = 0; k < n; k++) {
+                if (k == 0 || k == n - 1 || route.headings[k + 1] != route.headings[k]) {
+                    final int idx = route.cells[k];
+                    pts.add(new int[] { centerX(idx % cols), centerY(idx / cols) });
+                }
+            }
             pts.add(new int[] { q.dx, q.dy });
-
-            return simplify(orthogonalize(pts));
+            // The first run leaves heading right and the last lands heading right: put them on the ports' rows.
+            pts.get(1)[1] = q.sy;
+            if (n > 1 && route.headings[1] == 0) pts.get(2)[1] = q.sy;
+            pts.get(pts.size() - 2)[1] = q.dy;
+            if (n > 1 && route.headings[n - 1] == 0) pts.get(pts.size() - 3)[1] = q.dy;
+            return simplify(true45(simplify(pts)));
         }
+    }
+
+    /**
+     * Makes every diagonal run exactly 45 degrees again after the end runs were moved onto the ports' rows (up to half
+     * a
+     * cell), by sliding the corner it shares with a straight run along that run. A run that cannot be fixed that way
+     * becomes an L.
+     */
+    private static List<int[]> true45(final List<int[]> pts) {
+        final List<int[]> out = new ArrayList<>(pts);
+        for (int i = 0; i + 1 < out.size(); i++) {
+            final int[] a = out.get(i), b = out.get(i + 1);
+            final int dx = b[0] - a[0], dy = b[1] - a[1];
+            if (dx == 0 || dy == 0 || Math.abs(dx) == Math.abs(dy)) continue;
+            final int[] prev = i > 0 ? out.get(i - 1) : null, next = i + 2 < out.size() ? out.get(i + 2) : null;
+            if (prev != null && i > 0 && prev[1] == a[1]) {
+                // Slide a along the straight run before it.
+                final int x = b[0] - Integer.signum(dx) * Math.abs(dy);
+                if (Integer.signum(x - prev[0]) == Integer.signum(a[0] - prev[0])) {
+                    a[0] = x;
+                    continue;
+                }
+            }
+            if (next != null && i + 2 < out.size() && next[1] == b[1]) {
+                // Slide b along the straight run after it.
+                final int x = a[0] + Integer.signum(dx) * Math.abs(dy);
+                if (Integer.signum(next[0] - x) == Integer.signum(next[0] - b[0])) {
+                    b[0] = x;
+                    continue;
+                }
+            }
+            if (prev != null && i > 0 && prev[0] == a[0]) {
+                final int y = b[1] - Integer.signum(dy) * Math.abs(dx);
+                if (Integer.signum(y - prev[1]) == Integer.signum(a[1] - prev[1])) {
+                    a[1] = y;
+                    continue;
+                }
+            }
+            if (next != null && i + 2 < out.size() && next[0] == b[0]) {
+                final int y = a[1] + Integer.signum(dy) * Math.abs(dx);
+                if (Integer.signum(next[1] - y) == Integer.signum(next[1] - b[1])) {
+                    b[1] = y;
+                    continue;
+                }
+            }
+            // No straight neighbour to absorb it: go round the corner square.
+            out.add(i + 1, new int[] { b[0], a[1] });
+            i++;
+        }
+        return out;
+    }
+
+    /** Drops repeated points and points in the middle of a straight run, so only real corners remain. */
+    private static List<int[]> simplify(final List<int[]> pts) {
+        final List<int[]> out = new ArrayList<>(pts.size());
+        for (final int[] p : pts) {
+            if (!out.isEmpty()) {
+                final int[] last = out.getLast();
+                if (last[0] == p[0] && last[1] == p[1]) continue;
+            }
+            out.add(p);
+        }
+        for (int i = 1; i < out.size() - 1;) {
+            final int[] a = out.get(i - 1), b = out.get(i), c = out.get(i + 1);
+            final long cross = (long) (b[0] - a[0]) * (c[1] - b[1]) - (long) (b[1] - a[1]) * (c[0] - b[0]);
+            final boolean sameWay = (long) (b[0] - a[0]) * (c[0] - b[0]) + (long) (b[1] - a[1]) * (c[1] - b[1]) > 0;
+            if (cross == 0 && sameWay) out.remove(i);
+            else i++;
+        }
+        return out;
     }
 
     /**
@@ -500,39 +723,5 @@ public final class ArrowRouter {
         static int g(final long key) {
             return (int) (MASK - (key >>> BITS & MASK));
         }
-    }
-
-    /** Inserts an L-bend for any accidental diagonal so the polyline stays strictly orthogonal. */
-    private static List<int[]> orthogonalize(final List<int[]> pts) {
-        final List<int[]> out = new ArrayList<>(pts.size() + 4);
-        out.add(pts.getFirst());
-        for (int i = 1; i < pts.size(); i++) {
-            final int[] p = out.getLast();
-            final int[] c = pts.get(i);
-            if (p[0] != c[0] && p[1] != c[1]) {
-                out.add(new int[] { c[0], p[1] });
-            }
-            out.add(c);
-        }
-        return out;
-    }
-
-    /** Drops duplicate points and merges collinear runs so only real corners remain. */
-    private static List<int[]> simplify(final List<int[]> pts) {
-        final List<int[]> out = new ArrayList<>(pts.size());
-        for (final int[] p : pts) {
-            if (!out.isEmpty()) {
-                final int[] last = out.getLast();
-                if (last[0] == p[0] && last[1] == p[1]) continue;
-            }
-            out.add(p);
-        }
-        for (int i = 1; i < out.size() - 1;) {
-            final int[] a = out.get(i - 1), b = out.get(i), c = out.get(i + 1);
-            final boolean collinear = (a[0] == b[0] && b[0] == c[0]) || (a[1] == b[1] && b[1] == c[1]);
-            if (collinear) out.remove(i);
-            else i++;
-        }
-        return out;
     }
 }

@@ -224,7 +224,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             return;
         }
         // World space, under the cards.
-        wires.draw(wires.wires(cards, drawers), session.hoverKey());
+        wires.draw(wires.wires(cards, drawers, moveStart != null || glideStart >= 0), session.hoverKey());
     }
 
     @Override
@@ -401,6 +401,18 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     }
 
     /** Tooltip for the wire under the mouse: what it carries and how much. */
+    /** Every routed wire as {resource, its world points as "x,y" pairs}, for the dev harness. */
+    public List<List<String>> wirePaths() {
+        final List<List<String>> out = new ArrayList<>();
+        for (final WireLayer.Wire w : wires.wires(cards, drawers, false)) {
+            final List<String> row = new ArrayList<>();
+            row.add(w.resource());
+            for (final int[] p : w.path()) row.add(p[0] + "," + p[1]);
+            out.add(row);
+        }
+        return out;
+    }
+
     public List<String> wireLines() {
         final WireLayer.Wire wire = wires.hit(worldX(getContext().getAbsMouseX()), worldY(getContext().getAbsMouseY()));
         if (wire == null) return null;

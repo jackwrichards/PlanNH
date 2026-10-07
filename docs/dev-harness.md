@@ -54,7 +54,7 @@ is a thin curl wrapper. Every request waits until the game has processed it, so 
 | `/key?code[&char][&mods=ctrl,shift][&hold=ms]` | press + release an LWJGL2 key code (modifiers held around it; `hold` keeps it down that long) (`Keyboard.KEY_*`: 1 Esc, 28 Enter, 14 Backspace, 20 T, 66 F8) |
 | `/type?text` | type text into the focused field |
 | `/cmd?c=/time%20set%20day` | run a command as the player (client commands first, then chat) |
-| `/board` | the open board as data: zoom/pan, per card its state (tier, amps, coil, machines, pinned, ports) and the GUI rect of each control and port (`parts.TIER`, `parts.OUT1`, with `cx/cy`), per drawer its kind, rule, target, rate, unmet flag and parts, the edge count, `solving`, and the notices |
+| `/board` | the open board as data: zoom/pan, per card its state (tier, amps, coil, machines, pinned, ports) and the GUI rect of each control and port (`parts.TIER`, `parts.OUT1`, with `cx/cy`), per drawer its kind, rule, target, rate, unmet flag and parts, the edge count, every routed wire (`wires`: resource, then its points), `solving`, and the notices |
 | `/view?zoom&panX&panY` | set the board view (defaults 1, 0, 0) so tests start from a known place |
 | `/slots[?add=name \| switch=i \| delete=i]` | the plan slots (`slots`, `active`); `add` opens a new one, so a check can work without touching the owner's plans |
 | `/gtmachines?q&all=1&art=1` | GregTech multiblocks (all=1: every machine) by meta and in-game name; art=1 adds the bundled picture each resolves to |

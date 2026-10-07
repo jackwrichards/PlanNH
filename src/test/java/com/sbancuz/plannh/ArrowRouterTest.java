@@ -7,13 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import com.sbancuz.plannh.layout.ArrowRouter;
@@ -55,7 +55,7 @@ class ArrowRouterTest {
     }
 
     @Test
-    void everySegmentIsHorizontalOrVertical() {
+    void everySegmentIsStraightOrFortyFive() {
         // A forward wire down to a lower card, one up to a higher card, and one running back from
         // the lower card into the first card's second input, all routed together.
         final List<Rect> cards = List.of(card(0, 0), card(400, 200), card(400, -200));
@@ -69,20 +69,24 @@ class ArrowRouterTest {
         for (final Request request : requests) {
             final List<int[]> route = routes.get(request.key());
             assertNotNull(route);
-            assertTrue(orthogonal(route), () -> "diagonal in " + describe(route));
+            assertTrue(octilinear(route), () -> "off the eight directions: " + describe(route));
         }
     }
 
     @Test
-    void anOffsetPairInOpenSpaceBendsTwice() {
-        // Leaving rightward and arriving rightward on another row takes two turns and no more.
+    void anOffsetPairTurnsHalfwayRoundInGentleBends() {
+        // Leaving rightward and arriving rightward on another row: it turns down and back, 180 degrees in all and no
+        // more, never sharper than a right angle, and the far ends run level out of and into the ports.
         final Request request = request("z", W, PortGeometry.portY(0), 400, 200 + PortGeometry.portY(0));
 
         final List<int[]> route = router().route(List.of(card(0, 0), card(400, 200)), List.of(request))
             .get(request.key());
 
-        assertEquals(4, route.size(), () -> "two corners: " + describe(route));
-        assertTrue(orthogonal(route));
+        assertTrue(octilinear(route), () -> describe(route));
+        assertEquals(180, totalTurning(route), () -> "turns: " + describe(route));
+        assertTrue(sharpestTurn(route) <= 90, () -> "sharpest: " + describe(route));
+        assertEquals(route.get(0)[1], route.get(1)[1], () -> "leaves level: " + describe(route));
+        assertEquals(route.get(route.size() - 2)[1], route.getLast()[1], () -> "lands level: " + describe(route));
     }
 
     @Test
@@ -100,7 +104,7 @@ class ArrowRouterTest {
             .get(request.key());
 
         assertTrue(route.size() > 2, () -> "went round: " + describe(route));
-        assertTrue(orthogonal(route));
+        assertTrue(octilinear(route), () -> describe(route));
         assertTrue(fellBack.isEmpty(), "a real route, not the fallback");
         assertFalse(entersMargin(route, blocker, 0), () -> "into the blocker's margin: " + describe(route));
         assertFalse(entersMargin(route, a, 1), () -> "into its own source card: " + describe(route));
@@ -149,7 +153,6 @@ class ArrowRouterTest {
     }
 
     @Test
-    @Disabled("finding: routed upper wire first, it turns at the first cell and the lower wire crosses it twice")
     void twoWiresBetweenTheSameCardsDoNotCross() {
         // Both wires drop 200 to the lower card, port 0 to port 0 and port 1 to port 1. Nested
         // corners route them without a crossing whichever is routed first, and the canvas routes
@@ -208,6 +211,42 @@ class ArrowRouterTest {
             if (a[0] != b[0] && a[1] != b[1]) return false;
         }
         return true;
+    }
+
+    /** Every segment runs along one of the eight directions: level, upright, or exactly 45 degrees. */
+    private static boolean octilinear(final List<int[]> route) {
+        for (int i = 1; i < route.size(); i++) {
+            final int dx = Math.abs(route.get(i)[0] - route.get(i - 1)[0]);
+            final int dy = Math.abs(route.get(i)[1] - route.get(i - 1)[1]);
+            if (dx != 0 && dy != 0 && dx != dy) return false;
+        }
+        return true;
+    }
+
+    /** The heading change at each corner, in degrees (0 to 180). */
+    private static List<Integer> turns(final List<int[]> route) {
+        final List<Integer> out = new ArrayList<>();
+        for (int i = 1; i + 1 < route.size(); i++) {
+            final int[] a = route.get(i - 1), b = route.get(i), c = route.get(i + 1);
+            final double h1 = Math.atan2(b[1] - a[1], b[0] - a[0]), h2 = Math.atan2(c[1] - b[1], c[0] - b[0]);
+            double d = Math.abs(Math.toDegrees(h2 - h1)) % 360;
+            if (d > 180) d = 360 - d;
+            out.add((int) Math.round(d));
+        }
+        return out;
+    }
+
+    private static int totalTurning(final List<int[]> route) {
+        return turns(route).stream()
+            .mapToInt(Integer::intValue)
+            .sum();
+    }
+
+    private static int sharpestTurn(final List<int[]> route) {
+        return turns(route).stream()
+            .mapToInt(Integer::intValue)
+            .max()
+            .orElse(0);
     }
 
     /**

@@ -16,7 +16,9 @@ turn-aware A* heuristic and an allocation-free heap: 13 ms for 30 wires on 20 ca
 added from the overview line up below their neighbours; an empty plan shows a hint rather than a solver error. Items
 dragged out of NEI drop onto the board: NEI carries a dragged item until the next click, which ModularUI gives to the
 board, so `BoardScreen.onMousePressed` takes the drop itself.
-`tools/dev/board-check.sh` checks the main flows end to end. If you are picking this up, the brief below is still
+Wires route after Factory Flow's: eight directions with real 45-degree runs between ends 120 or more apart, straight
+runs out of and into ports, crossings priced high and ripped up and routed again within a time budget, heaviest
+wires first, and a quick pass (no rip-up) while a card is being dragged. `tools/dev/board-check.sh` checks the main flows end to end. If you are picking this up, the brief below is still
 the reference for how things are meant to work; what is left is this list.
 
 Known gaps:
