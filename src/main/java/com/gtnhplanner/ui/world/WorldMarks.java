@@ -148,11 +148,16 @@ final class WorldMarks {
         org.lwjgl.opengl.GL14.glBlendColor(1, 1, 1, 0.55f);
         GL11.glBlendFunc(0x8003, 0x8004); // GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA
         GL11.glColor4f(1, 1, 1, 1);
+        // Transparent texels left out, as everywhere else: the constant alpha above ignores a texture's own, and the
+        // clear parts of GregTech's glowing layers (a working machine's top) hold colours that would show.
+        GL11.glEnable(GL11.GL_ALPHA_TEST);
+        GL11.glAlphaFunc(GL11.GL_GREATER, 0.1f);
         net.minecraft.client.renderer.RenderHelper.enableStandardItemLighting();
         try {
             GHOST.renderBlockAsItem(block, machine.getItemDamage(), 1f);
         } catch (final RuntimeException ignored) {}
         net.minecraft.client.renderer.RenderHelper.disableStandardItemLighting();
+        GL11.glDisable(GL11.GL_ALPHA_TEST);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GL11.glDisable(GL11.GL_CULL_FACE);
         GL11.glDisable(GL11.GL_TEXTURE_2D);
