@@ -8,15 +8,20 @@ of the plan last open in today's style and the trial's, side by side (`dev/CardG
 
 - One surface, no boxes inside it: no port tiles, no name bar box, no POWER and MACHINES footer.
 - Header: the machine's name large on the left; the amps and tier chips at the board's size on the right, their labels
-  a hair heavier than plain (not the game's bold), as far from the top as from the right edge; a hairline under it.
+  one screen pixel heavier than plain (not the game's bold; laid on the screen's pixels so every chip matches at any
+  zoom), as far from the top as from the right edge; a hairline under it.
 - Ports: inputs against the left edge, outputs against the right, where their wires meet the card; each its icon at the
   edge, how much in large type with its unit small, the name small under it on one line (smaller when long, then cut).
   Rows start at the top; nothing is centred vertically.
 - Power is one more port with a bolt: after the inputs for what the machine draws, after the outputs for what a
   generator makes. Hovering it says, in a few words, that plans do not wire machine power (e.g. "Not wired in plans").
-- The machine picture in the middle, a little larger, the machine count in plain white on its bottom right corner.
+- The machine picture in the middle, as large as the column allows (88), the machine count in plain white on its
+  bottom right corner.
 - The title level with the chips' labels (the game's capitals are seven of its eight rows).
-- The recipe's programmed circuit as a badge, with its number, on the picture's bottom left corner.
+- The recipe's programmed circuit as its icon, large, on the picture's bottom left corner; or, with the setting
+  "Circuit as an input", one more input row (its icon, its number large, "Circuit" small). GregTech's circuit icons
+  are drawn clearer everywhere a card shows one (`ui/gt/CircuitIcons`, made by `tools/dev/circuit-icons.mjs`: the
+  faint "88" taken off the screen and the lit segments darker, nothing else changed).
 - A settings strip along the bottom: a chip for the coil (heat recipes; red when too cold), parallels when more than
   one, and every setting changed from its default (`PlanSnapshot.Setting`, from `SnapshotMaker.settings`); a card left
   at its defaults has no strip.
