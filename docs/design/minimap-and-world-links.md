@@ -65,16 +65,17 @@ Nothing shows until a card of the plan last open is placed.
 - Each placed spot shows a ghost of the card's machine (its own block model, see-through, over the world; not when the
   machine is built there already), and the card floats a third of a block over it with a faint grey stem down to it,
   drawn as the board draws it (`ui/card/PlanCardView`: name bar and tier chips, ports with the plan's rates, the
-  machine's picture, POWER and MACHINES), with nothing to press. A card is two and a half blocks wide in the world, or
-  nine tenths of the room to its nearest placed neighbour, so neighbours never overlap seen square on; the size comes
-  from where the cards are, never from where you stand. It shrinks with distance (always the whole card); seen at a
-  slant, nearer cards cover farther ones. The spot looked at is outlined.
+  machine's picture, POWER and MACHINES), with nothing to press. A card is drawn full size within ten blocks of you and shrinks with distance
+  beyond (always the whole card); nearer cards cover farther ones.
+- The crosshair is on a card when it is over the card itself or meets its spot (its ghost), through blocks: the card is
+  highlighted, drawn over the others, its spot outlined, and the minimap highlights it and glides to it.
 - The plan's wires between placed cards are drawn flat on the screen as the board draws them, from where they leave
   one spot to where they meet the other (cut short at the camera): a line in the resource's colour on a dark edge,
   with arrowheads sliding towards the card fed, faint where nothing flows yet. At its middle a tag, one of the card's port
   tiles (icon, name, rate) as big as the cards' ports are there, says what goes along it; tags of several wires between
   the same two cards stack.
-- The wire the crosshair is on (its line or its tag) is highlighted, its tag names the two cards, and the minimap
+- The wire the crosshair is on (its tag, or its line within 24 GUI pixels, when no card is under the crosshair) is
+  highlighted, its tag names the two cards, and the minimap
   highlights the same wire and (with "Centre on the machine you look at") glides to it.
 
 The earlier AR lens (every machine's live state, read from GregTech, with stats and charts) is shelved on the branch

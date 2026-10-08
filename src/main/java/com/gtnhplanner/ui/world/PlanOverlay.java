@@ -34,8 +34,9 @@ import cpw.mods.fml.common.gameevent.TickEvent;
 
 /**
  * The plan overlaid on the world: every card of the plan last open in the planner that has been placed on a spot is
- * drawn floating over it as the board draws it, a stem down to the spot, where a ghost of its machine stands; as big as
- * an object (so it shrinks with distance), nearer cards over farther ones. The plan's wires between placed cards are
+ * drawn floating over it as the board draws it, a stem down to the spot, where a ghost of its machine stands; full size
+ * within ten blocks and shrinking with distance beyond, nearer cards over farther ones. The plan's wires between placed
+ * cards are
  * drawn flat on the screen as the board draws them, from block to block, with arrowheads moving towards the card fed
  * and a tag naming what goes along and how much. Nothing shows until a card is placed. What the crosshair is on is
  * highlighted.
@@ -45,10 +46,13 @@ public final class PlanOverlay {
     public static final PlanOverlay INSTANCE = new PlanOverlay();
 
     /**
-     * A card's width in the world, in blocks, at most (it is narrower where placed cards are closer together, so none
-     * overlap), and how far over its block it floats.
+     * Cards and wire tags are drawn full size within this many blocks of the eye, and shrink with distance beyond it as
+     * objects do. How far a card floats over its spot, in blocks.
      */
-    private static final float CARD_BLOCKS = 2.5f, LIFT = 0.35f;
+    private static final float FULL_SIZE_WITHIN = 10f, LIFT = 0.35f;
+
+    /** How far the crosshair reaches to a wire's line, in GUI pixels. */
+    private static final float WIRE_REACH = 24;
 
     /** A placed card this frame: where its block is, and where and how big its card is on the screen. */
     private static final class Placed {
@@ -56,10 +60,8 @@ public final class PlanOverlay {
         final PlanSnapshot.Card card;
         final int x, y, z;
         double distance;
-        /** The card's width in the world, in blocks. */
-        float blocks = CARD_BLOCKS;
-        /** The card's foot on the screen, its block's top, and its scale. */
-        float sx, sy, bx, by, scale;
+        /** The card's foot on the screen, its block's top, its scale, and its size there. */
+        float sx, sy, bx, by, scale, w, h;
 
         Placed(final PlanSnapshot.Card card, final int[] at) {
             this.card = card;
@@ -67,10 +69,17 @@ public final class PlanOverlay {
             this.y = at[2];
             this.z = at[3];
         }
+
+        boolean covers(final float px, final float py) {
+            return px >= sx - w / 2 && px < sx + w / 2 && py >= sy - h && py < sy;
+        }
     }
 
     @Nullable
     private UUID looked;
+    /** The card the crosshair is on, its spot or the card itself, found on the screen last frame; drawn highlighted. */
+    @Nullable
+    private UUID lit;
     /** The wire under the crosshair, found on the screen last frame, and drawn lit. */
     @Nullable
     private Conn hovered;
@@ -108,7 +117,7 @@ public final class PlanOverlay {
         return PlannerSettings.arLens();
     }
 
-    /** The cards placed in this dimension within range, nearest first, each sized to keep clear of the others. */
+    /** The cards placed in this dimension within range, nearest first. */
     private static List<Placed> placed(final Minecraft mc) {
         final List<Placed> all = new ArrayList<>();
         final PlanSnapshot snap = PlanSnapshot.latest();
@@ -119,7 +128,6 @@ public final class PlanOverlay {
             if (n == null) continue;
             for (final int[] l : n.worldLinks) if (l[0] == dim) all.add(new Placed(c, l));
         }
-        fit(all);
         final double range = PlannerSettings.arRange();
         final EntityLivingBase eye = mc.renderViewEntity;
         final List<Placed> list = new ArrayList<>();
@@ -132,25 +140,7 @@ public final class PlanOverlay {
         return list;
     }
 
-    /**
-     * Each card's width in the world: {@link #CARD_BLOCKS}, or nine tenths of the room to its nearest placed neighbour,
-     * so side by side they leave a gap and one over another clears it. Set by where cards are, never by where the
-     * player stands, so cards keep their size as you move.
-     */
-    private static void fit(final List<Placed> all) {
-        for (final Placed p : all) {
-            final float tall = PlanCardView.height(p.card) / (float) CardLayout.W;
-            double room = Double.MAX_VALUE;
-            for (final Placed q : all) {
-                if (q == p) continue;
-                final double across = Math.hypot(q.x - p.x, q.z - p.z), up = Math.abs(q.y - p.y);
-                room = Math.min(room, Math.max(across, up / tall));
-            }
-            p.blocks = (float) Math.max(0.8, Math.min(CARD_BLOCKS, 0.9 * room));
-        }
-    }
-
-    /** The placed card under the crosshair, as far as the overlay reaches. */
+    /** The placed spot under the crosshair, as far as the overlay reaches. */
     @SubscribeEvent
     public void onTick(final TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
@@ -193,7 +183,7 @@ public final class PlanOverlay {
         for (final Placed p : placed) {
             if (p.card.machine() != null && !built(mc, p)) WorldMarks.ghost(p.card.machine(), p.x, p.y, p.z);
             if (p.card.id()
-                .equals(looked)) WorldMarks.outline(p.x, p.y, p.z, Hyb.LIT & 0xFFFFFF, 0.012f, 1.5f, 0.6f);
+                .equals(lit)) WorldMarks.outline(p.x, p.y, p.z, Hyb.LIT & 0xFFFFFF, 0.012f, 1.5f, 0.6f);
         }
         WorldMarks.end();
     }
@@ -238,7 +228,7 @@ public final class PlanOverlay {
     @SubscribeEvent(priority = cpw.mods.fml.common.eventhandler.EventPriority.HIGH)
     public void onOverlay(final RenderGameOverlayEvent.Post event) {
         if (event.type != RenderGameOverlayEvent.ElementType.ALL) return;
-        Minimap.INSTANCE.focusWire(null);
+        Minimap.INSTANCE.point(null, null);
         if (!on() || !cameraKnown) return;
         final Minecraft mc = Minecraft.getMinecraft();
         if (mc.currentScreen != null || mc.gameSettings.hideGUI || LinkPicker.active()) return;
@@ -251,36 +241,42 @@ public final class PlanOverlay {
         // The plan's wires, flat on the screen as the board draws them, and the one the crosshair is on.
         final float cx = sr.getScaledWidth() / 2f, cy = sr.getScaledHeight() / 2f;
         final List<Run> runs = runs(conns(all), sr, mc, snap);
+        // What the crosshair is on: a wire's tag, else the nearest card it is over, else a spot (its ghost), else the
+        // wire
+        // whose line is within reach.
         Run near = null;
-        float nearest = 7;
-        for (final Run r : runs) {
-            final float d = r.covers(cx, cy) ? 0 : distance(cx, cy, r.ax, r.ay, r.bx, r.by);
-            if (d < nearest) {
-                nearest = d;
-                near = r;
+        for (final Run r : runs) if (r.covers(cx, cy)) near = r;
+        Placed over = null;
+        if (near == null) for (final Placed p : shown) if (p.covers(cx, cy)) {
+            over = p;
+            break;
+        }
+        final UUID card = near != null ? null : over != null ? over.card.id() : looked;
+        if (near == null && card == null) {
+            float nearest = WIRE_REACH;
+            for (final Run r : runs) {
+                final float d = distance(cx, cy, r.ax, r.ay, r.bx, r.by);
+                if (d < nearest) {
+                    nearest = d;
+                    near = r;
+                }
             }
         }
         hovered = near == null ? null : near.conn;
-        if (hovered != null) Minimap.INSTANCE.focusWire(hovered.line);
+        lit = card;
+        Minimap.INSTANCE.point(card, hovered == null ? null : hovered.line);
         Hyb.beginBatch();
         for (final Run r : runs) wire(r, r.conn.same(hovered));
         Hyb.endBatch();
-        // Far to near, so nearer cards cover farther ones as objects do.
+        // Far to near, so nearer cards cover farther ones as objects do; the one the crosshair is on over them all.
+        Placed top = null;
         for (int i = shown.size() - 1; i >= 0; i--) {
             final Placed p = shown.get(i);
-            final boolean ringed = p.card.id()
-                .equals(looked);
-            final float w = PlanCardView.width() * p.scale, h = PlanCardView.height(p.card) * p.scale;
-            // The stem from the card down to its block.
-            final int stem = ringed ? 0x90000000 | Hyb.LIT & 0xFFFFFF : 0x70A4A8B0;
-            final float sw = 3;
-            com.gtnhplanner.ui.theme.Hyb.rect(p.sx - sw / 2f, p.sy, sw, Math.max(1, p.by - p.sy), stem);
-            GL11.glPushMatrix();
-            GL11.glTranslatef(Math.round(p.sx - w / 2f), Math.round(p.sy - h), 0);
-            GL11.glScalef(p.scale, p.scale, 1);
-            PlanCardView.draw(p.card, snap.rateUnit(), ringed);
-            GL11.glPopMatrix();
+            if (p.card.id()
+                .equals(lit)) top = p;
+            else card(p, snap, false);
         }
+        if (top != null) card(top, snap, true);
         // Over the cards: what each wire carries.
         for (final Run r : runs) if (!r.conn.same(hovered)) tag(r, false);
         if (near != null) tag(near, true);
@@ -337,11 +333,12 @@ public final class PlanOverlay {
             if (!inFront(a, b)) continue;
             final float[] sa = screen(a[0], a[1], a[2], sr, mc), sb = screen(b[0], b[1], b[2], sr, mc);
             final double mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, mz = (a[2] + b[2]) / 2;
-            final float[] mid = screen(mx, my, mz, sr, mc), up = screen(mx, my + 1, mz, sr, mc);
+            final float[] mid = screen(mx, my, mz, sr, mc);
             if (sa == null || sb == null || mid == null) continue;
-            // As big as the cards' own port tiles would be there.
-            final float perBlock = up == null ? 0 : Math.abs(mid[1] - up[1]);
-            final float scale = Math.min(1f, Math.min(c.from.blocks, c.to.blocks) * perBlock / CardLayout.W);
+            // Sized as the cards are: full size near, shrinking with distance.
+            final double far = Math
+                .sqrt((mx - camX) * (mx - camX) + (my - camY) * (my - camY) + (mz - camZ) * (mz - camZ));
+            final float scale = (float) Math.min(1, FULL_SIZE_WITHIN / far);
             final PlanSnapshot.Flow f = c.flow;
             final String rate = f == null ? ""
                 : f.power() ? com.gtnhplanner.ui.theme.Fmt.power(f.perSecond() / 20) + " EU/t"
@@ -389,6 +386,18 @@ public final class PlanOverlay {
     private float eyeZ(final double[] p) {
         final float x = (float) (p[0] - camX), y = (float) (p[1] - camY), z = (float) (p[2] - camZ);
         return modelview.get(2) * x + modelview.get(6) * y + modelview.get(10) * z + modelview.get(14);
+    }
+
+    /** A card over its spot, with its stem down to it. */
+    private static void card(final Placed p, final PlanSnapshot snap, final boolean ringed) {
+        final int stem = ringed ? 0x90000000 | Hyb.LIT & 0xFFFFFF : 0x70A4A8B0;
+        final float sw = 3;
+        Hyb.rect(p.sx - sw / 2f, p.sy, sw, Math.max(1, p.by - p.sy), stem);
+        GL11.glPushMatrix();
+        GL11.glTranslatef(Math.round(p.sx - p.w / 2f), Math.round(p.sy - p.h), 0);
+        GL11.glScalef(p.scale, p.scale, 1);
+        PlanCardView.draw(p.card, snap.rateUnit(), ringed);
+        GL11.glPopMatrix();
     }
 
     /** A point's distance from a segment on the screen. */
@@ -481,25 +490,24 @@ public final class PlanOverlay {
 
     /**
      * Where a card's foot (floating {@link #LIFT} blocks over its block) and its block's top fall on the GUI, and the
-     * card's scale there: a card is {@link Placed#blocks} wide, measured by how many GUI pixels a block's height takes
-     * at that spot. False when it is behind the camera.
+     * card's scale: full size within {@link #FULL_SIZE_WITHIN} blocks, shrinking with distance beyond. False when it is
+     * behind the camera or off the screen.
      */
     private boolean project(final Placed p, final ScaledResolution sr, final Minecraft mc) {
         final float[] block = screen(p.x + 0.5, p.y + 1.02, p.z + 0.5, sr, mc);
         final float[] top = screen(p.x + 0.5, p.y + 1.02 + LIFT, p.z + 0.5, sr, mc);
-        final float[] up = screen(p.x + 0.5, p.y + 2.02 + LIFT, p.z + 0.5, sr, mc);
-        if (block == null || top == null || up == null) return false;
+        if (block == null || top == null) return false;
         p.sx = top[0];
         p.sy = top[1];
         p.bx = block[0];
         p.by = block[1];
-        final float perBlock = Math.abs(top[1] - up[1]);
-        p.scale = Math.min(1f, p.blocks * perBlock / CardLayout.W);
-        final float w = CardLayout.W * p.scale;
-        return p.scale > 0.02f && p.sx > -w
-            && p.sx < sr.getScaledWidth() + w
+        p.scale = (float) Math.min(1, FULL_SIZE_WITHIN / Math.max(0.5, p.distance));
+        p.w = PlanCardView.width() * p.scale;
+        p.h = PlanCardView.height(p.card) * p.scale;
+        return p.scale > 0.02f && p.sx > -p.w
+            && p.sx < sr.getScaledWidth() + p.w
             && p.sy > -20
-            && p.sy < sr.getScaledHeight() + PlanCardView.height(p.card) * p.scale;
+            && p.sy < sr.getScaledHeight() + p.h;
     }
 
     @Nullable

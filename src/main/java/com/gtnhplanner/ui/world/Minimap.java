@@ -37,7 +37,9 @@ public final class Minimap {
     /** The card to ring and glide to (the linked machine under the crosshair), or null. */
     @Nullable
     private UUID focus;
-    /** The wire to highlight and glide to (the plan's wire under the crosshair over the world), or null. */
+    /** The card (or else the wire) the crosshair is on over the world, set every frame by the overlay. */
+    @Nullable
+    private UUID pointed;
     @Nullable
     private PlanSnapshot.Line wire;
 
@@ -62,8 +64,12 @@ public final class Minimap {
         focus = cardId;
     }
 
-    /** The plan's wire under the crosshair over the world, which the map highlights and (when set) centres on. */
-    public void focusWire(@Nullable final PlanSnapshot.Line line) {
+    /**
+     * The card or the plan's wire the crosshair is on over the world, which the map highlights and (when set) centres
+     * on; the card goes before the placed spot under the crosshair ({@link #focus}).
+     */
+    public void point(@Nullable final UUID card, @Nullable final PlanSnapshot.Line line) {
+        pointed = card;
         wire = line;
     }
 
@@ -119,7 +125,8 @@ public final class Minimap {
         }
         // Centre: the board's view, or where the player panned it, gliding to the card under the crosshair.
         if (!placed) startAtBoardView();
-        final PlanSnapshot.Card focused = focus == null ? null : snap.cardOf(focus);
+        final UUID which = pointed != null ? pointed : focus;
+        final PlanSnapshot.Card focused = which == null ? null : snap.cardOf(which);
         final PlanSnapshot.Line lit = wire != null && snap.wires()
             .contains(wire) ? wire : null;
         final float[] to = lit != null ? middle(lit)
