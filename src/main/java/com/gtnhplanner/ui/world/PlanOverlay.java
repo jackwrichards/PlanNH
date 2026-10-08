@@ -551,15 +551,16 @@ public final class PlanOverlay {
 
     /**
      * A wire as the board draws one, in the resource's colour on a dark edge, with arrowheads sliding along towards the
-     * card it feeds; faint where nothing flows yet; brighter and thicker when the crosshair is on it.
+     * card it feeds; faint where nothing flows yet; edged in the highlight when the crosshair is on it.
      */
     private static void wire(final Run r, final boolean lit) {
         if (Math.hypot(r.bx - r.ax, r.by - r.ay) < 4) return;
-        final int base = 0xFF000000 | r.conn.line.color() & 0xFFFFFF;
-        final int colour = lit ? Hyb.mix(base, Hyb.LIT, 0.35f) : base;
+        final int colour = 0xFF000000 | r.conn.line.color() & 0xFFFFFF;
         final boolean flowing = r.conn.line.flowing();
-        final float w = lit ? Math.max(2f, 4.5f * r.scale) : Math.max(1.2f, 3f * r.scale);
-        band(r.ax, r.ay, r.bx, r.by, w + 2, flowing || lit ? 0xB0000000 : 0x70000000);
+        final float w = Math.max(1.2f, 3f * r.scale);
+        // Its own colour always; lit, its edge is the highlight instead of dark.
+        final int edge = lit ? Hyb.LIT : flowing ? 0xB0000000 : 0x70000000;
+        band(r.ax, r.ay, r.bx, r.by, w + (lit ? 3 : 2), edge);
         band(r.ax, r.ay, r.bx, r.by, w, flowing || lit ? colour : colour & 0x00FFFFFF | 0x99000000);
         // The arrowheads, set out along the wire in the world.
         final float head = 4.5f * w, half = 2.4f * w;
@@ -575,7 +576,7 @@ public final class PlanOverlay {
                 by + ux * (half + 1),
                 bx + uy * (half + 1),
                 by - ux * (half + 1),
-                0xB0000000);
+                lit ? Hyb.LIT : 0xB0000000);
             Hyb.triangle(fx, fy, bx - uy * half, by + ux * half, bx + uy * half, by - ux * half, tip);
         }
     }
