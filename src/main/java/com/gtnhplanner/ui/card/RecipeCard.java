@@ -645,7 +645,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
     /**
      * Each port is a tile of its own, as on the website: the icon bare with its shadow, the rate in large type, the name
-     * small under it on one or two lines. A port still to wire is dashed and breathes. The tiles go down first, then what lights them,
+     * small under it on one line. A port still to wire is dashed and breathes. The tiles go down first, then what lights them,
      * so a glow is never covered by the tile below. On a shared machine a recipe with nothing on one side says so.
      */
     private void drawRail(final int section, final List<CardModel.PortView> ports, final boolean output,
@@ -674,14 +674,15 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             if (p.isPower()) euIcon(x + CardLayout.ICON_X, y + CardLayout.ICON_Y, CardLayout.ICON);
             else Hyb.icon(p.item(), p.fluid(), x + CardLayout.ICON_X, y + CardLayout.ICON_Y, CardLayout.ICON, z);
             CardLayout.portText(
-                layout.nameLines(section, output, p.index()),
+                p.name(),
                 p.perSecond(),
                 p.isPower(),
                 p.isFluid(),
                 unit,
                 x + CardLayout.TEXT_X,
                 y,
-                h);
+                h,
+                p.wired() ? Hyb.TILE : 0xFF2F3640);
         }
         final BoardCanvas board = canvas();
         final float b = breathe();

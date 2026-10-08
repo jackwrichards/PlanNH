@@ -61,7 +61,6 @@ public final class CardLayout {
     /** Each recipe on the card: one, or several on a shared machine. */
     private final int sections;
     private final int[] inRows, outRows, ruleY, railsY;
-    private final List<List<List<String>>> inNames, outNames;
     /** Where the rails end: below the last recipe's. */
     public final int railsEnd;
 
@@ -82,13 +81,9 @@ public final class CardLayout {
         outRows = new int[sections];
         ruleY = new int[sections];
         railsY = new int[sections];
-        inNames = new ArrayList<>(sections);
-        outNames = new ArrayList<>(sections);
         int y = RAILS_Y;
         for (int s = 0; s < sections; s++) {
             final CardModel model = models.get(s);
-            inNames.add(names(model.inputs));
-            outNames.add(names(model.outputs));
             inRows[s] = model.inputs.size();
             outRows[s] = model.outputs.size();
             if (shared) {
@@ -124,50 +119,44 @@ public final class CardLayout {
         return new int[] { PAD + (index % 2) * (TILE_W + 4), settingsY + (index / 2) * (SETTING_ROW + 4) };
     }
 
-    /** One or two lines per port name; a name longer than two lines keeps "..." at the end of the second. */
-    private static List<List<String>> names(final List<CardModel.PortView> ports) {
-        final List<List<String>> out = new ArrayList<>(ports.size());
-        for (final CardModel.PortView p : ports) out.add(nameLines(p.name()));
-        return out;
-    }
+    /** How small a port's name may go before it is cut, against the rate's line. */
+    private static final float NAME_SMALL = 0.75f;
+    /** How wide the fade is where a cut name ends. */
+    private static final int NAME_FADE = 10;
 
     /**
      * A port's words, as everywhere a port is shown (the board's cards, the cards over the world and on the minimap):
-     * how much in large type with its unit small beside it, and the name small under it on one or two lines, the two
-     * centred in a tile {@code h} high. The number drops to the name's size when it would not fit.
+     * how much in large type with its unit small beside it, and the name small under it, on one line, both centred in a
+     * tile {@code h} high. A name too long for the line goes smaller, and if still too long is cut and fades out into
+     * the tile ({@code ground}, the tile's colour). The number drops to the name's size when it would not fit.
      */
-    public static void portText(final List<String> name, final double perSecond, final boolean power,
-        final boolean fluid, final com.gtnhplanner.ui.theme.Fmt.RateUnit unit, final float x, final float y,
-        final int h) {
+    public static void portText(final String name, final double perSecond, final boolean power, final boolean fluid,
+        final com.gtnhplanner.ui.theme.Fmt.RateUnit unit, final float x, final float y, final int h, final int ground) {
         final String number = power ? com.gtnhplanner.ui.theme.Fmt.power(perSecond / 20)
             : com.gtnhplanner.ui.theme.Fmt.compact(perSecond * unit.perSecond);
         final String suffix = power ? " EU/t" : (fluid ? " L" : "") + unit.suffix;
         final int colour = perSecond <= 0 ? 0xFFA8AFBB : Hyb.INK;
         final boolean big = Hyb.width(number) * Hyb.FIGURE + Hyb.width(suffix) + 2 <= TEXT_W;
         final float rateH = big ? 8 * Hyb.FIGURE : 8;
-        final float top = RecipeCard.crisp(y + (h - (rateH + 2 + name.size() * 9 - 1)) / 2f);
+        final String label = name == null ? "" : name;
+        final float size = Hyb.width(label) <= TEXT_W ? 1 : NAME_SMALL;
+        final boolean cut = Hyb.width(label) * size > TEXT_W;
+        final String shown = cut ? Hyb.font()
+            .trimStringToWidth(label, (int) (TEXT_W / size)) : label;
+        final float top = RecipeCard.crisp(y + (h - (rateH + 2 + 8 * size)) / 2f);
         if (big) {
             Hyb.text(number, x, top, Hyb.FIGURE, colour);
             Hyb.text(suffix, x + Hyb.width(number) * Hyb.FIGURE + 2, top + 3.5f, Hyb.MUTED);
         } else Hyb.text(Hyb.fit(number + suffix, TEXT_W), x, top, colour);
-        for (int line = 0; line < name.size(); line++)
-            Hyb.text(name.get(line), x, top + rateH + 2 + line * 9, Hyb.MUTED);
-    }
-
-    /** A port name on one or two lines of a port tile; longer keeps "..." at the end of the second. */
-    static List<String> nameLines(final String text) {
-        final String name = text == null ? "" : text;
-        if (Hyb.width(name) <= TEXT_W) return List.of(name);
-        final List<String> wrapped = Hyb.font()
-            .listFormattedStringToWidth(name, TEXT_W);
-        if (wrapped.size() <= 2) return new ArrayList<>(wrapped);
-        final String rest = name.substring(
-            Math.min(
-                name.length(),
-                wrapped.get(0)
-                    .length()))
-            .trim();
-        return List.of(wrapped.get(0), Hyb.fit(rest, TEXT_W));
+        final float nameY = top + rateH + 2;
+        Hyb.text(shown, x, nameY, size, Hyb.MUTED);
+        if (!cut) return;
+        // The cut end fades into the tile.
+        final float end = x + Hyb.width(shown) * size;
+        for (int k = 0; k < NAME_FADE; k++) {
+            final int a = (int) (255f * (k + 1) / NAME_FADE);
+            Hyb.rect(end - NAME_FADE + k, nameY - 1, 1, 8 * size + 2, a << 24 | ground & 0xFFFFFF);
+        }
     }
 
     public int sections() {
@@ -204,16 +193,6 @@ public final class CardLayout {
 
     public int rowH(final boolean output, final int index) {
         return ROW;
-    }
-
-    /** The port's name, one or two lines. */
-    public List<String> nameLines(final int section, final boolean output, final int index) {
-        final List<List<String>> names = (output ? outNames : inNames).get(clampSection(section));
-        return index >= 0 && index < names.size() ? names.get(index) : List.of();
-    }
-
-    public List<String> nameLines(final boolean output, final int index) {
-        return nameLines(0, output, index);
     }
 
     /** Where a wire meets the card: the card edge, level with the middle of the port's tile. */

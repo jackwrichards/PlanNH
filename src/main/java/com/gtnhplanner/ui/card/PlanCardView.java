@@ -131,14 +131,15 @@ public final class PlanCardView {
             GL11.glDisable(GL11.GL_LIGHTING);
             GL11.glDisable(GL11.GL_DEPTH_TEST);
             CardLayout.portText(
-                CardLayout.nameLines(p.name()),
+                p.name(),
                 p.perSecond(),
                 p.power(),
                 p.fluid() != null,
                 unit,
                 x + CardLayout.TEXT_X,
                 y,
-                CardLayout.ROW);
+                CardLayout.ROW,
+                Hyb.TILE);
         }
     }
 
