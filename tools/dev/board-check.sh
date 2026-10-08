@@ -51,12 +51,12 @@ sleep 2
 machines=$(board | js 'b.cards[0].machines.toFixed(2)')
 [ "$machines" = "53.33" ] && pass "solved 53.33 EBFs for 1 rutile/s" || fail "solve: machines=$machines"
 
-# 4. A recipe that makes carbon dust wires itself into the EBF.
+# 4. A new card is placed, not wired: adding a recipe that makes carbon dust leaves it for the player to wire.
 # The packager recipe that makes carbon dust from small piles (NEI also lists the reverse one).
 $M call "addrecipe?output=dustCarbon&handler=Packager&input=small%20pile" >/dev/null
 sleep 2
-wired=$(board | js 'b.edges+" "+b.cards.filter(c=>c.machine.includes("Packager")).map(c=>c.machines.toFixed(3)).join()')
-[ "$wired" = "1 0.333" ] && pass "packager auto-wired and solved" || fail "auto-wire: $wired"
+wired=$(board | js 'b.edges+" "+b.cards.length')
+[ "$wired" = "0 2" ] && pass "packager added, not wired" || fail "add: $wired"
 
 # 5. Undo takes the packager away again; redo brings it back.
 $M call "key?code=44&mods=ctrl" >/dev/null

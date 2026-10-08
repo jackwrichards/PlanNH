@@ -234,20 +234,14 @@ public final class BoardSession {
         justAdded = joinTo != null && graph.nodes.containsKey(joinTo) ? joinTo : node.id;
         edit(() -> {
             graph.addNode(node);
-            // "Add another recipe" on a card: it joins that machine, wired like any add.
-            if (joinTo != null && joinArmedCard(node, joinTo)) {
-                NewCards.autoWire(graph, node);
-                return;
-            }
+            // "Add another recipe" on a card: it joins that machine.
+            if (joinTo != null && joinArmedCard(node, joinTo)) return;
             final Node from = origin == null ? null : graph.nodes.get(origin.nodeId());
             if (from != null && wireToOrigin(node, from, origin)) {
                 node.x = origin.output() ? from.x + CardLayout.W + NewCards.GAP : from.x - CardLayout.W - NewCards.GAP;
                 node.y = from.y;
                 for (int tries = 0; tries < 50 && NewCards.overlapsAnything(graph, node); tries++) node.y += 40;
-            } else {
-                NewCards.autoWire(graph, node);
-                NewCards.place(graph, node);
-            }
+            } else NewCards.place(graph, node);
         });
         return node;
     }

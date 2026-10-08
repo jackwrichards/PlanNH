@@ -482,7 +482,7 @@ public final class DevHarness {
                 "/move?x&y, /click?x&y&button&count&mods, /drag?x1&y1&x2&y2&steps&button&mods, /scroll?x&y&amount - GUI coords",
                 "/key?code[&char][&mods=ctrl,shift,alt] - LWJGL2 key code, /type?text - text into the focused field",
                 "/cmd?c=/time set day - run a command as the player",
-                "/addrecipe?output=dustRutile[&handler=blast][&input=ilmenite][&x&y] - put a real recipe on the board (with the board open: placed and auto-wired like NEI's +)",
+                "/addrecipe?output=dustRutile[&handler=blast][&input=ilmenite][&x&y] - put a real recipe on the board (with the board open: placed like NEI's +)",
                 "/recipeinfo?output[&handler][&input] - what NEI and GTNH Planner see in a recipe (stacks, ports), read-only",
                 "/nei?item[&uses=1][&planner=0][&tab] - open NEI's recipes for an item, over the planner or (planner=0) from the inventory",
                 "/sound[?volume=0..1] - the master volume, set or read",

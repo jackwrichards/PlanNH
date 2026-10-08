@@ -53,7 +53,7 @@ final class DevRecipes {
                 final Node node;
                 final com.gtnhplanner.ui.BoardSession board = com.gtnhplanner.ui.BoardSession.current();
                 if (board != null) {
-                    // The board is open: add it the way NEI's "+" does, placed and auto-wired.
+                    // The board is open: add it the way NEI's "+" does, placed.
                     node = board.addRecipe(handler, i);
                 } else {
                     node = new Node(handler, i, x, y);

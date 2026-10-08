@@ -91,7 +91,7 @@ tools/dev/mc.sh part 1 TIER     # click card 1's tier chip by name (also: move, 
 tools/dev/mc.sh swap --reopen   # hot-swap code changes into the running game (~12s, no restart)
 tools/dev/mc.sh stop
 tools/dev/mc.sh smoke      # automated launch/open/screenshot/log-scan check
-tools/dev/board-check.sh  # GT runs: end-to-end board check (recipe, port drag, solve, auto-wire, undo) in a throwaway plan
+tools/dev/board-check.sh  # GT runs: end-to-end board check (recipe, port drag, solve, add, undo) in a throwaway plan
 ```
 
 - `PLANNH_GTNH=1 tools/dev/mc.sh start` loads GregTech and the pack's recipes through the GTNH core mod (72 mods,
