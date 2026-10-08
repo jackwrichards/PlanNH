@@ -36,7 +36,9 @@ final class ArPanel {
     record View(String name, @Nullable ItemStack icon, @Nullable MachineStatus status, @Nullable Tag tag,
         @Nullable MachineStats.Track track) {}
 
-    private static final int PAD = 7, SLOT = 20, COL = 40, MAX_SLOTS = 3, GRAPH_H = 24;
+    private static final int PAD = 7, SLOT = 20, COL = 40, MAX_SLOTS = 3, GRAPH_H = 30;
+    /** The charts' points: each two minutes of the last hour. */
+    private static final int POINTS = 30;
     private static final int GREEN = 0xFF5EE9B5, AMBER = 0xFFFBBF24;
     private static final int WELL = 0xFF17191D;
 
@@ -143,11 +145,13 @@ final class ArPanel {
         int w = Hyb.width(v.name) + (v.tag != null ? 11 : 0) + (tier.isEmpty() ? 0 : Hyb.width(tier) + 14);
         if (known(v)) w = Math.max(w, rowWidth(v));
         w = Math.max(w, stateW() + 10 + Hyb.width("999.9k made") + 10 + Hyb.width("100% busy"));
-        if (known(v)) w = Math.max(w, Hyb.width("999.9/min") + 10 + Hyb.width("last minute") + 10 + powerW(v));
-        return Math.min(280, Math.max(170, w + 2 * PAD));
+        if (known(v)) w = Math.max(w, Hyb.width("Power") + 10 + Hyb.width("last hour") + 10 + powerW(v) + 30);
+        return Math.min(280, Math.max(200, w + 2 * PAD));
     }
 
-    private static final int HEAD = 6 + 10 + 5, ROW = SLOT + 2 + 9 + 6, HISTORY = 11 + GRAPH_H + 6, FOOT = 9 + 7;
+    /** A chart: its title line, the chart, the gap after. */
+    private static final int CHART = 11 + GRAPH_H + 6;
+    private static final int HEAD = 6 + 10 + 5, ROW = SLOT + 2 + 9 + 6, HISTORY = 2 * CHART, FOOT = 9 + 7;
 
     static int height(final View v) {
         return HEAD + (known(v) ? ROW + HISTORY : 0) + FOOT;
@@ -252,116 +256,115 @@ final class ArPanel {
     }
 
     /**
-     * The last minute as a line chart, a point a second: in green what it made (per minute, over its fill), in amber
-     * the power it drew (against the most it can take). Over it the average rate and the power now; across it, why it
-     * is stopped. Seconds it was not watched are gaps.
+     * The last hour as two charts, a point each two minutes: what it made (per minute) and the power it drew (EU/t,
+     * against the most it can take), each in its own space and scale. Across the first, why it is stopped. Minutes it
+     * was not watched are gaps.
      */
     private static void history(final View v, final int w, final float y) {
-        final float gx = PAD, gw = w - 2 * PAD, gy = y + 11;
+        final float gx = PAD, gw = w - 2 * PAD;
         final MachineStats.Track t = v.track;
         final long now = MachineStats.now();
         final List<MachineStatus.Flow> outs = outs(v);
         final MachineStats.Amount main = t == null || outs.isEmpty() ? null : find(t.made, outs.get(0));
-        final double[] seen = t == null ? null : t.seen.seconds(now);
-        // Labels: the rate this minute, what the minute is, the power now.
+        final double[] seen = t == null ? null : pairs(t.seen.minutes(now));
+        // What it made: per minute over each two minutes, and its average this hour.
+        String rate = "";
+        double[] made = null;
         if (t != null && main != null) {
-            final double watched = Math.max(1, t.seen.lastMinute(now));
-            text(perMinute(main.window.lastMinute(now) / watched * 60) + "/min", gx, y, GREEN);
-        } else text(t == null ? "No history yet" : "Nothing made yet", gx, y, Hyb.MUTED);
-        if (t != null) textCentred("last minute", gx + gw / 2f, y, 0xFF6B6E76);
-        final MachineStatus st = v.status;
-        final long eu = running(v) ? st.euPerTick() : 0;
-        final String power = Fmt.power(eu) + " EU/t";
-        textRight(power, gx + gw, y, running(v) ? AMBER : Hyb.MUTED);
-        bolt(gx + gw - Hyb.width(power) - 9, y);
-        // The chart.
-        rect(gx, gy, gw, GRAPH_H, Hyb.TILE_EDGE);
-        rect(gx + 1, gy + 1, gw - 2, GRAPH_H - 2, WELL);
-        for (int i = 1; i < 4; i++) rect(gx + 1, gy + 1 + i * (GRAPH_H - 2) / 4f, gw - 2, 1, 0x0CFFFFFF);
-        if (seen != null) {
-            final float left = gx + 2, width = gw - 4, bottom = gy + GRAPH_H - 2, height = GRAPH_H - 5;
-            if (main != null) {
-                final double[] made = main.window.seconds(now);
-                final double[] rate = new double[60];
-                double top = 0;
-                for (int i = 0; i < 60; i++) {
-                    rate[i] = seen[i] > 0 ? made[i] / seen[i] : 0;
-                    top = Math.max(top, rate[i]);
-                }
-                if (top > 0) line(rate, seen, top, left, width, bottom, height, GREEN, true);
-            }
-            final double[] energy = t.energy.seconds(now);
-            final double[] draw = new double[60];
-            double top = st != null && st.maxEuPerTick() > 0 ? st.maxEuPerTick() : 0;
-            for (int i = 0; i < 60; i++) {
-                draw[i] = seen[i] > 0 ? energy[i] / seen[i] : 0;
-                top = Math.max(top, draw[i]);
-            }
-            if (top > 0) line(draw, seen, top, left, width, bottom, height, AMBER, false);
+            final double[] amounts = pairs(main.window.minutes(now));
+            made = new double[POINTS];
+            for (int i = 0; i < POINTS; i++) made[i] = seen[i] > 0 ? amounts[i] / seen[i] * 60 : 0;
+            rate = perMinute(main.window.lastHour(now) / Math.max(1, t.seen.lastHour(now)) * 60) + "/min";
         }
-        // Why it is stopped, across the chart.
+        title("Made", t == null ? "No history yet" : rate, GREEN, gx, gw, y, t != null);
+        chart(made, seen, 0, GREEN, gx, y + 11, gw);
         final String why = reason(v);
         if (!why.isEmpty()) {
             final String fit = Hyb.fit(why, Math.round(gw - 12));
-            final float tw = Hyb.width(fit) + 8, tx = Math.round(gx + (gw - tw) / 2f);
-            rect(tx, gy + (GRAPH_H - 11) / 2f, tw, 11, 0xE0141416);
-            text(fit, tx + 4, gy + (GRAPH_H - 11) / 2f + 1.5f, light(v) == Hyb.RED_INK ? Hyb.RED_INK : Hyb.AMBER_INK);
+            final float tw = Hyb.width(fit) + 8, tx = Math.round(gx + (gw - tw) / 2f),
+                ty = y + 11 + (GRAPH_H - 11) / 2f;
+            rect(tx, ty, tw, 11, 0xE0141416);
+            text(fit, tx + 4, ty + 1.5f, light(v) == Hyb.RED_INK ? Hyb.RED_INK : Hyb.AMBER_INK);
         }
+        // The power it drew, against the most it can take; the figure now.
+        final float py = y + CHART;
+        final MachineStatus st = v.status;
+        double[] power = null;
+        if (t != null) {
+            final double[] energy = pairs(t.energy.minutes(now));
+            power = new double[POINTS];
+            for (int i = 0; i < POINTS; i++) power[i] = seen[i] > 0 ? energy[i] / seen[i] : 0;
+        }
+        final long eu = running(v) ? st.euPerTick() : 0;
+        final String figure = Fmt.power(eu)
+            + (st != null && st.maxEuPerTick() > 0 ? " / " + Fmt.power(st.maxEuPerTick()) : "")
+            + " EU/t";
+        title("Power", figure, AMBER, gx, gw, py, false);
+        chart(power, seen, st != null ? st.maxEuPerTick() : 0, AMBER, gx, py + 11, gw);
+    }
+
+    /** Sums pairs of minutes: the last hour in two-minute points, oldest first. */
+    private static double[] pairs(final double[] minutes) {
+        final double[] out = new double[POINTS];
+        for (int i = 0; i < POINTS; i++) out[i] = minutes[2 * i] + minutes[2 * i + 1];
+        return out;
+    }
+
+    /** A chart's title line: its name, "last hour" over the first, and its figure in its colour. */
+    private static void title(final String name, final String figure, final int color, final float x, final float w,
+        final float y, final boolean window) {
+        text(name, x, y, Hyb.INK);
+        if (window) textCentred("last hour", x + w / 2f, y, 0xFF6B6E76);
+        textRight(figure, x + w, y, color);
     }
 
     /**
-     * A series as a line, a point a second, broken where the second was not watched; {@code fill} shades under it.
-     * Drawn with the GL's own lines, a screen pixel and a half wide.
+     * A chart in its own well: the points joined by a line, each marked with a dot, scaled from zero to the larger of
+     * {@code floor} and its highest point; a gap where a point was not watched.
      */
-    private static void line(final double[] values, final double[] seen, final double top, final float left,
-        final float width, final float bottom, final float height, final int color, final boolean fill) {
-        if (alpha < 0.06f) return;
-        final float step = width / (values.length - 1);
-        GL11.glDisable(GL11.GL_TEXTURE_2D);
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        GL11.glShadeModel(GL11.GL_SMOOTH);
-        final net.minecraft.client.renderer.Tessellator tes = net.minecraft.client.renderer.Tessellator.instance;
-        final int rgb = color & 0xFFFFFF;
-        if (fill) {
+    private static void chart(@Nullable final double[] values, @Nullable final double[] seen, final double floor,
+        final int color, final float x, final float y, final float w) {
+        rect(x, y, w, GRAPH_H, Hyb.TILE_EDGE);
+        rect(x + 1, y + 1, w - 2, GRAPH_H - 2, WELL);
+        for (int i = 1; i < 3; i++) rect(x + 1, y + 1 + i * (GRAPH_H - 2) / 3f, w - 2, 1, 0x0CFFFFFF);
+        if (values == null || seen == null) return;
+        double top = floor;
+        for (final double v : values) top = Math.max(top, v);
+        if (top <= 0) top = 1;
+        final float left = x + 4, width = w - 8, bottom = y + GRAPH_H - 4, height = GRAPH_H - 8;
+        final float step = width / (POINTS - 1);
+        if (alpha >= 0.06f) {
+            GL11.glDisable(GL11.GL_TEXTURE_2D);
+            GL11.glEnable(GL11.GL_BLEND);
+            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            final net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+            GL11.glLineWidth(
+                new net.minecraft.client.gui.ScaledResolution(mc, mc.displayWidth, mc.displayHeight).getScaleFactor());
+            GL11.glEnable(GL11.GL_LINE_SMOOTH);
+            final net.minecraft.client.renderer.Tessellator tes = net.minecraft.client.renderer.Tessellator.instance;
             int i = 0;
-            while (i < values.length) {
+            while (i < POINTS) {
                 if (seen[i] <= 0) {
                     i++;
                     continue;
                 }
-                tes.startDrawing(GL11.GL_TRIANGLE_STRIP);
-                for (; i < values.length && seen[i] > 0; i++) {
-                    final float x = left + i * step, yv = (float) (bottom - height * values[i] / top);
-                    tes.setColorRGBA_I(rgb, Math.round(70 * alpha));
-                    tes.addVertex(x, yv, 0);
-                    tes.setColorRGBA_I(rgb, 0);
-                    tes.addVertex(x, bottom, 0);
-                }
+                tes.startDrawing(GL11.GL_LINE_STRIP);
+                tes.setColorRGBA_I(color & 0xFFFFFF, Math.round(200 * alpha));
+                for (; i < POINTS && seen[i] > 0; i++)
+                    tes.addVertex(left + i * step, bottom - height * values[i] / top, 0);
                 tes.draw();
             }
+            GL11.glDisable(GL11.GL_LINE_SMOOTH);
+            GL11.glLineWidth(1);
+            GL11.glEnable(GL11.GL_TEXTURE_2D);
         }
-        // A GUI pixel and a quarter, in screen pixels.
-        final net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
-        GL11.glLineWidth(
-            1.25f * new net.minecraft.client.gui.ScaledResolution(mc, mc.displayWidth, mc.displayHeight)
-                .getScaleFactor());
-        GL11.glEnable(GL11.GL_LINE_SMOOTH);
-        int i = 0;
-        while (i < values.length) {
-            if (seen[i] <= 0) {
-                i++;
-                continue;
-            }
-            tes.startDrawing(GL11.GL_LINE_STRIP);
-            tes.setColorRGBA_I(rgb, Math.round(255 * alpha));
-            for (; i < values.length && seen[i] > 0; i++)
-                tes.addVertex(left + i * step, bottom - height * values[i] / top, 0);
-            tes.draw();
+        // A dot on each point.
+        for (int i = 0; i < POINTS; i++) {
+            if (seen[i] <= 0) continue;
+            final float px = Math.round(left + i * step), py = Math.round(bottom - height * (float) (values[i] / top));
+            rect(px - 1, py - 2, 2, 4, color);
+            rect(px - 2, py - 1, 4, 2, color);
         }
-        GL11.glDisable(GL11.GL_LINE_SMOOTH);
-        GL11.glLineWidth(1);
-        GL11.glEnable(GL11.GL_TEXTURE_2D);
     }
 
     /** The state, how much it has made in all, how busy it has been this last hour. */

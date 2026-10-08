@@ -75,7 +75,7 @@ public final class ArLens {
         /** Its near panel's place this frame, raised off nearer panels. */
         float px, py;
         int pw, ph;
-        /** Where its panel is drawn, gliding towards {px, py}; the place it chose (steps up or down, to the side). */
+        /** Where its panel is drawn, and the place it chose (steps up or down, to the side): kept while it can be. */
         float dx, dy;
         boolean placed;
         int step, side;
@@ -326,16 +326,9 @@ public final class ArLens {
             s.py = Math.round(s.sy - s.ph - 6);
             place(s, taken, sr.getScaledWidth(), sr.getScaledHeight());
             taken.add(new float[] { s.px, s.py, s.pw, s.ph });
-            // Glide to the place rather than jump; a new panel starts there.
-            if (!s.placed) {
-                s.dx = s.px;
-                s.dy = s.py;
-                s.placed = true;
-            } else {
-                final float k = Math.min(1, dt * 10);
-                s.dx += (s.px - s.dx) * k;
-                s.dy += (s.py - s.dy) * k;
-            }
+            s.dx = s.px;
+            s.dy = s.py;
+            s.placed = true;
         }
         near.sort(java.util.Comparator.comparingDouble(s -> s.distance));
         for (int i = shown.size() - 1; i >= 0; i--) {

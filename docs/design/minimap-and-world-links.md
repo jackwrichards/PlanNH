@@ -64,14 +64,14 @@ front.
   ones when "AR lens: only machines linked to a plan" is on) gets a small dark panel whose size depends on the machine
   alone, never on its numbers: its name (a small gold star when it is a plan card's machine) and tier chip; what its
   recipe takes and makes in tiles either side of an arrow that fills with the recipe's progress, each tile's recent
-  rate under it and the time left under the arrow; a line chart of the last minute, a point a second (green: what it
-  made, per minute; amber: the EU/t it drew, against the most it can take) with the rate this minute and the power now
-  over it and why it is stopped across it; and a footer with its state, how much it has made and how busy it has been
+  rate under it and the time left under the arrow; two charts of the last hour, a dot each two minutes joined by a
+  line, each in its own space and scale (Made: per minute, with the hour's average; Power: EU/t against the most it can
+  take, with the figure now), and why it is stopped across the first; and a footer with its state, how much it has made and how busy it has been
   this last hour. The nearest eight and the one looked at get panels, the rest a tile with a state light. Panels fade
   in and out and over the last 8 blocks of the range.
 - Panels keep out of each other's way and off the minimap: over the machine when there is room, else the nearest free
   place a few steps up, down (under the machine) or to the side. A panel keeps the place it has unless it must move,
-  the panels that came first keep their claim, and a panel glides to a new place rather than jumping.
+  and the panels that came first keep their claim, so they never swap.
 - What it is doing comes from `ui/world/GtMachineStatus`: in single player the integrated server's copy, read on the
   server's own thread for the machines the client asks about (progress, the recipe from `processingLogic.lastRecipe`
   or `mLastRecipe` by reflection, the cycle's outputs, energy hatches' tier, amps and max input, maintenance, a formed
