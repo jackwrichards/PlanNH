@@ -129,6 +129,15 @@ public final class PlannerSettings {
         set("world.highlight", on);
     }
 
+    /** The AR lens's panels show their charts of the last hour. */
+    public static boolean arCharts() {
+        return bool("world.arCharts", true);
+    }
+
+    public static void setArCharts(final boolean on) {
+        set("world.arCharts", on);
+    }
+
     /** The AR lens shows only the machines linked to a plan card. */
     public static boolean arLinkedOnly() {
         return bool("world.arLinkedOnly", false);

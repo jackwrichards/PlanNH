@@ -361,16 +361,20 @@ public final class ArLens {
      * place among a few steps up and to either side, on screen. With none free it stays over its machine.
      */
     private static void place(final Spot s, final List<float[]> taken, final int screenW, final int screenH) {
-        final float x0 = s.px, y0 = s.py;
-        float bestX = x0, bestY = y0, best = Float.MAX_VALUE;
+        // Over the machine, nudged onto the screen as little as needed.
+        final float natX = s.px, natY = s.py;
+        final float x0 = clamp(natX, 2, screenW - s.pw - 2);
+        float bestX = x0, bestY = clamp(natY, 2, screenH - s.ph - 2), best = Float.MAX_VALUE;
         int bestStep = 0, bestSide = 0;
-        // Steps up from over the machine, and down from under it (past the block), to either side.
+        // Steps up from over the machine, and down from under it (past the block), to either side; each kept on screen,
+        // costed by how far it is from over the machine.
         for (int step = -3; step <= 3; step++) for (int side = -3; side <= 3; side++) {
-            final float x = x0 + side * (s.pw + 4);
-            final float y = step >= 0 ? y0 - step * (s.ph + 4) : s.sy + 60 + (-step - 1) * (s.ph + 4);
-            final float up = step >= 0 ? step : 0.6f - step;
-            if (x < 2 || x + s.pw > screenW - 2 || y < 2 || y + s.ph > screenH - 2) continue;
-            float cost = Math.abs(side) * 1.1f + (step >= 0 ? up : up + 0.5f);
+            final float x = clamp(x0 + side * (s.pw + 4), 2, screenW - s.pw - 2);
+            final float y = clamp(
+                step >= 0 ? natY - step * (s.ph + 4) : s.sy + 60 + (-step - 1) * (s.ph + 4),
+                2,
+                screenH - s.ph - 2);
+            float cost = Math.abs(x - natX) / s.pw * 1.1f + Math.abs(y - natY) / s.ph + (step < 0 ? 0.5f : 0);
             // The place it had is worth keeping: it moves only when it must.
             if (s.placed && step == s.step && side == s.side) cost -= 2.5f;
             if (cost >= best || collides(x, y, s.pw, s.ph, taken)) continue;
@@ -386,19 +390,39 @@ public final class ArLens {
         s.side = bestSide;
     }
 
+    /** A two-pixel line on the HUD, in whole pixels, from a panel to its machine. */
+    private static void slant(final float x0, final float y0, final float x1, final float y1, final int color) {
+        final int n = (int) Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+        Hyb.beginBatch();
+        for (int i = 0; i <= n; i++) {
+            final float f = n == 0 ? 0 : i / (float) n;
+            Hyb.rect(Math.round(x0 + (x1 - x0) * f), Math.round(y0 + (y1 - y0) * f), 2, 2, color);
+        }
+        Hyb.endBatch();
+    }
+
+    private static float clamp(final float v, final float lo, final float hi) {
+        return Math.max(lo, Math.min(hi, v));
+    }
+
     private static boolean collides(final float x, final float y, final int w, final int h, final List<float[]> taken) {
         for (final float[] r : taken)
             if (x < r[0] + r[2] + 3 && x + w + 3 > r[0] && y < r[1] + r[3] + 3 && y + h + 3 > r[1]) return true;
         return false;
     }
 
-    /** A near machine's panel, with a stem to the machine: down from over it, or up from under it. */
+    /**
+     * A near machine's panel, with a stem to the machine: straight down from over it (or up from under it), or slanting
+     * from the nearest edge of a panel that had to sit to one side.
+     */
     private static void panel(final Spot s, final ArPanel.View v, final float scale, final boolean lookedAt) {
         final int stem = alphaOf(lookedAt ? 0xE022D3EE : 0xB0101114, s.fade);
         final float px = Math.round(s.dx), py = Math.round(s.dy);
-        final float sx = Math.max(px + 4, Math.min(px + s.pw - 6, s.sx - 1));
-        if (py > s.sy) Hyb.rect(sx, s.sy + 40, 2, Math.max(1, py - s.sy - 40), stem);
-        else Hyb.rect(sx, py + s.ph, 2, Math.max(1, s.sy - py - s.ph), stem);
+        final boolean under = py > s.sy;
+        final float ex = Math.max(px + 4, Math.min(px + s.pw - 6, s.sx - 1)), ey = under ? py : py + s.ph;
+        final float tx = s.sx - 1, ty = under ? s.sy + 40 : s.sy;
+        if (Math.abs(ex - tx) < 1) Hyb.rect(ex, Math.min(ey, ty), 2, Math.max(1, Math.abs(ty - ey)), stem);
+        else slant(ex, ey, tx, ty, stem);
         GL11.glPushMatrix();
         GL11.glTranslatef(px, py, 0);
         GL11.glScalef(scale, scale, 1);

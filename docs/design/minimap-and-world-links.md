@@ -66,11 +66,12 @@ front.
   recipe takes and makes in tiles either side of an arrow that fills with the recipe's progress, each tile's recent
   rate under it and the time left under the arrow; two charts of the last hour, a dot each two minutes joined by a
   line, each in its own space and scale (Made: per minute, with the hour's average; Power: EU/t against the most it can
-  take, with the figure now), and why it is stopped across the first; and a footer with its state, how much it has made and how busy it has been
+  take, with the figure now; a setting turns the charts off), and why it is stopped across the first; and a footer with its state, how much it has made and how busy it has been
   this last hour. The nearest eight and the one looked at get panels, the rest a tile with a state light. Panels fade
   in and out and over the last 8 blocks of the range.
-- Panels keep out of each other's way and off the minimap: over the machine when there is room, else the nearest free
-  place a few steps up, down (under the machine) or to the side. A panel keeps the place it has unless it must move,
+- Panels keep out of each other's way and off the minimap: over the machine (nudged onto the screen at its edges) when
+  there is room, else the nearest free place a few steps up, down (under the machine) or to the side, with a slanted
+  stem back to the machine. A panel keeps the place it has unless it must move,
   and the panels that came first keep their claim, so they never swap.
 - What it is doing comes from `ui/world/GtMachineStatus`: in single player the integrated server's copy, read on the
   server's own thread for the machines the client asks about (progress, the recipe from `processingLogic.lastRecipe`

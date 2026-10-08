@@ -154,7 +154,12 @@ final class ArPanel {
     private static final int HEAD = 6 + 10 + 5, ROW = SLOT + 2 + 9 + 6, HISTORY = 2 * CHART, FOOT = 9 + 7;
 
     static int height(final View v) {
-        return HEAD + (known(v) ? ROW + HISTORY : 0) + FOOT;
+        return HEAD + (known(v) ? ROW : 0) + (charts(v) ? HISTORY : 0) + FOOT;
+    }
+
+    /** Whether the panel has its charts: the recipe is known and the setting is on. */
+    private static boolean charts(final View v) {
+        return known(v) && com.gtnhplanner.ui.PlannerSettings.arCharts();
     }
 
     // endregion
@@ -177,6 +182,8 @@ final class ArPanel {
         if (known(v)) {
             row(v, Math.round((w - rowWidth(v)) / 2f), y);
             y += ROW;
+        }
+        if (charts(v)) {
             history(v, w, y);
             y += HISTORY;
         }
@@ -362,8 +369,7 @@ final class ArPanel {
         for (int i = 0; i < POINTS; i++) {
             if (seen[i] <= 0) continue;
             final float px = Math.round(left + i * step), py = Math.round(bottom - height * (float) (values[i] / top));
-            rect(px - 1, py - 2, 2, 4, color);
-            rect(px - 2, py - 1, 4, 2, color);
+            rect(px - 1, py - 1, 2, 2, color);
         }
     }
 
