@@ -80,9 +80,9 @@ Nothing shows until a card of the plan last open is placed.
   one spot to where they meet the other (cut short at the camera): a line in the resource's colour on a dark edge,
   with arrowheads sliding towards the card fed (set out in the world, a block apart at two blocks a second,
   so their pace holds as you move), faint where nothing flows yet. Several wires between the same two cards run side by
-  side in lanes, so the two directions of a pair part. At its middle a tag, one of the card's port
-  tiles (icon, name, rate) as big as the cards' ports are there, says what goes along it; tags of several wires between
-  the same two cards stack.
+  side in lanes, so the two directions of a pair part. At its middle a tag (icon, name, rate) on a tile in the resource's colour, as
+  the board's drawers, a fifth larger than the cards' ports there, says what goes along it: on the line when the wire
+  runs alone, beside its own lane, on the side away from the other wires, when two cards share several.
 - The wire the crosshair is on (its tag, or its line within 24 GUI pixels, when no card is under the crosshair) is
   highlighted, and the minimap
   highlights the same wire and (with "Centre on the machine you look at") glides to it.

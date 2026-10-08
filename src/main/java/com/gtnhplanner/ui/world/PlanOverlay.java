@@ -297,6 +297,9 @@ public final class PlanOverlay {
     /** Height of a wire's tag, unscaled: a port tile as the card's. */
     private static final int TAG_H = CardLayout.ROW;
 
+    /** A wire's tag against the cards' ports: a little larger, so it reads at a glance. */
+    private static final float TAG_SIZE = 1.2f;
+
     /** Arrowheads along a wire: how far apart and how fast they move, in blocks and blocks a second. */
     private static final double ARROW_GAP = 1, ARROW_SPEED = 2;
 
@@ -332,8 +335,9 @@ public final class PlanOverlay {
     }
 
     /**
-     * Each wire's run on the screen, its tag placed at its middle. Several wires between the same two cards run side by
-     * side in lanes, and their tags stack.
+     * Each wire's run on the screen, its tag at its middle. Several wires between the same two cards run side by side
+     * in
+     * lanes, each tag beside its own lane on its outer side.
      */
     private List<Run> runs(final List<Conn> conns, final ScaledResolution sr, final Minecraft mc,
         final PlanSnapshot snap) {
@@ -345,22 +349,9 @@ public final class PlanOverlay {
                 .add(c);
         }
         final double clock = System.currentTimeMillis() / 1000.0;
-        for (final List<Conn> pair : pairs.values()) {
-            final List<Run> stack = new ArrayList<>();
-            for (int i = 0; i < pair.size(); i++) {
-                final Run r = run(pair.get(i), i - (pair.size() - 1) / 2f, clock, sr, mc, snap);
-                if (r == null) continue;
-                stack.add(r);
-                out.add(r);
-            }
-            if (stack.size() < 2) continue;
-            float total = 0;
-            for (final Run r : stack) total += r.th + 2;
-            float y = stack.get(0).ty + stack.get(0).th / 2 - total / 2;
-            for (final Run r : stack) {
-                r.ty = y;
-                y += r.th + 2;
-            }
+        for (final List<Conn> pair : pairs.values()) for (int i = 0; i < pair.size(); i++) {
+            final Run r = run(pair.get(i), i - (pair.size() - 1) / 2f, clock, sr, mc, snap);
+            if (r != null) out.add(r);
         }
         return out;
     }
@@ -421,10 +412,20 @@ public final class PlanOverlay {
             scale,
             Hyb.fit(c.what(), 140),
             rate);
-        r.tw = (CardLayout.TEXT_X + Math.max(Hyb.width(r.name), Hyb.width(rate)) + 6) * scale;
-        r.th = TAG_H * scale;
-        r.tx = mid[0] + ox - r.tw / 2;
-        r.ty = mid[1] + oy - r.th / 2;
+        final float size = scale * TAG_SIZE;
+        r.tw = (CardLayout.TEXT_X + Math.max(Hyb.width(r.name), Hyb.width(rate)) + 6) * size;
+        r.th = TAG_H * size;
+        // On the line when it runs alone; beside its lane, on the side away from the other wires, when it has company.
+        float cx = mid[0] + ox, cy = mid[1] + oy;
+        final float side = (float) Math.hypot(ox, oy);
+        if (side > 0) {
+            final float nx = ox / side, ny = oy / side;
+            final float apart = Math.abs(nx) * r.tw / 2 + Math.abs(ny) * r.th / 2 + 3;
+            cx += nx * apart;
+            cy += ny * apart;
+        }
+        r.tx = cx - r.tw / 2;
+        r.ty = cy - r.th / 2;
         return r;
     }
 
@@ -591,16 +592,20 @@ public final class PlanOverlay {
     }
 
     /**
-     * What a wire carries, at its middle, as a port tile of the card (and as big as the cards' are there): the item or
-     * fluid, its name over its rate. The wire the crosshair is on is highlighted.
+     * What a wire carries, at its middle: the item or fluid, its name over its rate, on a tile in the resource's colour
+     * (as the board's drawers), a little larger than the cards' ports there. The wire the crosshair is on is
+     * highlighted.
      */
     private static void tag(final Run r, final boolean lit) {
         GL11.glPushMatrix();
         GL11.glTranslatef(r.tx, r.ty, 0);
-        GL11.glScalef(r.scale, r.scale, 1);
-        final int w = Math.round(r.tw / r.scale), h = TAG_H;
+        final float size = r.scale * TAG_SIZE;
+        GL11.glScalef(size, size, 1);
+        final int w = Math.round(r.tw / size), h = TAG_H;
         if (lit) Hyb.ring(-2, -2, w + 4, h + 4, 2, 0xC0000000 | Hyb.LIT & 0xFFFFFF);
-        Hyb.tile(0, 0, w, h);
+        final int tint = 0xFF000000 | r.conn.line.color() & 0xFFFFFF;
+        Hyb.rect(0, 0, w, h, Hyb.mix(tint, 0x262B34, 0.55f));
+        Hyb.rect(1, 1, w - 2, h - 2, Hyb.mix(tint, 0x101318, 0.24f));
         final PlanSnapshot.Flow f = r.conn.flow;
         if (f != null) {
             if (f.power()) RecipeCard.euIcon(CardLayout.ICON_X, CardLayout.ICON_Y, CardLayout.ICON);
@@ -610,7 +615,7 @@ public final class PlanOverlay {
         }
         final int top = (CardLayout.ROW - 17) / 2;
         Hyb.text(r.name, CardLayout.TEXT_X, top, Hyb.INK);
-        Hyb.text(r.rate, CardLayout.TEXT_X, top + 9, Hyb.MUTED);
+        Hyb.text(r.rate, CardLayout.TEXT_X, top + 9, 0xFFB8BCC6);
         GL11.glPopMatrix();
     }
 
