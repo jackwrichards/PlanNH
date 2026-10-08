@@ -63,6 +63,7 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
     @Nullable
     private String tierFilter;
     private int scroll, contentH;
+    private final com.gtnhplanner.ui.theme.ScrollBar bar = new com.gtnhplanner.ui.theme.ScrollBar();
 
     private enum Kind {
         CLOSE,
@@ -165,12 +166,8 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
         }
         Stencil.remove();
         contentH = y + scroll - top;
-        final int visible = bottom - top, max = Math.max(0, contentH - visible);
-        if (scroll > max) scroll = max;
-        if (max > 0) {
-            final int thumb = Math.max(12, visible * visible / Math.max(1, contentH));
-            Hyb.rect(sx + sw - 6, top + (visible - thumb) * scroll / max, 2, thumb, Hyb.MUTED);
-        }
+        scroll = bar
+            .draw(sx + sw - 2, top, bottom - top, contentH, scroll, isHovering() && bar.contains(localX(), localY()));
         lastHits.clear();
         lastHits.addAll(hits);
     }
@@ -397,6 +394,10 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
 
     @Override
     public Result onMousePressed(final int mouseButton) {
+        if (mouseButton == 0 && isHovering() && bar.contains(localX(), localY())) {
+            scroll = bar.press(localY(), scroll);
+            return Result.SUCCESS;
+        }
         final Hit hit = hitAt(lastHits);
         if (hit == null) return Result.IGNORE;
         if (mouseButton != 0) return Result.SUCCESS;
@@ -471,6 +472,16 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
     private void filterTier(@Nullable final String tier) {
         tierFilter = tier;
         scroll = 0;
+    }
+
+    @Override
+    public void onMouseDrag(final int mouseButton, final long timeSinceClick) {
+        if (bar.dragging()) scroll = bar.drag(localY());
+    }
+
+    @Override
+    public boolean onMouseRelease(final int mouseButton) {
+        return bar.release();
     }
 
     @Override

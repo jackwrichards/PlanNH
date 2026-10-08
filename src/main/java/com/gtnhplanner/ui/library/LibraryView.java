@@ -69,6 +69,7 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
     @Nullable
     private String openError;
     private int scroll, contentH;
+    private final com.gtnhplanner.ui.theme.ScrollBar bar = new com.gtnhplanner.ui.theme.ScrollBar();
     private long lastClick;
     @Nullable
     private String lastClickId;
@@ -400,10 +401,8 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         contentH = end + scroll - top;
         final int visible = h - top, max = Math.max(0, contentH - visible);
         if (scroll > max) scroll = max;
-        if (max > 0) {
-            final int thumb = Math.max(12, visible * visible / contentH);
-            Hyb.rect(gridRight() + PAD - 4, top + (visible - thumb) * scroll / max, 2, thumb, Hyb.MUTED);
-        }
+        scroll = bar
+            .draw(gridRight() + PAD, top, visible, contentH, scroll, isHovering() && bar.contains(localX(), localY()));
     }
 
     private void retryKey(final float cx, final float y, final Hit hover) {
@@ -555,10 +554,8 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         contentH = (n + cols - 1) / cols * (TILE_H + GAP) + PAD;
         final int visible = h - top, max = Math.max(0, contentH - visible);
         if (scroll > max) scroll = max;
-        if (max > 0) {
-            final int thumb = Math.max(12, visible * visible / contentH);
-            Hyb.rect(gridRight() + PAD - 4, top + (visible - thumb) * scroll / max, 2, thumb, Hyb.MUTED);
-        }
+        scroll = bar
+            .draw(gridRight() + PAD, top, visible, contentH, scroll, isHovering() && bar.contains(localX(), localY()));
     }
 
     private void newTile(final int x, final int y, final int w, final Hit hover) {
@@ -809,6 +806,10 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
 
     @Override
     public Result onMousePressed(final int mouseButton) {
+        if (mouseButton == 0 && isHovering() && bar.contains(localX(), localY())) {
+            scroll = bar.press(localY(), scroll);
+            return Result.SUCCESS;
+        }
         final Hit hit = hitAt(lastHits);
         if (hit == null) return Result.IGNORE;
         if (mouseButton == 1 && hit.kind() == Kind.MY_TILE) {
@@ -992,6 +993,16 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         } catch (final Exception | LinkageError e) {
             org.lwjgl.Sys.openURL(url);
         }
+    }
+
+    @Override
+    public void onMouseDrag(final int mouseButton, final long timeSinceClick) {
+        if (bar.dragging()) scroll = bar.drag(localY());
+    }
+
+    @Override
+    public boolean onMouseRelease(final int mouseButton) {
+        return bar.release();
     }
 
     @Override
