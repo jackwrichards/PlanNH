@@ -1342,6 +1342,16 @@ public final class BoardSession {
      * came back. Until then the cards keep showing the last answer.
      */
     public void tick() {
+        if (!com.gtnhplanner.dev.DevPerf.on()) {
+            tickBoard();
+            return;
+        }
+        final long started = System.nanoTime();
+        tickBoard();
+        com.gtnhplanner.dev.DevPerf.time("session.tick", System.nanoTime() - started);
+    }
+
+    private void tickBoard() {
         commitWheeledRates();
         if (disarmOnTick) {
             disarmOnTick = false;
@@ -1655,10 +1665,32 @@ public final class BoardSession {
 
     private static String render(final Note note) {
         try {
-            return note.render();
+            return named(note).render();
         } catch (final RuntimeException e) {
             return note.describe();
         }
+    }
+
+    /**
+     * The note with every resource key among its arguments as the name a player reads: a GregTech card's machine is
+     * remembered as its item key ("item:gregtech:gt.blockmachines:1000"), and the solver names machines by it.
+     */
+    private static Note named(final Note note) {
+        final Object[] args = note.args()
+            .clone();
+        for (int i = 0; i < args.length; i++) args[i] = namedArg(args[i]);
+        return new Note(note.message(), args);
+    }
+
+    private static Object namedArg(final Object arg) {
+        if (arg instanceof final Note nested) return named(nested);
+        if (arg instanceof final List<?> list) {
+            final List<Object> out = new ArrayList<>(list.size());
+            for (final Object o : list) out.add(namedArg(o));
+            return out;
+        }
+        if (arg instanceof final String s && (s.startsWith("item:") || s.startsWith("fluid:"))) return Resources.name(s);
+        return arg;
     }
 
     /** Node and drawer ids a note names, for "Show me". */

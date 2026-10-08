@@ -185,6 +185,16 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
 
     @Override
     public void draw(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
+        if (!com.gtnhplanner.dev.DevPerf.on()) {
+            drawDrawer(context, widgetTheme);
+            return;
+        }
+        final long started = System.nanoTime();
+        drawDrawer(context, widgetTheme);
+        com.gtnhplanner.dev.DevPerf.time("drawers", System.nanoTime() - started);
+    }
+
+    private void drawDrawer(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
         final DrawerModel m = model;
         if (m == null) return;
         final float z = context.getCurrentDrawingZ();

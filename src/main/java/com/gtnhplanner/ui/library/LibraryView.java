@@ -952,6 +952,16 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         opening = s.id();
         feed.download(s, d -> {
             opening = null;
+            if (com.gtnhplanner.dev.DevHarness.isEnabled()) {
+                // Dev runs keep what the site sent, to read when an import goes wrong.
+                try {
+                    final java.nio.file.Path dir = java.nio.file.Path.of("library-downloads");
+                    java.nio.file.Files.createDirectories(dir);
+                    java.nio.file.Files.writeString(dir.resolve(s.id() + ".json"), d.planJson());
+                } catch (final java.io.IOException | RuntimeException e) {
+                    com.gtnhplanner.GtnhPlanner.LOG.info("Library: could not keep the download", e);
+                }
+            }
             try {
                 final FfConverter.Result r = FactoryFlowImport.importAsSlot(d.planJson());
                 final int missing = r.report()

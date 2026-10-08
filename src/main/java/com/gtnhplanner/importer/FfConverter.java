@@ -166,8 +166,8 @@ public final class FfConverter {
             if (!plan.solveMode()) report.add(
                 Kind.NOTE,
                 "Plan",
-                "A Build plan: machine counts came over as starting counts, not pins, and drawer rates as no rule"
-                    + " (FF does not enforce them in Build either). Set a drawer's rate to scale the plan.");
+                "A Build plan: each card's machine count came over pinned, as Build runs it, and drawer rates as no"
+                    + " rule. Unpin a card, or set a drawer's rate, to let the plan size itself.");
             for (final String note : plan.notes()) report.add(Kind.NOTE, "Plan", note);
             report.setCounts(graph.nodes.size(), graph.edges.size(), graph.drawers.size());
             return new Result(graph, report);

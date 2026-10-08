@@ -135,6 +135,16 @@ final class OverviewRail extends ParentWidget<OverviewRail>
 
     @Override
     public void draw(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
+        if (!com.gtnhplanner.dev.DevPerf.on()) {
+            drawRail(context, widgetTheme);
+            return;
+        }
+        final long started = System.nanoTime();
+        drawRail(context, widgetTheme);
+        com.gtnhplanner.dev.DevPerf.time("overview", System.nanoTime() - started);
+    }
+
+    private void drawRail(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
         hits.clear();
         final int w = getArea().width, h = getArea().height;
         Hyb.rect(0, 0, w, h, 0xFF202226);
@@ -273,6 +283,11 @@ final class OverviewRail extends ParentWidget<OverviewRail>
             // One line per drawer: the resource's own line carries the first; any more get a short line each.
             final int rows = Math.max(1, drawers.size());
             final int h = ROW_H + (rows - 1) * DRAWER_H;
+            // Scrolled out of the list: nothing to draw (a long plan has hundreds of rows, and every icon costs).
+            if (y + h <= LIST_Y || y >= getArea().height) {
+                y += h;
+                continue;
+            }
             Hyb.rect(0, y, w - 1, h, hot ? 0x1A22D3EE : tint);
             if (hot) {
                 Hyb.rect(0, y, w - 1, 1, 0x9922D3EE);
@@ -435,6 +450,12 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         }
         for (final Map.Entry<String, List<BoardSession.MachineLine>> g : groups.entrySet()) {
             final List<BoardSession.MachineLine> lines = g.getValue();
+            // A group scrolled out of the list: skip its drawing, keep its room.
+            final int groupH = GROUP_H + lines.size() * LINE_H;
+            if (y + groupH <= LIST_Y || y >= getArea().height) {
+                y += groupH;
+                continue;
+            }
             final boolean groupHot = hover != null && hover.kind() == Kind.GROUP
                 && g.getKey()
                     .equals(hover.data());

@@ -139,8 +139,10 @@ public final class FfSettings {
                 notes.add("pinned to 0 machines; left for the plan to decide");
             }
         } else {
-            // Build mode: the count is the build, but GTNH Planner solves counts; it stays a starting point, not a pin.
+            // Build mode: the count is the build, and the plan's flows follow from it, so it comes over as a pin (left
+            // as is, a board that solves counts would have nothing to solve for and show every rate at 0).
             machines = (int) Math.max(1, Math.min(MAX_MACHINES, Math.ceil(node.machineCount() - 1e-9)));
+            pinned = pinnable;
         }
         return new Mapped(s, machines, pinned, handler == null ? null : handler.label(), notes);
     }

@@ -73,7 +73,7 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 
 - Gradle provisions the JDKs (25 for the build, JetBrains Runtime 25 for `runClient25`). Keep the checkout at a
   short path: deep Windows paths break the clone and the Minecraft dev setup (MAX_PATH).
-- `./gradlew test`: 436 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
+- `./gradlew test`: 435 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
   many over gtnh-flow YAML charts in `src/test/resources/gtnh-flow/`. About 40s, no Minecraft. `addon.gradle`
   opts `test` out of the configuration cache; without that a clean build reports `:test NO-SOURCE` and silently
   runs nothing, so if you ever see NO-SOURCE, check the count in `build/test-results/test/*.xml`.
@@ -110,6 +110,10 @@ tools/dev/board-check.sh  # GT runs: end-to-end board check (recipe, port drag, 
   stop it when the work is done.
 - The user can press F2 in game to screenshot what they see; when they refer to "this" or "my screenshot", Read
   the newest file in `run/client/screenshots/`. Harness screenshots land there too, under the names you gave them.
+- Performance: `call 'perf?start=1'`, do something (drag, pan, open a plan), then `call perf` for FPS, frame-time
+  percentiles and per-part timings (cards, drawers, wires, overview, routing, solve). Wires route on their own thread
+  on big boards and are drawn from a display list; keep per-frame drawing batched (`Hyb.beginBatch`). Dev runs keep
+  each plan opened from the Library in `run/client/library-downloads/` for `call 'importff?file=...'`.
 - UI feedback loop: change code, `swap --reopen`, check with a cropped `shot`, then tell the user it's live in
   their window. They can interact with the game at the same time; just don't send synthetic input while they are
   mid-action. Gate input and restarts on `tools/dev/mc.sh idle`: it succeeds when the game window is unfocused or

@@ -200,6 +200,9 @@ public final class SolveService implements AutoCloseable {
                 GtnhPlanner.LOG.error("Solve of version {} threw", request.version(), t);
                 result = new Result(request.version(), request.input(), null, t, System.currentTimeMillis() - start);
             }
+            com.gtnhplanner.dev.DevPerf.time("solve", result.wallMillis() * 1_000_000L);
+            if (result.wallMillis() > 250)
+                GtnhPlanner.LOG.info("[solve] version {} took {} ms", request.version(), result.wallMillis());
             synchronized (lock) {
                 running = false;
                 // Stale: a newer request arrived while this one was solving.

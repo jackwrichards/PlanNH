@@ -89,7 +89,7 @@ class FfConverterTest {
         assertEquals(true, lcr.machineConfig.settings.get("gt_multiblock"));
         assertEquals(true, lcr.machineConfig.settings.get("perfect_oc"));
         assertEquals(1, lcr.machineConfig.getMachineCount());
-        assertFalse(lcr.isMachineCountFixed(), "a Build plan's count is not a pin");
+        assertTrue(lcr.isMachineCountFixed(), "a Build plan runs its counts: they come over pinned");
         assertEquals("Large Chemical Reactor", game.machines.get(lcr.id));
         assertEquals(2, lcr.inputs.size(), "the circuit is no port");
 

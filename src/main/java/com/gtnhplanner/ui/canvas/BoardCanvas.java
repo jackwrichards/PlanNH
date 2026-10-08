@@ -44,14 +44,16 @@ import com.gtnhplanner.ui.theme.Hyb;
  */
 public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Interactable, IViewport, IDraggable {
 
-    /** Steps where the font is sharp at GUI scale 2 (1 font pixel lands on whole screen pixels), plus a far view. */
-    /** Wheel steps, as on the website: a fifth of a doubling each (2^0.2, about 15%), from an eighth to twice. */
-    private static final float[] ZOOMS = new float[21];
+    /**
+     * Wheel steps, as on the website: a fifth of a doubling each (2^0.2, about 15%), from a sixteenth (so a big plan
+     * still fits the board whole) to twice.
+     */
+    private static final float[] ZOOMS = new float[26];
 
     static {
-        for (int i = 0; i < ZOOMS.length; i++) ZOOMS[i] = (float) (0.125 * Math.pow(2, i / 5.0));
+        for (int i = 0; i < ZOOMS.length; i++) ZOOMS[i] = (float) (0.0625 * Math.pow(2, i / 5.0));
         // The powers of two exactly, where the game's font is crisp.
-        for (int i = 0; i < ZOOMS.length; i += 5) ZOOMS[i] = (float) (0.125 * (1 << i / 5));
+        for (int i = 0; i < ZOOMS.length; i += 5) ZOOMS[i] = (float) (0.0625 * (1 << i / 5));
     }
     private static final int GRID = 20;
 
@@ -163,6 +165,16 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     @Override
     public void draw(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
+        if (!com.gtnhplanner.dev.DevPerf.on()) {
+            drawCanvas(context, widgetTheme);
+            return;
+        }
+        final long started = System.nanoTime();
+        drawCanvas(context, widgetTheme);
+        com.gtnhplanner.dev.DevPerf.time("canvas", System.nanoTime() - started);
+    }
+
+    private void drawCanvas(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
         stepCamera();
         stepMiddlePan();
         stepPanGlide();
@@ -244,7 +256,15 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             return;
         }
         // World space, under the cards.
-        wires.draw(wires.wires(cards, drawers, moveStart != null || glideStart >= 0), session.hoverKey());
+        final boolean timed = com.gtnhplanner.dev.DevPerf.on();
+        final long started = timed ? System.nanoTime() : 0;
+        final List<WireLayer.Wire> routed = wires.wires(cards, drawers, moveStart != null || glideStart >= 0);
+        final long drawing = timed ? System.nanoTime() : 0;
+        wires.draw(routed, session.hoverKey());
+        if (timed) {
+            com.gtnhplanner.dev.DevPerf.time("wires.route", drawing - started);
+            com.gtnhplanner.dev.DevPerf.time("wires.draw", System.nanoTime() - drawing);
+        }
     }
 
     @Override

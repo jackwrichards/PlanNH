@@ -266,11 +266,16 @@ class FfSettingsTest {
     }
 
     @Test
-    void buildPlansKeepTheirCountsUnpinned() {
+    void buildPlansPinTheirCounts() {
+        // Build runs a card at its count, so the count is a pin, rounded up to whole machines; a shared machine's
+        // extra recipes carry no pin of their own.
         final FfNode built = card("HV", null, null, null, null, 0, null, null, 1, Map.of(), 2.3, 5.0);
         final FfSettings.Mapped m = FfSettings.map(built, SINGLE, 30, false, true);
-        assertFalse(m.pinned());
+        assertTrue(m.pinned());
         assertEquals(3, m.machines());
+        assertFalse(
+            FfSettings.map(built, SINGLE, 30, false, false)
+                .pinned());
     }
 
     @Test

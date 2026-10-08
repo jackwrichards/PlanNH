@@ -335,6 +335,16 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
     @Override
     public void draw(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
+        if (!com.gtnhplanner.dev.DevPerf.on()) {
+            drawCard(context, widgetTheme);
+            return;
+        }
+        final long started = System.nanoTime();
+        drawCard(context, widgetTheme);
+        com.gtnhplanner.dev.DevPerf.time("cards", System.nanoTime() - started);
+    }
+
+    private void drawCard(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
         final CardModel m = model;
         if (m == null) return;
         final float z = context.getCurrentDrawingZ();

@@ -89,7 +89,8 @@ public final class DevHarness {
         harness.startServer();
     }
 
-    private static boolean isEnabled() {
+    /** A dev run: the deobfuscated workspace, or -Dgtnhplanner.dev=true. */
+    public static boolean isEnabled() {
         final String prop = System.getProperty("gtnhplanner.dev");
         if (prop != null) return Boolean.parseBoolean(prop);
         return Boolean.TRUE.equals(Launch.blackboard.get("fml.deobfuscatedEnvironment"));
@@ -150,6 +151,7 @@ public final class DevHarness {
 
     @SubscribeEvent
     public void onRenderTick(final TickEvent.RenderTickEvent event) {
+        if (event.phase == TickEvent.Phase.START) DevPerf.frame();
         if (event.phase != TickEvent.Phase.END) return;
         framedSinceStep = true;
         // Only what was queued before this frame; actions may re-queue themselves for the next one.
@@ -362,6 +364,13 @@ public final class DevHarness {
                         return error("GregTech is not loaded (start with PLANNH_GTNH=1)");
                     }
                 });
+            case "/perf":
+                // Frame times: perf?start=1 begins sampling, perf ends it and reports (fps, percentiles, sections).
+                if (q.containsKey("start")) {
+                    DevPerf.start();
+                    return ok();
+                }
+                return DevPerf.stop();
             case "/power":
                 // The power sources against this game: flows that become no port, fluids without icons, machines.
                 return onClient(DevPower::check);
