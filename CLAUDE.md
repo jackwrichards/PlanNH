@@ -31,6 +31,8 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   slots, solve hookup, notices, totals), `canvas/` (board, wires, port drags, arrange), `card/` (recipe card),
   `drawer/`, `popup/` (menus, number and text boxes; recipes are looked up in NEI itself). Known gaps and next
   steps are at the top of `docs/design/build-prompt.md`.
+- `docs/design/card-redesign.md` is the cleaner card under way (trial `ui/card/CleanCardView`, compared side by side
+  with `call cards`): what is settled, where every control and setting goes, and what is left to design.
 - `docs/design/ff-card-spec.md` is Factory Flow's card measured from its source (sizes, colours, tooltips, the
   power panel's formulas). Our card is 320 wide to its 380 with chrome kept at 1 px; `ui/card/CardLayout` holds
   the geometry. Board tooltips are `ui/popup/Tip` panels; a multiblock's power chips show `ui/card/PowerPanel`.
