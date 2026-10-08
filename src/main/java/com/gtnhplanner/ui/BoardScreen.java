@@ -222,7 +222,8 @@ public final class BoardScreen extends ModularScreen {
         final List<com.gtnhplanner.ui.popup.PickList.Entry> rows = new ArrayList<>();
         final String[][] tips = { { "R or U over an item", "Show its recipes or uses in NEI; + adds a recipe" },
             { "Drag an item out of NEI", "Click the board to add a drawer for it" },
-            { "Click a port", "Find recipes for it in NEI; adding one wires it to this port" },
+            { "Click an item in NEI's list", "Its recipes (left-click) or uses (right-click)" },
+            { "Click a port", "Its recipes (left) or uses (right) in NEI; adding one wires it to the port" },
             { "Drag a port", "Drop on a card to wire it, or on empty board to add a drawer" },
             { "Right-click a wire", "Add a drawer on it, or delete it" }, { "Middle-click a rate", "Clear the rate" },
             { "Click a card or drawer", "Select it (Shift-click adds to the selection)" },
@@ -622,7 +623,8 @@ public final class BoardScreen extends ModularScreen {
                 view.output() ? "Wire it to a card, or drag it onto the board to add a drawer."
                     : "Wire it to a card that makes it, or drag it onto the board to add a drawer.");
         }
-        return tip.action(Tip.Input.LEFT, view.output() ? "What uses it" : "What makes it")
+        return tip.action(Tip.Input.LEFT, "Recipes: what makes it")
+            .action(Tip.Input.RIGHT, "Uses: what uses it")
             .action(Tip.Input.DRAG, "Connect")
             .action(Tip.Input.KEY, "R, U");
     }

@@ -86,6 +86,8 @@ public final class DevHarness {
             .bus()
             .register(harness);
         MinecraftForge.EVENT_BUS.register(harness);
+        // First in line, so it sees every click NEI is handed on a planner screen.
+        codechicken.nei.guihook.GuiContainerManager.inputHandlers.addFirst(DevNeiInput.INSTANCE);
         harness.startServer();
     }
 
@@ -371,6 +373,9 @@ public final class DevHarness {
                     return ok();
                 }
                 return DevPerf.stop();
+            case "/neiinput":
+                // What NEI's input hooks saw on the planner since last asked: presses, releases, drags.
+                return Map.of("seen", DevNeiInput.INSTANCE.take());
             case "/power":
                 // The power sources against this game: flows that become no port, fluids without icons, machines.
                 return onClient(DevPower::check);

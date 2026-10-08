@@ -70,6 +70,7 @@ public class NEIPlanConfig implements IConfigureNEI {
         API.addLayoutStyle(0, new FlowchartLayoutStyle());
         MinecraftForge.EVENT_BUS.register(this);
         // The plan button's menus: first for clicks and keys while one is open, drawn over everything NEI draws.
+        GuiContainerManager.inputHandlers.addFirst(PlannerItemClicks.INSTANCE);
         GuiContainerManager.inputHandlers.addFirst(PlanMenu.INSTANCE);
         GuiContainerManager.addDrawHandler(PlanMenu.INSTANCE);
         GuiContainerManager.addObjectHandler(PlanMenu.INSTANCE);

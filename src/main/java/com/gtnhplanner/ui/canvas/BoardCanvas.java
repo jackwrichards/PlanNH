@@ -489,8 +489,8 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         if (drag == null) return;
         final int mx = getContext().getAbsMouseX(), my = getContext().getAbsMouseY();
         if (Math.abs(mx - drag.startX()) + Math.abs(my - drag.startY()) < 4) {
-            // A click, not a drag: NEI's recipes for this input, or uses of this output.
-            lookUpPort(drag);
+            // A (left) click, not a drag: NEI's recipes for the port's resource.
+            lookUpPort(drag, false);
             return;
         }
         if (!successful) return;
@@ -514,15 +514,16 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     }
 
     /** A click on a port: NEI's recipes that make an input, or that use an output. */
-    public void clickPort(final UUID nodeId, final boolean output, final int port) {
-        lookUpPort(new PortDrag(nodeId, output, port, 0, 0));
+    /** A click on a port, as NEI's own: left its recipes (what makes it), right its uses. */
+    public void clickPort(final UUID nodeId, final boolean output, final int port, final boolean uses) {
+        lookUpPort(new PortDrag(nodeId, output, port, 0, 0), uses);
     }
 
     /**
-     * Opens NEI's own page for a port's resource: what makes an input, what uses an output. The recipe added from it
-     * with + lands beside this card, wired into this port. When NEI knows none, the port says so.
+     * Opens NEI's own page for a port's resource: what makes it, or with {@code uses} what uses it. The recipe added
+     * from it with + lands beside this card, wired into this port where it fits. When NEI knows none, the port says so.
      */
-    private void lookUpPort(final PortDrag drag) {
+    private void lookUpPort(final PortDrag drag, final boolean uses) {
         final RecipeCard card = cards.get(drag.nodeId());
         final CardModel model = portModel(drag.nodeId());
         if (card == null || model == null) return;
@@ -532,10 +533,10 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             .lookupStack();
         if (stack == null) return;
         session.armLookup(drag.nodeId(), drag.output(), drag.port());
-        if (com.gtnhplanner.ui.Planner.lookUp(stack.copy(), drag.output())) return;
+        if (com.gtnhplanner.ui.Planner.lookUp(stack.copy(), uses)) return;
         session.disarmLookup();
         final Node n = card.model().node;
-        final String none = (drag.output() ? "Nothing uses " : "Nothing makes ") + stack.getDisplayName();
+        final String none = (uses ? "Nothing uses " : "Nothing makes ") + stack.getDisplayName();
         Popup.open(
             getPanel(),
             PickList.popup(
