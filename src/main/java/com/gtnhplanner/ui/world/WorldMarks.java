@@ -121,10 +121,11 @@ final class WorldMarks {
 
     /**
      * A connector from one machine to the one it feeds: a shaded tube in the resource's colour with arrowheads along it
-     * moving towards {@code b}, solid where in view and a faint line where hidden.
+     * moving towards {@code b}, drawn over the world; {@code lit} thicker and brighter.
      */
     static void connector(final double ax, final double ay, final double az, final double bx, final double by,
-        final double bz, final int rgb, final boolean flowing) {
+        final double bz, final int colour, final boolean flowing, final boolean lit) {
+        final int rgb = lit ? Hyb.mix(0xFF000000 | colour, 0xFFFFFFFF, 0.35f) & 0xFFFFFF : colour;
         final double dx = bx - ax, dy = by - ay, dz = bz - az;
         final double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (len < 0.3) return;
@@ -132,18 +133,12 @@ final class WorldMarks {
         // Two directions across the tube.
         final double[] up = Math.abs(d[1]) > 0.9 ? new double[] { 1, 0, 0 } : new double[] { 0, 1, 0 };
         final double[] u = norm(cross(d, up)), v = cross(d, u);
-        // Hidden parts: a faint line only.
-        GL11.glLineWidth(1.5f);
-        GL11.glDisable(GL11.GL_DEPTH_TEST);
-        final Tessellator hint = Tessellator.instance;
-        hint.startDrawing(GL11.GL_LINES);
-        hint.setColorRGBA_I(rgb, 40);
-        hint.addVertex(ax, ay, az);
-        hint.addVertex(bx, by, bz);
-        hint.draw();
+        // Drawn over the world, as the rest of the plan's overlay: squeezed to the front of the depth range, the depth
+        // test only sorts the tube and its arrowheads among themselves.
+        GL11.glDepthRange(0, 0.002);
         GL11.glEnable(GL11.GL_DEPTH_TEST);
         GL11.glDepthMask(true);
-        final double r = 0.035;
+        final double r = lit ? 0.06 : 0.035;
         final Tessellator t = Tessellator.instance;
         t.startDrawingQuads();
         final int sides = 10;
@@ -165,7 +160,7 @@ final class WorldMarks {
         for (double at = phase; at < len - 0.45; at += gap) {
             if (at < 0.45) continue;
             final double cx = ax + d[0] * at, cy = ay + d[1] * at, cz = az + d[2] * at;
-            final double tip = 0.2, br = 0.09;
+            final double tip = lit ? 0.26 : 0.2, br = lit ? 0.12 : 0.09;
             final double tx = cx + d[0] * tip, ty = cy + d[1] * tip, tz = cz + d[2] * tip;
             for (int i = 0; i < 8; i++) {
                 final double a0 = 2 * Math.PI * i / 8, a1 = 2 * Math.PI * (i + 1) / 8;
@@ -182,6 +177,44 @@ final class WorldMarks {
         }
         t.draw();
         GL11.glDepthMask(false);
+        GL11.glDepthRange(0, 1);
+    }
+
+    private static final net.minecraft.client.renderer.RenderBlocks GHOST = new net.minecraft.client.renderer.RenderBlocks();
+
+    /**
+     * A ghost of a machine on a block: the machine's own block model, see-through and drawn over the world (front faces
+     * only), so it shows whatever is on the block now, a stand-in or the ground. Not drawn for an item that is not a
+     * block.
+     */
+    static void ghost(final net.minecraft.item.ItemStack machine, final int x, final int y, final int z) {
+        final net.minecraft.block.Block block = net.minecraft.block.Block.getBlockFromItem(machine.getItem());
+        if (block == null || block == net.minecraft.init.Blocks.air) return;
+        Minecraft.getMinecraft()
+            .getTextureManager()
+            .bindTexture(net.minecraft.client.renderer.texture.TextureMap.locationBlocksTexture);
+        GL11.glPushMatrix();
+        GL11.glTranslated(x + 0.5, y + 0.5, z + 0.5);
+        GL11.glScalef(0.96f, 0.96f, 0.96f);
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_CULL_FACE);
+        GL11.glDisable(GL11.GL_DEPTH_TEST);
+        GL11.glDepthMask(false);
+        GL11.glEnable(GL11.GL_BLEND);
+        // See-through however the model sets its colours: blend by a constant alpha.
+        org.lwjgl.opengl.GL14.glBlendColor(1, 1, 1, 0.55f);
+        GL11.glBlendFunc(0x8003, 0x8004); // GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA
+        GL11.glColor4f(1, 1, 1, 1);
+        net.minecraft.client.renderer.RenderHelper.enableStandardItemLighting();
+        try {
+            GHOST.renderBlockAsItem(block, machine.getItemDamage(), 1f);
+        } catch (final RuntimeException ignored) {}
+        net.minecraft.client.renderer.RenderHelper.disableStandardItemLighting();
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glDisable(GL11.GL_CULL_FACE);
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        GL11.glDisable(GL11.GL_LIGHTING);
+        GL11.glPopMatrix();
     }
 
     private static double[] ring(final double[] u, final double[] v, final double a) {

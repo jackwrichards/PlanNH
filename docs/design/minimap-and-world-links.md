@@ -53,14 +53,16 @@ never makes the plan show what the machines are doing.
 `ui/world/PlanOverlay`, toggled with Y and in the settings ("Show the plan over the world (AR)", "How far to show it").
 Nothing shows until a card of the plan last open is placed.
 
-- Each placed block is boxed in its machine's colour, and its card floats over it, a stem down to the block, drawn as
-  the board draws it (`ui/card/PlanCardView`: name bar and tier chips, ports with the plan's rates, the machine's
-  picture, POWER and MACHINES), with nothing to press. A card is two and a half blocks wide in the world, so it
-  shrinks with distance and turns into the board's zoomed-out card past the board's glance zoom; nearer cards cover
-  farther ones. The card looked at, and its block, are ringed.
-- The plan's wires between placed cards run along the tops of their blocks as connectors (`WorldMarks.connector`):
-  a thin shaded tube in the resource's colour with arrowheads sliding towards the card it feeds, only a faint line
-  where something hides it.
+- Each placed block shows a ghost of the card's machine (its own block model, see-through, over the world; not when
+  the machine is built there already), boxed in the machine's colour, and the card floats over it with a stem down to
+  the block, drawn as the board draws it (`ui/card/PlanCardView`: name bar and tier chips, ports with the plan's
+  rates, the machine's picture, POWER and MACHINES), with nothing to press. A card is two and a half blocks wide in
+  the world, so it shrinks with distance and turns into the board's zoomed-out card past the board's glance zoom;
+  nearer cards cover farther ones. The card looked at, and its block, are ringed.
+- The plan's wires between placed cards run from block centre to block centre as connectors drawn over the world
+  (`WorldMarks.connector`): a thin shaded tube in the resource's colour with arrowheads sliding towards the card it
+  feeds, and the resource's icon at its middle. The wire nearest the crosshair is lit and labelled as the plan has
+  it: what, how much, and from which card to which.
 
 The earlier AR lens (every machine's live state, read from GregTech, with stats and charts) is shelved on the branch
 `shelf/ar-machine-lens`.

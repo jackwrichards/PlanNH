@@ -26,7 +26,7 @@ public record PlanSnapshot(Graph graph, String planName, long graphVersion, List
 
     /** What flows through a port or drawer, per second. */
     public record Flow(String name, @Nullable ItemStack item, @Nullable FluidStack fluid, boolean power,
-        double perSecond) {}
+        double perSecond, String key) {}
 
     /**
      * A card (a shared machine is one, its recipes' flows together), at its place on the board.

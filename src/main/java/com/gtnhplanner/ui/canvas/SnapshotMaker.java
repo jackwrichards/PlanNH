@@ -115,7 +115,7 @@ final class SnapshotMaker {
     }
 
     private static PlanSnapshot.Flow flow(final CardModel.PortView p) {
-        return new PlanSnapshot.Flow(p.name(), p.item(), p.fluid(), p.isPower(), p.perSecond());
+        return new PlanSnapshot.Flow(p.name(), p.item(), p.fluid(), p.isPower(), p.perSecond(), p.key());
     }
 
     private static List<int[]> copyLinks(final List<int[]> links) {
