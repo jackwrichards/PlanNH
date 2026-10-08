@@ -107,7 +107,7 @@ public final class PlanCardView {
                     py + side * 0.06f - pad,
                     pw + 2 * pad,
                     ph + 2 * pad,
-                    0x99000000);
+                    0x7A000000);
             }
             Hyb.texture(art.location(), px, py, pw, ph);
         } else if (c.machine() != null) {

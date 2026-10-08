@@ -211,7 +211,7 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
             Hyb.roundRect(3, 4, W, H, r, 0x40000000);
         } else {
             for (int i = 3; i >= 0; i--)
-                Hyb.roundRect(6 - 2 * i, 8 - 2 * i, W + 4 * i, H + 4 * i, r + 2 * i, 0x1E000000);
+                Hyb.roundRect(6 - 2 * i, 8 - 2 * i, W + 4 * i, H + 4 * i, r + 2 * i, 0x18000000);
         }
         if (session.isSelected(drawerId)) Hyb.roundRect(-2, -2, W + 4, H + 4, r + 2, Hyb.SELECTION);
         if (lit) {

@@ -622,6 +622,12 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
      */
     static void chip(final int x, final int y, final int w, final int h, final Hyb.Tier tier, final String label,
         final boolean underline, final boolean hover) {
+        chip(x, y, w, h, tier, label, underline, hover, false);
+    }
+
+    /** A chip; {@code heavy} draws its label a hair heavier (half a pixel wider), short of the game's bold. */
+    static void chip(final int x, final int y, final int w, final int h, final Hyb.Tier tier, final String label,
+        final boolean underline, final boolean hover, final boolean heavy) {
         Hyb.rect(x, y, w, h, tier.border());
         Hyb.rect(x + 1, y + 1, w - 2, h - 2, hover ? Hyb.mix(tier.bg(), 0xFFFFFF, 0.88f) : tier.bg());
         Hyb.rect(x + 1, y + 1, w - 2, 1, 0x8CFFFFFF);
@@ -633,6 +639,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final float tx = crisp(x + (w - tw) / 2f), ty = crisp(y + (h - 7 * s) / 2f);
         GuiDraw.drawText(label, tx + 1, ty + 1, s, tier.border(), false);
         GuiDraw.drawText(label, tx, ty, s, tier.text(), false);
+        if (heavy) GuiDraw.drawText(label, tx + 0.5f, ty, s, tier.text(), false);
         if (underline) Hyb.rect(tx, ty + 8 * s, tw, 1, tier.text());
     }
 
@@ -841,7 +848,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                     py + side * 0.06f - pad,
                     pw + 2 * pad,
                     ph + 2 * pad,
-                    0x99000000);
+                    0x7A000000);
             }
             Hyb.texture(art.location(), px, py, pw, ph);
             return;

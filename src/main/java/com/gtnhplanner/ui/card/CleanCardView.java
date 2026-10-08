@@ -22,8 +22,8 @@ public final class CleanCardView {
     private static final int W = CardLayout.W;
     /** The header, a port row, the side margin, and the icon. */
     private static final int HEAD = 32, ROW = 32, EDGE = 8, ICON = 24;
-    /** The header's chips, as the board's. */
-    private static final int CHIP_H = 20, CHIP_W = 48, SINGLE_TIER_W = 42;
+    /** The header's chips, as the board's, as far from the top as from the right edge. */
+    private static final int CHIP_H = 20, CHIP_W = 48, SINGLE_TIER_W = 42, CHIP_MARGIN = (HEAD - CHIP_H) / 2;
     /** The middle column: the machine, its count on its corner. */
     private static final int MID_X = 112, MID_W = W - 2 * MID_X, PICTURE = 72;
     /** Where a port's words start, beside its icon; and how wide they may be. */
@@ -70,19 +70,19 @@ public final class CleanCardView {
         ports(side(c, true), true, top, unit);
     }
 
-    /** The name large, left; the amps and tier chips, as the board's but bold, right; a hairline under them. */
+    /** The name large, left; the amps and tier chips, as the board's a little heavier, right; a hairline under them. */
     private static void head(final PlanSnapshot.Card c) {
-        final int y = (HEAD - CHIP_H) / 2;
-        int right = W - EDGE;
+        final int y = CHIP_MARGIN;
+        int right = W - CHIP_MARGIN;
         if (!c.tier()
             .isEmpty()) {
             final Hyb.Tier tier = Hyb.tier(c.tier());
             final int tw = c.amps() > 0 ? CHIP_W : SINGLE_TIER_W;
             right -= tw;
-            RecipeCard.chip(right, y, tw, CHIP_H, tier, BOLD + tier.name(), tier.underline(), false);
+            RecipeCard.chip(right, y, tw, CHIP_H, tier, tier.name(), tier.underline(), false, true);
             if (c.amps() > 0) {
                 right -= CHIP_W + 2;
-                RecipeCard.chip(right, y, CHIP_W, CHIP_H, tier, BOLD + c.amps() + "A", false, false);
+                RecipeCard.chip(right, y, CHIP_W, CHIP_H, tier, c.amps() + "A", false, false, true);
             }
             right -= 8;
         }
@@ -92,19 +92,13 @@ public final class CleanCardView {
         Hyb.rect(1, HEAD, W - 2, 1, HAIR);
     }
 
-    /** The game's bold. */
-    private static final String BOLD = "\u00a7l";
-
-    /** The machine, and how many in a dark badge on its bottom right corner. */
+    /** The machine, and how many in white on its bottom right corner. */
     private static void middle(final PlanSnapshot.Card c, final int top) {
         final int x = MID_X + (MID_W - PICTURE) / 2;
         art(c, x, top, PICTURE, PICTURE);
         final String count = "×" + Fmt.machines(c.machines());
-        final int colour = c.pinned() ? Hyb.GOLD : c.machines() <= 0 ? Hyb.MUTED : Hyb.INK;
         final float s = Hyb.FIGURE, tw = Hyb.width(count) * s, th = 8 * s;
-        final float bx = x + PICTURE - tw - 4, by = top + PICTURE - th - 4;
-        Hyb.rect(bx - 2, by - 2, tw + 4, th + 3, 0xD0101114);
-        Hyb.text(count, bx, by, s, colour);
+        Hyb.text(count, x + PICTURE - tw - 2, top + PICTURE - th - 2, s, c.machines() <= 0 ? Hyb.MUTED : Hyb.INK);
     }
 
     /** The machine's structure picture fitted in a box, or its item. */
@@ -121,7 +115,7 @@ public final class CleanCardView {
                 py + side * 0.06f - pad,
                 pw + 2 * pad,
                 ph + 2 * pad,
-                0x99000000);
+                0x7A000000);
             Hyb.texture(art.location(), px, py, pw, ph);
         } else if (c.machine() != null) {
             final float side = Math.min(48, Math.min(w, h));

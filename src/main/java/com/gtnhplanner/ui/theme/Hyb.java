@@ -310,7 +310,7 @@ public final class Hyb {
         if (own) beginBatch();
         for (int i = 3; i >= 0; i--) {
             final float grow = i * 2;
-            rect(x + 6 - grow, y + 8 - grow, w + 2 * grow, h + 2 * grow, 0x1E000000);
+            rect(x + 6 - grow, y + 8 - grow, w + 2 * grow, h + 2 * grow, 0x18000000);
         }
         if (own) endBatch();
     }
@@ -416,10 +416,10 @@ public final class Hyb {
     /** The shadow alone, under the rectangle the icon fills: its silhouette, dropped and softened by spreading. */
     public static void iconShadow(final ItemStack item, final FluidStack fluid, final float x, final float y,
         final float size) {
-        // Three spreads, the widest faintest: about half black at the heart, fading over two pixels.
+        // Three spreads, the widest faintest: about two fifths black at the heart, fading over two pixels.
         final float dy = size / 8f;
         final float[] grow = { 2, 1, 0 };
-        final int[] shade = { 0x1A000000, 0x2E000000, 0x4D000000 };
+        final int[] shade = { 0x15000000, 0x25000000, 0x3E000000 };
         for (int i = 0; i < 3; i++) {
             final float g = grow[i] * size / 24f;
             if (fluid != null) rect(x - g, y + dy - g, size + 2 * g, size + 2 * g, shade[i]);
