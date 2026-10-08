@@ -571,7 +571,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             Hyb.KEY_LO,
             Hyb.KEY_EDGE,
             1);
-        pin(PLACE_X + 6, y + 4, placed() ? Hyb.GOLD : Hyb.INK);
+        keyIcon(true, PLACE_X + KEY_W / 2f, y + CHIP_H / 2f, placed() ? Hyb.GOLD : Hyb.INK);
         // The settings key: a gear, red when a setting stops the recipe (a coil too cold).
         Hyb.bevel(
             GEAR_X + 1,
@@ -583,7 +583,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             Hyb.KEY_LO,
             Hyb.KEY_EDGE,
             1);
-        gear(GEAR_X + KEY_W / 2f, y + CHIP_H / 2f, coilTooCold() ? Hyb.RED_INK : Hyb.INK);
+        keyIcon(false, GEAR_X + KEY_W / 2f, y + CHIP_H / 2f, coilTooCold() ? Hyb.RED_INK : Hyb.INK);
 
         if (m.gregtech) {
             // Amps wear the tier's colours too: together they read as one figure, 16A UV.
@@ -614,39 +614,64 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     }
 
     /**
-     * A gear drawn as a shape, not pixels, so it stays a gear at the screen's full sharpness: a ring with a hole in it
-     * and eight tapered teeth, centred on a point.
+     * A key's icon, the place key's map pin or the settings key's gear, centred on a point: drawn as a shape, not
+     * pixels,
+     * so it stays sharp at any zoom, over a shadow one screen pixel down and right, as the game shades its text.
      */
+    private static void keyIcon(final boolean mapPin, final float cx, final float cy, final int color) {
+        final float px = 0.5f;
+        if (mapPin) {
+            mapPin(cx + px, cy + px, 0xFF16181C);
+            mapPin(cx, cy, color);
+        } else {
+            gear(cx + px, cy + px, 0xFF16181C);
+            gear(cx, cy, color);
+        }
+    }
+
+    /** A gear: a ring with a hole in it and eight tapered teeth. */
     private static void gear(final float cx, final float cy, final int color) {
-        final float hole = 2.4f, body = 5.4f, root = 5.0f, tip = 7.9f;
-        final int seg = 32;
+        final float hole = 2.0f, body = 4.5f, root = 4.2f, tip = 6.6f;
+        ring(cx, cy, hole, body, color);
+        for (int k = 0; k < 8; k++) {
+            final double a = k * Math.PI / 4;
+            final float[] b0 = polar(cx, cy, root, a - 0.32), b1 = polar(cx, cy, root, a + 0.32),
+                t0 = polar(cx, cy, tip, a - 0.21), t1 = polar(cx, cy, tip, a + 0.21);
+            Hyb.triangle(b0[0], b0[1], t0[0], t0[1], t1[0], t1[1], color);
+            Hyb.triangle(b0[0], b0[1], t1[0], t1[1], b1[0], b1[1], color);
+        }
+    }
+
+    /** A map pin: a round head with a hole in it, on a point. */
+    private static void mapPin(final float cx, final float cy, final int color) {
+        final float hx = cx, hy = cy - 2.2f, head = 3.6f;
+        ring(hx, hy, 1.3f, head, color);
+        Hyb.triangle(hx - 3.1f, cy - 0.7f, hx + 3.1f, cy - 0.7f, hx, cy + 5.6f, color);
+    }
+
+    /** A filled ring between two radii. */
+    private static void ring(final float cx, final float cy, final float inner, final float outer, final int color) {
+        final int seg = 28;
         for (int i = 0; i < seg; i++) {
             final double a0 = 2 * Math.PI * i / seg, a1 = 2 * Math.PI * (i + 1) / seg;
             final float c0 = (float) Math.cos(a0), s0 = (float) Math.sin(a0), c1 = (float) Math.cos(a1),
                 s1 = (float) Math.sin(a1);
             Hyb.triangle(
-                cx + hole * c0,
-                cy + hole * s0,
-                cx + body * c0,
-                cy + body * s0,
-                cx + body * c1,
-                cy + body * s1,
+                cx + inner * c0,
+                cy + inner * s0,
+                cx + outer * c0,
+                cy + outer * s0,
+                cx + outer * c1,
+                cy + outer * s1,
                 color);
             Hyb.triangle(
-                cx + hole * c0,
-                cy + hole * s0,
-                cx + body * c1,
-                cy + body * s1,
-                cx + hole * c1,
-                cy + hole * s1,
+                cx + inner * c0,
+                cy + inner * s0,
+                cx + outer * c1,
+                cy + outer * s1,
+                cx + inner * c1,
+                cy + inner * s1,
                 color);
-        }
-        for (int k = 0; k < 8; k++) {
-            final double a = k * Math.PI / 4;
-            final float[] b0 = polar(cx, cy, root, a - 0.30), b1 = polar(cx, cy, root, a + 0.30),
-                t0 = polar(cx, cy, tip, a - 0.19), t1 = polar(cx, cy, tip, a + 0.19);
-            Hyb.triangle(b0[0], b0[1], t0[0], t0[1], t1[0], t1[1], color);
-            Hyb.triangle(b0[0], b0[1], t1[0], t1[1], b1[0], b1[1], color);
         }
     }
 
@@ -1603,22 +1628,6 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             .sub("On the block at " + at[1] + ", " + at[2] + ", " + at[3])
             .action(Tip.Input.LEFT, "Pick another block")
             .action(Tip.Input.RIGHT, "Remove it from the world");
-    }
-
-    /** A map pin: a round head with a hole, on a point. */
-    private static void pin(final int x, final int y, final int color) {
-        Hyb.rect(x + 2, y, 4, 1, color);
-        Hyb.rect(x + 1, y + 1, 6, 1, color);
-        Hyb.rect(x, y + 2, 2, 3, color);
-        Hyb.rect(x + 6, y + 2, 2, 3, color);
-        Hyb.rect(x + 3, y + 2, 2, 1, color);
-        Hyb.rect(x + 2, y + 3, 1, 1, color);
-        Hyb.rect(x + 5, y + 3, 1, 1, color);
-        Hyb.rect(x + 3, y + 4, 2, 1, color);
-        Hyb.rect(x + 1, y + 5, 6, 1, color);
-        Hyb.rect(x + 2, y + 6, 4, 1, color);
-        Hyb.rect(x + 3, y + 7, 2, 2, color);
-        Hyb.rect(x + 3.5f, y + 9, 1, 2, color);
     }
 
     private void openActions() {
