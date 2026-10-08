@@ -161,6 +161,12 @@ public final class BoardScreen extends ModularScreen {
                 () -> true,
                 "Feedback and bug reports: a thread on the GT New Horizons Discord (join the server to see it)",
                 BoardScreen::openFeedback).marginLeft(GROUP_GAP));
+        topBar.child(
+            iconKey(
+                Arrow.GEAR,
+                () -> true,
+                "Settings",
+                () -> com.gtnhplanner.ui.popup.SettingsPanel.open(panel, Integer.MAX_VALUE / 2, TOP_BAR + 2)));
         topBar.child(key(() -> "?", () -> true, "Help: controls and shortcuts", 16, () -> showHelp(panel)));
 
         final Flow column = Flow.column()
@@ -316,7 +322,8 @@ public final class BoardScreen extends ModularScreen {
     private enum Arrow {
         UNDO,
         REDO,
-        FEEDBACK
+        FEEDBACK,
+        GEAR
     }
 
     /** Discord's blurple. */
@@ -351,6 +358,14 @@ public final class BoardScreen extends ModularScreen {
     private static void drawArrow(final Arrow arrow, final int x, final int y, final int c) {
         if (arrow == Arrow.FEEDBACK) {
             discord(x - 1, y - 1);
+            return;
+        }
+        if (arrow == Arrow.GEAR) {
+            // A gear, 9 by 9: eight teeth round a hollow hub.
+            final String[] rows = { "...###...", ".#.###.#.", ".#######.", "###...###", "###...###", "###...###",
+                ".#######.", ".#.###.#.", "...###..." };
+            for (int row = 0; row < rows.length; row++) for (int col = 0; col < rows[row].length(); col++)
+                if (rows[row].charAt(col) == '#') Hyb.rect(x + col, y - 1 + row, 1, 1, c);
             return;
         }
         final boolean undo = arrow == Arrow.UNDO;

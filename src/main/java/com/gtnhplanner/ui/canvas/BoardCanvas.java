@@ -256,6 +256,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             return;
         }
         // World space, under the cards.
+        labels.clear();
         final boolean timed = com.gtnhplanner.dev.DevPerf.on();
         final long started = timed ? System.nanoTime() : 0;
         final List<WireLayer.Wire> routed = wires.wires(cards, drawers, moveStart != null || glideStart >= 0);
@@ -270,13 +271,28 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     @Override
     public void postDraw(final ModularGuiContext context, final boolean transformed) {
         if (transformed) {
-            // Over the cards: the wire in hand and the selection box.
+            // Over the cards: the names when zoomed out, the wire in hand and the selection box.
+            if (com.gtnhplanner.ui.PlannerSettings.zoomedOutNames()) labels.draw(graph().getZoom());
             if (portDrag != null) drawPortDrag();
             drawBox();
         } else Stencil.remove();
     }
 
     // endregion
+
+    /** The names over cards and drawers zoomed far out, gathered as they draw and placed over everything. */
+    private final ZoomedOutLabels labels = new ZoomedOutLabels();
+
+    /** A card's name for the zoomed-out view (world coordinates). */
+    public void labelCard(final String name, final float x, final float y, final float w, final float h) {
+        labels.card(name, x, y, w, h);
+    }
+
+    /** A drawer's name for the zoomed-out view: a source's on its left, a product's on its right. */
+    public void labelDrawer(final String name, final float x, final float y, final float w, final float h,
+        final boolean source, final double rate) {
+        labels.drawer(name, x, y, w, h, source, rate);
+    }
 
     // region Moving cards and drawers, and box selection
 

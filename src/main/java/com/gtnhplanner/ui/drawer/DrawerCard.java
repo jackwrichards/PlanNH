@@ -306,6 +306,9 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         final float px = W - 4 - tw - 2 * pad, py = H - 4 - th - 2 * pad;
         Hyb.rect(px, py, tw + 2 * pad, th + 2 * pad, 0xC0101114);
         Hyb.text(rate, px + pad, py + pad, cs, color);
+        final BoardCanvas board = canvas();
+        if (board != null)
+            board.labelDrawer(m.label, m.drawer.getX(), m.drawer.getY(), W, H, m.kind == Drawer.Kind.SOURCE, m.rate);
     }
 
     /** A title-bar key: a hard dark edge, a dark face. */

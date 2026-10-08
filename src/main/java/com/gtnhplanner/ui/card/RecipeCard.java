@@ -431,6 +431,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final float px = w - rim - 4 - tw - 2 * pad, py = h - rim - 4 - th - 2 * pad;
         Hyb.rect(px, py, tw + 2 * pad, th + 2 * pad, 0xC0101114);
         Hyb.text(count, px + pad, py + pad, cs, pinned() ? Hyb.GOLD : machinesTotal() <= 0 ? Hyb.MUTED : Hyb.INK);
+        if (canvas() != null) canvas().labelCard(m.machineName, m.node.x, m.node.y, w, h);
     }
 
     /**
