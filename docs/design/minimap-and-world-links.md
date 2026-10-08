@@ -21,7 +21,7 @@ order they are built.
   wires as the board routed them, and with **Names when zoomed out** the same names, placed the same way.
 - What the mouse or crosshair is on is highlighted in one colour everywhere (`Hyb.LIT`, a soft gold, drawn faint):
   the resource under the mouse on the board, the card under the crosshair on the minimap and over the world, and the
-  wire under the crosshair over the world. The board's selection keeps its own colour.
+  wire under the crosshair over the world and on the minimap. The board's selection keeps its own colour.
 - The board publishes a `PlanSnapshot` (cards, drawers, wire paths, view centre, links) whenever it rebuilds its models
   or routes; the minimap draws the latest one. A plan changed while the planner is closed (NEI's plan button) marks the
   map out of date until the planner opens again.
@@ -69,10 +69,13 @@ Nothing shows until a card of the plan last open is placed.
   nine tenths of the room to its nearest placed neighbour, so neighbours never overlap seen square on; the size comes
   from where the cards are, never from where you stand. It shrinks with distance (always the whole card); seen at a
   slant, nearer cards cover farther ones. The spot looked at is outlined.
-- The plan's wires between placed cards run from spot centre to spot centre as connectors drawn over the world and
-  under the ghosts (`WorldMarks.connector`): a thin shaded tube in the resource's colour with arrowheads sliding
-  towards the card it feeds, and the resource's icon alone at its middle. The wire nearest the crosshair is lit, its
-  icon a little bigger, and labelled as the plan has it: what, how much, and from which card to which.
+- The plan's wires between placed cards are drawn flat on the screen as the board draws them, from where they leave
+  one spot to where they meet the other (cut short at the camera): a line in the resource's colour on a dark edge,
+  with arrowheads sliding towards the card fed, faint where nothing flows yet. At its middle a tag, one of the card's port
+  tiles (icon, name, rate) as big as the cards' ports are there, says what goes along it; tags of several wires between
+  the same two cards stack.
+- The wire the crosshair is on (its line or its tag) is highlighted, its tag names the two cards, and the minimap
+  highlights the same wire and (with "Centre on the machine you look at") glides to it.
 
 The earlier AR lens (every machine's live state, read from GregTech, with stats and charts) is shelved on the branch
 `shelf/ar-machine-lens`.

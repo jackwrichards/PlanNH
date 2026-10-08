@@ -6,8 +6,6 @@ import net.minecraft.client.renderer.entity.RenderManager;
 
 import org.lwjgl.opengl.GL11;
 
-import com.gtnhplanner.ui.theme.Hyb;
-
 /**
  * Drawing marks in the world, between {@link #begin()} and {@link #end()} in a world-last render: block outlines that
  * show through walls (faint where hidden, bright where seen), beams, lines, and labels that face the camera.
@@ -125,67 +123,6 @@ final class WorldMarks {
         t.draw();
     }
 
-    /**
-     * A connector from one machine to the one it feeds: a shaded tube in the resource's colour with arrowheads along it
-     * moving towards {@code b}, drawn over the world; {@code lit} thicker and brighter.
-     */
-    static void connector(final double ax, final double ay, final double az, final double bx, final double by,
-        final double bz, final int colour, final boolean flowing, final boolean lit) {
-        final int rgb = lit ? Hyb.mix(0xFF000000 | colour, Hyb.LIT, 0.4f) & 0xFFFFFF : colour;
-        final double dx = bx - ax, dy = by - ay, dz = bz - az;
-        final double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (len < 0.3) return;
-        final double[] d = { dx / len, dy / len, dz / len };
-        // Two directions across the tube.
-        final double[] up = Math.abs(d[1]) > 0.9 ? new double[] { 1, 0, 0 } : new double[] { 0, 1, 0 };
-        final double[] u = norm(cross(d, up)), v = cross(d, u);
-        // Drawn over the world, as the rest of the plan's overlay: squeezed to the front of the depth range, the depth
-        // test only sorts the tube and its arrowheads among themselves.
-        GL11.glDepthRange(0, 0.002);
-        GL11.glEnable(GL11.GL_DEPTH_TEST);
-        GL11.glDepthMask(true);
-        final double r = lit ? 0.05 : 0.035;
-        final Tessellator t = Tessellator.instance;
-        t.startDrawingQuads();
-        final int sides = 10;
-        for (int i = 0; i < sides; i++) {
-            final double a0 = 2 * Math.PI * i / sides, a1 = 2 * Math.PI * (i + 1) / sides;
-            final double[] n0 = ring(u, v, a0), n1 = ring(u, v, a1);
-            t.setColorRGBA_I(shade(rgb, n0, n1), 235);
-            t.addVertex(ax + n0[0] * r, ay + n0[1] * r, az + n0[2] * r);
-            t.addVertex(bx + n0[0] * r, by + n0[1] * r, bz + n0[2] * r);
-            t.addVertex(bx + n1[0] * r, by + n1[1] * r, bz + n1[2] * r);
-            t.addVertex(ax + n1[0] * r, ay + n1[1] * r, az + n1[2] * r);
-        }
-        t.draw();
-        // An arrowhead every block and a quarter, sliding along while something flows.
-        final double gap = 1.25;
-        final double phase = flowing ? (System.currentTimeMillis() % 900L) / 900.0 * gap : gap / 2;
-        final int head = Hyb.mix(0xFF000000 | rgb, 0xFFFFFFFF, 0.3f) & 0xFFFFFF;
-        t.startDrawing(GL11.GL_TRIANGLES);
-        for (double at = phase; at < len - 0.45; at += gap) {
-            if (at < 0.45) continue;
-            final double cx = ax + d[0] * at, cy = ay + d[1] * at, cz = az + d[2] * at;
-            final double tip = lit ? 0.26 : 0.2, br = lit ? 0.12 : 0.09;
-            final double tx = cx + d[0] * tip, ty = cy + d[1] * tip, tz = cz + d[2] * tip;
-            for (int i = 0; i < 8; i++) {
-                final double a0 = 2 * Math.PI * i / 8, a1 = 2 * Math.PI * (i + 1) / 8;
-                final double[] n0 = ring(u, v, a0), n1 = ring(u, v, a1);
-                t.setColorRGBA_I(shade(head, n0, n1), 255);
-                t.addVertex(cx + n0[0] * br, cy + n0[1] * br, cz + n0[2] * br);
-                t.addVertex(cx + n1[0] * br, cy + n1[1] * br, cz + n1[2] * br);
-                t.addVertex(tx, ty, tz);
-                t.setColorRGBA_I(shade(head, d, d) & 0x7F7F7F, 255);
-                t.addVertex(cx + n1[0] * br, cy + n1[1] * br, cz + n1[2] * br);
-                t.addVertex(cx + n0[0] * br, cy + n0[1] * br, cz + n0[2] * br);
-                t.addVertex(cx, cy, cz);
-            }
-        }
-        t.draw();
-        GL11.glDepthMask(false);
-        GL11.glDepthRange(0, 1);
-    }
-
     private static final net.minecraft.client.renderer.RenderBlocks GHOST = new net.minecraft.client.renderer.RenderBlocks();
 
     /**
@@ -221,31 +158,6 @@ final class WorldMarks {
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         GL11.glDisable(GL11.GL_LIGHTING);
         GL11.glPopMatrix();
-    }
-
-    private static double[] ring(final double[] u, final double[] v, final double a) {
-        final double c = Math.cos(a), s = Math.sin(a);
-        return new double[] { u[0] * c + v[0] * s, u[1] * c + v[1] * s, u[2] * c + v[2] * s };
-    }
-
-    /** The colour lit from above and a little to the side, for a face whose normal lies between two directions. */
-    private static int shade(final int rgb, final double[] n0, final double[] n1) {
-        final double nx = n0[0] + n1[0], ny = n0[1] + n1[1], nz = n0[2] + n1[2];
-        final double l = Math.sqrt(nx * nx + ny * ny + nz * nz);
-        final double lit = l == 0 ? 0.5 : Math.max(0, (nx * 0.3 + ny * 0.85 + nz * 0.42) / l);
-        final float k = (float) (0.45 + 0.55 * lit);
-        final int r = Math.min(255, (int) ((rgb >> 16 & 0xFF) * k)), g = Math.min(255, (int) ((rgb >> 8 & 0xFF) * k)),
-            b = Math.min(255, (int) ((rgb & 0xFF) * k));
-        return r << 16 | g << 8 | b;
-    }
-
-    private static double[] cross(final double[] a, final double[] b) {
-        return new double[] { a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0] };
-    }
-
-    private static double[] norm(final double[] a) {
-        final double l = Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]);
-        return new double[] { a[0] / l, a[1] / l, a[2] / l };
     }
 
     /**

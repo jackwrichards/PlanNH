@@ -24,8 +24,8 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
  * {@link PlanSnapshot} as the board draws it zoomed out (cards with their machine and count, drawers with their
  * resource and rate, the wires as the board routed them, and with "Names when zoomed out" the same names placed the
  * same
- * way). Its size, shape, corner and zoom are settings; the arrow keys pan it, and it can follow the placed card under
- * the crosshair, highlighting it.
+ * way). Its size, shape, corner and zoom are settings; the arrow keys pan it, and it highlights (and can follow) the
+ * placed card or the plan's wire under the crosshair over the world.
  */
 public final class Minimap {
 
@@ -37,6 +37,9 @@ public final class Minimap {
     /** The card to ring and glide to (the linked machine under the crosshair), or null. */
     @Nullable
     private UUID focus;
+    /** The wire to highlight and glide to (the plan's wire under the crosshair over the world), or null. */
+    @Nullable
+    private PlanSnapshot.Line wire;
 
     private Minimap() {}
 
@@ -57,6 +60,11 @@ public final class Minimap {
     /** The card of the linked machine under the crosshair, which the map rings and (when set) centres on. */
     public void focus(@Nullable final UUID cardId) {
         focus = cardId;
+    }
+
+    /** The plan's wire under the crosshair over the world, which the map highlights and (when set) centres on. */
+    public void focusWire(@Nullable final PlanSnapshot.Line line) {
+        wire = line;
     }
 
     private void startAtBoardView() {
@@ -112,15 +120,19 @@ public final class Minimap {
         // Centre: the board's view, or where the player panned it, gliding to the card under the crosshair.
         if (!placed) startAtBoardView();
         final PlanSnapshot.Card focused = focus == null ? null : snap.cardOf(focus);
-        if (focused != null && PlannerSettings.minimapFollows()) {
-            centreX += (focused.x() + focused.w() / 2 - centreX) * 0.2f;
-            centreY += (focused.y() + focused.h() / 2 - centreY) * 0.2f;
+        final PlanSnapshot.Line lit = wire != null && snap.wires()
+            .contains(wire) ? wire : null;
+        final float[] to = lit != null ? middle(lit)
+            : focused != null ? new float[] { focused.x() + focused.w() / 2, focused.y() + focused.h() / 2 } : null;
+        if (to != null && PlannerSettings.minimapFollows()) {
+            centreX += (to[0] - centreX) * 0.2f;
+            centreY += (to[1] - centreY) * 0.2f;
         }
         final float z = zoom();
         final float ox = x0 + size / 2f - centreX * z, oy = y0 + size / 2f - centreY * z;
         clipBegin(sr, x0, y0, size, circle);
         LABELS.clear();
-        drawWires(snap.wires(), ox, oy, z);
+        drawWires(snap.wires(), ox, oy, z, lit);
         drawDrawers(snap.drawers(), ox, oy, z, snap.rateUnit());
         drawCards(snap.cards(), ox, oy, z, focused);
         if (PlannerSettings.zoomedOutNames()) {
@@ -262,21 +274,53 @@ public final class Minimap {
         roundR = Float.MAX_VALUE;
     }
 
-    private static void drawWires(final List<PlanSnapshot.Line> lines, final float ox, final float oy, final float z) {
+    /** The wires as the board routed them; {@code lit} on top, in the highlight with a soft halo. */
+    private static void drawWires(final List<PlanSnapshot.Line> lines, final float ox, final float oy, final float z,
+        @Nullable final PlanSnapshot.Line lit) {
         Hyb.beginBatch();
         for (final PlanSnapshot.Line l : lines) {
+            if (l == lit) continue;
             final float w = Math.max(1, l.width() * z * 0.8f);
-            final int color = l.flowing() ? l.color() : l.color() & 0x00FFFFFF | 0x80000000;
-            final List<int[]> p = l.path();
-            for (int i = 1; i < p.size(); i++) segment(
-                ox + p.get(i - 1)[0] * z,
-                oy + p.get(i - 1)[1] * z,
-                ox + p.get(i)[0] * z,
-                oy + p.get(i)[1] * z,
-                w,
-                color);
+            path(l, ox, oy, z, w, l.flowing() ? l.color() : l.color() & 0x00FFFFFF | 0x80000000);
+        }
+        if (lit != null) {
+            final float w = Math.max(1.5f, lit.width() * z * 0.8f);
+            path(lit, ox, oy, z, w + 4, 0x50000000 | Hyb.LIT & 0xFFFFFF);
+            path(lit, ox, oy, z, w, Hyb.mix(0xFF000000 | lit.color(), Hyb.LIT, 0.6f));
         }
         Hyb.endBatch();
+    }
+
+    private static void path(final PlanSnapshot.Line l, final float ox, final float oy, final float z, final float w,
+        final int color) {
+        final List<int[]> p = l.path();
+        for (int i = 1; i < p.size(); i++) segment(
+            ox + p.get(i - 1)[0] * z,
+            oy + p.get(i - 1)[1] * z,
+            ox + p.get(i)[0] * z,
+            oy + p.get(i)[1] * z,
+            w,
+            color);
+    }
+
+    /** Halfway along a wire's route, on the board. */
+    private static float[] middle(final PlanSnapshot.Line l) {
+        final List<int[]> p = l.path();
+        double total = 0;
+        for (int i = 1; i < p.size(); i++)
+            total += Math.hypot(p.get(i)[0] - p.get(i - 1)[0], p.get(i)[1] - p.get(i - 1)[1]);
+        double left = total / 2;
+        for (int i = 1; i < p.size(); i++) {
+            final int[] a = p.get(i - 1), b = p.get(i);
+            final double run = Math.hypot(b[0] - a[0], b[1] - a[1]);
+            if (run >= left && run > 0) {
+                final double t = left / run;
+                return new float[] { (float) (a[0] + (b[0] - a[0]) * t), (float) (a[1] + (b[1] - a[1]) * t) };
+            }
+            left -= run;
+        }
+        final int[] end = p.get(p.size() - 1);
+        return new float[] { end[0], end[1] };
     }
 
     /** A run of wire {@code w} wide: a rectangle when straight, two triangles when diagonal. */

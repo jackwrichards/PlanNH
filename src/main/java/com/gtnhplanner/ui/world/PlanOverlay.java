@@ -33,12 +33,12 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
 
 /**
- * The plan overlaid on the world: every card of the plan last open in the planner that has been placed on a block is
- * drawn floating over that block as the board draws it, a stem down to the block, which is boxed in the machine's
- * colour; as big as an object two and a half blocks wide (so it shrinks with
- * distance, and turns into the board's zoomed-out card when small), nearer cards over farther ones; the plan's wires
- * between placed cards run between their blocks as connectors with arrows. Nothing shows until a card is placed. The
- * card looked at is ringed.
+ * The plan overlaid on the world: every card of the plan last open in the planner that has been placed on a spot is
+ * drawn floating over it as the board draws it, a stem down to the spot, where a ghost of its machine stands; as big as
+ * an object (so it shrinks with distance), nearer cards over farther ones. The plan's wires between placed cards are
+ * drawn flat on the screen as the board draws them, from block to block, with arrowheads moving towards the card fed
+ * and a tag naming what goes along and how much. Nothing shows until a card is placed. What the crosshair is on is
+ * highlighted.
  */
 public final class PlanOverlay {
 
@@ -80,6 +80,10 @@ public final class PlanOverlay {
      * where its ends fell on the screen this frame.
      */
     private record Conn(Placed from, Placed to, PlanSnapshot.Line line, @Nullable PlanSnapshot.Flow flow) {
+
+        String what() {
+            return flow != null ? flow.name() : "Wire";
+        }
 
         boolean same(@Nullable final Conn o) {
             return o != null && o.line.from()
@@ -185,17 +189,6 @@ public final class PlanOverlay {
         final List<Placed> placed = placed(mc);
         if (placed.isEmpty()) return;
         WorldMarks.begin();
-        // The plan's wires, centre to centre, under the ghosts.
-        for (final Conn c : conns(placed)) WorldMarks.connector(
-            c.from.x + 0.5,
-            c.from.y + 0.5,
-            c.from.z + 0.5,
-            c.to.x + 0.5,
-            c.to.y + 0.5,
-            c.to.z + 0.5,
-            c.line.color() & 0xFFFFFF,
-            c.line.flowing(),
-            c.same(hovered));
         // Each placed card's spot: the machine's ghost (unless the machine is built there); the one looked at outlined.
         for (final Placed p : placed) {
             if (p.card.machine() != null && !built(mc, p)) WorldMarks.ghost(p.card.machine(), p.x, p.y, p.z);
@@ -244,7 +237,9 @@ public final class PlanOverlay {
     /** Under the minimap, which goes over them. */
     @SubscribeEvent(priority = cpw.mods.fml.common.eventhandler.EventPriority.HIGH)
     public void onOverlay(final RenderGameOverlayEvent.Post event) {
-        if (event.type != RenderGameOverlayEvent.ElementType.ALL || !on() || !cameraKnown) return;
+        if (event.type != RenderGameOverlayEvent.ElementType.ALL) return;
+        Minimap.INSTANCE.focusWire(null);
+        if (!on() || !cameraKnown) return;
         final Minecraft mc = Minecraft.getMinecraft();
         if (mc.currentScreen != null || mc.gameSettings.hideGUI || LinkPicker.active()) return;
         final PlanSnapshot snap = PlanSnapshot.latest();
@@ -253,24 +248,23 @@ public final class PlanOverlay {
         final List<Placed> all = placed(mc);
         final List<Placed> shown = new ArrayList<>();
         for (final Placed p : all) if (project(p, sr, mc)) shown.add(p);
-        // Each wire's middle on the screen: what goes along it, as its icon; and the one nearest the crosshair.
+        // The plan's wires, flat on the screen as the board draws them, and the one the crosshair is on.
         final float cx = sr.getScaledWidth() / 2f, cy = sr.getScaledHeight() / 2f;
-        Conn near = null;
+        final List<Run> runs = runs(conns(all), sr, mc, snap);
+        Run near = null;
         float nearest = 7;
-        for (final Conn c : conns(all)) {
-            final float[] a = screen(c.from.x + 0.5, c.from.y + 0.5, c.from.z + 0.5, sr, mc);
-            final float[] b = screen(c.to.x + 0.5, c.to.y + 0.5, c.to.z + 0.5, sr, mc);
-            if (a == null || b == null) continue;
-            final float d = distance(cx, cy, a, b);
+        for (final Run r : runs) {
+            final float d = r.covers(cx, cy) ? 0 : distance(cx, cy, r.ax, r.ay, r.bx, r.by);
             if (d < nearest) {
                 nearest = d;
-                near = c;
+                near = r;
             }
-            final float[] mid = { (a[0] + b[0]) / 2f, (a[1] + b[1]) / 2f };
-            if (c.flow != null && Math.hypot(b[0] - a[0], b[1] - a[1]) > 40)
-                wireIcon(c.flow, mid[0], mid[1], c.same(hovered));
         }
-        hovered = near;
+        hovered = near == null ? null : near.conn;
+        if (hovered != null) Minimap.INSTANCE.focusWire(hovered.line);
+        Hyb.beginBatch();
+        for (final Run r : runs) wire(r, r.conn.same(hovered));
+        Hyb.endBatch();
         // Far to near, so nearer cards cover farther ones as objects do.
         for (int i = shown.size() - 1; i >= 0; i--) {
             final Placed p = shown.get(i);
@@ -287,53 +281,203 @@ public final class PlanOverlay {
             PlanCardView.draw(p.card, snap.rateUnit(), ringed);
             GL11.glPopMatrix();
         }
-        if (near != null) wireLabel(near, snap, cx, cy);
+        // Over the cards: what each wire carries.
+        for (final Run r : runs) if (!r.conn.same(hovered)) tag(r, false);
+        if (near != null) tag(near, true);
         GL11.glColor4f(1, 1, 1, 1);
         GL11.glEnable(GL11.GL_TEXTURE_2D);
     }
 
+    // region The wires
+
+    /** Height of a wire's tag, unscaled: a port tile as the card's. */
+    private static final int TAG_H = CardLayout.ROW;
+
+    /**
+     * A wire on the screen this frame: its ends (where it leaves one block and meets the other, cut short at the
+     * camera), how big its tag is drawn, and the tag's text and box.
+     */
+    private static final class Run {
+
+        final Conn conn;
+        final float ax, ay, bx, by, scale;
+        final String name, rate, route;
+        float tx, ty, tw, th;
+
+        Run(final Conn conn, final float[] a, final float[] b, final float scale, final String name,
+            final String rate) {
+            this.conn = conn;
+            this.ax = a[0];
+            this.ay = a[1];
+            this.bx = b[0];
+            this.by = b[1];
+            this.scale = scale;
+            this.name = name;
+            this.rate = rate;
+            this.route = conn.from.card.name() + "  →  " + conn.to.card.name();
+        }
+
+        boolean covers(final float x, final float y) {
+            return x >= tx && x < tx + tw && y >= ty && y < ty + th;
+        }
+    }
+
+    /** Each wire's run on the screen, its tag placed at its middle (stacked where two cards share several wires). */
+    private List<Run> runs(final List<Conn> conns, final ScaledResolution sr, final Minecraft mc,
+        final PlanSnapshot snap) {
+        final List<Run> out = new ArrayList<>();
+        final Map<String, List<Run>> between = new HashMap<>();
+        for (final Conn c : conns) {
+            // From where the wire leaves the one block to where it meets the other.
+            final double dx = c.to.x - c.from.x, dy = c.to.y - c.from.y, dz = c.to.z - c.from.z;
+            final double edge = 0.5 / Math.max(Math.abs(dx), Math.max(Math.abs(dy), Math.abs(dz)));
+            if (edge >= 0.5) continue;
+            final double[] a = { c.from.x + 0.5 + dx * edge, c.from.y + 0.5 + dy * edge, c.from.z + 0.5 + dz * edge };
+            final double[] b = { c.to.x + 0.5 - dx * edge, c.to.y + 0.5 - dy * edge, c.to.z + 0.5 - dz * edge };
+            if (!inFront(a, b)) continue;
+            final float[] sa = screen(a[0], a[1], a[2], sr, mc), sb = screen(b[0], b[1], b[2], sr, mc);
+            final double mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, mz = (a[2] + b[2]) / 2;
+            final float[] mid = screen(mx, my, mz, sr, mc), up = screen(mx, my + 1, mz, sr, mc);
+            if (sa == null || sb == null || mid == null) continue;
+            // As big as the cards' own port tiles would be there.
+            final float perBlock = up == null ? 0 : Math.abs(mid[1] - up[1]);
+            final float scale = Math.min(1f, Math.min(c.from.blocks, c.to.blocks) * perBlock / CardLayout.W);
+            final PlanSnapshot.Flow f = c.flow;
+            final String rate = f == null ? ""
+                : f.power() ? com.gtnhplanner.ui.theme.Fmt.power(f.perSecond() / 20) + " EU/t"
+                    : com.gtnhplanner.ui.theme.Fmt.rate(f.perSecond(), snap.rateUnit(), f.fluid() != null);
+            final Run r = new Run(c, sa, sb, scale, Hyb.fit(c.what(), 140), rate);
+            r.tw = (CardLayout.TEXT_X + Math.max(Hyb.width(r.name), Hyb.width(rate)) + 6) * scale;
+            r.th = TAG_H * scale;
+            r.tx = mid[0] - r.tw / 2;
+            r.ty = mid[1] - r.th / 2;
+            final UUID lo = c.from.card.id()
+                .compareTo(c.to.card.id()) < 0 ? c.from.card.id() : c.to.card.id();
+            final UUID hi = lo == c.from.card.id() ? c.to.card.id() : c.from.card.id();
+            between.computeIfAbsent(lo + "/" + hi, key -> new ArrayList<>())
+                .add(r);
+            out.add(r);
+        }
+        // Several wires between the same two cards share a middle: their tags stack, centred on it.
+        for (final List<Run> group : between.values()) {
+            if (group.size() < 2) continue;
+            float total = 0;
+            for (final Run r : group) total += r.th + 2;
+            float y = group.get(0).ty + group.get(0).th / 2 - total / 2;
+            for (final Run r : group) {
+                r.ty = y;
+                y += r.th + 2;
+            }
+        }
+        return out;
+    }
+
+    /** Cuts a segment short where it passes behind the camera; false when all of it is behind. */
+    private boolean inFront(final double[] a, final double[] b) {
+        final float near = 0.1f;
+        final float za = eyeZ(a), zb = eyeZ(b);
+        if (za > -near && zb > -near) return false;
+        if (za > -near || zb > -near) {
+            final double t = (-near - za) / (zb - za);
+            final double[] cut = { a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t };
+            System.arraycopy(cut, 0, za > -near ? a : b, 0, 3);
+        }
+        return true;
+    }
+
+    /** How far in front of the camera a point is, negative in front (the camera looks down its -z). */
+    private float eyeZ(final double[] p) {
+        final float x = (float) (p[0] - camX), y = (float) (p[1] - camY), z = (float) (p[2] - camZ);
+        return modelview.get(2) * x + modelview.get(6) * y + modelview.get(10) * z + modelview.get(14);
+    }
+
     /** A point's distance from a segment on the screen. */
-    private static float distance(final float px, final float py, final float[] a, final float[] b) {
-        final float dx = b[0] - a[0], dy = b[1] - a[1];
+    private static float distance(final float px, final float py, final float ax, final float ay, final float bx,
+        final float by) {
+        final float dx = bx - ax, dy = by - ay;
         final float len2 = dx * dx + dy * dy;
-        final float t = len2 == 0 ? 0 : Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy) / len2));
-        return (float) Math.hypot(px - (a[0] + t * dx), py - (a[1] + t * dy));
+        final float t = len2 == 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+        return (float) Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
     }
 
-    /** What goes along a wire, at its middle: the item or fluid alone, a little bigger when the wire is lit. */
-    private static void wireIcon(final PlanSnapshot.Flow f, final float x, final float y, final boolean lit) {
-        final int size = lit ? 22 : 18;
-        final float ix = Math.round(x - size / 2f), iy = Math.round(y - size / 2f);
-        if (f.power()) RecipeCard.euIcon(ix, iy, size);
-        else com.gtnhplanner.ui.theme.Hyb.icon(f.item(), f.fluid(), ix, iy, size, 0);
-        GL11.glDisable(GL11.GL_LIGHTING);
-        GL11.glDisable(GL11.GL_DEPTH_TEST);
+    /**
+     * A wire as the board draws one, in the resource's colour on a dark edge, with arrowheads sliding along towards the
+     * card it feeds; faint where nothing flows yet; brighter and thicker when the crosshair is on it.
+     */
+    private static void wire(final Run r, final boolean lit) {
+        final float dx = r.bx - r.ax, dy = r.by - r.ay;
+        final float len = (float) Math.hypot(dx, dy);
+        if (len < 4) return;
+        final float ux = dx / len, uy = dy / len;
+        final int base = 0xFF000000 | r.conn.line.color() & 0xFFFFFF;
+        final int colour = lit ? Hyb.mix(base, Hyb.LIT, 0.35f) : base;
+        final boolean flowing = r.conn.line.flowing();
+        final float w = lit ? Math.max(2f, 4.5f * r.scale) : Math.max(1.2f, 3f * r.scale);
+        band(r.ax, r.ay, r.bx, r.by, w + 2, flowing || lit ? 0xB0000000 : 0x70000000);
+        band(r.ax, r.ay, r.bx, r.by, w, flowing || lit ? colour : colour & 0x00FFFFFF | 0x99000000);
+        // Arrowheads every so often, moving at a steady pace.
+        final float gap = 40 + 30 * r.scale, head = 4.5f * w, half = 2.4f * w;
+        final float offset = (System.currentTimeMillis() % 600L) / 600f * gap;
+        final int tip = Hyb.mix(colour, 0xFFFFFFFF, 0.45f);
+        for (float at = offset; at < len; at += gap) {
+            if (at < head || at > len - head) continue;
+            final float px = r.ax + ux * at, py = r.ay + uy * at;
+            final float fx = px + ux * head * 0.6f, fy = py + uy * head * 0.6f;
+            final float bx = px - ux * head * 0.4f, by = py - uy * head * 0.4f;
+            Hyb.triangle(
+                fx + ux,
+                fy + uy,
+                bx - uy * (half + 1),
+                by + ux * (half + 1),
+                bx + uy * (half + 1),
+                by - ux * (half + 1),
+                0xB0000000);
+            Hyb.triangle(fx, fy, bx - uy * half, by + ux * half, bx + uy * half, by - ux * half, tip);
+        }
     }
 
-    /** The wire under the crosshair, as the board would name it: what, how much, from which card to which. */
-    private static void wireLabel(final Conn c, final PlanSnapshot snap, final float cx, final float cy) {
-        final String what = c.flow != null ? c.flow.name() : "Wire";
-        final String rate = c.flow == null ? ""
-            : c.flow.power() ? com.gtnhplanner.ui.theme.Fmt.power(c.flow.perSecond() / 20) + " EU/t"
-                : com.gtnhplanner.ui.theme.Fmt.rate(c.flow.perSecond(), snap.rateUnit(), c.flow.fluid() != null);
-        final String route = c.from.card.name() + "  →  " + c.to.card.name();
-        final int w = Math.max(
-            22 + com.gtnhplanner.ui.theme.Hyb.width(what) + 8 + com.gtnhplanner.ui.theme.Hyb.width(rate),
-            com.gtnhplanner.ui.theme.Hyb.width(route)) + 12;
-        final float x = Math.round(cx + 12), y = Math.round(cy + 10);
-        com.gtnhplanner.ui.theme.Hyb.rect(x - 1, y - 1, w + 2, 32, com.gtnhplanner.ui.theme.Hyb.FRAME);
-        com.gtnhplanner.ui.theme.Hyb.rect(x, y, w, 30, 0xF0141416);
-        com.gtnhplanner.ui.theme.Hyb.rect(x, y, 2, 30, 0xFF000000 | c.line.color());
-        if (c.flow != null) {
-            if (c.flow.power()) RecipeCard.euIcon(x + 6, y + 3, 12);
-            else com.gtnhplanner.ui.theme.Hyb.icon(c.flow.item(), c.flow.fluid(), x + 6, y + 3, 12, 0);
+    /** A straight band {@code w} wide from one point to another. */
+    private static void band(final float ax, final float ay, final float bx, final float by, final float w,
+        final int colour) {
+        final float len = (float) Math.hypot(bx - ax, by - ay), h = w / 2;
+        final float nx = -(by - ay) / len * h, ny = (bx - ax) / len * h;
+        Hyb.triangle(ax + nx, ay + ny, bx + nx, by + ny, bx - nx, by - ny, colour);
+        Hyb.triangle(ax + nx, ay + ny, bx - nx, by - ny, ax - nx, ay - ny, colour);
+    }
+
+    /**
+     * What a wire carries, at its middle, as a port tile of the card (and as big as the cards' are there): the item or
+     * fluid, its name over its rate. The wire the crosshair is on is highlighted and also names the cards it runs
+     * between.
+     */
+    private static void tag(final Run r, final boolean lit) {
+        GL11.glPushMatrix();
+        GL11.glTranslatef(r.tx, r.ty, 0);
+        GL11.glScalef(r.scale, r.scale, 1);
+        final int w = Math.round(r.tw / r.scale), h = TAG_H;
+        if (lit) Hyb.ring(-2, -2, w + 4, h + 4, 2, 0xC0000000 | Hyb.LIT & 0xFFFFFF);
+        Hyb.tile(0, 0, w, h);
+        final PlanSnapshot.Flow f = r.conn.flow;
+        if (f != null) {
+            if (f.power()) RecipeCard.euIcon(CardLayout.ICON_X, CardLayout.ICON_Y, CardLayout.ICON);
+            else Hyb.icon(f.item(), f.fluid(), CardLayout.ICON_X, CardLayout.ICON_Y, CardLayout.ICON, 0);
             GL11.glDisable(GL11.GL_LIGHTING);
             GL11.glDisable(GL11.GL_DEPTH_TEST);
         }
-        com.gtnhplanner.ui.theme.Hyb.text(what, x + 22, y + 5, com.gtnhplanner.ui.theme.Hyb.INK);
-        com.gtnhplanner.ui.theme.Hyb.textRight(rate, x + w - 6, y + 5, com.gtnhplanner.ui.theme.Hyb.PRODUCT_INK);
-        com.gtnhplanner.ui.theme.Hyb.text(route, x + 6, y + 18, com.gtnhplanner.ui.theme.Hyb.MUTED);
+        final int top = (CardLayout.ROW - 17) / 2;
+        Hyb.text(r.name, CardLayout.TEXT_X, top, Hyb.INK);
+        Hyb.text(r.rate, CardLayout.TEXT_X, top + 9, Hyb.MUTED);
+        GL11.glPopMatrix();
+        // The two cards, at the screen's own scale so they read however far the wire is.
+        if (lit) {
+            final int rw = Hyb.width(r.route) + 8;
+            final float rx = Math.round(r.tx + (r.tw - rw) / 2f), ry = Math.round(r.ty + r.th + 4);
+            Hyb.rect(rx, ry, rw, 11, 0xE0101114);
+            Hyb.text(r.route, rx + 4, ry + 2, Hyb.MUTED);
+        }
     }
+
+    // endregion
 
     /**
      * Where a card's foot (floating {@link #LIFT} blocks over its block) and its block's top fall on the GUI, and the
