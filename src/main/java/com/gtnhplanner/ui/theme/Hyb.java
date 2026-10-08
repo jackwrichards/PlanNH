@@ -41,6 +41,11 @@ public final class Hyb {
     public static final int CANVAS_DOT = 0xFF26282D;
     public static final int GOLD = 0xFFFFD257;
     public static final int SELECTION = 0xFF22D3EE;
+    /**
+     * What the mouse or the crosshair is on (a resource, a card, a wire, a placed spot), the same everywhere: on the
+     * board, on the minimap and over the world. Drawn faint: a thin line and a soft halo.
+     */
+    public static final int LIT = 0xFFFFD257;
     public static final int MENU = 0xFF3C3E45;
     public static final int MENU_HOVER = 0xFF4E5058;
     public static final int RED_INK = 0xFFE05252;

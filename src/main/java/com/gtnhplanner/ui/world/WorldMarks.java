@@ -68,15 +68,21 @@ final class WorldMarks {
      * pushes it out past the block's faces.
      */
     static void outline(final int x, final int y, final int z, final int rgb, final float grow, final float width) {
+        outline(x, y, z, rgb, grow, width, 1f);
+    }
+
+    /** {@link #outline} at a fraction of its strength. */
+    static void outline(final int x, final int y, final int z, final int rgb, final float grow, final float width,
+        final float strength) {
         final double x0 = x - grow, y0 = y - grow, z0 = z - grow, x1 = x + 1 + grow, y1 = y + 1 + grow,
             z1 = z + 1 + grow;
         GL11.glLineWidth(width);
         GL11.glDisable(GL11.GL_DEPTH_TEST);
-        box(x0, y0, z0, x1, y1, z1, rgb, 0.06f);
-        edges(x0, y0, z0, x1, y1, z1, rgb, 0.35f);
+        box(x0, y0, z0, x1, y1, z1, rgb, 0.06f * strength);
+        edges(x0, y0, z0, x1, y1, z1, rgb, 0.35f * strength);
         GL11.glEnable(GL11.GL_DEPTH_TEST);
         GL11.glDepthFunc(GL11.GL_LEQUAL);
-        edges(x0, y0, z0, x1, y1, z1, rgb, 1f);
+        edges(x0, y0, z0, x1, y1, z1, rgb, strength);
     }
 
     /** A soft column of light from the top of a block up into the sky, seen through everything. */
@@ -125,7 +131,7 @@ final class WorldMarks {
      */
     static void connector(final double ax, final double ay, final double az, final double bx, final double by,
         final double bz, final int colour, final boolean flowing, final boolean lit) {
-        final int rgb = lit ? Hyb.mix(0xFF000000 | colour, 0xFFFFFFFF, 0.35f) & 0xFFFFFF : colour;
+        final int rgb = lit ? Hyb.mix(0xFF000000 | colour, Hyb.LIT, 0.4f) & 0xFFFFFF : colour;
         final double dx = bx - ax, dy = by - ay, dz = bz - az;
         final double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (len < 0.3) return;
@@ -138,7 +144,7 @@ final class WorldMarks {
         GL11.glDepthRange(0, 0.002);
         GL11.glEnable(GL11.GL_DEPTH_TEST);
         GL11.glDepthMask(true);
-        final double r = lit ? 0.06 : 0.035;
+        final double r = lit ? 0.05 : 0.035;
         final Tessellator t = Tessellator.instance;
         t.startDrawingQuads();
         final int sides = 10;

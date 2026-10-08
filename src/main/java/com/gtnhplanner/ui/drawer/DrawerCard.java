@@ -215,9 +215,11 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         }
         if (session.isSelected(drawerId)) Hyb.roundRect(-2, -2, W + 4, H + 4, r + 2, Hyb.SELECTION);
         if (lit) {
-            for (int i = 4; i >= 1; i--) Hyb.roundRect(-i, -i, W + 2 * i, H + 2 * i, r + i, 0x26FFCA54);
+            for (int i = 3; i >= 1; i--)
+                Hyb.roundRect(-i, -i, W + 2 * i, H + 2 * i, r + i, 0x16000000 | Hyb.LIT & 0xFFFFFF);
         }
-        final int frame = accepts ? 0xFF53EAFD : lit ? Hyb.GOLD : Hyb.mix(tint, 0x262B34, 0.55f);
+        final int frame = accepts ? 0xFF53EAFD
+            : lit ? Hyb.mix(Hyb.mix(tint, 0x262B34, 0.55f), Hyb.LIT, 0.7f) : Hyb.mix(tint, 0x262B34, 0.55f);
         Hyb.roundRect(0, 0, W, H, r, frame);
         if (session.graph()
             .getZoom() <= com.gtnhplanner.ui.card.RecipeCard.GLANCE_ZOOM) {

@@ -1,13 +1,8 @@
 package com.gtnhplanner.ui.world;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
-
-import net.minecraft.world.World;
-import net.minecraft.world.chunk.Chunk;
 
 import com.gtnhplanner.api.PlanAPI;
 import com.gtnhplanner.data.flowchart.Graph;
@@ -15,9 +10,11 @@ import com.gtnhplanner.data.flowchart.Node;
 import com.gtnhplanner.data.flowchart.Plan;
 
 /**
- * Plan cards placed on blocks in the world ({@link Node#worldLinks}): which card a block holds, and placing or removing
- * one. A card is placed on one block, and a block holds one card: placing a card on a block takes the block from any
- * other card, in any plan. A link edit is an undo step and is saved, but does not count as a change to the plan:
+ * Plan cards placed in the world ({@link Node#worldLinks}): which card a spot holds, and placing or removing one. A
+ * spot
+ * is a block's place, often an imaginary block in front of a real one: breaking blocks never moves it. A card is placed
+ * on one spot, and a spot holds one card: placing a card on a spot takes it from any other card, in any plan. A link
+ * edit is an undo step and is saved, but does not count as a change to the plan:
  * nothing
  * is
  * solved again and the minimap does not go out of date.
@@ -131,37 +128,72 @@ public final class WorldLinks {
     }
 
     /**
-     * Unlinks every linked block in this dimension that is gone (air now), in every plan: one undo step per plan.
-     * Only blocks in chunks the client has are checked: an unloaded chunk reads as air. Returns the cards that lost
-     * blocks, by name.
+     * The placed card whose spot a ray from the eye meets first, within range, through anything (the plan is drawn
+     * over the world), in {@code only} or every plan; or null. Spots are whole blocks, often empty ones.
      */
-    public static List<String> pruneBroken(final World world) {
-        final int dim = world.provider.dimensionId;
-        final List<String> names = new ArrayList<>();
+    @Nullable
+    public static Spot onRay(final net.minecraft.client.Minecraft mc, final double range, @Nullable final Graph only) {
+        final net.minecraft.entity.EntityLivingBase eye = mc.renderViewEntity;
         final Plan plan = Plan.loaded();
-        if (plan == null) return names;
+        if (eye == null || mc.theWorld == null || plan == null) return null;
+        final net.minecraft.util.Vec3 from = eye.getPosition(1f), dir = eye.getLook(1f);
+        final int dim = mc.theWorld.provider.dimensionId;
+        Spot best = null;
+        double bestT = range;
         for (final Graph g : plan.getGraphs()) {
-            final List<Node> hit = new ArrayList<>();
-            for (final Node n : g.nodes.values())
-                for (final int[] l : n.worldLinks) if (l[0] == dim && gone(world, l)) {
-                    hit.add(n);
-                    break;
+            if (only != null && g != only) continue;
+            for (final Node n : g.nodes.values()) for (final int[] l : n.worldLinks) {
+                if (l[0] != dim) continue;
+                final double t = enter(from, dir, l[1], l[2], l[3]);
+                if (t >= 0 && t < bestT) {
+                    bestT = t;
+                    best = new Spot(new Hit(g, n), l[1], l[2], l[3], t);
                 }
-            if (hit.isEmpty()) continue;
-            PlanAPI.recordEdit(
-                g,
-                () -> { for (final Node n : hit) n.worldLinks.removeIf(l -> l[0] == dim && gone(world, l)); });
-            for (final Node n : hit) names.add(WorldView.cardName(n));
+            }
         }
-        if (!names.isEmpty()) PlanAPI.save();
-        return names;
+        return best;
     }
 
-    /** Whether a linked block is air in a chunk the client has. */
-    private static boolean gone(final World world, final int[] l) {
-        if (l[2] < 0 || l[2] > 255) return false;
-        final Chunk chunk = world.getChunkFromBlockCoords(l[1], l[3]);
-        return chunk != null && !chunk.isEmpty() && world.isAirBlock(l[1], l[2], l[3]);
+    /** A placed card's spot met by a ray: the card, where it is, and how far along the ray. */
+    public record Spot(Hit hit, int x, int y, int z, double distance) {}
+
+    /** Where a ray enters a block's cube, as a distance along it, or -1 when it misses. */
+    static double enter(final net.minecraft.util.Vec3 o, final net.minecraft.util.Vec3 d, final int x, final int y,
+        final int z) {
+        double near = 0, far = Double.MAX_VALUE;
+        final double[] origin = { o.xCoord, o.yCoord, o.zCoord }, dir = { d.xCoord, d.yCoord, d.zCoord };
+        final int[] lo = { x, y, z };
+        for (int k = 0; k < 3; k++) {
+            if (Math.abs(dir[k]) < 1e-9) {
+                if (origin[k] < lo[k] || origin[k] > lo[k] + 1) return -1;
+                continue;
+            }
+            double t1 = (lo[k] - origin[k]) / dir[k], t2 = (lo[k] + 1 - origin[k]) / dir[k];
+            if (t1 > t2) {
+                final double t = t1;
+                t1 = t2;
+                t2 = t;
+            }
+            near = Math.max(near, t1);
+            far = Math.min(far, t2);
+            if (near > far) return -1;
+        }
+        return near;
+    }
+
+    /** The spot in front of the face a ray hit: where a placed card goes (an imaginary block there). */
+    public static int[] inFront(final net.minecraft.util.MovingObjectPosition hit) {
+        int x = hit.blockX, y = hit.blockY, z = hit.blockZ;
+        switch (hit.sideHit) {
+            case 0 -> y--;
+            case 1 -> y++;
+            case 2 -> z--;
+            case 3 -> z++;
+            case 4 -> x--;
+            case 5 -> x++;
+            default -> {}
+        }
+        return new int[] { x, y, z };
     }
 
     /** How many of the card's blocks are in a dimension. */

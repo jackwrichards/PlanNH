@@ -31,7 +31,11 @@ public final class LinkTarget {
     public static final LinkTarget INSTANCE = new LinkTarget();
 
     /** The block being linked, and what it is. */
-    public record Block(int dim, int x, int y, int z, ItemStack item) {}
+                                                  /**
+                                                   * The spot a card goes on, and the block it is in front of (null when
+                                                   * the spot holds a card already).
+                                                   */
+    public record Block(int dim, int x, int y, int z, @Nullable ItemStack item) {}
 
     @Nullable
     private static Block target;
@@ -58,11 +62,19 @@ public final class LinkTarget {
         final Minecraft mc = Minecraft.getMinecraft();
         final EntityLivingBase eye = mc.renderViewEntity;
         if (mc.theWorld == null || eye == null) return false;
-        final MovingObjectPosition hit = eye.rayTrace(Math.max(64, PlannerSettings.arRange()), 1f);
-        if (hit == null || hit.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK) return false;
-        final ItemStack item = LinkPicker.pickBlock(mc, hit);
-        if (item == null) return false;
-        target = new Block(mc.theWorld.provider.dimensionId, hit.blockX, hit.blockY, hit.blockZ, item);
+        final double reach = Math.max(64, PlannerSettings.arRange());
+        final int dim = mc.theWorld.provider.dimensionId;
+        final MovingObjectPosition hit = eye.rayTrace(reach, 1f);
+        final boolean onBlock = hit != null && hit.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK;
+        // A placed spot the crosshair meets before any block face is the target itself; otherwise the spot in front
+        // of the face.
+        final WorldLinks.Spot spot = WorldLinks.onRay(mc, reach, null);
+        if (spot != null && (!onBlock || spot.distance() <= hit.hitVec.distanceTo(eye.getPosition(1f))))
+            target = new Block(dim, spot.x(), spot.y(), spot.z(), null);
+        else if (onBlock) {
+            final int[] at = WorldLinks.inFront(hit);
+            target = new Block(dim, at[0], at[1], at[2], LinkPicker.pickBlock(mc, hit));
+        } else return false;
         FITS.clear();
         note = "";
         Planner.open();

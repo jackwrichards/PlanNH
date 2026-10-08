@@ -569,8 +569,14 @@ public final class BoardScreen extends ModularScreen {
     private void drawLinkBanner() {
         final com.gtnhplanner.ui.world.LinkTarget.Block b = com.gtnhplanner.ui.world.LinkTarget.target();
         if (b == null) return;
-        final String what = "Place a card on the " + b.item()
-            .getDisplayName() + " at " + b.x() + ", " + b.y() + ", " + b.z();
+        final String what = "Place a card at " + b.x()
+            + ", "
+            + b.y()
+            + ", "
+            + b.z()
+            + (b.item() == null ? ""
+                : ", in front of the " + b.item()
+                    .getDisplayName());
         final String how = "Click a card, in this plan or another (tabs, Library). Esc cancels.";
         final String note = com.gtnhplanner.ui.world.LinkTarget.note();
         final int w = Math.max(Math.max(Hyb.width(what) + 24, Hyb.width(how) + 24), Hyb.width(note) + 24) + 8;
@@ -579,7 +585,7 @@ public final class BoardScreen extends ModularScreen {
         final float x = a.x + (a.width - w) / 2f, y = a.y + a.height - h - 10;
         Hyb.rect(x - 1, y - 1, w + 2, h + 2, Hyb.SELECTION);
         Hyb.rect(x, y, w, h, 0xF0141416);
-        Hyb.item(b.item(), x + 6, y + 7, 16, 0);
+        if (b.item() != null) Hyb.item(b.item(), x + 6, y + 7, 16, 0);
         org.lwjgl.opengl.GL11.glDisable(org.lwjgl.opengl.GL11.GL_LIGHTING);
         Hyb.text(what, x + 28, y + 5, Hyb.INK);
         Hyb.text(how, x + 28, y + 17, Hyb.MUTED);

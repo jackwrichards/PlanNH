@@ -358,7 +358,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         if (!com.gtnhplanner.ui.world.LinkTarget.active() || model == null || layout == null) return;
         final int h = layout.height;
         final Node node = model.node;
-        if (com.gtnhplanner.ui.world.LinkTarget.holds(node)) Hyb.ring(-4, -4, CardLayout.W + 8, h + 8, 3, Hyb.GOLD);
+        if (com.gtnhplanner.ui.world.LinkTarget.holds(node)) Hyb.ring(-3, -3, CardLayout.W + 6, h + 6, 2, Hyb.LIT);
         else if (com.gtnhplanner.ui.world.LinkTarget.fits(session.graph(), node))
             Hyb.ring(-4, -4, CardLayout.W + 8, h + 8, 3, Hyb.mix(Hyb.SELECTION, 0xFFFFFF, 0.3f + 0.7f * breathe()));
         else Hyb.rect(0, 0, CardLayout.W, h, 0xC0101114);
@@ -785,11 +785,11 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
     // endregion
 
-    /** A gold ring with a soft halo around a tile whose resource is the one under the mouse. */
+    /** The highlight around a tile whose resource is the one under the mouse: a thin ring and a faint halo. */
     private static void glow(final float x, final float y, final float w, final float h) {
-        Hyb.ring(x, y, w, h, 1, Hyb.GOLD);
-        for (int i = 1; i <= 4; i++)
-            Hyb.ring(x - i, y - i, w + 2 * i, h + 2 * i, 1, alpha(0xFFCA54, 0.5f * (5 - i) / 5f));
+        Hyb.ring(x, y, w, h, 1, alpha(Hyb.LIT & 0xFFFFFF, 0.75f));
+        for (int i = 1; i <= 3; i++)
+            Hyb.ring(x - i, y - i, w + 2 * i, h + 2 * i, 1, alpha(Hyb.LIT & 0xFFFFFF, 0.24f * (4 - i) / 4f));
     }
 
     private void drawPicture(final CardModel m, final float z) {

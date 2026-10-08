@@ -25,9 +25,10 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
 
 /**
- * Placing a plan card in the world. Started from the card's place key: the planner closes and the crosshair picks a
- * block, any block; a left-click places the card there (on that block alone, taking the block from any other card)
- * and opens the planner again. A right-click or Esc gives up; opening the planner any other way does too.
+ * Placing a plan card in the world. Started from the card's place key: the planner closes, and the card's machine shows
+ * as a ghost on an imaginary block in front of the face under the crosshair; a left-click places the card there (taking
+ * the spot from any other card), and the player stays in the world. A right-click or Esc gives up; opening the planner
+ * ends it too.
  */
 public final class LinkPicker {
 
@@ -60,6 +61,12 @@ public final class LinkPicker {
         return INSTANCE.graph != null && !INSTANCE.starting;
     }
 
+    /** The machine of the card being placed, for its ghost. */
+    @Nullable
+    static ItemStack machine() {
+        return INSTANCE.machine;
+    }
+
     /** The card being placed, while picking. */
     @Nullable
     static Node node() {
@@ -84,10 +91,7 @@ public final class LinkPicker {
         if (starting) {
             starting = false;
             mc.displayGuiScreen(null);
-        } else if (finishing) {
-            stop();
-            Planner.open();
-        }
+        } else if (finishing) stop();
     }
 
     /** Left-click places the card on the block; right-click gives up. Neither reaches the game while picking. */
@@ -115,17 +119,18 @@ public final class LinkPicker {
         final Node node = node();
         final MovingObjectPosition hit = mc.objectMouseOver;
         if (node == null || hit == null || hit.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK) return;
+        final int[] at = WorldLinks.inFront(hit);
         final WorldLinks.Hit was = WorldLinks
-            .assign(graph, node, mc.theWorld.provider.dimensionId, hit.blockX, hit.blockY, hit.blockZ);
+            .assign(graph, node, mc.theWorld.provider.dimensionId, at[0], at[1], at[2]);
         Hyb.click();
         WorldView.say(
             "Placed " + name
                 + " at "
-                + hit.blockX
+                + at[0]
                 + ", "
-                + hit.blockY
+                + at[1]
                 + ", "
-                + hit.blockZ
+                + at[2]
                 + (was == null || was.node() == node ? "" : ". Taken from " + WorldView.cardName(was.node())));
         finishing = true;
     }
@@ -175,7 +180,7 @@ public final class LinkPicker {
         final Minecraft mc = Minecraft.getMinecraft();
         if (mc.currentScreen != null || mc.gameSettings.hideGUI) return;
         final String title = "Place " + name;
-        final String how = "Click the block to put it on. Right-click or Esc to cancel.";
+        final String how = "Click a block face to place it in front of it. Right-click or Esc to cancel.";
         final int w = Math.max(Hyb.width(title) + 22, Hyb.width(how)) + 12, h = 29;
         final float x = (event.resolution.getScaledWidth() - w) / 2f, y = 6;
         Hyb.rect(x - 1, y - 1, w + 2, h + 2, Hyb.FRAME);

@@ -27,6 +27,7 @@ import com.gtnhplanner.ui.PlannerSettings;
 import com.gtnhplanner.ui.card.CardLayout;
 import com.gtnhplanner.ui.card.PlanCardView;
 import com.gtnhplanner.ui.card.RecipeCard;
+import com.gtnhplanner.ui.theme.Hyb;
 
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
@@ -43,8 +44,11 @@ public final class PlanOverlay {
 
     public static final PlanOverlay INSTANCE = new PlanOverlay();
 
-    /** A card's width in the world, in blocks, and how far over its block it floats. */
-    private static final float CARD_BLOCKS = 2.5f, LIFT = 1.2f;
+    /**
+     * A card's width in the world, in blocks, at most (it is narrower where placed cards are closer together, so none
+     * overlap), and how far over its block it floats.
+     */
+    private static final float CARD_BLOCKS = 2.5f, LIFT = 0.35f;
 
     /** A placed card this frame: where its block is, and where and how big its card is on the screen. */
     private static final class Placed {
@@ -52,6 +56,8 @@ public final class PlanOverlay {
         final PlanSnapshot.Card card;
         final int x, y, z;
         double distance;
+        /** The card's width in the world, in blocks. */
+        float blocks = CARD_BLOCKS;
         /** The card's foot on the screen, its block's top, and its scale. */
         float sx, sy, bx, by, scale;
 
@@ -98,27 +104,46 @@ public final class PlanOverlay {
         return PlannerSettings.arLens();
     }
 
-    /** The cards placed in this dimension within range, nearest first. */
+    /** The cards placed in this dimension within range, nearest first, each sized to keep clear of the others. */
     private static List<Placed> placed(final Minecraft mc) {
-        final List<Placed> list = new ArrayList<>();
+        final List<Placed> all = new ArrayList<>();
         final PlanSnapshot snap = PlanSnapshot.latest();
-        if (snap == null || mc.theWorld == null || mc.renderViewEntity == null) return list;
+        if (snap == null || mc.theWorld == null || mc.renderViewEntity == null) return all;
         final int dim = mc.theWorld.provider.dimensionId;
-        final double range = PlannerSettings.arRange();
-        final EntityLivingBase eye = mc.renderViewEntity;
         for (final PlanSnapshot.Card c : snap.cards()) {
             final Node n = snap.graph().nodes.get(c.id());
             if (n == null) continue;
-            for (final int[] l : n.worldLinks) {
-                if (l[0] != dim) continue;
-                final Placed p = new Placed(c, l);
-                final double dx = p.x + 0.5 - eye.posX, dy = p.y + 0.5 - eye.posY, dz = p.z + 0.5 - eye.posZ;
-                p.distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-                if (p.distance <= range) list.add(p);
-            }
+            for (final int[] l : n.worldLinks) if (l[0] == dim) all.add(new Placed(c, l));
+        }
+        fit(all);
+        final double range = PlannerSettings.arRange();
+        final EntityLivingBase eye = mc.renderViewEntity;
+        final List<Placed> list = new ArrayList<>();
+        for (final Placed p : all) {
+            final double dx = p.x + 0.5 - eye.posX, dy = p.y + 0.5 - eye.posY, dz = p.z + 0.5 - eye.posZ;
+            p.distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (p.distance <= range) list.add(p);
         }
         list.sort(Comparator.comparingDouble(p -> p.distance));
         return list;
+    }
+
+    /**
+     * Each card's width in the world: {@link #CARD_BLOCKS}, or nine tenths of the room to its nearest placed neighbour,
+     * so side by side they leave a gap and one over another clears it. Set by where cards are, never by where the
+     * player stands, so cards keep their size as you move.
+     */
+    private static void fit(final List<Placed> all) {
+        for (final Placed p : all) {
+            final float tall = PlanCardView.height(p.card) / (float) CardLayout.W;
+            double room = Double.MAX_VALUE;
+            for (final Placed q : all) {
+                if (q == p) continue;
+                final double across = Math.hypot(q.x - p.x, q.z - p.z), up = Math.abs(q.y - p.y);
+                room = Math.min(room, Math.max(across, up / tall));
+            }
+            p.blocks = (float) Math.max(0.8, Math.min(CARD_BLOCKS, 0.9 * room));
+        }
     }
 
     /** The placed card under the crosshair, as far as the overlay reaches. */
@@ -128,11 +153,15 @@ public final class PlanOverlay {
         looked = null;
         final Minecraft mc = Minecraft.getMinecraft();
         if (!on() || mc.theWorld == null || mc.renderViewEntity == null || mc.currentScreen != null) return;
-        final MovingObjectPosition hit = mc.renderViewEntity.rayTrace(PlannerSettings.arRange(), 1f);
-        if (hit == null || hit.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK) return;
-        for (final Placed p : placed(mc)) if (p.x == hit.blockX && p.y == hit.blockY && p.z == hit.blockZ) {
-            looked = p.card.id();
-            return;
+        // The spot the crosshair meets first, through blocks: spots are often empty, and the plan shows over the world.
+        final net.minecraft.util.Vec3 from = mc.renderViewEntity.getPosition(1f), dir = mc.renderViewEntity.getLook(1f);
+        double first = PlannerSettings.arRange();
+        for (final Placed p : placed(mc)) {
+            final double t = WorldLinks.enter(from, dir, p.x, p.y, p.z);
+            if (t >= 0 && t < first) {
+                first = t;
+                looked = p.card.id();
+            }
         }
     }
 
@@ -156,15 +185,7 @@ public final class PlanOverlay {
         final List<Placed> placed = placed(mc);
         if (placed.isEmpty()) return;
         WorldMarks.begin();
-        // Each placed card's block: the machine's ghost (unless the machine is built there), boxed in its colour (the
-        // one
-        // looked at in the selection colour).
-        for (final Placed p : placed) {
-            final boolean ringed = p.card.id()
-                .equals(looked);
-            if (p.card.machine() != null && !built(mc, p)) WorldMarks.ghost(p.card.machine(), p.x, p.y, p.z);
-            if (ringed) WorldMarks.outline(p.x, p.y, p.z, 0x22D3EE, 0.012f, 2f);
-        }
+        // The plan's wires, centre to centre, under the ghosts.
         for (final Conn c : conns(placed)) WorldMarks.connector(
             c.from.x + 0.5,
             c.from.y + 0.5,
@@ -175,6 +196,12 @@ public final class PlanOverlay {
             c.line.color() & 0xFFFFFF,
             c.line.flowing(),
             c.same(hovered));
+        // Each placed card's spot: the machine's ghost (unless the machine is built there); the one looked at outlined.
+        for (final Placed p : placed) {
+            if (p.card.machine() != null && !built(mc, p)) WorldMarks.ghost(p.card.machine(), p.x, p.y, p.z);
+            if (p.card.id()
+                .equals(looked)) WorldMarks.outline(p.x, p.y, p.z, Hyb.LIT & 0xFFFFFF, 0.012f, 1.5f, 0.6f);
+        }
         WorldMarks.end();
     }
 
@@ -189,12 +216,6 @@ public final class PlanOverlay {
         return here != null && machine != null
             && here.getItem() == machine.getItem()
             && here.getItemDamage() == machine.getItemDamage();
-    }
-
-    /** A placed card's box: its machine's colour, lightened to show on the ground. */
-    private static int boxColour(final PlanSnapshot.Card c) {
-        final int tint = c.tint() < 0 ? 0x8A93A6 : c.tint() & 0xFFFFFF;
-        return com.gtnhplanner.ui.theme.Hyb.mix(0xFF000000 | tint, 0xFFFFFFFF, 0.35f) & 0xFFFFFF;
     }
 
     /** Each wire of the plan between two placed cards, with what goes along it. */
@@ -257,7 +278,7 @@ public final class PlanOverlay {
                 .equals(looked);
             final float w = PlanCardView.width() * p.scale, h = PlanCardView.height(p.card) * p.scale;
             // The stem from the card down to its block.
-            final int stem = ringed ? 0xA022D3EE : 0x70A4A8B0;
+            final int stem = ringed ? 0x90000000 | Hyb.LIT & 0xFFFFFF : 0x70A4A8B0;
             final float sw = 3;
             com.gtnhplanner.ui.theme.Hyb.rect(p.sx - sw / 2f, p.sy, sw, Math.max(1, p.by - p.sy), stem);
             GL11.glPushMatrix();
@@ -279,19 +300,10 @@ public final class PlanOverlay {
         return (float) Math.hypot(px - (a[0] + t * dx), py - (a[1] + t * dy));
     }
 
-    /** What goes along a wire, at its middle: the item or fluid, on a faint soft disc (cyan when the wire is lit). */
+    /** What goes along a wire, at its middle: the item or fluid alone, a little bigger when the wire is lit. */
     private static void wireIcon(final PlanSnapshot.Flow f, final float x, final float y, final boolean lit) {
-        final int size = 20;
+        final int size = lit ? 22 : 18;
         final float ix = Math.round(x - size / 2f), iy = Math.round(y - size / 2f);
-        final int disc = lit ? 0x22D3EE : 0x000000;
-        for (int r = 0; r < 4; r++) {
-            final int a = (lit ? 0x30 : 0x22) + r * 0x10;
-            final float g = 6 - r * 1.5f;
-            com.gtnhplanner.ui.theme.Hyb
-                .rect(ix - g + 2, iy - g + 4, size + 2 * g - 4, size + 2 * g - 8, a << 24 | disc);
-            com.gtnhplanner.ui.theme.Hyb
-                .rect(ix - g + 4, iy - g + 2, size + 2 * g - 8, size + 2 * g - 4, a << 24 | disc);
-        }
         if (f.power()) RecipeCard.euIcon(ix, iy, size);
         else com.gtnhplanner.ui.theme.Hyb.icon(f.item(), f.fluid(), ix, iy, size, 0);
         GL11.glDisable(GL11.GL_LIGHTING);
@@ -325,7 +337,7 @@ public final class PlanOverlay {
 
     /**
      * Where a card's foot (floating {@link #LIFT} blocks over its block) and its block's top fall on the GUI, and the
-     * card's scale there: a card is {@link #CARD_BLOCKS} wide, measured by how many GUI pixels a block's height takes
+     * card's scale there: a card is {@link Placed#blocks} wide, measured by how many GUI pixels a block's height takes
      * at that spot. False when it is behind the camera.
      */
     private boolean project(final Placed p, final ScaledResolution sr, final Minecraft mc) {
@@ -338,7 +350,7 @@ public final class PlanOverlay {
         p.bx = block[0];
         p.by = block[1];
         final float perBlock = Math.abs(top[1] - up[1]);
-        p.scale = Math.min(1f, CARD_BLOCKS * perBlock / CardLayout.W);
+        p.scale = Math.min(1f, p.blocks * perBlock / CardLayout.W);
         final float w = CardLayout.W * p.scale;
         return p.scale > 0.02f && p.sx > -w
             && p.sx < sr.getScaledWidth() + w

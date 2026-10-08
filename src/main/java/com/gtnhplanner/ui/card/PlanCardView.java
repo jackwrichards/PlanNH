@@ -49,7 +49,7 @@ public final class PlanCardView {
     public static void draw(final PlanSnapshot.Card c, final Fmt.RateUnit unit, final boolean ringed) {
         final int h = height(c);
         Hyb.dropShadow(0, 0, W, h);
-        if (ringed) Hyb.ring(-3, -3, W + 6, h + 6, 3, Hyb.SELECTION);
+        if (ringed) Hyb.ring(-2, -2, W + 4, h + 4, 2, 0xC0000000 | Hyb.LIT & 0xFFFFFF);
         Hyb.cardFrame(0, 0, W, h);
         Hyb.rect(PAD, footY(c) - 7, W - 2 * PAD, 1, 0xFF2A2C31);
         head(c);
@@ -170,7 +170,7 @@ public final class PlanCardView {
         final int tint = c.tint() < 0 ? 0x8A93A6 : c.tint();
         final float rim = Math.max(2, 1 / zoom);
         Hyb.dropShadow(0, 0, W, h);
-        if (ringed) Hyb.ring(-3 * rim, -3 * rim, W + 6 * rim, h + 6 * rim, 2 * rim, Hyb.SELECTION);
+        if (ringed) Hyb.ring(-2 * rim, -2 * rim, W + 4 * rim, h + 4 * rim, rim, 0xC0000000 | Hyb.LIT & 0xFFFFFF);
         Hyb.rect(0, 0, W, h, Hyb.mix(tint, 0x262B34, 0.55f));
         Hyb.rect(rim, rim, W - 2 * rim, h - 2 * rim, Hyb.mix(tint, 0x07090C, 0.26f));
         final float side = Math.min(W, h) - 2 * rim - 12;

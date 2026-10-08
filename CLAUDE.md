@@ -67,7 +67,8 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   `node tools/dev/mock-library.mjs` (a local stand-in; `call 'library?url=http://127.0.0.1:8789'`), never the real site.
 - While playing (`ui/world/`, `docs/design/minimap-and-world-links.md`): the minimap of the plan last open
   (`Minimap`, from the board's `PlanSnapshot`), and the plan over the world: a card's place key (or L on a block)
-  places it on any block (`LinkPicker`, `LinkTarget`, `WorldLinks`, `Node.worldLinks`, one block per card), and
+  places it on a spot, the imaginary block in front of the face looked at (`LinkPicker`, `LinkTarget`,
+  `WorldLinks`, `Node.worldLinks`, one spot per card; breaking blocks never removes one), and
   `PlanOverlay` (Y) draws each placed card over its block as the board does (`ui/card/PlanCardView`), with the plan's
   wires as connectors. World code never loads the plans (`Plan.loaded()`). The earlier lens of every machine's live
   state is shelved on `shelf/ar-machine-lens`. Settings are the top bar's gear (`PlannerSettings`).

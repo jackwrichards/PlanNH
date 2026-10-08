@@ -21,9 +21,11 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 
 /**
  * The plan in a corner of the screen while playing: the last one open in the planner, drawn from its
- * {@link PlanSnapshot} (cards with their machine and count, drawers with their resource and rate, the wires as the
- * board routed them). Its size, shape, corner and zoom are settings; the arrow keys pan it, and it can follow the
- * linked machine under the crosshair, ringing its card.
+ * {@link PlanSnapshot} as the board draws it zoomed out (cards with their machine and count, drawers with their
+ * resource and rate, the wires as the board routed them, and with "Names when zoomed out" the same names placed the
+ * same
+ * way). Its size, shape, corner and zoom are settings; the arrow keys pan it, and it can follow the placed card under
+ * the crosshair, highlighting it.
  */
 public final class Minimap {
 
@@ -117,9 +119,17 @@ public final class Minimap {
         final float z = zoom();
         final float ox = x0 + size / 2f - centreX * z, oy = y0 + size / 2f - centreY * z;
         clipBegin(sr, x0, y0, size, circle);
+        LABELS.clear();
         drawWires(snap.wires(), ox, oy, z);
-        drawDrawers(snap.drawers(), ox, oy, z);
+        drawDrawers(snap.drawers(), ox, oy, z, snap.rateUnit());
         drawCards(snap.cards(), ox, oy, z, focused);
+        if (PlannerSettings.zoomedOutNames()) {
+            GL11.glPushMatrix();
+            GL11.glTranslatef(ox, oy, 0);
+            GL11.glScalef(z, z, 1);
+            LABELS.draw(z);
+            GL11.glPopMatrix();
+        }
         clipEnd(circle);
         // The plan's name, and whether it has changed since the planner last showed it.
         final Graph open = Plan.loaded() == null ? null : Plan.getActiveGraph();
@@ -282,7 +292,12 @@ public final class Minimap {
         }
     }
 
-    private static void drawDrawers(final List<PlanSnapshot.Box> boxes, final float ox, final float oy, final float z) {
+    /** The names over cards and drawers, placed as the board places them zoomed out. */
+    private static final com.gtnhplanner.ui.canvas.ZoomedOutLabels LABELS = new com.gtnhplanner.ui.canvas.ZoomedOutLabels();
+
+    /** Drawers as the board draws them zoomed out: the resource big on its tinted tile, the rate in a dark pill. */
+    private static void drawDrawers(final List<PlanSnapshot.Box> boxes, final float ox, final float oy, final float z,
+        final Fmt.RateUnit unit) {
         for (final PlanSnapshot.Box b : boxes) {
             final float x = ox + b.x() * z, y = oy + b.y() * z, w = b.w() * z, h = b.h() * z;
             Hyb.rect(x, y, w, h, Hyb.mix(b.tint(), 0x262B34, 0.55f));
@@ -293,9 +308,14 @@ public final class Minimap {
                 else Hyb.icon(b.item(), b.fluid(), x + 2, y + (h - side) / 2f, side, 0);
                 keepMask();
             }
+            final String sign = b.rate() <= 0 ? "" : b.source() ? "-" : "+";
+            final int color = b.rate() <= 0 ? Hyb.MUTED : b.source() ? Hyb.SOURCE_INK : Hyb.PRODUCT_INK;
+            pill(sign + Fmt.brief(b.power() ? b.rate() / 20 : b.rate() * unit.perSecond), x, y, w, h, color);
+            LABELS.drawer(b.label(), b.x(), b.y(), b.w(), b.h(), b.source(), b.rate());
         }
     }
 
+    /** Cards as the board draws them zoomed out: the machine big on its tinted tile, the count in a dark pill. */
     private static void drawCards(final List<PlanSnapshot.Card> cards, final float ox, final float oy, final float z,
         @Nullable final PlanSnapshot.Card focused) {
         for (final PlanSnapshot.Card c : cards) {
@@ -328,12 +348,25 @@ public final class Minimap {
                     keepMask();
                 }
             }
-            // The count only once the card is big enough to carry it beside its picture.
-            if (w >= 56) {
-                final String count = "×" + Fmt.machines(c.machines());
-                Hyb.text(count, x + w - 2 - Hyb.width(count), y + h - 10, c.pinned() ? Hyb.GOLD : Hyb.INK);
-            }
-            if (c == focused) Hyb.ring(x - 1, y - 1, w + 2, h + 2, 1, Hyb.GOLD);
+            pill(
+                "×" + Fmt.machines(c.machines()),
+                x,
+                y,
+                w,
+                h,
+                c.pinned() ? Hyb.GOLD : c.machines() <= 0 ? Hyb.MUTED : Hyb.INK);
+            if (c == focused) Hyb.ring(x - 1, y - 1, w + 2, h + 2, 1, 0xC0000000 | Hyb.LIT & 0xFFFFFF);
+            LABELS.card(c.name(), c.x(), c.y(), c.w(), c.h());
         }
+    }
+
+    /** A figure in a dark pill in a tile's corner, a GUI pixel per font pixel; left out when the tile is too small. */
+    private static void pill(final String text, final float x, final float y, final float w, final float h,
+        final int color) {
+        final float tw = Hyb.width(text);
+        if (tw + 4 > w - 2 || h < 14) return;
+        final float px = x + w - 2 - tw - 2, py = y + h - 2 - 10;
+        Hyb.rect(px, py, tw + 2, 10, 0xC0101114);
+        Hyb.text(text, px + 1, py + 1, color);
     }
 }

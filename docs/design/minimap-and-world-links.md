@@ -16,8 +16,12 @@ order they are built.
 
 ## 2. The minimap
 
-- While playing (no screen open, HUD shown), a corner of the screen shows the plan last open in the planner: its
-  cards (machine picture, count), drawers (icon, rate), and wires, as the board drew them.
+- While playing (no screen open, HUD shown), a corner of the screen shows the plan last open in the planner, as the
+  board draws it zoomed out: cards (machine picture, the count in a dark pill), drawers (icon, the rate in a pill),
+  wires as the board routed them, and with **Names when zoomed out** the same names, placed the same way.
+- What the mouse or crosshair is on is highlighted in one colour everywhere (`Hyb.LIT`, a soft gold, drawn faint):
+  the resource under the mouse on the board, the card under the crosshair on the minimap and over the world, and the
+  wire under the crosshair over the world. The board's selection keeps its own colour.
 - The board publishes a `PlanSnapshot` (cards, drawers, wire paths, view centre, links) whenever it rebuilds its models
   or routes; the minimap draws the latest one. A plan changed while the planner is closed (NEI's plan button) marks the
   map out of date until the planner opens again.
@@ -28,16 +32,21 @@ order they are built.
 
 ## 3. Placing cards in the world
 
-The plan and the world are separate: placing a card on a block says where that part of the plan goes (or is). It
-never makes the plan show what the machines are doing.
+The plan and the world are separate: placing a card says where that part of the plan goes (or is). It never makes the
+plan show what the machines are doing.
 
+- A card goes on a spot: a block's place, usually an imaginary block in front of the face the crosshair is on (like
+  placing a block, but nothing is placed and you can walk through it). Breaking or building blocks never moves or
+  removes a placement.
 - Every card has a place key (a map pin, beside its menu key; gold once placed). Left-click: the planner closes and the
-  crosshair picks a block, any block; a click places the card on it and opens the planner again (`ui/world/LinkPicker`).
-  Right-click: removes it from the world. The card's menu also has **Show in the world** and **Remove from the world**.
-- A card is placed on one block and a block holds one card: placing a card on a block takes the block from any other
-  card, in any plan (`ui/world/WorldLinks`, `Node.worldLinks`). A placed block that is broken is unlinked, with a note.
-- From the world: the Link key (L) on a block opens the planner in link mode (`ui/world/LinkTarget`); clicking a card
-  places it there, clicking the card already there removes it, Esc cancels.
+  card's machine shows as a ghost on the spot in front of the face under the crosshair; a click places it there and you
+  stay in the world (`ui/world/LinkPicker`). Right-click or Esc cancels. Right-click on the key removes the card from
+  the world. The card's menu also has **Show in the world** and **Remove from the world**.
+- A card is placed on one spot and a spot holds one card: placing a card on a spot takes it from any other card, in any
+  plan (`ui/world/WorldLinks`, `Node.worldLinks`).
+- From the world: the Link key (L) opens the planner in link mode (`ui/world/LinkTarget`) for the placed spot under
+  the crosshair, or else the spot in front of the face looked at; clicking a card places it there, clicking the card
+  already there removes it, Esc cancels.
 - Placements are saved with the plan, never copied with it, and undo like any edit, but are not changes to the plan:
   nothing re-solves and the minimap stays current.
 
@@ -45,7 +54,7 @@ never makes the plan show what the machines are doing.
 
 - **Show in the world**: the card's block is outlined through walls, with a beam and its name and distance, for 30
   seconds (`ui/world/WorldView`, drawing in `WorldMarks`).
-- With the overlay off, looking at a placed block (up to 64 blocks away) outlines it, names its card and plan under the
+- With the overlay off, looking at a placed spot (up to 64 blocks away, through blocks) outlines it, names its card and plan under the
   crosshair, and centres the minimap on that card (when set).
 
 ## 5. The plan over the world (AR)
@@ -53,15 +62,17 @@ never makes the plan show what the machines are doing.
 `ui/world/PlanOverlay`, toggled with Y and in the settings ("Show the plan over the world (AR)", "How far to show it").
 Nothing shows until a card of the plan last open is placed.
 
-- Each placed block shows a ghost of the card's machine (its own block model, see-through, over the world; not when
-  the machine is built there already), and the card floats over it with a faint grey stem down to the block, drawn as the board draws it (`ui/card/PlanCardView`: name bar and tier chips, ports with the plan's
-  rates, the machine's picture, POWER and MACHINES), with nothing to press. A card is two and a half blocks wide in
-  the world, so it shrinks with distance (always the whole card); nearer cards cover farther ones. The card looked
-  at, and its block, are ringed.
-- The plan's wires between placed cards run from block centre to block centre as connectors drawn over the world
-  (`WorldMarks.connector`): a thin shaded tube in the resource's colour with arrowheads sliding towards the card it
-  feeds, and the resource's icon at its middle on a faint soft disc. The wire nearest the crosshair is lit and labelled as the plan has
-  it: what, how much, and from which card to which.
+- Each placed spot shows a ghost of the card's machine (its own block model, see-through, over the world; not when the
+  machine is built there already), and the card floats a third of a block over it with a faint grey stem down to it,
+  drawn as the board draws it (`ui/card/PlanCardView`: name bar and tier chips, ports with the plan's rates, the
+  machine's picture, POWER and MACHINES), with nothing to press. A card is two and a half blocks wide in the world, or
+  nine tenths of the room to its nearest placed neighbour, so neighbours never overlap seen square on; the size comes
+  from where the cards are, never from where you stand. It shrinks with distance (always the whole card); seen at a
+  slant, nearer cards cover farther ones. The spot looked at is outlined.
+- The plan's wires between placed cards run from spot centre to spot centre as connectors drawn over the world and
+  under the ghosts (`WorldMarks.connector`): a thin shaded tube in the resource's colour with arrowheads sliding
+  towards the card it feeds, and the resource's icon alone at its middle. The wire nearest the crosshair is lit, its
+  icon a little bigger, and labelled as the plan has it: what, how much, and from which card to which.
 
 The earlier AR lens (every machine's live state, read from GregTech, with stats and charts) is shelved on the branch
 `shelf/ar-machine-lens`.

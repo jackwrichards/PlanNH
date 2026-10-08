@@ -7,7 +7,6 @@ import javax.annotation.Nullable;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.ScaledResolution;
-import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
@@ -95,32 +94,20 @@ public final class WorldView {
                 noteUntil = System.currentTimeMillis() + 4000;
             }
         }
-        // A linked block broken (or otherwise gone) is unlinked from its card, with a note saying so.
-        if (++ticks % 10 == 0) {
-            final java.util.List<String> lost = WorldLinks.pruneBroken(mc.theWorld);
-            if (!lost.isEmpty()) {
-                note = "Block removed: unlinked from " + String.join(", ", lost);
-                noteColor = Hyb.AMBER_INK;
-                noteUntil = System.currentTimeMillis() + 4000;
-            }
-        }
         findLook(mc);
     }
-
-    private int ticks;
 
     /** The linked block under the crosshair, further out than the arm reaches; and the minimap follows its card. */
     private void findLook(final Minecraft mc) {
         final WorldLinks.Hit was = look;
         look = null;
-        final EntityLivingBase eye = mc.renderViewEntity;
-        if (eye != null && !LinkPicker.active()) {
-            final MovingObjectPosition hit = eye.rayTrace(LOOK_RANGE, 1f);
-            if (hit != null && hit.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK) {
-                look = WorldLinks.find(mc.theWorld.provider.dimensionId, hit.blockX, hit.blockY, hit.blockZ);
-                lookX = hit.blockX;
-                lookY = hit.blockY;
-                lookZ = hit.blockZ;
+        if (!LinkPicker.active()) {
+            final WorldLinks.Spot spot = WorldLinks.onRay(mc, LOOK_RANGE, null);
+            if (spot != null) {
+                look = spot.hit();
+                lookX = spot.x();
+                lookY = spot.y();
+                lookZ = spot.z();
             }
         }
         final PlanSnapshot snap = PlanSnapshot.latest();
@@ -139,23 +126,25 @@ public final class WorldView {
         if (picking == null && shown == null && looked == null) return;
         WorldMarks.begin();
         if (picking != null) {
-            for (final int[] l : picking.worldLinks)
-                if (l[0] == dim) WorldMarks.outline(l[1], l[2], l[3], 0xFFD257, 0.004f, 2.5f);
+            // Where the card would go: the machine's ghost in front of the face looked at.
             final MovingObjectPosition hit = mc.objectMouseOver;
-            if (hit != null && hit.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK)
-                WorldMarks.outline(hit.blockX, hit.blockY, hit.blockZ, 0xFFFFFF, 0.008f, 1.5f);
+            if (hit != null && hit.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK) {
+                final int[] at = WorldLinks.inFront(hit);
+                if (LinkPicker.machine() != null) WorldMarks.ghost(LinkPicker.machine(), at[0], at[1], at[2]);
+                WorldMarks.outline(at[0], at[1], at[2], Hyb.LIT & 0xFFFFFF, 0.004f, 1.5f, 0.6f);
+            }
         }
         if (shown != null) {
             for (final int[] l : shown.worldLinks) {
                 if (l[0] != dim) continue;
-                WorldMarks.outline(l[1], l[2], l[3], 0x22D3EE, 0.004f, 3f);
-                WorldMarks.beam(l[1], l[2], l[3], 0x22D3EE);
+                WorldMarks.outline(l[1], l[2], l[3], Hyb.LIT & 0xFFFFFF, 0.004f, 2f, 0.8f);
+                WorldMarks.beam(l[1], l[2], l[3], Hyb.LIT & 0xFFFFFF);
             }
         }
         if (looked != null && looked != shown && looked != picking) {
             for (final int[] l : looked.worldLinks) if (l[0] == dim) {
                 final boolean it = l[1] == lookX && l[2] == lookY && l[3] == lookZ;
-                WorldMarks.outline(l[1], l[2], l[3], 0x22D3EE, 0.004f, it ? 2.5f : 1.5f);
+                WorldMarks.outline(l[1], l[2], l[3], Hyb.LIT & 0xFFFFFF, 0.004f, 1.5f, it ? 0.7f : 0.45f);
             }
         }
         if (shown != null) labels(shown, dim);
@@ -222,7 +211,7 @@ public final class WorldView {
         final int w = Math.max(Hyb.width(line), Hyb.width(plan)) + 10;
         final float x = cx - w / 2f, y = cy + 12;
         Hyb.rect(x, y, w, 24, 0xD0141414);
-        Hyb.rect(x, y, 2, 24, Hyb.SELECTION);
+        Hyb.rect(x, y, 2, 24, Hyb.LIT);
         Hyb.textCentered(line, cx + 1, y + 3, card != null && card.pinned() ? Hyb.GOLD : Hyb.INK);
         Hyb.textCentered(plan, cx + 1, y + 13, Hyb.MUTED);
         GL11.glColor4f(1, 1, 1, 1);

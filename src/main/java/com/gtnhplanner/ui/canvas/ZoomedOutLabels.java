@@ -7,12 +7,13 @@ import java.util.List;
 import com.gtnhplanner.ui.theme.Hyb;
 
 /**
- * The names over cards and drawers when the board is zoomed far out (the "Names when zoomed out" setting), placed the
+ * The names over cards and drawers when the board is zoomed far out, and on the minimap (the "Names when zoomed out"
+ * setting), placed the
  * way a map places its labels: drawn on top of everything in one pass, a GUI pixel per font pixel whatever the zoom,
  * each where it overlaps no other name and no card, and left out where there is no such place. Zooming in makes room
  * for the rest. Cards' names go first, then the drawers', the busiest first.
  */
-final class ZoomedOutLabels {
+public final class ZoomedOutLabels {
 
     /** Where a name goes against its box, in order of preference. */
     enum Side {
@@ -29,26 +30,26 @@ final class ZoomedOutLabels {
     /** The cards' boxes this frame: names keep off them. */
     private final List<float[]> boxes = new ArrayList<>();
 
-    void clear() {
+    public void clear() {
         requests.clear();
         boxes.clear();
     }
 
-    void card(final String text, final float x, final float y, final float w, final float h) {
+    public void card(final String text, final float x, final float y, final float w, final float h) {
         boxes.add(new float[] { x, y, w, h });
         requests.add(new Request(text, x, y, w, h, new Side[] { Side.ABOVE, Side.BELOW }, 1e18));
     }
 
     /** A drawer: a source's name to its left (cards are to its right), a product's to its right. */
-    void drawer(final String text, final float x, final float y, final float w, final float h, final boolean source,
-        final double rate) {
+    public void drawer(final String text, final float x, final float y, final float w, final float h,
+        final boolean source, final double rate) {
         final Side[] sides = source ? new Side[] { Side.LEFT, Side.ABOVE, Side.BELOW }
             : new Side[] { Side.RIGHT, Side.ABOVE, Side.BELOW };
         requests.add(new Request(text, x, y, w, h, sides, Math.abs(rate)));
     }
 
     /** Places and draws the names in world space, the canvas's transform already applied. */
-    void draw(final float zoom) {
+    public void draw(final float zoom) {
         if (requests.isEmpty()) return;
         final float s = 1 / zoom, gap = 3 * s, lh = 10 * s;
         final List<float[]> placed = new ArrayList<>();

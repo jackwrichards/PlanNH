@@ -411,7 +411,9 @@ final class WireLayer {
 
     // region Drawing
 
-    /** Draws every wire; those carrying {@code glow} (the resource under the mouse) get a gold halo first. */
+    /**
+     * Draws every wire; those carrying {@code glow} (the resource under the mouse) get a faint highlight halo first.
+     */
     void draw(final List<Wire> wires, @Nullable final String glow) {
         // Thickest first, so thinner wires lie on top and do the hopping, as in Factory Flow: a thin line survives
         // being drawn over a fat pipe, and a small bump on it reads at once where a fat pipe rearing up is a blob.
@@ -423,10 +425,10 @@ final class WireLayer {
         if (glow != null && !glow.isEmpty()) {
             // A slow breath (1.6 s) on the halo, as Factory Flow's glow does.
             final double phase = (System.currentTimeMillis() % 1600) / 1600.0 * 2 * Math.PI;
-            final int alpha = (int) (0x70 + 0x38 * Math.sin(phase));
-            final int halo = alpha << 24 | 0xFFD257;
+            final int alpha = (int) (0x48 + 0x20 * Math.sin(phase));
+            final int halo = alpha << 24 | Hyb.LIT & 0xFFFFFF;
             for (final Wire w : wires) {
-                if (glow.equals(w.resource())) drawHopped(hopped.get(w), w.width() + 7, halo, 0, 0);
+                if (glow.equals(w.resource())) drawHopped(hopped.get(w), w.width() + 5, halo, 0, 0);
             }
         }
         Hyb.endBatch();
