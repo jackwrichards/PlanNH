@@ -40,19 +40,28 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 - Shared machines (one card, several recipes time-sharing one machine; `docs/design/ff-shared-machine-spec.md`) are
   `MachineGroup`s with ordered `sections`: each recipe stays a node with its own ports and wires, the group draws as
   one card, its machine settings are copied to every recipe, and a pinned count is an exact solver pool.
-- Saves are backed up to `plannh/backups/` beside the save, once per session and before any save that drops a plan.
+- Saves are backed up to `backups/` beside the save (`gtnhplanner/plans.dat`), once per session and before any save
+  that drops a plan.
+- Non-recipe machines (the top bar's Non-recipe key, `ui/power/PowerPicker`) are the website's power sources, ported
+  to `power/` from its `src/lib/power` (57 sources; the workbook tables, resource map and machine icons are copied
+  JSON in `assets/gtnhplanner/power/`, never hand-edited; parity with the website is tested per source). A power card
+  is a `Node` with `powerSource` and `powerSettings` instead of an NEI recipe: `power/game/PowerPorts` rebuilds its
+  ports from the model at exact per-second rates (`Port.exactAmount`, a craft a second), EU first. EU is a resource
+  (`Energy`, key `power:eu`) that only drawers take, shown in EU/t; the overview shows power used, made and net.
+  Power cards post to and import from the website as its power cards. `call power` checks every flow against the
+  game (unmapped names, items or fluids this pack lacks).
 - NEI's recipe pages carry a plan button above + and the star (`nei/PlanButton`, `nei/PlanMenu`, added through NEI's
   `UpdateRecipeButtonsEvent`): it asks which plan (most recently open first, `Plan.byRecency`) and which machine
   (`ui/card/MachineChoices`: GT single blocks are one choice at the recipe's tier), then opens the board on that plan
   with the new card centred and selected (`BoardSession.addAndFocus`). Shift-click skips both menus. The machine pick is
-  remembered per tab (`MachinePicks`, `config/plannh-machine-picks.properties`) and NEI's + uses it too.
+  remembered per tab (`MachinePicks`, `config/gtnhplanner-machine-picks.properties`) and NEI's + uses it too.
   `call 'nei?item=<key>&planner=0&tab=<name>'` opens a recipe page from the inventory.
 - Plans work as on the website: a tab is an open plan (`Graph.open`); closing one keeps it, in the Library's My
   plans, where every plan is listed, most recently open first (`Plan.byRecency`, `lastOpen`). Deleting asks first.
 - The Library (top bar; the + tab menu; right-click on an overview row: setups that make it) has two shelves: My
   plans, and Factory Flow's public setups from gtnhplanner.com (`library/CommunityApi`, `LibraryFeed`;
   `ui/library/LibraryView`), opened through the importer as a new plan. Signing in uses the website's own username
-  and password accounts; the session (never the password) is kept in `config/plannh-account.properties`
+  and password accounts; the session (never the password) is kept in `config/gtnhplanner-account.properties`
   (`library/Account`). "Post to library..." (a tab's or a plan tile's menu) sends the plan as Factory Flow project
   JSON (`library/PlanExport`, checked against the website's own schema). Test it all against
   `node tools/dev/mock-library.mjs` (a local stand-in; `call 'library?url=http://127.0.0.1:8789'`), never the real site.
@@ -64,7 +73,7 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 
 - Gradle provisions the JDKs (25 for the build, JetBrains Runtime 25 for `runClient25`). Keep the checkout at a
   short path: deep Windows paths break the clone and the Minecraft dev setup (MAX_PATH).
-- `./gradlew test`: 294 headless JUnit tests (balancer, drawers, solve service, routing, layout, serialization),
+- `./gradlew test`: 436 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
   many over gtnh-flow YAML charts in `src/test/resources/gtnh-flow/`. About 40s, no Minecraft. `addon.gradle`
   opts `test` out of the configuration cache; without that a clean build reports `:test NO-SOURCE` and silently
   runs nothing, so if you ever see NO-SOURCE, check the count in `build/test-results/test/*.xml`.
