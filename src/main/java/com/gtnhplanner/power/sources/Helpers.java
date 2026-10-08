@@ -32,14 +32,15 @@ public final class Helpers {
 
     /**
      * {@code Intl.NumberFormat("en-US", { maximumFractionDigits: 2 })}: grouping commas, at most two decimals,
-     * halves away from zero, on the double's exact value.
+     * halves away from zero. Like ICU it rounds the shortest decimal that round-trips the double, not its exact
+     * binary value: 2.485 (stored as 2.48499999...) shows as "2.49", as on the website.
      */
     public static String number(final double value) {
         if (Double.isNaN(value)) return "NaN";
         if (Double.isInfinite(value)) return value > 0 ? "∞" : "-∞";
         final DecimalFormat format = new DecimalFormat("#,##0.##", DecimalFormatSymbols.getInstance(Locale.US));
         format.setRoundingMode(RoundingMode.HALF_UP);
-        return format.format(new BigDecimal(value));
+        return format.format(new BigDecimal(Double.toString(value)));
     }
 
     /** {@link #number} with G and M past a billion and a million; "-" when not finite. */
