@@ -77,10 +77,10 @@ Nothing shows until a card of the plan last open is placed.
 - The crosshair is on a card when it is over the card itself or meets its spot (its ghost), through blocks: the card is
   highlighted, drawn over the others, its spot outlined, and the minimap highlights it and glides to it.
 - The plan's wires between placed cards are drawn flat on the screen as the board draws them, from where they leave
-  one spot to where they meet the other (cut short at the camera): a line in the resource's colour on a dark edge, with
-  many small arrowheads drifting slowly towards the card fed (set out in the world, two fifths of a block apart at two
+  one spot to where they meet the other (cut short at the camera): a thick line in the resource's colour on a dark
+  edge, with many small arrowheads drifting slowly towards the card fed (set out in the world, two fifths of a block apart at two
   thirds of a block a second, so their pace holds as you move), faint where nothing flows yet. Several wires between
-  the same two cards run side by side in lanes, so the two directions of a pair part. At its middle a tag says what
+  the same two cards run side by side in lanes (a line, its edges and a clear gap apart), so the two directions of a pair part. At its middle a tag says what
   goes along it: the icon, the rate in large type and the name small under it, on a plain soft dark backing, as big as
   the cards' ports there; on the line when the wire runs alone, beside its own lane, on the side away from the other
   wires, when two cards share several.

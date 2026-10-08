@@ -385,7 +385,8 @@ public final class PlanOverlay {
             .compareTo(c.to.card.id()) < 0;
         final float ux = forward ? sb[0] - sa[0] : sa[0] - sb[0], uy = forward ? sb[1] - sa[1] : sa[1] - sb[1];
         final float run = (float) Math.hypot(ux, uy);
-        final float step = run < 1 ? 0 : lane * Math.max(4, 12 * scale) / run;
+        // Lane to lane: a line, its two edges and a clear gap.
+        final float step = run < 1 ? 0 : lane * (lineWidth(scale) + 2 + Math.max(3, 10 * scale)) / run;
         final float ox = -uy * step, oy = ux * step;
         final List<float[]> arrows = new ArrayList<>();
         final double reach = 0.3 / length;
@@ -417,7 +418,7 @@ public final class PlanOverlay {
         final float side = (float) Math.hypot(ox, oy);
         if (side > 0) {
             final float nx = ox / side, ny = oy / side;
-            final float apart = Math.abs(nx) * r.tw / 2 + Math.abs(ny) * r.th / 2 + 3;
+            final float apart = Math.abs(nx) * r.tw / 2 + Math.abs(ny) * r.th / 2 + lineWidth(scale) / 2 + 3;
             cx += nx * apart;
             cy += ny * apart;
         }
@@ -562,13 +563,13 @@ public final class PlanOverlay {
         if (Math.hypot(r.bx - r.ax, r.by - r.ay) < 4) return;
         final int colour = 0xFF000000 | r.conn.line.color() & 0xFFFFFF;
         final boolean flowing = r.conn.line.flowing();
-        final float w = Math.max(1.2f, 3f * r.scale);
+        final float w = lineWidth(r.scale), arrow = arrowWidth(r.scale);
         // Its own colour always; lit, its edge is the highlight instead of dark.
         final int edge = lit ? Hyb.LIT : flowing ? 0xB0000000 : 0x70000000;
         band(r.ax, r.ay, r.bx, r.by, w + (lit ? 3 : 2), edge);
         band(r.ax, r.ay, r.bx, r.by, w, flowing || lit ? colour : colour & 0x00FFFFFF | 0x99000000);
         // The arrowheads, set out along the wire in the world.
-        final float head = 4.5f * w, half = 2.4f * w;
+        final float head = 4.5f * arrow, half = 2.4f * arrow;
         final int tip = Hyb.mix(colour, 0xFFFFFFFF, 0.45f);
         for (final float[] a : r.arrows) {
             final float px = a[0], py = a[1], ux = a[2], uy = a[3];
@@ -584,6 +585,16 @@ public final class PlanOverlay {
                 lit ? Hyb.LIT : 0xB0000000);
             Hyb.triangle(fx, fy, bx - uy * half, by + ux * half, bx + uy * half, by - ux * half, tip);
         }
+    }
+
+    /** The size arrowheads are measured in, on the screen, at a scale. */
+    private static float arrowWidth(final float scale) {
+        return Math.max(1.2f, 3f * scale);
+    }
+
+    /** How thick a wire is drawn on the screen at a scale: twice what its arrowheads are measured in. */
+    private static float lineWidth(final float scale) {
+        return 2 * arrowWidth(scale);
     }
 
     /** A straight band {@code w} wide from one point to another. */
