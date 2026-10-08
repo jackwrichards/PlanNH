@@ -373,6 +373,27 @@ public final class DevHarness {
                     return ok();
                 }
                 return DevPerf.stop();
+            case "/look":
+                // Turn the player: yaw (0 south, 90 west, 180 north, 270 east) and pitch (down positive).
+                requireWorld();
+                return onClient(() -> {
+                    final net.minecraft.entity.player.EntityPlayer p = net.minecraft.client.Minecraft
+                        .getMinecraft().thePlayer;
+                    p.rotationYaw = p.prevRotationYaw = Float.parseFloat(q.getOrDefault("yaw", "0"));
+                    p.rotationPitch = p.prevRotationPitch = Float.parseFloat(q.getOrDefault("pitch", "0"));
+                    return Map
+                        .of("yaw", p.rotationYaw, "pitch", p.rotationPitch, "x", p.posX, "y", p.posY, "z", p.posZ);
+                });
+            case "/machine":
+                // A GregTech machine in the dev world, powered and fed so it runs (for the AR lens).
+                requireWorld();
+                return onClient(() -> {
+                    try {
+                        return DevWorld.machine(q);
+                    } catch (final LinkageError e) {
+                        return error("GregTech is not loaded (start with PLANNH_GTNH=1)");
+                    }
+                });
             case "/neiinput":
                 // What NEI's input hooks saw on the planner since last asked: presses, releases, drags.
                 return Map.of("seen", DevNeiInput.INSTANCE.take());

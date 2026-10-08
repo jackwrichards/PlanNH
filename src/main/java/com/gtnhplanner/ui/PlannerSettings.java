@@ -43,6 +43,9 @@ public final class PlannerSettings {
     public static final float[] MINIMAP_ZOOMS = { 0.04f, 0.06f, 0.09f, 0.13f, 0.18f, 0.25f, 0.35f };
     /** How far away linked machines show their AR panels, in blocks. */
     public static final int[] AR_RANGES = { 16, 32, 64, 128 };
+    /** The AR lens's cards against the board's: half is a font pixel to a screen pixel at GUI scale 2. */
+    public static final float[] AR_SCALES = { 0.5f, 0.75f, 1f };
+    public static final String[] AR_SCALE_NAMES = { "Small", "Medium", "Large" };
 
     private static Properties props;
 
@@ -144,6 +147,18 @@ public final class PlannerSettings {
 
     public static int arRange() {
         return AR_RANGES[arRangeIndex()];
+    }
+
+    public static int arScaleIndex() {
+        return clamp(integer("world.arScale", 1), AR_SCALES.length);
+    }
+
+    public static void setArScaleIndex(final int i) {
+        set("world.arScale", clamp(i, AR_SCALES.length));
+    }
+
+    public static float arScale() {
+        return AR_SCALES[arScaleIndex()];
     }
 
     // endregion

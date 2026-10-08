@@ -65,6 +65,12 @@ public class Node {
     @Nullable
     public transient PowerModel powerModel;
 
+    /**
+     * The blocks in the world this card's machines are, each {dimension, x, y, z}: set by linking the card to them in
+     * game, so the plan can point at its machines and they at it. Saved with the plan, never copied with the card.
+     */
+    public final List<int[]> worldLinks = new ArrayList<>();
+
     @Getter
     private transient PropertyProvider extractor;
     @Getter

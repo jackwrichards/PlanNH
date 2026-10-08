@@ -54,6 +54,9 @@ is a thin curl wrapper. Every request waits until the game has processed it, so 
 | `/key?code[&char][&mods=ctrl,shift][&hold=ms]` | press + release an LWJGL2 key code (modifiers held around it; `hold` keeps it down that long) (`Keyboard.KEY_*`: 1 Esc, 28 Enter, 14 Backspace, 20 T, 66 F8) |
 | `/type?text` | type text into the focused field |
 | `/cmd?c=/time%20set%20day` | run a command as the player (client commands first, then chat) |
+| `/look?yaw&pitch` | turn the player (yaw 0 south, 90 west, 180 north, 270 east; pitch down positive); returns the position |
+| `/machine?x&y&z&feed=minecraft:iron_ore&count=16` | GT runs: fill a single-block machine's energy and put the stack in its input, so it runs a real recipe (for the AR lens) |
+| `/machine?own=1` | GT runs: give every ownerless GregTech machine near the player an owner (machines placed with `/setblock ... {mID:1000}` have none, and GregTech crashes when an ownerless multiblock is broken) |
 | `/board` | the open board as data: zoom/pan, per card its state (tier, amps, coil, machines, pinned, ports) and the GUI rect of each control and port (`parts.TIER`, `parts.OUT1`, with `cx/cy`), per drawer its kind, rule, target, rate, unmet flag and parts, the edge count, every routed wire (`wires`: resource, then its points), `solving`, and the notices |
 | `/view?zoom&panX&panY` | set the board view (defaults 1, 0, 0) so tests start from a known place |
 | `/slots[?add=name \| switch=i \| delete=i]` | the plan slots (`slots`, `active`); `add` opens a new one, so a check can work without touching the owner's plans |
@@ -65,6 +68,9 @@ is a thin curl wrapper. Every request waits until the game has processed it, so 
 | `/structurepic?meta=1000` | GT runs only: (re)build that multiblock controller's recipe-card picture (structure built in BlockRenderer6343's fake world, replaces the cached one so an open board shows it), save it as `screenshots/structure-<meta>.png`; returns `status` (ok, too big, empty, not a multiblock, failed: ...), `size`, `blocks`, timings and `path`. Without `meta`: every constructable controller as `{meta, name}` |
 | `/frame` | run one ModularUI frame update and report what is hovered and below the mouse (hover debugging) |
 | `/quit` | ask the game to quit (with GT this can stop on a "really close?" dialog; `mc.sh stop` kills instead) |
+
+On Git Bash, set `MSYS_NO_PATHCONV=1` before passing a command that starts with `/` (it is otherwise rewritten
+into a Windows path). 1.7.10's `/tp` takes no facing; use `/look`.
 
 All coordinates are GUI-scaled (what `GuiScreen` sees as `mouseX`/`mouseY`), not window pixels. Find targets with
 `/widgets` and confirm with `/status` (`hovered`) instead of estimating from screenshots.

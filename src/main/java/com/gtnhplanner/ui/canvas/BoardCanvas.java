@@ -262,6 +262,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         final List<WireLayer.Wire> routed = wires.wires(cards, drawers, moveStart != null || glideStart >= 0);
         final long drawing = timed ? System.nanoTime() : 0;
         wires.draw(routed, session.hoverKey());
+        publishSnapshot(routed);
         if (timed) {
             com.gtnhplanner.dev.DevPerf.time("wires.route", drawing - started);
             com.gtnhplanner.dev.DevPerf.time("wires.draw", System.nanoTime() - drawing);
@@ -279,6 +280,29 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     }
 
     // endregion
+
+    /** What the last snapshot was taken from: a change in any of them takes a new one. */
+    private Object snapshotWires, snapshotModels, snapshotDrawers;
+    private long snapshotVersion = Long.MIN_VALUE;
+
+    /** Publishes the board as drawn for the minimap and the world views, when the plan, its answer or wires changed. */
+    private void publishSnapshot(final List<WireLayer.Wire> routed) {
+        final Area view = getArea();
+        com.gtnhplanner.ui.world.PlanSnapshot
+            .setView(worldX(view.x + view.width / 2), worldY(view.y + view.height / 2));
+        final Object models = session.models(), drawerModels = session.drawerModels();
+        final long version = graph().version();
+        if (routed == snapshotWires && models == snapshotModels
+            && drawerModels == snapshotDrawers
+            && version == snapshotVersion) return;
+        snapshotWires = routed;
+        snapshotModels = models;
+        snapshotDrawers = drawerModels;
+        snapshotVersion = version;
+        final Area a = getArea();
+        com.gtnhplanner.ui.world.PlanSnapshot.publish(
+            SnapshotMaker.make(session, cards, drawers, routed, worldX(a.x + a.width / 2), worldY(a.y + a.height / 2)));
+    }
 
     /** The names over cards and drawers zoomed far out, gathered as they draw and placed over everything. */
     private final ZoomedOutLabels labels = new ZoomedOutLabels();

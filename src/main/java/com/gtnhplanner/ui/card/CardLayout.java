@@ -127,27 +127,24 @@ public final class CardLayout {
     /** One or two lines per port name; a name longer than two lines keeps "..." at the end of the second. */
     private static List<List<String>> names(final List<CardModel.PortView> ports) {
         final List<List<String>> out = new ArrayList<>(ports.size());
-        for (final CardModel.PortView p : ports) {
-            final String name = p.name() == null ? "" : p.name();
-            if (Hyb.width(name) <= TEXT_W) {
-                out.add(List.of(name));
-                continue;
-            }
-            final List<String> wrapped = Hyb.font()
-                .listFormattedStringToWidth(name, TEXT_W);
-            if (wrapped.size() <= 2) {
-                out.add(new ArrayList<>(wrapped));
-                continue;
-            }
-            final String rest = name.substring(
-                Math.min(
-                    name.length(),
-                    wrapped.get(0)
-                        .length()))
-                .trim();
-            out.add(List.of(wrapped.get(0), Hyb.fit(rest, TEXT_W)));
-        }
+        for (final CardModel.PortView p : ports) out.add(nameLines(p.name()));
         return out;
+    }
+
+    /** A port name on one or two lines of a port tile; longer keeps "..." at the end of the second. */
+    static List<String> nameLines(final String text) {
+        final String name = text == null ? "" : text;
+        if (Hyb.width(name) <= TEXT_W) return List.of(name);
+        final List<String> wrapped = Hyb.font()
+            .listFormattedStringToWidth(name, TEXT_W);
+        if (wrapped.size() <= 2) return new ArrayList<>(wrapped);
+        final String rest = name.substring(
+            Math.min(
+                name.length(),
+                wrapped.get(0)
+                    .length()))
+            .trim();
+        return List.of(wrapped.get(0), Hyb.fit(rest, TEXT_W));
     }
 
     public int sections() {

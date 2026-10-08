@@ -165,6 +165,22 @@ class SerializerTest {
     }
 
     @Test
+    void worldLinksSurviveARoundTrip() {
+        final LoadedChart chart = GtnhFlowLoader.load("light_fuel");
+        final Node linked = chart.machine(0);
+        linked.worldLinks.add(new int[] { 0, 518, 5, -3 });
+        linked.worldLinks.add(new int[] { -1, 12, 64, 40 });
+
+        final Graph decoded = Serializer.decode(Serializer.encode(chart.graph()));
+
+        final List<int[]> back = decoded.nodes.get(linked.id).worldLinks;
+        assertEquals(2, back.size());
+        assertEquals(List.of(0, 518, 5, -3), List.of(back.get(0)[0], back.get(0)[1], back.get(0)[2], back.get(0)[3]));
+        assertEquals(List.of(-1, 12, 64, 40), List.of(back.get(1)[0], back.get(1)[1], back.get(1)[2], back.get(1)[3]));
+        assertTrue(decoded.nodes.get(chart.machine(1).id).worldLinks.isEmpty(), "a card with no links gets none");
+    }
+
+    @Test
     void machineSettingsSurviveARoundTrip() {
         registerGtProfile();
         final LoadedChart chart = GtnhFlowLoader.load("light_fuel");

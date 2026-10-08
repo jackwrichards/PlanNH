@@ -246,6 +246,15 @@ public final class Serializer {
             if (node.isMachineCountFixed()) {
                 obj.addProperty("machineCountFixed", true);
             }
+            if (!node.worldLinks.isEmpty()) {
+                final JsonArray links = new JsonArray();
+                for (final int[] l : node.worldLinks) {
+                    final JsonArray at = new JsonArray();
+                    for (final int v : l) at.add(new com.google.gson.JsonPrimitive(v));
+                    links.add(at);
+                }
+                obj.add("worldLinks", links);
+            }
             if (!node.targetOutputRates.isEmpty()) {
                 final JsonObject targets = new JsonObject();
                 for (final Map.Entry<Integer, Double> t : node.targetOutputRates.entrySet()) {
@@ -359,6 +368,21 @@ public final class Serializer {
             node.setMachineCountFixed(
                 obj.has("machineCountFixed") && obj.get("machineCountFixed")
                     .getAsBoolean());
+            if (obj.has("worldLinks")) {
+                for (final JsonElement l : obj.getAsJsonArray("worldLinks")) {
+                    final JsonArray at = l.getAsJsonArray();
+                    if (at.size() != 4) continue;
+                    node.worldLinks.add(
+                        new int[] { at.get(0)
+                            .getAsInt(),
+                            at.get(1)
+                                .getAsInt(),
+                            at.get(2)
+                                .getAsInt(),
+                            at.get(3)
+                                .getAsInt() });
+                }
+            }
             // Read independently of every other key.
             if (obj.has("targets")) {
                 for (final Map.Entry<String, JsonElement> t : obj.getAsJsonObject("targets")

@@ -105,23 +105,29 @@ public final class SettingsPanel extends Widget<SettingsPanel> implements Intera
                 "Centre on the machine you look at",
                 () -> onOff(PlannerSettings.minimapFollows()),
                 s -> PlannerSettings.setMinimapFollows(!PlannerSettings.minimapFollows())));
-        rows.add(Row.heading("LINKED MACHINES IN THE WORLD"));
+        rows.add(Row.heading("IN THE WORLD"));
         rows.add(
             new Row(
-                "Outline the one you look at",
+                "Outline linked machines you look at",
                 () -> onOff(PlannerSettings.worldHighlight()),
                 s -> PlannerSettings.setWorldHighlight(!PlannerSettings.worldHighlight())));
         rows.add(
             new Row(
-                "AR panels over them",
+                "AR lens: panels over machines",
                 () -> onOff(PlannerSettings.arLens()),
                 s -> PlannerSettings.setArLens(!PlannerSettings.arLens())));
         rows.add(
             new Row(
-                "AR panel range",
+                "AR lens range",
                 () -> PlannerSettings.arRange() + " blocks",
                 s -> PlannerSettings
                     .setArRangeIndex(cycle(PlannerSettings.arRangeIndex(), s, PlannerSettings.AR_RANGES.length))));
+        rows.add(
+            new Row(
+                "AR lens card size",
+                () -> PlannerSettings.AR_SCALE_NAMES[PlannerSettings.arScaleIndex()],
+                s -> PlannerSettings
+                    .setArScaleIndex(cycle(PlannerSettings.arScaleIndex(), s, PlannerSettings.AR_SCALES.length))));
         rows.add(Row.heading("KEYS"));
         rows.add(new Row("Set them in Controls", () -> "Open", s -> {
             final Minecraft mc = Minecraft.getMinecraft();

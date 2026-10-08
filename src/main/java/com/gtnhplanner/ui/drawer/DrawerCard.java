@@ -169,7 +169,7 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
     // region Drawing
 
     /** The kind's colour, which tints the whole drawer as on the website: sources red, products green. */
-    private static int tint(final Drawer.Kind kind) {
+    public static int tint(final Drawer.Kind kind) {
         return switch (kind) {
             case SOURCE -> Hyb.SOURCE_INK;
             case PRODUCT -> Hyb.PRODUCT_INK;

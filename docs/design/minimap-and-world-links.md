@@ -28,31 +28,47 @@ order they are built.
 
 ## 3. Linking cards to blocks
 
-- A card's actions menu: **Link to blocks in the world**, **Show in the world** and **Clear world links** (the last
-  two once it has links). A card keeps a list of block positions (dimension and x, y, z: a card is often several
-  machines), saved with the plan, never copied with it.
-- Linking closes the planner and turns the crosshair into a picker: left-click a block to link it (again to unlink),
-  right-click or Esc when done, which opens the planner again. A block that is not the card's machine (by its pick-block
-  item) is linked with a warning.
+- A card's actions menu: **Link to blocks in the world** (then "Link more blocks"), **Show in the world** and **Clear
+  world links**. A card keeps a list of block positions (`Node.worldLinks`: dimension, x, y, z; a card is often
+  several machines), saved with the plan, never copied with it. A link edit is an undo step and is saved, but is not a
+  change to the plan: nothing re-solves and the minimap stays current (`ui/world/WorldLinks`).
+- Linking closes the planner and turns the crosshair into a picker (`ui/world/LinkPicker`): left-click a block to
+  link it (again to unlink), right-click or Esc when done, which opens the planner again. A block that is not the
+  card's machine (by its pick-block item) is linked with a note saying what it is.
+- From the world: the Link key (L) on the block under the crosshair opens `ui/world/LinkChooser`, the cards of the
+  plan last open, the same machine first; clicking one links or unlinks the block.
 - The card says how many blocks it is linked to ("2 IN WORLD" on its machines tile).
 
 ## 4. Seeing links in the world
 
-- **Show in the world**: the card's blocks are outlined through walls, with a beam and their name and distance, for a
-  while or until another card is shown.
-- Looking at a linked block outlines it, puts its card's name, count and plan under the crosshair, and (when set)
-  centres the minimap on that card and rings it.
+- **Show in the world**: the card's blocks are outlined through walls, with a beam and their name and distance, for
+  30 seconds (`ui/world/WorldView`, drawing in `WorldMarks`).
+- Looking at a linked block (up to 64 blocks away) outlines it and the rest of its card's, names the card, its count
+  and plan under the crosshair, and centres the minimap on that card and rings it (when set).
 
 ## 5. The AR lens
 
-- A key (and a setting) shows a panel over every linked machine within range: its machine, count, and what goes in and
-  comes out per second, with icons, from the last solve. Wires between linked machines are drawn as lines between them,
-  in their resource's colour.
+- A key (Y) and a setting show a card over every machine within range (`ui/world/ArLens`): GregTech's single blocks
+  and multiblock controllers, and any block linked to a card. Each is drawn in the recipe card's look with nothing to
+  press (`ui/card/WorldCard`): the name bar with the tier and amps chips, the running recipe's inputs and outputs per
+  second as port tiles, the machine in the middle with the progress under it, a POWER tile (EU/t drawn now, of the
+  most it can take) and a STATUS tile (progress and time left, or why it stopped; the linked card's count). The
+  nearest eight and the one looked at get a card, the rest the board's zoomed-out tile. Cards are projected from the
+  world's camera and drawn flat on the HUD, raised clear of nearer ones; their size is a setting (Medium default).
+- What a machine is doing comes from `ui/world/GtMachineStatus`. In single player it reads the integrated server's
+  copy: progress, the recipe (`processingLogic.lastRecipe` on multiblocks, `mLastRecipe` on single blocks, by
+  reflection) times its parallels over the real duration, the outputs of the running cycle, the energy hatches' tier,
+  amps and max input, maintenance, a formed structure, the shutdown reason and why it cannot start. On a server only
+  the running light reaches the client.
+- Wires between two cards that both have blocks here are drawn between them, in their resource's colour.
 
 ## Order of work
 
 1. Settings and zoomed-out names.
 2. Plan snapshot and the minimap, with its keys and settings.
-3. World links: the data, the card menu, the picker.
+3. World links: the data, the card menu, the picker, linking from the world.
 4. Show in the world, and looking at a linked block.
 5. The AR lens.
+
+All five are built (2026-10-07). Keys (Controls, GTNH Planner): N minimap, [ and ] zoom, arrows pan, Y AR lens,
+L link the block you look at.

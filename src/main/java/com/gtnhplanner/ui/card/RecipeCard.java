@@ -487,7 +487,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     }
 
     /** Rounds to the nearest half pixel: one screen pixel at the game's GUI scale 2, so text stays crisp. */
-    private static float crisp(final float v) {
+    static float crisp(final float v) {
         return Math.round(v * 2) / 2f;
     }
 
@@ -583,8 +583,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
      * a
      * hard shadow in the tier's dark, underlined from UV up.
      */
-    private static void chip(final int x, final int y, final int w, final int h, final Hyb.Tier tier,
-        final String label, final boolean underline, final boolean hover) {
+    static void chip(final int x, final int y, final int w, final int h, final Hyb.Tier tier, final String label,
+        final boolean underline, final boolean hover) {
         Hyb.rect(x, y, w, h, tier.border());
         Hyb.rect(x + 1, y + 1, w - 2, h - 2, hover ? Hyb.mix(tier.bg(), 0xFFFFFF, 0.88f) : tier.bg());
         Hyb.rect(x + 1, y + 1, w - 2, 1, 0x8CFFFFFF);
@@ -599,7 +599,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         if (underline) Hyb.rect(tx, ty + 8 * s, tw, 1, tier.text());
     }
 
-    private static void chevron(final int x, final int y, final int color) {
+    static void chevron(final int x, final int y, final int color) {
         Hyb.rect(x, y, 7, 1, color);
         Hyb.rect(x + 1, y + 1, 5, 1, color);
         Hyb.rect(x + 2, y + 2, 3, 1, color);
@@ -774,7 +774,24 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
      */
     private static void drawMachineArt(final CardModel m, final float x, final float y, final float w, final float h,
         final float itemSize, final float z, final boolean shadow) {
-        final StructureArt.Art art = StructureArt.forMachine(m.isPower() ? m.node.powerSource : m.machineName);
+        drawMachineArt(
+            m.isPower() ? m.node.powerSource : m.machineName,
+            m.machineStack,
+            x,
+            y,
+            w,
+            h,
+            itemSize,
+            z,
+            shadow);
+    }
+
+    /**
+     * {@link #drawMachineArt(CardModel, float, float, float, float, float, float, boolean)} by machine name and item.
+     */
+    static void drawMachineArt(final String artName, final ItemStack machineStack, final float x, final float y,
+        final float w, final float h, final float itemSize, final float z, final boolean shadow) {
+        final StructureArt.Art art = StructureArt.forMachine(artName);
         if (art != null) {
             final float scale = Math.min(w / art.width(), h / art.height());
             final float pw = art.width() * scale, ph = art.height() * scale;
@@ -794,13 +811,13 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             return;
         }
         // Rendered in game on the well's own background: opaque, so it casts no shadow of its own.
-        final MultiblockPictures.Picture structure = MultiblockPictures.get(m.machineStack);
+        final MultiblockPictures.Picture structure = MultiblockPictures.get(machineStack);
         if (structure != null) structure.draw(x, y, w, h);
-        else if (m.machineStack != null) {
+        else if (machineStack != null) {
             final float side = Math.min(itemSize, Math.min(w, h));
             final float ix = x + (w - side) / 2f, iy = y + (h - side) / 2f;
-            if (shadow) Hyb.iconShadow(m.machineStack, null, ix, iy, side);
-            Hyb.item(m.machineStack, ix, iy, side, z);
+            if (shadow) Hyb.iconShadow(machineStack, null, ix, iy, side);
+            Hyb.item(machineStack, ix, iy, side, z);
         }
     }
 
@@ -1081,6 +1098,11 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         for (int dx = 0; dx < cw; dx += 3) Hyb.rect(MACHINES_X + 4 + dx, y + 27, 1, 1, Hyb.MUTED);
         final int pencil = hover == Part.MACHINES ? Hyb.INK : Hyb.MUTED;
         for (int i = 0; i < 5; i++) Hyb.rect(MACHINES_X + 8 + cw + i, y + 24 - i, 2, 2, pencil);
+        // How many blocks in the world it is linked to, under the aside, where the count leaves room.
+        final int linked = m.node.worldLinks.size();
+        final String world = linked + " IN WORLD";
+        if (linked > 0 && MACHINES_X + 18 + cw < MACHINES_X + mw - 4 - Hyb.width(world))
+            Hyb.textRight(world, MACHINES_X + mw - 4, y + 18, 0xFF67C8DA);
     }
 
     private void drawCircuit(final CardModel m, final int y, final float z, final Part hover) {
@@ -1507,6 +1529,20 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         if (!model.isPower()) {
             rows.add(PickList.Entry.of("Add another recipe", () -> session.addRecipeTo(node.id)));
             rows.add(PickList.Entry.of("Machine settings", this::openSettings));
+        }
+        // Where it is built: blocks in the world, picked with the crosshair.
+        final String name = model.isPower() ? node.powerSource : model.machineName;
+        rows.add(
+            PickList.Entry.of(
+                node.worldLinks.isEmpty() ? "Link to blocks in the world" : "Link more blocks in the world",
+                () -> com.gtnhplanner.ui.world.LinkPicker.start(session.graph(), node.id, name, model.machineStack)));
+        if (!node.worldLinks.isEmpty()) {
+            rows.add(
+                PickList.Entry
+                    .of("Show in the world", () -> com.gtnhplanner.ui.world.WorldView.show(session.graph(), node.id)));
+            rows.add(
+                PickList.Entry
+                    .of("Clear world links", () -> com.gtnhplanner.ui.world.WorldLinks.clear(session.graph(), node)));
         }
         rows.add(new PickList.Entry(null, "Delete node", "", Hyb.RED_INK, false, () -> session.delete(node)));
         Popup.open(
