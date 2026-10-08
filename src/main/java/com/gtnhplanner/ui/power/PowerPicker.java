@@ -32,25 +32,24 @@ import com.gtnhplanner.ui.theme.Hyb;
 
 /**
  * The non-recipe machines: everything you can put on the board that does not run an NEI recipe, for now the power
- * sources. The website's power picker over a dimmed board: one column per kind (generators, turbines, boilers,
- * engines, reactors; solar and endgame on a shelf below), each tile the machine's structure render or its block, its
- * name and the tier that unlocks it. Typing searches the machines and everything they burn or make, so "benzene" finds
- * every machine that runs on it and places it with that fuel set.
+ * sources, listed compactly over a dimmed board: five columns of kinds (generators, turbines, boilers, engines and
+ * solar, reactors and endgame), one row per machine with its block, its name and the tier that unlocks it, and the
+ * structure picture in a preview beside the row under the mouse. Typing searches the machines and everything they burn
+ * or make, so "benzene" finds every machine that runs on it and places it with that fuel set.
  */
 public final class PowerPicker extends ParentWidget<PowerPicker> implements Interactable {
 
-    private static final int HEAD_H = 26, PAD = 8, GAP = 8, COL_MIN = 112, COL_MAX = 150, TITLE_H = 16;
-    private static final int ART_H = 62, LABEL_H = 14, VIA_H = 10;
-    private static final int SHEET_BG = 0xFF101215, SHEET_EDGE = 0xFF23262D, TILE_BG = 0xFF24262B,
-        TILE_HOT = 0xFF2E3036, TILE_EDGE = 0xFF3A3C43, ART_BG = 0xFF0B0D10;
+    private static final int HEAD_H = 26, PAD = 8, GAP = 8, COL_W = 150, COL_MIN = 120, TITLE_H = 14;
+    /** One machine per row: its icon, name and unlock tier; a search hit adds what matched under the name. */
+    private static final int ROW_H = 18, VIA_ROW_H = 27, ICON = 16;
+    private static final int SHEET_BG = 0xFF101215, SHEET_EDGE = 0xFF23262D, TILE_HOT = 0xFF2E3036, ART_BG = 0xFF0B0D10;
     /** The column titles: a dim brass (35% of #d99a2b over the card grey), with light amber ink. */
     private static final int BRASS = Hyb.mix(0xD99A2B, 0x31333A, 0.35f) | 0xFF000000, BRASS_INK = 0xFFFEF3C7,
         AMBER = 0xFFFCD34D, CYAN = 0xFF22D3EE;
 
-    /** The fuel-to-power path up top; solar and the endgame on the shelf below. */
-    private static final PowerGroup[][] SHELVES = {
-        { PowerGroup.BURNERS, PowerGroup.TURBINES, PowerGroup.STEAM, PowerGroup.ENGINES, PowerGroup.REACTORS },
-        { PowerGroup.PASSIVE, PowerGroup.ENDGAME } };
+    /** Five columns, the groups stacked in them: the short ones share, so the whole list fits on one screen. */
+    private static final PowerGroup[][] COLUMNS = { { PowerGroup.BURNERS }, { PowerGroup.TURBINES },
+        { PowerGroup.STEAM }, { PowerGroup.ENGINES, PowerGroup.PASSIVE }, { PowerGroup.REACTORS, PowerGroup.ENDGAME } };
     private static final String[] TIERS = { "ULV", "LV", "MV", "HV", "EV", "IV", "LuV", "ZPM", "UV", "UHV", "UEV",
         "UIV", "UMV", "UXV", "MAX" };
 
@@ -117,16 +116,17 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
 
     // region Layout
 
-    /** The sheet: the board's room less a margin, as wide as the browse columns need and no wider. */
-    private int[] sheet() {
+    /** The sheet: as wide as five columns, and as tall as what it shows (the board's room at most). */
+    private int[] sheet(final int content) {
         final int w = getArea().width, h = getArea().height;
-        final int sw = Math.max(240, Math.min(w - 2 * PAD, 5 * COL_MAX + 4 * GAP + 2 * PAD + 4));
-        final int sh = h - 2 * 6;
+        final int sw = Math
+            .max(240, Math.min(w - 2 * PAD, COLUMNS.length * COL_W + (COLUMNS.length - 1) * GAP + 2 * PAD + 4));
+        final int sh = Math.max(HEAD_H + 60, Math.min(h - 12, HEAD_H + content + 4));
         return new int[] { (w - sw) / 2, 6, sw, sh };
     }
 
     private static int columns(final int width) {
-        return Math.max(1, (width + GAP) / (COL_MIN + GAP));
+        return Math.max(1, Math.min(COLUMNS.length, (width + GAP) / (COL_MIN + GAP)));
     }
 
     // endregion
@@ -141,7 +141,8 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
         final Hit hover = hitAt(lastHits);
         Hyb.rect(0, 0, w, h, 0xB3000000);
         hits.add(new Hit(Kind.BACKDROP, 0, 0, w, h, null));
-        final int[] s = sheet();
+        final List<PowerSearch.Hit> found = found();
+        final int[] s = sheet(contentH);
         final int sx = s[0], sy = s[1], sw = s[2], sh = s[3];
         hits.add(new Hit(Kind.SHEET, sx, sy, sx + sw, sy + sh, null));
         Hyb.rect(sx, sy, sw, sh, SHEET_EDGE);
@@ -150,22 +151,12 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
         drawHeader(sx + 2, sy + 2, sw - 4, hover);
         final int top = sy + 2 + HEAD_H, bottom = sy + sh - 2;
         Stencil.apply(sx + 2, top, sw - 4, bottom - top, context);
-        final List<PowerSearch.Hit> found = found();
         final int x0 = sx + 2 + PAD, innerW = sw - 4 - 2 * PAD;
         int y = top + PAD - scroll;
         if (searching()) y = drawResults(found, x0, y, innerW, z, hover);
-        else {
-            for (int shelf = 0; shelf < SHELVES.length; shelf++) {
-                final int before = y;
-                y = drawShelf(SHELVES[shelf], found, x0, y, innerW, z, hover);
-                if (shelf + 1 < SHELVES.length && y > before) {
-                    Hyb.rect(x0, y + 6, innerW, 1, 0x1AFFFFFF);
-                    y += 14;
-                }
-            }
-        }
+        else y = drawColumns(found, x0, y, innerW, z, hover);
         Stencil.remove();
-        contentH = y + scroll - top;
+        contentH = y + scroll - top + PAD;
         scroll = bar
             .draw(sx + sw - 2, top, bottom - top, contentH, scroll, isHovering() && bar.contains(localX(), localY()));
         lastHits.clear();
@@ -177,6 +168,10 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
         super.drawOverlay(context, widgetTheme);
         final Hit hover = hitAt(lastHits);
         if (hover == null) return;
+        if (hover.kind() == Kind.TILE) {
+            drawPreview((PowerSearch.Hit) hover.data(), hover);
+            return;
+        }
         final Tip tip = tip(hover);
         if (tip != null) tip.drawNear(localX(), localY(), getArea().width, getArea().height);
     }
@@ -202,107 +197,150 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
         for (final int[] r : runs) Hyb.rect(x + r[0], y + r[1], r[2], 1, color);
     }
 
-    /** One shelf: its kinds side by side, as many to a row as fit; returns the bottom. */
-    private int drawShelf(final PowerGroup[] groups, final List<PowerSearch.Hit> found, final int x0, final int y0,
-        final int width, final float z, final Hit hover) {
-        final List<PowerGroup> shown = new ArrayList<>();
-        for (final PowerGroup g : groups) if (!inGroup(found, g).isEmpty()) shown.add(g);
-        if (shown.isEmpty()) return y0;
-        final int perRow = Math.min(shown.size(), columns(width));
-        final int colW = Math.min(COL_MAX, (width - (perRow - 1) * GAP) / perRow);
-        int y = y0;
-        for (int start = 0; start < shown.size(); start += perRow) {
-            int bottom = y;
-            for (int i = start; i < Math.min(shown.size(), start + perRow); i++) {
-                final PowerGroup group = shown.get(i);
+    /** The groups in their columns, each a brass title over its rows; empty groups and columns drop out. */
+    private int drawColumns(final List<PowerSearch.Hit> found, final int x0, final int y0, final int width,
+        final float z, final Hit hover) {
+        final List<List<PowerGroup>> columns = new ArrayList<>();
+        for (final PowerGroup[] column : COLUMNS) {
+            final List<PowerGroup> shown = new ArrayList<>();
+            for (final PowerGroup g : column) if (!inGroup(found, g).isEmpty()) shown.add(g);
+            if (!shown.isEmpty()) columns.add(shown);
+        }
+        if (columns.isEmpty()) return y0;
+        final int colW = Math.min(COL_W, (width - (COLUMNS.length - 1) * GAP) / COLUMNS.length);
+        int bottom = y0;
+        for (int c = 0; c < columns.size(); c++) {
+            final int cx = x0 + c * (colW + GAP);
+            int y = y0;
+            for (final PowerGroup group : columns.get(c)) {
                 final List<PowerSearch.Hit> list = inGroup(found, group);
-                final int cx = x0 + (i - start) * (colW + GAP);
-                // The column's title bar in brass, with its count.
-                Hyb.rect(cx, y, colW, TITLE_H, 0xFF15171A);
-                Hyb.rect(cx + 1, y + 1, colW - 2, TITLE_H - 2, BRASS);
-                Hyb.rect(cx + 1, y + 1, colW - 2, 1, 0x2EFFFFFF);
+                if (y > y0) y += 8;
+                Hyb.rect(cx, y, colW, TITLE_H, BRASS);
                 final String count = Integer.toString(list.size());
                 Hyb.text(
                     Hyb.fit(group.title.toUpperCase(Locale.ROOT), colW - 14 - Hyb.width(count)),
-                    cx + 5,
-                    y + 4,
+                    cx + 4,
+                    y + 3,
                     BRASS_INK);
-                Hyb.textRight(count, cx + colW - 5, y + 4, 0x99FEF3C7);
-                int ty = y + TITLE_H + 4;
-                for (final PowerSearch.Hit hit : list) ty = drawTile(hit, cx, ty, colW, z, hover) + 4;
-                bottom = Math.max(bottom, ty);
+                Hyb.textRight(count, cx + colW - 4, y + 3, 0x99FEF3C7);
+                y += TITLE_H + 1;
+                for (final PowerSearch.Hit hit : list) y = drawRow(hit, cx, y, colW, z, hover);
             }
-            y = bottom + 6;
+            bottom = Math.max(bottom, y);
         }
-        return y;
+        return bottom;
     }
 
-    /** Search results: every hit, in a grid across the sheet. */
+    /** Search results: every hit, down the columns. */
     private int drawResults(final List<PowerSearch.Hit> found, final int x0, final int y0, final int width,
         final float z, final Hit hover) {
         if (found.isEmpty()) {
-            Hyb.text(
-                "Nothing matches. Machines are found by name and by every fuel and product",
-                x0,
-                y0 + 4,
-                Hyb.MUTED);
-            Hyb.text("they can run on.", x0, y0 + 14, Hyb.MUTED);
-            return y0 + 26;
+            Hyb.text("No machine burns, makes or is named that.", x0, y0 + 4, Hyb.MUTED);
+            return y0 + 16;
         }
         final int cols = columns(width);
-        final int colW = Math.min(COL_MAX + 40, (width - (cols - 1) * GAP) / cols);
-        int y = y0, rowBottom = y0;
-        for (int i = 0; i < found.size(); i++) {
-            final int col = i % cols;
-            if (col == 0 && i > 0) {
-                y = rowBottom + 4;
-            }
-            rowBottom = Math.max(rowBottom, drawTile(found.get(i), x0 + col * (colW + GAP), y, colW, z, hover));
+        final int colW = (width - (cols - 1) * GAP) / cols;
+        final int perCol = (found.size() + cols - 1) / cols;
+        int bottom = y0;
+        for (int c = 0; c < cols; c++) {
+            int y = y0;
+            for (int i = c * perCol; i < Math.min(found.size(), (c + 1) * perCol); i++)
+                y = drawRow(found.get(i), x0 + c * (colW + GAP), y, colW, z, hover);
+            bottom = Math.max(bottom, y);
         }
-        return rowBottom + 4;
+        return bottom;
     }
 
-    /** One machine: its picture, its name and unlock tier, and on a search what matched; returns the bottom. */
-    private int drawTile(final PowerSearch.Hit hit, final int x, final int y, final int w, final float z,
+    /** One machine as a row: its icon, its name and unlock tier, and on a search what matched; returns the bottom. */
+    private int drawRow(final PowerSearch.Hit hit, final int x, final int y, final int w, final float z,
         final Hit hover) {
         final PowerSource source = hit.source();
-        final int h = ART_H + LABEL_H + (hit.via() != null ? VIA_H : 0) + 2;
+        final int h = hit.via() != null ? VIA_ROW_H : ROW_H;
         final boolean hot = hover != null && hover.kind() == Kind.TILE && hover.data() == hit;
-        Hyb.rect(x, y, w, h, hot ? 0xB3FCD34D : TILE_EDGE);
-        Hyb.rect(x + 1, y + 1, w - 2, h - 2, hot ? TILE_HOT : TILE_BG);
-        Hyb.rect(x + 1, y + 1, w - 2, ART_H, ART_BG);
-        Hyb.rect(x + 1, y + ART_H + 1, w - 2, 1, TILE_EDGE);
-        drawArt(source, x + 4, y + 4, w - 8, ART_H - 6, z);
+        if (hot) {
+            Hyb.rect(x, y, w, h, TILE_HOT);
+            Hyb.rect(x, y, 2, h, AMBER);
+        }
+        drawIcon(source, x + 3, y + (ROW_H - ICON) / 2, z);
         final String tier = source.unlock();
         final int badgeW = tier == null ? 0 : Hyb.width(tier) + 6;
-        Hyb.text(Hyb.fit(source.name(), w - 10 - badgeW), x + 4, y + ART_H + 5, Hyb.INK);
-        if (tier != null) badge(tier, x + w - 3 - badgeW, y + ART_H + 4, badgeW);
+        Hyb.text(Hyb.fit(source.name(), w - ICON - 10 - badgeW), x + ICON + 6, y + 5, Hyb.INK);
+        if (tier != null) badge(tier, x + w - 2 - badgeW, y + 4, badgeW);
         if (hit.via() != null) {
             final String via = (hit.via()
-                .takes() ? "> Takes " : "< Makes ") + hit.via()
+                .takes() ? "Takes " : "Makes ") + hit.via()
                     .name();
-            Hyb.text(Hyb.fit(via, w - 8), x + 4, y + ART_H + LABEL_H + 3, CYAN);
+            Hyb.text(Hyb.fit(via, w - ICON - 8), x + ICON + 6, y + 15, CYAN);
         }
         // Only what is in view takes a click.
         hits.add(new Hit(Kind.TILE, x, y, x + w, y + h, hit));
         return y + h;
     }
 
-    /** The structure render, fitted; else the machine's block, as large as the game draws it crisply. */
-    private void drawArt(final PowerSource source, final float x, final float y, final float w, final float h,
-        final float z) {
-        final StructureArt.Art art = StructureArt.forMachine(source.id());
-        if (art != null) {
-            final float scale = Math.min(w / art.width(), h / art.height());
-            final float pw = art.width() * scale, ph = art.height() * scale;
-            Hyb.texture(art.location(), x + (w - pw) / 2f, y + (h - ph) / 2f, pw, ph);
-            return;
-        }
+    /** The machine's own item, as NEI shows it; failing that its structure picture, small; failing that the bolt. */
+    private void drawIcon(final PowerSource source, final float x, final float y, final float z) {
         final ItemStack stack = machineStacks.computeIfAbsent(source.id(), PowerPorts::machineStack);
         if (stack != null) {
-            final float side = Math.min(48, Math.min(w, h));
-            Hyb.item(stack, x + (w - side) / 2f, y + (h - side) / 2f, side, z);
-        } else bolt(x + w / 2f - 3, y + h / 2f - 5, AMBER);
+            Hyb.item(stack, x, y, ICON, z);
+            return;
+        }
+        final StructureArt.Art art = StructureArt.forMachine(source.id());
+        if (art != null) drawArt(art, x, y, ICON, ICON);
+        else bolt(x + 4, y + 2, AMBER);
+    }
+
+    /** A structure picture fitted to a box, keeping its shape. */
+    private static void drawArt(final StructureArt.Art art, final float x, final float y, final float w,
+        final float h) {
+        final float scale = Math.min(w / art.width(), h / art.height());
+        final float pw = art.width() * scale, ph = art.height() * scale;
+        Hyb.texture(art.location(), x + (w - pw) / 2f, y + (h - ph) / 2f, pw, ph);
+    }
+
+    private static final int PREVIEW_W = 190, PREVIEW_ART = 84;
+
+    /**
+     * The machine under the mouse, beside its row: the structure picture (or its block, large), its name, kind and
+     * unlock tier, what it does, and on a search what matched.
+     */
+    private void drawPreview(final PowerSearch.Hit hit, final Hit row) {
+        final PowerSource s = hit.source();
+        final StructureArt.Art art = StructureArt.forMachine(s.id());
+        final List<String> blurb = Hyb.font()
+            .listFormattedStringToWidth(s.blurb(), PREVIEW_W - 12);
+        final int h = 6 + PREVIEW_ART + 6 + 10 + 10 + blurb.size() * 9 + (hit.via() != null ? 10 : 0) + 6;
+        final int w = getArea().width, areaH = getArea().height;
+        int x = row.x1() + 6;
+        if (x + PREVIEW_W > w - 2) x = row.x0() - 6 - PREVIEW_W;
+        x = Math.max(2, x);
+        final int y = Math.max(2, Math.min(row.y0() - 20, areaH - h - 2));
+        Hyb.rect(x, y, PREVIEW_W, h, 0xFF3A3C43);
+        Hyb.rect(x + 1, y + 1, PREVIEW_W - 2, h - 2, 0xF0101215);
+        Hyb.rect(x + 6, y + 6, PREVIEW_W - 12, PREVIEW_ART, ART_BG);
+        if (art != null) drawArt(art, x + 8, y + 8, PREVIEW_W - 16, PREVIEW_ART - 4);
+        else {
+            final ItemStack stack = machineStacks.computeIfAbsent(s.id(), PowerPorts::machineStack);
+            if (stack != null) Hyb.item(stack, x + (PREVIEW_W - 48) / 2f, y + 6 + (PREVIEW_ART - 48) / 2f, 48, 0);
+            else bolt(x + PREVIEW_W / 2f - 3, y + 6 + PREVIEW_ART / 2f - 5, AMBER);
+        }
+        int ty = y + 6 + PREVIEW_ART + 6;
+        Hyb.text(Hyb.fit(s.name(), PREVIEW_W - 12), x + 6, ty, Hyb.INK);
+        ty += 10;
+        Hyb.text(s.group().title + (s.unlock() != null ? ", unlocks at " + s.unlock() : ""), x + 6, ty, Hyb.MUTED);
+        ty += 10;
+        for (final String line : blurb) {
+            Hyb.text(line, x + 6, ty, 0xFFB8BAC2);
+            ty += 9;
+        }
+        if (hit.via() != null) Hyb.text(
+            Hyb.fit(
+                (hit.via()
+                    .takes() ? "Takes " : "Makes ") + hit.via()
+                        .name(),
+                PREVIEW_W - 12),
+            x + 6,
+            ty,
+            CYAN);
     }
 
     /** The unlock tier in its voltage colours, as the card's tier chip wears them. */
@@ -486,7 +524,7 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
 
     @Override
     public boolean onMouseScroll(final UpOrDown direction, final int amount) {
-        scroll = Math.max(0, scroll + (direction == UpOrDown.UP ? -1 : 1) * (ART_H + LABEL_H + 6));
+        scroll = Math.max(0, scroll + (direction == UpOrDown.UP ? -1 : 1) * 3 * ROW_H);
         return true;
     }
 
