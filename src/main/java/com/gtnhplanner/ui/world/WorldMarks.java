@@ -132,10 +132,10 @@ final class WorldMarks {
         // Two directions across the tube.
         final double[] up = Math.abs(d[1]) > 0.9 ? new double[] { 1, 0, 0 } : new double[] { 0, 1, 0 };
         final double[] u = norm(cross(d, up)), v = cross(d, u);
-        line(ax, ay, az, bx, by, bz, rgb, 2f);
+        line(ax, ay, az, bx, by, bz, rgb, 1.5f);
         GL11.glEnable(GL11.GL_DEPTH_TEST);
         GL11.glDepthMask(true);
-        final double r = 0.07;
+        final double r = 0.035;
         final Tessellator t = Tessellator.instance;
         t.startDrawingQuads();
         final int sides = 10;
@@ -149,15 +149,15 @@ final class WorldMarks {
             t.addVertex(ax + n1[0] * r, ay + n1[1] * r, az + n1[2] * r);
         }
         t.draw();
-        // Arrowheads every block and a half, sliding along while something flows.
-        final double gap = 1.5;
-        final double phase = flowing ? (System.currentTimeMillis() % 1500L) / 1500.0 * gap : gap / 2;
+        // An arrowhead every three blocks, sliding slowly along while something flows.
+        final double gap = 3;
+        final double phase = flowing ? (System.currentTimeMillis() % 4000L) / 4000.0 * gap : gap / 2;
         final int head = Hyb.mix(0xFF000000 | rgb, 0xFFFFFFFF, 0.3f) & 0xFFFFFF;
         t.startDrawing(GL11.GL_TRIANGLES);
-        for (double at = phase; at < len - 0.25; at += gap) {
-            if (at < 0.25) continue;
+        for (double at = phase; at < len - 0.6; at += gap) {
+            if (at < 0.6) continue;
             final double cx = ax + d[0] * at, cy = ay + d[1] * at, cz = az + d[2] * at;
-            final double tip = 0.32, br = 0.17;
+            final double tip = 0.2, br = 0.09;
             final double tx = cx + d[0] * tip, ty = cy + d[1] * tip, tz = cz + d[2] * tip;
             for (int i = 0; i < 8; i++) {
                 final double a0 = 2 * Math.PI * i / 8, a1 = 2 * Math.PI * (i + 1) / 8;

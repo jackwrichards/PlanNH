@@ -1,6 +1,7 @@
 package com.gtnhplanner.ui.world;
 
 import java.util.List;
+import java.util.Map;
 
 import javax.annotation.Nullable;
 
@@ -14,11 +15,10 @@ import com.gtnhplanner.ui.theme.Fmt;
 import com.gtnhplanner.ui.theme.Hyb;
 
 /**
- * How the AR lens draws a machine: as the machine's own window looks when opened, in the game's grey with its slots
- * and progress arrow, since it shows the machine as it is in the world, not the plan. A link to a plan card hangs
- * under it as a dark tag in the planner's colours. Three sizes: a slot-sized tile for far machines, a panel for near
- * ones (name, slots, progress, state), and the panel for the machine looked at, which adds what it made and used,
- * how busy it was, and its power. Every colour takes the panel's fade.
+ * How the AR lens draws a machine, in the planner's look: a small dark panel with the machine's name and tier, what
+ * its recipe takes and makes in tiles either side of a progress arrow (each with its recent rate under it), one line
+ * for what it is doing and its power, and a quiet line for its plan card and how busy it has been. Far machines are a
+ * tile with a state light. Every colour takes the panel's fade.
  */
 final class ArPanel {
 
@@ -27,17 +27,17 @@ final class ArPanel {
     /** A linked plan card: its name and plan, and how many of its machines are placed of how many the plan has. */
     record Tag(String card, String plan, int placed, int planned) {}
 
-    /** A machine to draw: what it is, what it is doing (null when unknown), its link, how far it is. */
+    /**
+     * A machine to draw: what it is, what it is doing (null when unknown), its link, and what it has done lately
+     * (null before it has been watched).
+     */
     record View(String name, @Nullable ItemStack icon, @Nullable MachineStatus status, @Nullable Tag tag,
-        int distance) {}
+        @Nullable MachineStats.Track track) {}
 
-    // The game's window colours.
-    private static final int FACE = 0xFFC6C6C6, LIGHT = 0xFFFFFFFF, DARK = 0xFF555555, EDGE = 0xFF000000;
-    private static final int SLOT = 0xFF8B8B8B, SLOT_DARK = 0xFF373737;
-    private static final int TEXT = 0xFF404040, SOFT = 0xFF6B6B6B;
-    private static final int GREEN = 0xFF1C7C1C, RED = 0xFFAA0000;
-    private static final int PAD = 6, TITLE = 16, TAG_H = 12;
-    private static final int FOCUS_W = 236;
+    private static final int PAD = 6, SLOT = 20, GAP = 4, ARROW = 22, MAX_SLOTS = 4;
+    private static final int GOLD_SOFT = 0xFFB59A54;
+    /** Small type: half the game's font, a screen pixel a font pixel at GUI scale 2. */
+    private static final float SMALL = 0.5f;
 
     /** The fade every colour is drawn at. */
     private static float alpha = 1;
@@ -50,201 +50,239 @@ final class ArPanel {
         Hyb.rect(x, y, w, h, a(argb));
     }
 
-    private static void text(final String s, final float x, final float y, final int color, final boolean shadow) {
+    private static void text(final String s, final float x, final float y, final float scale, final int color) {
         if (alpha < 0.06f || s.isEmpty()) return;
-        GuiDraw.drawText(s, x, y, 1, a(color), shadow);
+        GuiDraw.drawText(s, x, y, scale, a(color), scale >= 1);
     }
 
-    private static void textRight(final String s, final float right, final float y, final int color) {
-        text(s, right - Hyb.width(s), y, color, false);
+    private static float width(final String s, final float scale) {
+        return Hyb.width(s) * scale;
     }
 
     private static void icon(@Nullable final ItemStack item, @Nullable final FluidStack fluid, final float x,
         final float y, final float size) {
         // Items cannot fade: they come in once the panel is mostly there.
         if (alpha < 0.55f) return;
-        if (fluid != null) Hyb.fluid(fluid, x, y, size, 0);
-        else if (item != null) Hyb.item(item, x, y, size, 0);
+        Hyb.icon(item, fluid, x, y, size, 0);
         GL11.glDisable(GL11.GL_LIGHTING);
         GL11.glDisable(GL11.GL_DEPTH_TEST);
     }
 
-    // region The game's window, slots and arrow
+    // region Layout
 
-    private static void window(final float x, final float y, final float w, final float h) {
-        rect(x + 1, y, w - 2, 1, EDGE);
-        rect(x + 1, y + h - 1, w - 2, 1, EDGE);
-        rect(x, y + 1, 1, h - 2, EDGE);
-        rect(x + w - 1, y + 1, 1, h - 2, EDGE);
-        rect(x + 1, y + 1, w - 2, h - 2, FACE);
-        rect(x + 1, y + 1, w - 3, 2, LIGHT);
-        rect(x + 1, y + 1, 2, h - 3, LIGHT);
-        rect(x + 3, y + h - 3, w - 4, 2, DARK);
-        rect(x + w - 3, y + 3, 2, h - 4, DARK);
+    private static List<MachineStatus.Flow> ins(final View v) {
+        return v.status == null ? List.of() : first(v.status.inputs());
     }
 
-    private static void slot(final float x, final float y) {
-        rect(x, y, 17, 17, SLOT_DARK);
-        rect(x + 1, y + 1, 17, 17, LIGHT);
-        rect(x + 1, y + 1, 16, 16, SLOT);
+    private static List<MachineStatus.Flow> outs(final View v) {
+        return v.status == null ? List.of() : first(v.status.outputs());
     }
 
-    /** A slot with what goes through it per cycle, its count in the corner as the game draws a stack's. */
-    private static void slot(final float x, final float y, final MachineStatus.Flow f) {
-        slot(x, y);
-        icon(f.item(), f.fluid(), x + 1, y + 1, 16);
-        final String n = f.fluid() != null ? Fmt.compact(f.perCycle())
-            : f.perCycle() > 1 ? Fmt.compact(f.perCycle()) : "";
-        if (!n.isEmpty()) text(n, x + 18 - Hyb.width(n), y + 9.5f, 0xFFFFFFFF, true);
+    private static List<MachineStatus.Flow> first(final List<MachineStatus.Flow> all) {
+        return all.subList(0, Math.min(MAX_SLOTS, all.size()));
     }
 
-    /** The progress arrow, filled white as far as the recipe has got. */
-    private static void arrow(final float x, final float y, final float progress) {
-        final int fill = progress < 0 ? 0 : Math.round(22 * progress);
-        for (int col = 0; col < 22; col++) {
-            final int h = col < 14 ? 6 : 15 - 2 * (col - 14);
-            if (h <= 0) continue;
-            rect(x + col, y + (15 - h) / 2f, 1, h, col < fill ? LIGHT : SLOT);
-        }
+    private static boolean slots(final View v) {
+        return !ins(v).isEmpty() || !outs(v).isEmpty();
+    }
+
+    /** The slots and the arrow: their width. */
+    private static int rowWidth(final View v) {
+        final int i = ins(v).size(), o = outs(v).size();
+        return i * (SLOT + 2) + (i > 0 ? GAP : 0) + ARROW + (o > 0 ? GAP : 0) + o * (SLOT + 2);
+    }
+
+    private static String status(final View v) {
+        final MachineStatus st = v.status;
+        if (st == null) return "Linked block";
+        return switch (st.state()) {
+            case RUNNING -> "Running" + (st.progress() >= 0 ? "  " + Math.round(st.progress() * 100) + "%" : "")
+                + (st.ticksLeft() > 0 ? "  " + seconds(st.ticksLeft()) : "");
+            case PROBLEM -> st.detail()
+                .isEmpty() ? "Stopped" : st.detail();
+            case OFF -> "Turned off";
+            case IDLE -> st.detail()
+                .isEmpty() ? "Idle" : "Idle: " + st.detail();
+        };
+    }
+
+    private static int light(final View v) {
+        final MachineStatus st = v.status;
+        if (st == null) return Hyb.MUTED;
+        return st.state() == MachineStatus.State.RUNNING ? Hyb.PRODUCT_INK
+            : st.state() == MachineStatus.State.PROBLEM ? Hyb.RED_INK : Hyb.MUTED;
+    }
+
+    private static String power(final View v) {
+        final MachineStatus st = v.status;
+        if (st == null || st.maxEuPerTick() <= 0 && st.euPerTick() <= 0) return "";
+        final long now = st.state() == MachineStatus.State.RUNNING ? st.euPerTick() : 0;
+        return st.maxEuPerTick() > 0 ? Fmt.power(now) + " / " + Fmt.power(st.maxEuPerTick()) + " EU/t"
+            : Fmt.power(now) + " EU/t";
+    }
+
+    /** The quiet line: the plan card, or that there is none. */
+    private static String planLine(final View v) {
+        if (v.tag == null) return "Not linked to a plan (L)";
+        final Tag t = v.tag;
+        return t.card + " · " + t.plan + (t.planned > 0 ? " · " + t.placed + " of " + t.planned : "");
+    }
+
+    /** How busy it has been this last hour, or null before it has been watched. */
+    @Nullable
+    private static String busy(final View v) {
+        if (v.track == null) return null;
+        final float hour = v.track.busy(MachineStats.now(), true);
+        return hour < 0 ? null : "busy " + Math.round(hour * 100) + "%";
+    }
+
+    static int width(final View v) {
+        final String tier = v.status != null ? v.status.tier() : "";
+        float w = Hyb.width(v.name) + (tier.isEmpty() ? 0 : Hyb.width(tier) + 12);
+        w = Math.max(w, rowWidth(v));
+        w = Math.max(w, 9 + Hyb.width(status(v)) + 10 + Hyb.width(power(v)));
+        final String busy = busy(v);
+        w = Math.max(w, 8 + width(planLine(v), SMALL) + (busy == null ? 0 : 8 + width(busy, SMALL)));
+        return Math.min(230, Math.max(120, Math.round(w) + 2 * PAD));
+    }
+
+    private static int rowHeight(final View v) {
+        return slots(v) ? SLOT + 2 + (v.track != null ? 6 : 0) + 4 : 0;
+    }
+
+    static int height(final View v) {
+        return PAD - 1 + 12 + rowHeight(v) + 11 + 3 + 4 + PAD;
     }
 
     // endregion
 
     // region Near: the panel
 
-    private record Grid(List<MachineStatus.Flow> ins, List<MachineStatus.Flow> outs, int inCols, int outCols,
-        int rows) {
-
-        static Grid of(@Nullable final MachineStatus st) {
-            final List<MachineStatus.Flow> ins = st == null ? List.of()
-                : st.inputs()
-                    .subList(
-                        0,
-                        Math.min(
-                            6,
-                            st.inputs()
-                                .size()));
-            final List<MachineStatus.Flow> outs = st == null ? List.of()
-                : st.outputs()
-                    .subList(
-                        0,
-                        Math.min(
-                            6,
-                            st.outputs()
-                                .size()));
-            final int inCols = Math.min(3, ins.size()), outCols = Math.min(3, outs.size());
-            final int rows = Math.max((ins.size() + 2) / 3, (outs.size() + 2) / 3);
-            return new Grid(ins, outs, inCols, outCols, rows);
-        }
-
-        boolean empty() {
-            return rows == 0;
-        }
-
-        int width() {
-            return inCols * 18 + (inCols > 0 ? 5 : 0) + 22 + (outCols > 0 ? 5 : 0) + outCols * 18;
-        }
-
-        int height() {
-            return rows * 18;
-        }
-    }
-
-    /** What the machine is doing, in a line, and its colour. */
-    private static String state(final View v) {
-        final MachineStatus st = v.status;
-        if (st == null) return "Linked block";
-        return switch (st.state()) {
-            case RUNNING -> "Running" + (st.progress() >= 0 ? "  " + Math.round(st.progress() * 100) + "%" : "")
-                + (st.ticksLeft() > 0 ? "  " + seconds(st.ticksLeft()) : "");
-            case PROBLEM -> "Stopped" + (st.detail()
-                .isEmpty() ? "" : ": " + st.detail());
-            case OFF -> "Turned off";
-            case IDLE -> "Idle" + (st.detail()
-                .isEmpty() ? "" : ": " + st.detail());
-        };
-    }
-
-    private static int stateColor(final View v) {
-        final MachineStatus st = v.status;
-        if (st == null) return SOFT;
-        return st.state() == MachineStatus.State.RUNNING ? GREEN
-            : st.state() == MachineStatus.State.PROBLEM ? RED : SOFT;
-    }
-
-    static int width(final View v) {
-        final Grid g = Grid.of(v.status);
-        final String tier = v.status != null ? v.status.tier() : "";
-        int w = Math.max(g.width(), Hyb.width(v.name) + (tier.isEmpty() ? 0 : Hyb.width(tier) + 8));
-        w = Math.max(w, Math.min(180, Hyb.width(state(v))));
-        // Wide enough for its plan tag, within reason.
-        if (v.tag != null) w = Math.max(w, Math.min(206, Hyb.width(tagText(v.tag)) + Hyb.width(tagCount(v.tag)) + 16));
-        return Math.min(220, Math.max(110, w + 2 * PAD));
-    }
-
-    static int height(final View v) {
-        final Grid g = Grid.of(v.status);
-        return TITLE + (g.empty() ? 0 : g.height() + 5) + 9 + 6 + (v.tag != null ? TAG_H : 0);
-    }
-
-    /** The near panel at the origin, at a fade. */
+    /** The panel at the origin, at a fade; the machine looked at has the selection ring. */
     static void near(final View v, final float fade, final boolean lookedAt) {
         alpha = fade;
-        final int w = width(v), h = height(v) - (v.tag != null ? TAG_H : 0);
-        body(v, 0, 0, w, h, lookedAt);
-        if (v.tag != null) tag(v.tag, 0, h, w);
-    }
-
-    /** The window with the name and tier, the slots and arrow, and the state; returns where the state line ends. */
-    private static float body(final View v, final float x, final float y, final int w, final int h,
-        final boolean lookedAt) {
-        if (lookedAt) rect(x - 2, y - 2, w + 4, h + 4, Hyb.SELECTION);
-        window(x, y, w, h);
+        final int w = width(v), h = height(v);
+        if (alpha >= 0.95f) Hyb.dropShadow(0, 0, w, h);
+        if (lookedAt) rect(-2, -2, w + 4, h + 4, Hyb.SELECTION);
+        rect(0, 0, w, h, Hyb.FRAME);
+        rect(1, 1, w - 2, h - 2, 0xF0202226);
+        rect(1, 1, w - 2, 1, 0x30FFFFFF);
+        // A plan card's machine has a gold rule down its left edge.
+        if (v.tag != null) rect(1, 1, 2, h - 2, Hyb.GOLD);
+        float y = PAD - 1;
+        // Name, and the tier in its colours.
         final String tier = v.status != null ? v.status.tier() : "";
         final int tierW = tier.isEmpty() ? 0 : Hyb.width(tier) + 6;
-        text(Hyb.fit(v.name, w - 2 * PAD - tierW), x + PAD, y + 6, TEXT, false);
-        if (!tier.isEmpty()) textRight(
-            tier,
-            x + w - PAD,
-            y + 6,
-            Hyb.tier(tier)
-                .bg());
-        float row = y + TITLE;
-        final Grid g = Grid.of(v.status);
-        if (!g.empty()) {
-            float gx = x + (w - g.width()) / 2f;
-            for (int i = 0; i < g.ins.size(); i++) slot(gx + i % 3 * 18, row + i / 3 * 18, g.ins.get(i));
-            gx += g.inCols * 18 + (g.inCols > 0 ? 5 : 0);
-            arrow(
-                gx,
-                row + (g.height() - 15) / 2f,
-                v.status.state() == MachineStatus.State.RUNNING ? v.status.progress() : -1);
-            gx += 22 + (g.outCols > 0 ? 5 : 0);
-            for (int i = 0; i < g.outs.size(); i++) slot(gx + i % 3 * 18, row + i / 3 * 18, g.outs.get(i));
-            row += g.height() + 5;
+        text(Hyb.fit(v.name, w - 2 * PAD - tierW - 4), PAD, y, 1, Hyb.INK);
+        if (!tier.isEmpty()) {
+            final Hyb.Tier t = Hyb.tier(tier);
+            final float tx = w - PAD - tierW;
+            rect(tx, y - 1, tierW, 10, t.border());
+            rect(tx + 1, y, tierW - 2, 8, t.bg());
+            text(tier, tx + 3, y, 1, t.text());
         }
-        text(Hyb.fit(state(v), w - 2 * PAD), x + PAD, row, stateColor(v), false);
-        return row + 9;
+        y += 12;
+        if (slots(v)) row(v, Math.round((w - rowWidth(v)) / 2f), y);
+        y += rowHeight(v);
+        // What it is doing, and its power.
+        final int light = light(v);
+        rect(PAD, y + 2, 4, 4, light);
+        final String power = power(v);
+        text(
+            Hyb.fit(status(v), Math.round(w - 2 * PAD - 9 - Hyb.width(power) - 8)),
+            PAD + 8,
+            y,
+            1,
+            light == Hyb.MUTED ? Hyb.INK : light);
+        if (!power.isEmpty()) text(power, w - PAD - Hyb.width(power), y, 1, Hyb.MUTED);
+        y += 11;
+        // The quiet line: its plan card, and how busy it has been.
+        rect(PAD, y, w - 2 * PAD, 1, 0x18FFFFFF);
+        y += 3;
+        final String busy = busy(v);
+        final float busyW = busy == null ? 0 : width(busy, SMALL);
+        if (v.tag != null) chain(PAD, y);
+        final float px = PAD + (v.tag != null ? 8 : 0);
+        text(fitSmall(planLine(v), w - PAD - px - busyW - 6), px, y, SMALL, v.tag != null ? GOLD_SOFT : Hyb.MUTED);
+        if (busy != null) text(busy, w - PAD - busyW, y, SMALL, Hyb.MUTED);
     }
 
-    private static String tagText(final Tag t) {
-        return "PLAN " + t.card + " · " + t.plan;
+    /** What goes in, the arrow filling with the recipe's progress, what comes out; recent rates under. */
+    private static void row(final View v, final float x0, final float y) {
+        float x = x0;
+        final MachineStatus st = v.status;
+        final long now = MachineStats.now();
+        final double watched = v.track == null ? 0 : v.track.seen.lastHour(now);
+        for (final MachineStatus.Flow f : ins(v)) {
+            slot(x, y, f, rate(v.track == null ? null : v.track.used, f, watched, now));
+            x += SLOT + 2;
+        }
+        if (!ins(v).isEmpty()) x += GAP;
+        arrow(
+            x,
+            y + (SLOT - 9) / 2f,
+            st != null && st.state() == MachineStatus.State.RUNNING ? st.progress() : -1,
+            light(v));
+        x += ARROW + (outs(v).isEmpty() ? 0 : GAP);
+        for (final MachineStatus.Flow f : outs(v)) {
+            slot(x, y, f, rate(v.track == null ? null : v.track.made, f, watched, now));
+            x += SLOT + 2;
+        }
     }
 
-    private static String tagCount(final Tag t) {
-        return t.planned > 0 ? t.placed + " of " + t.planned + " placed" : t.placed + " placed";
+    /** A tile as the board's ports: the icon with its shadow, what one cycle moves in the corner, the rate under. */
+    private static void slot(final float x, final float y, final MachineStatus.Flow f, @Nullable final String rate) {
+        rect(x, y, SLOT, SLOT, Hyb.TILE_EDGE);
+        rect(x + 1, y + 1, SLOT - 2, SLOT - 2, Hyb.TILE);
+        rect(x + 1, y + 1, SLOT - 2, 1, Hyb.TILE_HI);
+        icon(f.item(), f.fluid(), x + 2, y + 2, 16);
+        final String n = f.perCycle() > 1 || f.fluid() != null ? Fmt.compact(f.perCycle()) : "";
+        if (!n.isEmpty()) {
+            final float nw = width(n, SMALL);
+            rect(x + SLOT - 2 - nw, y + SLOT - 6, nw + 1, 5, 0xB0000000);
+            text(n, x + SLOT - 1.5f - nw, y + SLOT - 5.5f, SMALL, Hyb.INK);
+        }
+        if (rate != null) text(rate, x + (SLOT - width(rate, SMALL)) / 2f, y + SLOT + 2, SMALL, Hyb.MUTED);
     }
 
-    /** The link to the plan, in the planner's colours: the card, its plan, and how many of its machines are placed. */
-    private static void tag(final Tag t, final float x, final float y, final int w) {
-        rect(x + 2, y, w - 4, TAG_H, 0xF0141416);
-        rect(x + 2, y, 2, TAG_H, Hyb.GOLD);
-        text("PLAN", x + 7, y + 2, Hyb.GOLD, false);
-        final String count = tagCount(t);
-        final float left = x + 11 + Hyb.width("PLAN");
-        final int room = Math.round(w - 14 - Hyb.width("PLAN") - Hyb.width(count) - 8);
-        text(Hyb.fit(t.card + " · " + t.plan, room), left, y + 2, Hyb.INK, false);
-        textRight(count, x + w - 6, y + 2, Hyb.MUTED);
+    /** What a machine made or used of something, per minute over the watched part of the last hour. */
+    @Nullable
+    private static String rate(@Nullable final Map<String, MachineStats.Amount> amounts, final MachineStatus.Flow f,
+        final double watchedSeconds, final long now) {
+        if (amounts == null || watchedSeconds <= 0) return null;
+        for (final MachineStats.Amount m : amounts.values()) {
+            final boolean same = f.fluid() != null ? m.fluid != null && m.fluid.isFluidEqual(f.fluid())
+                : f.item() != null && m.item != null && m.item.isItemEqual(f.item());
+            if (!same) continue;
+            final double perMin = m.window.lastHour(now) / watchedSeconds * 60;
+            return Fmt.compact(perMin < 10 ? Math.round(perMin * 10) / 10.0 : Math.round(perMin)) + "/min";
+        }
+        return "0/min";
+    }
+
+    /** The progress arrow: a shaft and head, filled in the state's colour as far as the recipe has got. */
+    private static void arrow(final float x, final float y, final float progress, final int fill) {
+        final int done = progress < 0 ? 0 : Math.round(ARROW * progress);
+        for (int col = 0; col < ARROW; col++) {
+            final int h = col < ARROW - 7 ? 3 : 9 - 2 * (col - (ARROW - 7));
+            if (h <= 0) continue;
+            rect(x + col, y + (9 - h) / 2f, 1, h, col < done ? fill : Hyb.TILE_HI);
+        }
+    }
+
+    /** A small chain link, the mark of a plan card's machine. */
+    private static void chain(final float x, final float y) {
+        final int c = GOLD_SOFT;
+        rect(x, y + 1, 3, 1, c);
+        rect(x, y + 3, 3, 1, c);
+        rect(x, y + 1, 1, 3, c);
+        rect(x + 3, y, 3, 1, c);
+        rect(x + 3, y + 2, 3, 1, c);
+        rect(x + 5, y, 1, 3, c);
+    }
+
+    private static String fitSmall(final String s, final float room) {
+        return width(s, SMALL) <= room ? s : Hyb.fit(s, Math.round(room / SMALL));
     }
 
     // endregion
@@ -253,155 +291,25 @@ final class ArPanel {
 
     static final int TILE = 18;
 
-    /** A far machine: its icon in a slot, a light for its state, its progress along the bottom. */
+    /** A far machine, as the board's zoomed-out card: its icon on a dark tile, a light for its state, its progress. */
     static void far(final View v, final float fade) {
         alpha = fade;
-        rect(-1, -1, TILE + 1, TILE + 1, 0xC0000000);
-        slot(0, 0);
+        rect(0, 0, TILE, TILE, v.tag != null ? Hyb.GOLD : Hyb.FRAME);
+        rect(1, 1, TILE - 2, TILE - 2, 0xF0202226);
         icon(v.icon, null, 1, 1, 16);
+        rect(TILE - 5, 1, 4, 4, 0xFF000000);
+        rect(TILE - 4, 2, 2, 2, light(v));
         final MachineStatus st = v.status;
-        final int light = st == null ? 0xFFAAAAAA
-            : st.state() == MachineStatus.State.RUNNING ? 0xFF55FF55
-                : st.state() == MachineStatus.State.PROBLEM ? 0xFFFF5555 : 0xFFAAAAAA;
-        rect(TILE - 5, 1, 4, 4, EDGE);
-        rect(TILE - 4, 2, 2, 2, light);
-        if (v.tag != null) rect(0, -2, TILE, 2, Hyb.GOLD);
         if (st != null && st.state() == MachineStatus.State.RUNNING && st.progress() >= 0) {
-            rect(0, TILE + 1, TILE, 2, 0xC0000000);
-            rect(0, TILE + 1, TILE * st.progress(), 2, 0xFF55FF55);
+            rect(1, TILE - 2, TILE - 2, 1, 0xFF000000);
+            rect(1, TILE - 2, (TILE - 2) * st.progress(), 1, Hyb.PRODUCT_INK);
         }
     }
 
     // endregion
-
-    // region Looked at: the whole story
-
-    static int focusWidth(final View v) {
-        return Math.max(FOCUS_W, width(v));
-    }
-
-    /** Rows for what it made and used: up to four each. */
-    private static int rows(@Nullable final MachineStats.Track t) {
-        if (t == null) return 0;
-        final int made = Math.min(4, t.made.size()), used = Math.min(4, t.used.size());
-        return (made > 0 ? made + 1 : 0) + (used > 0 ? used + 1 : 0);
-    }
-
-    static int focusHeight(final View v, @Nullable final MachineStats.Track t, final boolean hint) {
-        final Grid g = Grid.of(v.status);
-        int h = TITLE + (g.empty() ? 0 : g.height() + 5) + 9 + 6;
-        h += 6 + 10; // busy line
-        if (rows(t) > 0) h += 11 + rows(t) * 10;
-        if (v.status != null && (v.status.maxEuPerTick() > 0 || v.status.euPerTick() > 0)) h += 10;
-        h += 10 + 4; // the footnote
-        return h + (v.tag != null || hint ? TAG_H : 0) + 11;
-    }
-
-    /**
-     * The machine looked at, at the origin: an AR tab with how far it is, the window with the slots, then how busy it
-     * has been, what it made and used (per minute lately, in the last hour, in all), its power, and its plan link or
-     * how
-     * to make one.
-     */
-    static void focus(final View v, @Nullable final MachineStats.Track t, final float fade, final String linkKey) {
-        alpha = fade;
-        final int w = focusWidth(v);
-        final boolean hint = v.tag == null && !linkKey.isEmpty();
-        final int h = focusHeight(v, t, hint) - (v.tag != null || hint ? TAG_H : 0) - 11;
-        // The AR tab over the window.
-        final String ar = "AR", away = v.distance + " m away";
-        final int tabW = Hyb.width(ar) + Hyb.width(away) + 16;
-        rect(4, 0, tabW, 11, 0xF0141416);
-        rect(4, 0, tabW, 1, Hyb.SELECTION);
-        text(ar, 8, 2, Hyb.SELECTION, false);
-        text(away, 14 + Hyb.width(ar), 2, Hyb.MUTED, false);
-        final float y0 = 11;
-        float row = body(v, 0, y0, w, h, false);
-        // A groove, then the history.
-        row += 2;
-        rect(PAD, row, w - 2 * PAD, 1, SLOT);
-        rect(PAD, row + 1, w - 2 * PAD, 1, LIGHT);
-        row += 5;
-        final long now = MachineStats.now();
-        final float minute = t == null ? -1 : t.busy(now, false), hour = t == null ? -1 : t.busy(now, true);
-        text(
-            minute < 0 ? "No history yet"
-                : "Busy " + Math.round(minute * 100) + "% last minute, " + Math.round(hour * 100) + "% last hour",
-            PAD,
-            row,
-            TEXT,
-            false);
-        row += 10;
-        if (rows(t) > 0) {
-            // Three number columns, right-aligned, each as wide as its heading.
-            final float c3 = w - PAD, c2 = c3 - Hyb.width("in all") - 14, c1 = c2 - Hyb.width("last hour") - 14;
-            textRight("per min", c1, row, SOFT);
-            textRight("last hour", c2, row, SOFT);
-            textRight("in all", c3, row, SOFT);
-            row += 11;
-            final double watched = Math.max(1, t.seen.lastMinute(now));
-            row = amounts("MADE", t.made(), row, c1, c2, c3, now, watched);
-            row = amounts("USED", t.used(), row, c1, c2, c3, now, watched);
-        }
-        final MachineStatus st = v.status;
-        if (st != null && (st.maxEuPerTick() > 0 || st.euPerTick() > 0)) {
-            final boolean running = st.state() == MachineStatus.State.RUNNING;
-            String power = "Power " + (running ? Fmt.power(st.euPerTick()) : "0") + " EU/t";
-            if (st.maxEuPerTick() > 0) power += " of " + Fmt.power(st.maxEuPerTick()) + " max";
-            if (st.parallels() > 1) power += ", " + st.parallels() + " parallel";
-            text(power, PAD, row, TEXT, false);
-            row += 10;
-        }
-        text(
-            t == null ? "Counting while you are nearby"
-                : "Counted while you were nearby, for " + duration(now - t.since),
-            PAD,
-            row + 1,
-            SOFT,
-            false);
-        if (v.tag != null) tag(v.tag, 0, y0 + h, w);
-        else if (hint) {
-            rect(2, y0 + h, w - 4, TAG_H, 0xF0141416);
-            rect(2, y0 + h, 2, TAG_H, Hyb.SELECTION);
-            text(linkKey, 7, y0 + h + 2, Hyb.SELECTION, false);
-            text("Link it to a plan card", 11 + Hyb.width(linkKey), y0 + h + 2, Hyb.INK, false);
-        }
-    }
-
-    /** A section of the table: per minute over the watched part of the last minute, the last hour, and in all. */
-    private static float amounts(final String title, final List<MachineStats.Amount> list, float row, final float c1,
-        final float c2, final float c3, final long now, final double watchedSeconds) {
-        if (list.isEmpty()) return row;
-        text(title, PAD, row, SOFT, false);
-        row += 10;
-        for (int i = 0; i < Math.min(4, list.size()); i++) {
-            final MachineStats.Amount m = list.get(i);
-            icon(m.item, m.fluid, PAD, row - 0.5f, 8);
-            final boolean fluid = m.fluid != null;
-            final String perMin = amount(m.window.lastMinute(now) / watchedSeconds * 60, fluid);
-            text(Hyb.fit(m.name(), Math.round(c1 - Hyb.width(perMin) - PAD - 18)), PAD + 11, row, TEXT, false);
-            textRight(perMin, c1, row, TEXT);
-            textRight(amount(m.window.lastHour(now), fluid), c2, row, TEXT);
-            textRight(amount(m.window.total(), fluid), c3, row, TEXT);
-            row += 10;
-        }
-        return row;
-    }
-
-    private static String amount(final double n, final boolean fluid) {
-        return Fmt.compact(n < 10 ? Math.round(n * 10) / 10.0 : Math.round(n)) + (fluid ? " L" : "");
-    }
-
-    private static String duration(final long seconds) {
-        if (seconds < 60) return seconds + " s";
-        if (seconds < 3600) return seconds / 60 + " min";
-        return seconds / 3600 + " h " + seconds % 3600 / 60 + " min";
-    }
 
     private static String seconds(final int ticks) {
         final int s = (ticks + 19) / 20;
         return s < 60 ? s + " s left" : s / 60 + " min " + s % 60 + " s left";
     }
-
-    // endregion
 }

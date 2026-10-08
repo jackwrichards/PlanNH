@@ -56,25 +56,26 @@ and see the plan over it. It never makes the plan show what the machines are doi
 
 ## 5. The AR lens
 
-The lens shows the machines as they are in the world, not the plan (`ui/world/ArLens`, `ArPanel`).
+The lens shows the machines as they are in the world, not the plan, in the planner's look (`ui/world/ArLens`,
+`ArPanel`). Everything is on the panel all the time; looking at a machine only rings its panel and brings it to the
+front.
 
-- Every machine within range (GregTech's single blocks and multiblock controllers, and any linked block) is drawn as
-  its own window would show it, in the game's grey: near ones (the nearest eight) as a panel with the name and tier,
-  the running recipe in slots with a progress arrow, and what it is doing (running with the percentage and time left,
-  idle and why, stopped and why); far ones as a slot-sized tile with a state light. A link hangs under it as a dark
-  tag: the plan card, its plan, and how many of its machines are placed of how many the plan has.
-- The machine looked at (as far as the lens reaches) slides in beside the crosshair with the whole story: how busy it
-  has been over the last minute and hour, what it made and used (per minute lately, in the last hour, in all), its
-  power (EU/t now, of the most it can take, and parallels), and its plan tag, or the key to link it. Panels fade in
-  and out, and over the last 8 blocks of the range.
+- Every machine within range (GregTech's single blocks and multiblock controllers, and any linked block) gets a small
+  dark panel: its name and tier chip; what its recipe takes and makes in tiles either side of a progress arrow, each
+  with its recent rate under it (per minute over the watched part of the last hour); one line for what it is doing
+  (running with the percentage and time left, idle and why, stopped and why) with its power (EU/t now of the most it
+  can take); and a quiet line: its plan card and plan in gold with a gold edge, or "Not linked to a plan (L)", and how
+  busy it has been this last hour. The nearest eight and the one looked at get panels, the rest a tile with a state
+  light. Panels fade in and out, and over the last 8 blocks of the range.
 - What it is doing comes from `ui/world/GtMachineStatus`: in single player the integrated server's copy, read on the
   server's own thread for the machines the client asks about (progress, the recipe from `processingLogic.lastRecipe`
   or `mLastRecipe` by reflection, the cycle's outputs, energy hatches' tier, amps and max input, maintenance, a formed
   structure, shutdown reasons, power). `ui/world/MachineStats` samples every machine within 128 blocks twice a
   second into per-second and per-minute buckets for this session. On a server only the running light reaches the
   client, so panels show state alone.
-- Connectors run between linked machines whose cards are wired in the plan last open: a shaded tube in the resource's
-  colour with arrowheads sliding towards the machine it feeds.
+- Connectors run between linked machines whose cards are wired in the plan last open, block centre to block centre: a
+  thin shaded tube in the resource's colour with an arrowhead every three blocks sliding slowly towards the machine it
+  feeds.
 
 ## Safety
 

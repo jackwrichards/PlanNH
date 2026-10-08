@@ -13,7 +13,6 @@ import javax.annotation.Nullable;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScaledResolution;
-import net.minecraft.client.settings.GameSettings;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
@@ -37,11 +36,11 @@ import cpw.mods.fml.common.gameevent.TickEvent;
 
 /**
  * The AR lens: the machines around the player as they are in the world (GregTech's single blocks and multiblock
- * controllers, and any block linked to a plan card), each drawn as its own window would show it ({@link ArPanel}):
- * near ones as a panel with their slots, progress and state, far ones as a tile. The machine looked at (as far as the
- * lens reaches) comes to the front beside the crosshair with what it made and used, how busy it was and its power
- * ({@link MachineStats}), and its plan card, or how to link it to one. Panels fade in and out, and towards the edge of
- * the range. Connectors run between linked machines whose cards are wired in the plan last open.
+ * controllers, and any block linked to a plan card), each as a small panel in the planner's look ({@link ArPanel}):
+ * what its recipe takes and makes with recent rates ({@link MachineStats}), what it is doing, its power, and its plan
+ * card; far ones as a tile. The machine looked at (as far as the lens reaches) is ringed and drawn over the rest.
+ * Panels fade in and out, and towards the edge of the range. Connectors run between linked machines whose cards are
+ * wired in the plan last open.
  *
  * <p>
  * Panels are drawn flat on the HUD over each machine's place, projected with the world's last camera, so they look
@@ -86,10 +85,9 @@ public final class ArLens {
 
     private List<Spot> spots = List.of();
     private int ticks;
-    /** The machine looked at, and the one before it while it fades out; how far each has come in or gone. */
+    /** The machine looked at: its panel is ringed and drawn over the rest. */
     @Nullable
-    private Spot looked, leaving;
-    private float lookedIn, leavingOut;
+    private Spot looked;
     private long lastFrame;
 
     private final FloatBuffer modelview = BufferUtils.createFloatBuffer(16),
@@ -113,7 +111,7 @@ public final class ArLens {
         final Minecraft mc = Minecraft.getMinecraft();
         if (!on() || mc.theWorld == null || mc.thePlayer == null) {
             spots = List.of();
-            looked = leaving = null;
+            looked = null;
             return;
         }
         if (ticks++ % 10 == 0) scan(mc);
@@ -206,12 +204,7 @@ public final class ArLens {
                 }
         }
         if (now == looked) return;
-        if (looked != null) {
-            leaving = looked;
-            leavingOut = 0;
-        }
         looked = now;
-        lookedIn = 0;
         if (looked != null && looked.status == null) looked.status = read(mc, looked);
     }
 
@@ -264,7 +257,7 @@ public final class ArLens {
         }
     }
 
-    /** The middle of a card's blocks in this dimension, just over them; empty when it has none here. */
+    /** The middle of a card's blocks in this dimension; empty when it has none here. */
     private static double[] centre(final Graph graph, final UUID nodeId, final int dim) {
         final Node n = graph.nodes.get(nodeId);
         if (n == null) return new double[0];
@@ -273,7 +266,7 @@ public final class ArLens {
         for (final int[] l : n.worldLinks) {
             if (l[0] != dim) continue;
             x += l[1] + 0.5;
-            y += l[2] + 1.25;
+            y += l[2] + 0.5;
             z += l[3] + 0.5;
             k++;
         }
@@ -301,17 +294,18 @@ public final class ArLens {
             // Fade in when it comes, and out towards the edge of the range.
             final float target = s.seen ? Math.max(0, Math.min(1, (float) (range - s.distance) / EDGE)) : 0;
             s.fade += (target - s.fade) * Math.min(1, dt * 7);
-            if (s.seen && s.fade > 0.02f && s != looked) shown.add(s);
+            if (s.seen && s.fade > 0.02f) shown.add(s);
         }
-        lookedIn = Math.min(1, lookedIn + dt / 0.18f);
-        leavingOut = Math.min(1, leavingOut + dt / 0.15f);
-        // Panels for the nearest few, raised clear of the nearer ones; tiles for the rest, behind.
+        // Panels for the nearest few and the one looked at, raised clear of nearer ones; tiles for the rest, behind.
         final float scale = PlannerSettings.arScale();
         final List<Spot> near = new ArrayList<>();
-        for (int i = 0; i < shown.size() && near.size() < NEAR; i++) near.add(shown.get(i));
+        if (looked != null && shown.contains(looked)) near.add(looked);
+        for (int i = 0; i < shown.size() && near.size() < NEAR; i++) if (shown.get(i) != looked) near.add(shown.get(i));
+        final Map<Spot, ArPanel.View> views = new HashMap<>();
         final List<float[]> taken = new ArrayList<>();
         for (final Spot s : near) {
-            final ArPanel.View v = view(s);
+            final ArPanel.View v = view(s, mc);
+            views.put(s, v);
             s.pw = Math.round(ArPanel.width(v) * scale);
             s.ph = Math.round(ArPanel.height(v) * scale);
             s.px = Math.round(s.sx - s.pw / 2f);
@@ -331,22 +325,17 @@ public final class ArLens {
             if (near.contains(s)) continue;
             GL11.glPushMatrix();
             GL11.glTranslatef(Math.round(s.sx - ArPanel.TILE / 2f), Math.round(s.sy - ArPanel.TILE - 4), 0);
-            ArPanel.far(view(s), s.fade);
+            ArPanel.far(view(s, mc), s.fade);
             GL11.glPopMatrix();
         }
+        // Far to near, the one looked at last, over everything.
         for (int i = near.size() - 1; i >= 0; i--) {
             final Spot s = near.get(i);
-            Hyb.rect(s.sx - 0.5f, s.py + s.ph, 1, Math.max(1, s.sy - s.py - s.ph), alphaOf(0xC0000000, s.fade));
-            GL11.glPushMatrix();
-            GL11.glTranslatef(s.px, s.py, 0);
-            GL11.glScalef(scale, scale, 1);
-            ArPanel.near(view(s), s.fade, false);
-            GL11.glPopMatrix();
+            if (s == looked) continue;
+            panel(s, views.get(s), scale, false);
         }
-        // The machine looked at, in front, beside the crosshair; the one before it fading away.
-        if (leaving != null && leaving != looked && leavingOut < 1) focus(leaving, sr, 1 - ease(leavingOut), mc);
-        if (looked != null && looked.seen) focus(looked, sr, ease(lookedIn), mc);
-        if (shown.isEmpty() && looked == null) {
+        if (looked != null && views.containsKey(looked)) panel(looked, views.get(looked), scale, true);
+        if (shown.isEmpty()) {
             final String none = GREGTECH ? "No machines within " + PlannerSettings.arRange() + " blocks"
                 : "No linked machines within " + PlannerSettings.arRange() + " blocks";
             Hyb.rect(sr.getScaledWidth() / 2f - Hyb.width(none) / 2f - 4, 6, Hyb.width(none) + 8, 13, 0xC0141414);
@@ -356,40 +345,23 @@ public final class ArLens {
         GL11.glEnable(GL11.GL_TEXTURE_2D);
     }
 
-    /** The panel for the machine looked at, sliding in beside the crosshair, with a line down to the machine. */
-    private void focus(final Spot s, final ScaledResolution sr, final float t, final Minecraft mc) {
-        if (t <= 0.01f) return;
-        final ArPanel.View v = view(s);
-        final MachineStats.Track track = MachineStats.INSTANCE.track(mc.theWorld.provider.dimensionId, s.x, s.y, s.z);
-        final String key = PlannerKeys.LINK.getKeyCode() == 0 ? ""
-            : GameSettings.getKeyDisplayString(PlannerKeys.LINK.getKeyCode());
-        final int w = ArPanel.focusWidth(v), h = ArPanel.focusHeight(v, track, v.tag() == null && !key.isEmpty());
-        final float cx = sr.getScaledWidth() / 2f, cy = sr.getScaledHeight() / 2f;
-        final boolean right = cx + 28 + w < sr.getScaledWidth() - 4;
-        final float x = Math.round((right ? cx + 28 : cx - 28 - w) + (right ? 1 : -1) * (1 - t) * 14);
-        final float y = Math.round(Math.max(4, Math.min(sr.getScaledHeight() - h - 4, cy - h / 2f)));
-        // A line from the panel to the machine.
-        final float ax = right ? x : x + w, ay = Math.max(y + 16, Math.min(y + h - 8, s.sy + 6));
-        line(ax, ay, s.sx, s.sy + 6, alphaOf(0xC022D3EE, t));
+    /** A near machine's panel, with a stem down to the machine. */
+    private static void panel(final Spot s, final ArPanel.View v, final float scale, final boolean lookedAt) {
+        Hyb.rect(
+            s.sx - 0.5f,
+            s.py + s.ph,
+            1,
+            Math.max(1, s.sy - s.py - s.ph),
+            alphaOf(lookedAt ? 0xE022D3EE : 0xC0000000, s.fade));
         GL11.glPushMatrix();
-        GL11.glTranslatef(x, y, 0);
-        ArPanel.focus(v, track, t, key);
+        GL11.glTranslatef(s.px, s.py, 0);
+        GL11.glScalef(scale, scale, 1);
+        ArPanel.near(v, s.fade, lookedAt);
         GL11.glPopMatrix();
     }
 
-    /** A one-pixel line on the HUD, in whole pixels. */
-    private static void line(final float x0, final float y0, final float x1, final float y1, final int color) {
-        final int n = (int) Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
-        Hyb.beginBatch();
-        for (int i = 0; i <= n; i++) {
-            final float f = n == 0 ? 0 : i / (float) n;
-            Hyb.rect(Math.round(x0 + (x1 - x0) * f), Math.round(y0 + (y1 - y0) * f), 1, 1, color);
-        }
-        Hyb.endBatch();
-    }
-
-    /** What a spot's panel shows: the machine, what it is doing, and its plan card. */
-    private static ArPanel.View view(final Spot s) {
+    /** What a spot's panel shows: the machine, what it is doing, its plan card, and what it has done lately. */
+    private static ArPanel.View view(final Spot s, final Minecraft mc) {
         final MachineStatus st = s.status;
         ArPanel.Tag tag = null;
         if (s.card != null) {
@@ -405,7 +377,12 @@ public final class ArLens {
         }
         final String name = st != null ? st.name()
             : s.block != null ? s.block.getDisplayName() : s.card != null ? WorldView.cardName(s.card.node()) : "Block";
-        return new ArPanel.View(name, st != null ? st.icon() : s.block, st, tag, (int) Math.round(s.distance));
+        return new ArPanel.View(
+            name,
+            st != null ? st.icon() : s.block,
+            st,
+            tag,
+            MachineStats.INSTANCE.track(mc.theWorld.provider.dimensionId, s.x, s.y, s.z));
     }
 
     /** Where the point just over a machine falls on the GUI; not seen when behind the camera. */
@@ -430,11 +407,6 @@ public final class ArLens {
 
     private static int alphaOf(final int argb, final float fade) {
         return (Math.round((argb >>> 24) * fade) & 0xFF) << 24 | argb & 0xFFFFFF;
-    }
-
-    private static float ease(final float t) {
-        final float u = 1 - t;
-        return 1 - u * u * u;
     }
 
     // endregion
