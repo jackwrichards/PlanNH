@@ -24,7 +24,6 @@ import org.lwjgl.util.glu.GLU;
 
 import com.gtnhplanner.data.flowchart.Node;
 import com.gtnhplanner.ui.PlannerSettings;
-import com.gtnhplanner.ui.card.CardLayout;
 import com.gtnhplanner.ui.card.PlanCardView;
 import com.gtnhplanner.ui.card.RecipeCard;
 import com.gtnhplanner.ui.theme.Hyb;
@@ -48,9 +47,9 @@ public final class PlanOverlay {
 
     /**
      * Cards and wire tags are drawn at {@link #SIZE} of the board's size within this many blocks of the eye, and shrink
-     * with distance beyond it as objects do. How far a card floats over its spot, in blocks.
+     * with distance beyond it as objects do.
      */
-    private static final float FULL_SIZE_WITHIN = 10f, SIZE = 0.6f, LIFT = 0.35f;
+    private static final float FULL_SIZE_WITHIN = 10f, SIZE = 0.6f;
 
     /** The room kept between cards (and wire tags) on the screen, in GUI pixels. */
     private static final float CARD_GAP = 3;
@@ -65,8 +64,8 @@ public final class PlanOverlay {
         final int x, y, z;
         double distance;
         /**
-         * Where the card's foot would be on the screen, straight over its spot; its spot's top; its scale and size
-         * there; and where it is drawn, its top left, once moved out of the other cards' way.
+         * Where the card's centre would be on the screen, on its spot; its spot's centre; its scale and size there; and
+         * where it is drawn, its top left, once moved out of the other cards' way.
          */
         float sx, sy, bx, by, scale, w, h, left, top;
 
@@ -294,14 +293,13 @@ public final class PlanOverlay {
 
     // region The wires
 
-    /** Height of a wire's tag, unscaled: a port tile as the card's. */
-    private static final int TAG_H = CardLayout.ROW;
+    /** A wire's tag, unscaled: its height, icon and the rate's size against the name's. */
+    private static final int TAG_H = 26, TAG_ICON = 20;
 
-    /** A wire's tag against the cards' ports: a little larger, so it reads at a glance. */
-    private static final float TAG_SIZE = 1.2f;
+    private static final float TAG_RATE = 1.5f;
 
     /** Arrowheads along a wire: how far apart and how fast they move, in blocks and blocks a second. */
-    private static final double ARROW_GAP = 1, ARROW_SPEED = 2;
+    private static final double ARROW_GAP = 0.4, ARROW_SPEED = 0.67;
 
     /**
      * A wire on the screen this frame: its ends (where it leaves one block and meets the other, cut short at the
@@ -410,11 +408,10 @@ public final class PlanOverlay {
             new float[] { sb[0] + ox, sb[1] + oy },
             arrows,
             scale,
-            Hyb.fit(c.what(), 140),
+            Hyb.fit(c.what(), 120),
             rate);
-        final float size = scale * TAG_SIZE;
-        r.tw = (CardLayout.TEXT_X + Math.max(Hyb.width(r.name), Hyb.width(rate)) + 6) * size;
-        r.th = TAG_H * size;
+        r.tw = (TAG_ICON + 9 + Math.max(Hyb.width(r.name), Hyb.width(rate) * TAG_RATE) + 5) * scale;
+        r.th = TAG_H * scale;
         // On the line when it runs alone; beside its lane, on the side away from the other wires, when it has company.
         float cx = mid[0] + ox, cy = mid[1] + oy;
         final float side = (float) Math.hypot(ox, oy);
@@ -467,11 +464,11 @@ public final class PlanOverlay {
     private long laidOut;
 
     /**
-     * Moves cards out of each other's way, as map labels are: nearest first, each keeps where it is while that is clear
-     * of the cards already placed, the wires' tags and the minimap, and otherwise takes the clear place nearest its own
-     * (sideways or
-     * up, never below its spot), its stem pointing back. A card that moved goes home again once that is clear, and
-     * moves quickly rather than gliding.
+     * Moves cards out of each other's way, as map labels are: nearest first, each keeps where it is (at home, on its
+     * spot)
+     * while that is clear of the cards already placed and the wires' tags, and otherwise takes the clear place nearest
+     * home, aside, up or down, a line pointing back to its spot. A card that moved goes home again once that is clear,
+     * and moves quickly rather than gliding.
      */
     private void layout(final List<Placed> shown, final List<Run> runs, final ScaledResolution sr) {
         final long now = System.currentTimeMillis();
@@ -490,7 +487,7 @@ public final class PlanOverlay {
             if (!clear || now0 > 0) {
                 // A clear place, nearest home first; where it is now is clear too, only one much nearer home.
                 float best = clear ? now0 * 0.6f : Float.MAX_VALUE;
-                for (float dy = 0; dy <= 2.01f; dy += 0.25f) for (float dx = -1.5f; dx <= 1.51f; dx += 0.125f) {
+                for (float dy = -1.5f; dy <= 2.01f; dy += 0.25f) for (float dx = -1.5f; dx <= 1.51f; dx += 0.125f) {
                     final float c = cost(p, dx, dy);
                     if (c < best && clear(p, dx, dy, taken)) {
                         best = c;
@@ -504,19 +501,22 @@ public final class PlanOverlay {
             o[2] += (o[0] - o[2]) * ease;
             o[3] += (o[1] - o[3]) * ease;
             p.left = p.sx + o[2] * p.w - p.w / 2;
-            p.top = p.sy - o[3] * p.h - p.h;
-            taken.add(new float[] { p.sx + o[0] * p.w - p.w / 2, p.sy - o[1] * p.h - p.h, p.w, p.h });
+            p.top = p.sy - o[3] * p.h - p.h / 2;
+            taken.add(new float[] { p.sx + o[0] * p.w - p.w / 2, p.sy - o[1] * p.h - p.h / 2, p.w, p.h });
         }
     }
 
-    /** How far from home an offset takes a card, on the screen; going up costs a little more than going aside. */
+    /**
+     * How far from home an offset takes a card, on the screen; going up costs a little more than going aside, and down
+     * more again.
+     */
     private static float cost(final Placed p, final float dx, final float dy) {
-        return Math.abs(dx) * p.w + 1.15f * dy * p.h;
+        return Math.abs(dx) * p.w + (dy >= 0 ? 1.15f : 1.4f) * Math.abs(dy) * p.h;
     }
 
     /** Whether a card at an offset keeps clear of everything placed. */
     private static boolean clear(final Placed p, final float dx, final float dy, final List<float[]> taken) {
-        final float x = p.sx + dx * p.w - p.w / 2 - CARD_GAP, y = p.sy - dy * p.h - p.h - CARD_GAP;
+        final float x = p.sx + dx * p.w - p.w / 2 - CARD_GAP, y = p.sy - dy * p.h - p.h / 2 - CARD_GAP;
         final float w = p.w + 2 * CARD_GAP, h = p.h + 2 * CARD_GAP;
         for (final float[] t : taken)
             if (x < t[0] + t[2] && t[0] < x + w && y < t[1] + t[3] && t[1] < y + h) return false;
@@ -526,14 +526,18 @@ public final class PlanOverlay {
     // endregion
 
     /**
-     * A card where the layout put it, with its stem from its bottom edge down to its spot (a pin when the card moved
-     * aside).
+     * A card where the layout put it: on its spot, covering the ghost; or, moved aside, with a line from its nearest
+     * edge to the middle of its spot, ending in a small pin.
      */
     private static void card(final Placed p, final PlanSnapshot snap, final boolean ringed) {
-        final int stem = ringed ? 0x90000000 | Hyb.LIT & 0xFFFFFF : 0x70A4A8B0;
-        final float footX = Math.max(p.left + 6, Math.min(p.left + p.w - 6, p.bx)), footY = p.top + p.h;
-        if (p.by - footY > 1 || Math.abs(footX - p.bx) > 1) band(footX, footY, p.bx, p.by, 3, stem);
-        Hyb.rect(p.bx - 2, p.by - 2, 4, 4, stem);
+        final boolean home = p.bx >= p.left && p.bx < p.left + p.w && p.by >= p.top && p.by < p.top + p.h;
+        if (!home) {
+            final int line = ringed ? 0x90000000 | Hyb.LIT & 0xFFFFFF : 0x90A4A8B0;
+            final float ex = Math.max(p.left, Math.min(p.left + p.w, p.bx)),
+                ey = Math.max(p.top, Math.min(p.top + p.h, p.by));
+            band(ex, ey, p.bx, p.by, 2, line);
+            Hyb.rect(p.bx - 2, p.by - 2, 4, 4, line);
+        }
         GL11.glPushMatrix();
         GL11.glTranslatef(Math.round(p.left), Math.round(p.top), 0);
         GL11.glScalef(p.scale, p.scale, 1);
@@ -592,55 +596,47 @@ public final class PlanOverlay {
     }
 
     /**
-     * What a wire carries, at its middle: the item or fluid, its name over its rate, on a tile in the resource's colour
-     * (as the board's drawers), a little larger than the cards' ports there. The wire the crosshair is on is
-     * highlighted.
+     * What a wire carries, at its middle: the item or fluid, how much in large type, and its name small under it, on a
+     * plain soft dark backing. The wire the crosshair is on is ringed in the highlight.
      */
     private static void tag(final Run r, final boolean lit) {
         GL11.glPushMatrix();
         GL11.glTranslatef(r.tx, r.ty, 0);
-        final float size = r.scale * TAG_SIZE;
-        GL11.glScalef(size, size, 1);
-        final int w = Math.round(r.tw / size), h = TAG_H;
-        if (lit) Hyb.ring(-2, -2, w + 4, h + 4, 2, 0xC0000000 | Hyb.LIT & 0xFFFFFF);
-        final int tint = 0xFF000000 | r.conn.line.color() & 0xFFFFFF;
-        Hyb.rect(0, 0, w, h, Hyb.mix(tint, 0x262B34, 0.55f));
-        Hyb.rect(1, 1, w - 2, h - 2, Hyb.mix(tint, 0x101318, 0.24f));
+        GL11.glScalef(r.scale, r.scale, 1);
+        final int w = Math.round(r.tw / r.scale), h = TAG_H;
+        Hyb.roundRect(0, 0, w, h, 4, 0xC8141518);
+        if (lit) Hyb.ring(-1, -1, w + 2, h + 2, 1, 0xD0000000 | Hyb.LIT & 0xFFFFFF);
         final PlanSnapshot.Flow f = r.conn.flow;
         if (f != null) {
-            if (f.power()) RecipeCard.euIcon(CardLayout.ICON_X, CardLayout.ICON_Y, CardLayout.ICON);
-            else Hyb.icon(f.item(), f.fluid(), CardLayout.ICON_X, CardLayout.ICON_Y, CardLayout.ICON, 0);
+            if (f.power()) RecipeCard.euIcon(4, 3, TAG_ICON);
+            else Hyb.icon(f.item(), f.fluid(), 4, 3, TAG_ICON, 0);
             GL11.glDisable(GL11.GL_LIGHTING);
             GL11.glDisable(GL11.GL_DEPTH_TEST);
         }
-        final int top = (CardLayout.ROW - 17) / 2;
-        Hyb.text(r.name, CardLayout.TEXT_X, top, Hyb.INK);
-        Hyb.text(r.rate, CardLayout.TEXT_X, top + 9, 0xFFB8BCC6);
+        final int text = 4 + TAG_ICON + 5;
+        Hyb.text(r.rate, text, 3, TAG_RATE, Hyb.INK);
+        Hyb.text(r.name, text, 3 + 8 * TAG_RATE + 2, Hyb.MUTED);
         GL11.glPopMatrix();
     }
 
     // endregion
 
     /**
-     * Where a card's foot (floating {@link #LIFT} blocks over its block) and its block's top fall on the GUI, and the
-     * card's scale: {@link #SIZE} within {@link #FULL_SIZE_WITHIN} blocks, shrinking with distance beyond. False when
-     * it is
-     * behind the camera or off the screen.
+     * Where a card's spot's middle falls on the GUI (its card's home), and the card's scale: {@link #SIZE} within
+     * {@link #FULL_SIZE_WITHIN} blocks, shrinking with distance beyond. False when it is behind the camera or off the
+     * screen.
      */
     private boolean project(final Placed p, final ScaledResolution sr, final Minecraft mc) {
-        final float[] block = screen(p.x + 0.5, p.y + 1.02, p.z + 0.5, sr, mc);
-        final float[] top = screen(p.x + 0.5, p.y + 1.02 + LIFT, p.z + 0.5, sr, mc);
-        if (block == null || top == null) return false;
-        p.sx = top[0];
-        p.sy = top[1];
-        p.bx = block[0];
-        p.by = block[1];
+        final float[] middle = screen(p.x + 0.5, p.y + 0.5, p.z + 0.5, sr, mc);
+        if (middle == null) return false;
+        p.sx = p.bx = middle[0];
+        p.sy = p.by = middle[1];
         p.scale = (float) (SIZE * Math.min(1, FULL_SIZE_WITHIN / Math.max(0.5, p.distance)));
         p.w = PlanCardView.width() * p.scale;
         p.h = PlanCardView.height(p.card) * p.scale;
         return p.scale > 0.02f && p.sx > -p.w
             && p.sx < sr.getScaledWidth() + p.w
-            && p.sy > -20
+            && p.sy > -p.h
             && p.sy < sr.getScaledHeight() + p.h;
     }
 
