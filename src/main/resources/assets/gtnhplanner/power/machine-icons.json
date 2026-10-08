@@ -1,0 +1,347 @@
+{
+ "datasetVersionId": "local-2.9.0-beta-2",
+ "machines": {
+  "steam-turbine": {
+   "id": "gregtech:gt.blockmachines@1120",
+   "displayName": "Basic Steam Turbine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/basic_steam_turbine-f25a10ec2d1a.png",
+   "dominantColor": "#686868"
+  },
+  "gas-turbine": {
+   "id": "gregtech:gt.blockmachines@1115",
+   "displayName": "Basic Gas Turbine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/basic_gas_turbine-0af51b1e70a1.png",
+   "dominantColor": "#686868"
+  },
+  "combustion-generator": {
+   "id": "gregtech:gt.blockmachines@1110",
+   "displayName": "Basic Combustion Generator",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/basic_combustion_generator-d0a89efcf811.png",
+   "dominantColor": "#646464"
+  },
+  "semifluid-generator": {
+   "id": "gregtech:gt.blockmachines@837",
+   "displayName": "Basic Semifluid Generator",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/basic_semifluid_generator-1720a535d05b.png",
+   "dominantColor": "#6a6a6a"
+  },
+  "rocket-fuel-generator": {
+   "id": "gregtech:gt.blockmachines@996",
+   "displayName": "Rocketdyne F-1A Engine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/rocketdyne_f-1a_engine-e16e0e5b4dba.png",
+   "dominantColor": "#1d898e"
+  },
+  "plasma-generator": {
+   "id": "gregtech:gt.blockmachines@1196",
+   "displayName": "Plasma Generator Mark I",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/plasma_generator_mark_i-b9a4a594b729.png",
+   "dominantColor": "#8d8d00"
+  },
+  "naquadah-reactor": {
+   "id": "gregtech:gt.blockmachines@1190",
+   "displayName": "Naquadah Reactor Mark I",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/naquadah_reactor_mark_i-97168dff5989.png",
+   "dominantColor": "#6b5959"
+  },
+  "magic-energy-absorber": {
+   "id": "gregtech:gt.blockmachines@1127",
+   "displayName": "Novice Magic Energy Absorber",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/novice_magic_energy_absorber-997bd76eb2b1.png",
+   "dominantColor": "#9eabac"
+  },
+  "acid-generator": {
+   "id": "gregtech:gt.blockmachines@12793",
+   "displayName": "Acid Generator LV",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/acid_generator_lv-4d2e999b5ca6.png",
+   "dominantColor": "#4c4800"
+  },
+  "geothermal-engine": {
+   "id": "gregtech:gt.blockmachines@830",
+   "displayName": "Basic Geothermal Engine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/basic_geothermal_engine-373a7fc8b26e.png",
+   "dominantColor": "#605a5a"
+  },
+  "magic-energy-converter": {
+   "id": "gregtech:gt.blockmachines@1123",
+   "displayName": "Novice Magic Energy Converter",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/novice_magic_energy_converter-b3e092cc315f.png",
+   "dominantColor": "#adbbbb"
+  },
+  "large-neutralization-engine": {
+   "id": "gregtech:gt.blockmachines@31088",
+   "displayName": "Large Neutralization Engine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/large_neutralization_engine-2822ceed9e78.png",
+   "dominantColor": "#2e1222"
+  },
+  "large-combustion-engine": {
+   "id": "gregtech:gt.blockmachines@15533",
+   "displayName": "Large Combustion Engine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/large_combustion_engine-43e9396649b8.png",
+   "dominantColor": "#6f4667"
+  },
+  "extreme-combustion-engine": {
+   "id": "gregtech:gt.blockmachines@15534",
+   "displayName": "Extreme Combustion Engine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/extreme_combustion_engine-09682b5f69a9.png",
+   "dominantColor": "#213961"
+  },
+  "large-semifluid-generator": {
+   "id": "gregtech:gt.blockmachines@31026",
+   "displayName": "Large Semifluid Burner",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/large_semifluid_burner-68117149fbed.png",
+   "dominantColor": "#6f4667"
+  },
+  "large-rocket-engine": {
+   "id": "gregtech:gt.blockmachines@996",
+   "displayName": "Rocketdyne F-1A Engine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/rocketdyne_f-1a_engine-e16e0e5b4dba.png",
+   "dominantColor": "#1d898e"
+  },
+  "universal-chemical-fuel-engine": {
+   "id": "gregtech:gt.blockmachines@15535",
+   "displayName": "Universal Chemical Fuel Engine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/universal_chemical_fuel_engine-9ec0b69867e8.png",
+   "dominantColor": "#6f4667"
+  },
+  "solid-oxide-fuel-cell-1": {
+   "id": "gregtech:gt.blockmachines@13101",
+   "displayName": "Solid-Oxide Fuel Cell Mk I",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/solid-oxide_fuel_cell_mk_i-ce80ddc6bb9d.png",
+   "dominantColor": "#657582"
+  },
+  "solid-oxide-fuel-cell-2": {
+   "id": "gregtech:gt.blockmachines@13102",
+   "displayName": "Solid-Oxide Fuel Cell Mk II",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/solid-oxide_fuel_cell_mk_ii-38e70d157771.png",
+   "dominantColor": "#213961"
+  },
+  "large-bronze-boiler": {
+   "id": "gregtech:gt.blockmachines@15529",
+   "displayName": "Large Bronze Boiler",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/large_bronze_boiler-19893019a7a5.png",
+   "dominantColor": "#86330c"
+  },
+  "large-steel-boiler": {
+   "id": "gregtech:gt.blockmachines@15530",
+   "displayName": "Large Steel Boiler",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/large_steel_boiler-d8112217862b.png",
+   "dominantColor": "#4e4b4b"
+  },
+  "large-titanium-boiler": {
+   "id": "gregtech:gt.blockmachines@15531",
+   "displayName": "Large Titanium Boiler",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/large_titanium_boiler-b85b93c9f6dc.png",
+   "dominantColor": "#6f4667"
+  },
+  "large-tungstensteel-boiler": {
+   "id": "gregtech:gt.blockmachines@15532",
+   "displayName": "Large Tungstensteel Boiler",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/large_tungstensteel_boiler-211dfd35c4b7.png",
+   "dominantColor": "#213961"
+  },
+  "thermal-boiler": {
+   "id": "gregtech:gt.blockmachines@15557",
+   "displayName": "Thermal Boiler",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/thermal_boiler-ab3deaea4f0e.png",
+   "dominantColor": "#404b59"
+  },
+  "large-heat-exchanger": {
+   "id": "gregtech:gt.blockmachines@1154",
+   "displayName": "Large Heat Exchanger",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/large_heat_exchanger-c1327c5407eb.png",
+   "dominantColor": "#6f4667"
+  },
+  "whakawhiti-wera-xl": {
+   "id": "gregtech:gt.blockmachines@31079",
+   "displayName": "Whakawhiti Wera XL",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/whakawhiti_wera_xl-7d1434771e79.png",
+   "dominantColor": "#611339"
+  },
+  "extreme-heat-exchanger": {
+   "id": "gregtech:gt.blockmachines@32017",
+   "displayName": "Extreme Heat Exchanger",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/extreme_heat_exchanger-f0b29c1ae1e7.png",
+   "dominantColor": "#213961"
+  },
+  "large-steam-turbine": {
+   "id": "gregtech:gt.blockmachines@15524",
+   "displayName": "Large Steam Turbine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/large_steam_turbine-2573bbd0ccf8.png",
+   "dominantColor": "#5e5e5e"
+  },
+  "large-hp-steam-turbine": {
+   "id": "gregtech:gt.blockmachines@15525",
+   "displayName": "Large HP Steam Turbine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/large_hp_steam_turbine-b313cee9d4e8.png",
+   "dominantColor": "#72496a"
+  },
+  "large-sc-steam-turbine": {
+   "id": "gregtech:gt.blockmachines@15526",
+   "displayName": "Large Supercritical Steam Turbine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/large_supercritical_steam_turbine-75c9bd724ef1.png",
+   "dominantColor": "#252525"
+  },
+  "xl-turbo-steam-turbine": {
+   "id": "gregtech:gt.blockmachines@15519",
+   "displayName": "XL Turbo Steam Turbine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/xl_turbo_steam_turbine-23f6e57ab297.png",
+   "dominantColor": "#525252"
+  },
+  "xl-turbo-hp-steam-turbine": {
+   "id": "gregtech:gt.blockmachines@15520",
+   "displayName": "XL Turbo HP Steam Turbine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/xl_turbo_hp_steam_turbine-3d3c09a6d9d2.png",
+   "dominantColor": "#714869"
+  },
+  "xl-turbo-sc-steam-turbine": {
+   "id": "gregtech:gt.blockmachines@15521",
+   "displayName": "XL Turbo SC Steam Turbine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/xl_turbo_sc_steam_turbine-cbd942090443.png",
+   "dominantColor": "#242424"
+  },
+  "large-gas-turbine": {
+   "id": "gregtech:gt.blockmachines@15527",
+   "displayName": "Large Gas Turbine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/large_gas_turbine-368597d515bb.png",
+   "dominantColor": "#6a7a87"
+  },
+  "xl-turbo-gas-turbine": {
+   "id": "gregtech:gt.blockmachines@15522",
+   "displayName": "XL Turbo Gas Turbine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/xl_turbo_gas_turbine-06fb710930e3.png",
+   "dominantColor": "#687885"
+  },
+  "large-plasma-generator": {
+   "id": "gregtech:gt.blockmachines@15528",
+   "displayName": "Large Plasma Turbine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/large_plasma_turbine-c26277a39588.png",
+   "dominantColor": "#233b64"
+  },
+  "xl-turbo-plasma-turbine": {
+   "id": "gregtech:gt.blockmachines@15523",
+   "displayName": "XL Turbo Plasma Turbine",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/xl_turbo_plasma_turbine-bafe789312e7.png",
+   "dominantColor": "#213960"
+  },
+  "thtr": {
+   "id": "gregtech:gt.blockmachines@12733",
+   "displayName": "Thorium High Temperature Reactor",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/thorium_high_temperature_reactor-0d2933120e8a.png",
+   "dominantColor": "#302552"
+  },
+  "htgr": {
+   "id": "gregtech:gt.blockmachines@12791",
+   "displayName": "High Temperature Gas-cooled Reactor",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/high_temperature_gas-cooled_reactor-ea160780a87b.png",
+   "dominantColor": "#878484"
+  },
+  "lftr": {
+   "id": "gregtech:gt.blockmachines@751",
+   "displayName": "Thorium Reactor [LFTR]",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/thorium_reactor_lftr-fb29cb9f2d69.png",
+   "dominantColor": "#291434"
+  },
+  "ic2-fluid-reactor": {
+   "id": "ic2:blockgenerator@5",
+   "displayName": "Nuclear Reactor",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/nuclear_reactor-69dcd45bd34a.png",
+   "dominantColor": "#e3e510"
+  },
+  "vacuum-reactor": {
+   "id": "ic2:blockgenerator@5",
+   "displayName": "Nuclear Reactor",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/nuclear_reactor-69dcd45bd34a.png",
+   "dominantColor": "#e3e510"
+  },
+  "dehp": {
+   "id": "gregtech:gt.blockmachines@12729",
+   "displayName": "Deep Earth Heating Pump",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/deep_earth_heating_pump-9f9b1c65308a.png",
+   "dominantColor": "#445c4b"
+  },
+  "solar-tower": {
+   "id": "gregtech:gt.blockmachines@863",
+   "displayName": "Solar Tower",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/solar_tower-f07e5b813db7.png",
+   "dominantColor": "#25122f"
+  },
+  "solar-panel": {
+   "id": "gregtech:gt.metaitem.01@32752",
+   "displayName": "Solar Panel (LV)",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/solar_panel_lv-cee6c20e62d6.png",
+   "dominantColor": "#1c104f"
+  },
+  "large-naquadah-reactor": {
+   "id": "gregtech:gt.blockmachines@15537",
+   "displayName": "Large Naquadah Reactor",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/large_naquadah_reactor-cccea4495d8b.png",
+   "dominantColor": "#5f5656"
+  },
+  "fusion-reactor": {
+   "id": "gregtech:gt.blockmachines@1193",
+   "displayName": "Fusion Control Computer Mark I",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/fusion_control_computer_mark_i-6a2d4a41121c.png",
+   "dominantColor": "#939300"
+  },
+  "compact-fusion-reactor": {
+   "id": "gregtech:gt.blockmachines@32019",
+   "displayName": "Compact Fusion Computer MK-I Prototype",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/compact_fusion_computer_mk-i_prototype-335d7a4c40e5.png",
+   "dominantColor": "#939300"
+  },
+  "eye-of-harmony": {
+   "id": "gregtech:gt.blockmachines@15410",
+   "displayName": "Eye of Harmony",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/eye_of_harmony-5e1f3192de98.png",
+   "dominantColor": "#002541"
+  },
+  "antimatter": {
+   "id": "goodgenerator:antimatterannihilationmatrix",
+   "displayName": "Antimatter Annihilation Matrix",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/antimatter_annihilation_matrix-95d662db3f8d.png",
+   "dominantColor": "#89580b"
+  },
+  "small-coal-boiler": {
+   "id": "gregtech:gt.blockmachines@100",
+   "displayName": "Small Coal Boiler",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/small_coal_boiler-ffe586c7e375.png",
+   "dominantColor": "#983a0d"
+  },
+  "large-coal-boiler": {
+   "id": "gregtech:gt.blockmachines@101",
+   "displayName": "Large Coal Boiler",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/large_coal_boiler-215309f2d0f8.png",
+   "dominantColor": "#522c21"
+  },
+  "lava-boiler": {
+   "id": "gregtech:gt.blockmachines@102",
+   "displayName": "Reinforced Lava Boiler",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/reinforced_lava_boiler-5cc40b33fea6.png",
+   "dominantColor": "#2d2d2d"
+  },
+  "solar-boiler": {
+   "id": "gregtech:gt.blockmachines@105",
+   "displayName": "Simple Solar Boiler",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/simple_solar_boiler-dfdf493838fc.png",
+   "dominantColor": "#782e0b"
+  },
+  "advanced-boiler": {
+   "id": "gregtech:gt.blockmachines@753",
+   "displayName": "Advanced Boiler [LV]",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/advanced_boiler_lv-2014ce587068.png",
+   "dominantColor": "#6a6a6a"
+  },
+  "rtg": {
+   "id": "gregtech:gt.blockmachines@869",
+   "displayName": "Radioisotope Thermoelectric Generator",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/radioisotope_thermoelectric_generator-179e8171a0ef.png",
+   "dominantColor": "#243643"
+  },
+  "dyson-swarm": {
+   "id": "gregtech:gt.blockmachines@14001",
+   "displayName": "Dyson Swarm Ground Unit",
+   "iconPath": "/datasets/gtnh/local-2.9.0-beta-2/textures/rendered/dyson_swarm_ground_unit-ac01fe74b864.png",
+   "dominantColor": "#006262"
+  }
+ }
+}
