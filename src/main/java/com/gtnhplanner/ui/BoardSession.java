@@ -1654,38 +1654,28 @@ public final class BoardSession {
                 out.add(new Notice(Severity.WARN, text, focus));
             }
             for (final Note note : result.notes()) {
-                switch (note.message()) {
-                    // A machine on the board makes what another takes from outside: say which, and what to wire.
-                    case WIRING_UNLINKED -> {
-                        final Object[] a = named(note).args();
-                        out.add(
-                            new Notice(
-                                Severity.WARN,
-                                a[0].equals(a[2]) ? "Wire " + a[1] + " from one " + a[2] + " to the other"
-                                    : "Wire " + a[1] + " from the " + a[2] + " to the " + a[0],
-                                idsIn(note)));
-                    }
-                    case OVERSHOOTS_TARGET -> out.add(overshoot(note, cards));
-                    case DRAWER_NOT_CONNECTED -> out.add(
-                        new Notice(
-                            Severity.WARN,
-                            "The " + note.args()[0] + " drawer has a rate, but nothing is wired to it",
-                            idsIn(note)));
-                    case DRAWER_WIRED_IGNORED -> out.add(
-                        new Notice(
-                            Severity.WARN,
-                            "The " + note.args()[0] + " drawer's rate does nothing: the ports it's on are wired",
-                            idsIn(note)));
-                    case CHOICE_NO_LONGER_FITS, CHOICE_NEEDS_MORE_GATES -> out.add(
+                // If/else, not a switch: a switch on an enum compiles to a lookup table a hot swap does not refresh.
+                // The solver also guesses at missing wires (something made here and brought in too); that is a guess
+                // about what the player meant, not a problem with the plan, so it is not shown.
+                final SolverMessage m = note.message();
+                if (m == SolverMessage.OVERSHOOTS_TARGET) out.add(overshoot(note, cards));
+                else if (m == SolverMessage.DRAWER_NOT_CONNECTED) out.add(
+                    new Notice(
+                        Severity.WARN,
+                        "The " + note.args()[0] + " drawer has a rate, but nothing is wired to it",
+                        idsIn(note)));
+                else if (m == SolverMessage.DRAWER_WIRED_IGNORED) out.add(
+                    new Notice(
+                        Severity.WARN,
+                        "The " + note.args()[0] + " drawer's rate does nothing: the ports it's on are wired",
+                        idsIn(note)));
+                else if (m == SolverMessage.CHOICE_NO_LONGER_FITS || m == SolverMessage.CHOICE_NEEDS_MORE_GATES)
+                    out.add(
                         new Notice(
                             Severity.WARN,
                             "Your saved choice no longer fits this plan, so the planner's own answer is shown",
                             List.of()));
-                    default -> {
-                        if (note.severity() == Severity.ERROR && note.message() != SolverMessage.EMPTY_GRAPH)
-                            out.add(failure(note));
-                    }
-                }
+                else if (note.severity() == Severity.ERROR && m != SolverMessage.EMPTY_GRAPH) out.add(failure(note));
             }
         } else if (lastResult != null && lastResult.errorNote() != null) {
             out.add(failure(lastResult.errorNote()));
