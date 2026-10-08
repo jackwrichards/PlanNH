@@ -3,6 +3,8 @@ package com.gtnhplanner.ui.world;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nullable;
 
@@ -11,7 +13,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumChatFormatting;
-import net.minecraft.world.ChunkPosition;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.DimensionManager;
@@ -30,7 +31,8 @@ import gregtech.api.util.shutdown.ShutDownReason;
 /**
  * GregTech's machines for the AR lens: finding the processing machines (single blocks and multiblock controllers)
  * near the player, and reading what each is doing. In single player the numbers come from the integrated server's
- * copy of the machine (the client's has no progress or recipe); on a server only the running light is known. The
+ * copy of the machine (the client's has no progress or recipe), read on the server's own thread ({@link #serverTick})
+ * for the machines the client asked about; on a server only the running light is known. The
  * recipe a machine runs is kept in protected fields, read by reflection; without them the lens still shows what the
  * machine is making. Only loaded when GregTech is.
  */
@@ -85,29 +87,74 @@ final class GtMachineStatus {
         final ItemStack icon = mte.getStackForm(1);
         final String name = icon != null ? icon.getDisplayName() : base.getInventoryName();
         final boolean multi = mte instanceof MTEMultiBlockBase;
-        final TileEntity serverTile = serverTile(world.provider.dimensionId, te.xCoord, te.yCoord, te.zCoord);
-        if (!(serverTile instanceof final IGregTechTileEntity server)
-            || !(server.getMetaTileEntity() instanceof final IMetaTileEntity smte)) {
-            // On a server: the running light only.
-            return new MachineStatus(
-                name,
-                icon,
-                base.isActive() ? MachineStatus.State.RUNNING : MachineStatus.State.IDLE,
-                "",
-                -1,
-                -1,
-                0,
-                mte instanceof final MTEBasicMachine b ? tierName(b.mTier) : "",
-                0,
-                0,
-                List.of(),
-                List.of(),
-                1,
-                multi);
+        // In single player, what the server thread last read of the machine (asked for here, read on its tick).
+        if (singlePlayer()) {
+            final Pos p = new Pos(world.provider.dimensionId, te.xCoord, te.yCoord, te.zCoord);
+            WANTED.put(p, System.currentTimeMillis());
+            final MachineStatus read = READ.get(p);
+            if (read != null) return read;
         }
+        // On a server (or before the first read): the running light only.
+        return new MachineStatus(
+            name,
+            icon,
+            base.isActive() ? MachineStatus.State.RUNNING : MachineStatus.State.IDLE,
+            "",
+            -1,
+            -1,
+            0,
+            mte instanceof final MTEBasicMachine b ? tierName(b.mTier) : "",
+            0,
+            0,
+            List.of(),
+            List.of(),
+            1,
+            multi);
+    }
+
+    private record Pos(int dim, int x, int y, int z) {}
+
+    /** The machines the client wants read, with when it last asked, and what the server thread read of each. */
+    private static final Map<Pos, Long> WANTED = new ConcurrentHashMap<>();
+    private static final Map<Pos, MachineStatus> READ = new ConcurrentHashMap<>();
+    private static int serverTicks;
+
+    private static boolean singlePlayer() {
+        return Minecraft.getMinecraft()
+            .isSingleplayer() && MinecraftServer.getServer() != null;
+    }
+
+    /**
+     * On the integrated server's thread, every other tick: reads each machine the client asked about lately, from
+     * the server's own copy (which knows its progress and recipe), without loading anything.
+     */
+    static void serverTick() {
+        if (++serverTicks % 2 != 0 || WANTED.isEmpty()) return;
+        final long now = System.currentTimeMillis();
+        for (final Map.Entry<Pos, Long> e : WANTED.entrySet()) {
+            final Pos p = e.getKey();
+            if (now - e.getValue() > 3000) {
+                WANTED.remove(p);
+                READ.remove(p);
+                continue;
+            }
+            final WorldServer ws = DimensionManager.getWorld(p.dim());
+            if (ws == null || !ws.blockExists(p.x(), p.y(), p.z())) continue;
+            final MachineStatus st = serverRead(ws.getTileEntity(p.x(), p.y(), p.z()));
+            if (st != null) READ.put(p, st);
+            else READ.remove(p);
+        }
+    }
+
+    @Nullable
+    private static MachineStatus serverRead(@Nullable final TileEntity te) {
+        if (!(te instanceof final IGregTechTileEntity server)) return null;
+        final IMetaTileEntity smte = server.getMetaTileEntity();
+        if (!(smte instanceof MTEMultiBlockBase) && !(smte instanceof MTEBasicMachine)) return null;
+        final ItemStack icon = smte.getStackForm(1);
+        final String name = icon != null ? icon.getDisplayName() : server.getInventoryName();
         if (smte instanceof final MTEMultiBlockBase m) return multiblock(name, icon, server, m);
-        if (smte instanceof final MTEBasicMachine b) return single(name, icon, server, b);
-        return null;
+        return single(name, icon, server, (MTEBasicMachine) smte);
     }
 
     private static MachineStatus multiblock(final String name, final ItemStack icon, final IGregTechTileEntity base,
@@ -177,7 +224,12 @@ final class GtMachineStatus {
         } else if (b.mOutputBlocked > 0) {
             state = MachineStatus.State.PROBLEM;
             detail = "Output full";
-        } else state = MachineStatus.State.IDLE;
+        } else {
+            state = MachineStatus.State.IDLE;
+            // Too little stored to start a recipe at its tier: say so.
+            if (b.mTier >= 0 && b.mTier < GTValues.V.length && base.getStoredEU() < GTValues.V[Math.max(1, b.mTier)])
+                detail = "No power";
+        }
         final double seconds = max > 0 ? max / 20.0 : 0;
         final List<MachineStatus.Flow> outs = max > 0
             ? made(b.mOutputItems, b.mOutputFluid == null ? null : new FluidStack[] { b.mOutputFluid }, seconds)
@@ -264,25 +316,6 @@ final class GtMachineStatus {
             }
         }
         out.add(new MachineStatus.Flow(null, s.copy(), amount, seconds > 0 ? amount / seconds : 0));
-    }
-
-    /**
-     * The integrated server's copy of a tile, in single player, read from its chunk's map without loading or creating
-     * anything (the server thread owns it; a stale read only shows an old number for a moment). Null on a server.
-     */
-    @Nullable
-    private static TileEntity serverTile(final int dim, final int x, final int y, final int z) {
-        try {
-            if (!Minecraft.getMinecraft()
-                .isSingleplayer() || MinecraftServer.getServer() == null) return null;
-            final WorldServer ws = DimensionManager.getWorld(dim);
-            if (ws == null || !ws.getChunkProvider()
-                .chunkExists(x >> 4, z >> 4)) return null;
-            return (TileEntity) ws.getChunkFromChunkCoords(x >> 4, z >> 4).chunkTileEntityMap
-                .get(new ChunkPosition(x & 15, y, z & 15));
-        } catch (final RuntimeException e) {
-            return null;
-        }
     }
 
     /** GregTech's messages carry colour codes and sometimes several lines; the first line, plain. */

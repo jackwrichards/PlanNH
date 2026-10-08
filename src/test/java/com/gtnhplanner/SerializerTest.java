@@ -133,6 +133,41 @@ class SerializerTest {
     }
 
     @Test
+    void aSlotThatCannotBeReadIsSavedAsItWas() {
+        final LoadedChart chart = GtnhFlowLoader.load("mk1");
+        final String kept = Serializer.encode(chart.graph())
+            .substring(0, 40);
+        final JsonObject root = new JsonObject();
+        final JsonArray slots = new JsonArray();
+        slots.add(slot("good", Serializer.encode(chart.graph())));
+        slots.add(slot("unreadable", kept));
+        root.add("graphs", slots);
+
+        // Read (the slot fails), then saved: its data goes back out untouched, not as an empty plan.
+        final String saved = Serializer.encodePlan(Serializer.decodePlan(root.toString()));
+        final JsonArray back = new com.google.gson.JsonParser().parse(saved)
+            .getAsJsonObject()
+            .getAsJsonArray("graphs");
+        assertEquals(
+            kept,
+            back.get(1)
+                .getAsJsonObject()
+                .get("data")
+                .getAsString());
+        // Once something is put in the slot, it is saved as it is now.
+        final Plan reread = Serializer.decodePlan(root.toString());
+        reread.getGraphs()
+            .get(1)
+            .addNode(
+                chart.graph()
+                    .getNodes()
+                    .iterator()
+                    .next());
+        final String used = Serializer.encodePlan(reread);
+        assertFalse(used.contains("\"" + kept + "\""), "a slot used since is saved as it is now");
+    }
+
+    @Test
     void aDoubledEdgeLoadsAsOne() {
         // The same two ports wired twice: addEdge refuses that, so the twin goes straight into the
         // map, the way an old save or a bug elsewhere could have left it.

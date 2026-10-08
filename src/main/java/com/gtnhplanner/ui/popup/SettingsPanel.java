@@ -124,7 +124,7 @@ public final class SettingsPanel extends Widget<SettingsPanel> implements Intera
                     .setArRangeIndex(cycle(PlannerSettings.arRangeIndex(), s, PlannerSettings.AR_RANGES.length))));
         rows.add(
             new Row(
-                "AR lens card size",
+                "AR lens panel size",
                 () -> PlannerSettings.AR_SCALE_NAMES[PlannerSettings.arScaleIndex()],
                 s -> PlannerSettings
                     .setArScaleIndex(cycle(PlannerSettings.arScaleIndex(), s, PlannerSettings.AR_SCALES.length))));

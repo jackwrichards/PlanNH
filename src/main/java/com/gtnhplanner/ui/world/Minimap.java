@@ -112,7 +112,7 @@ public final class Minimap {
         drawCards(snap.cards(), ox, oy, z, focused);
         clipEnd(circle);
         // The plan's name, and whether it has changed since the planner last showed it.
-        final Graph open = Plan.getActiveGraph();
+        final Graph open = Plan.loaded() == null ? null : Plan.getActiveGraph();
         final boolean stale = open != snap.graph() || open.version() != snap.graphVersion();
         final String title = Hyb.fit(snap.planName(), size - 8);
         final float ty = circle ? y0 + size + 2 : y0 + 3;

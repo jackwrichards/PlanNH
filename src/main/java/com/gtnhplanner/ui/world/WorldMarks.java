@@ -6,6 +6,8 @@ import net.minecraft.client.renderer.entity.RenderManager;
 
 import org.lwjgl.opengl.GL11;
 
+import com.gtnhplanner.ui.theme.Hyb;
+
 /**
  * Drawing marks in the world, between {@link #begin()} and {@link #end()} in a world-last render: block outlines that
  * show through walls (faint where hidden, bright where seen), beams, lines, and labels that face the camera.
@@ -115,6 +117,88 @@ final class WorldMarks {
         t.addVertex(x0, y0, z0);
         t.addVertex(x1, y1, z1);
         t.draw();
+    }
+
+    /**
+     * A connector from one machine to the one it feeds: a shaded tube in the resource's colour with arrowheads along it
+     * moving towards {@code b}, solid where in view and a faint line where hidden.
+     */
+    static void connector(final double ax, final double ay, final double az, final double bx, final double by,
+        final double bz, final int rgb, final boolean flowing) {
+        final double dx = bx - ax, dy = by - ay, dz = bz - az;
+        final double len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (len < 0.3) return;
+        final double[] d = { dx / len, dy / len, dz / len };
+        // Two directions across the tube.
+        final double[] up = Math.abs(d[1]) > 0.9 ? new double[] { 1, 0, 0 } : new double[] { 0, 1, 0 };
+        final double[] u = norm(cross(d, up)), v = cross(d, u);
+        line(ax, ay, az, bx, by, bz, rgb, 2f);
+        GL11.glEnable(GL11.GL_DEPTH_TEST);
+        GL11.glDepthMask(true);
+        final double r = 0.07;
+        final Tessellator t = Tessellator.instance;
+        t.startDrawingQuads();
+        final int sides = 10;
+        for (int i = 0; i < sides; i++) {
+            final double a0 = 2 * Math.PI * i / sides, a1 = 2 * Math.PI * (i + 1) / sides;
+            final double[] n0 = ring(u, v, a0), n1 = ring(u, v, a1);
+            t.setColorRGBA_I(shade(rgb, n0, n1), 235);
+            t.addVertex(ax + n0[0] * r, ay + n0[1] * r, az + n0[2] * r);
+            t.addVertex(bx + n0[0] * r, by + n0[1] * r, bz + n0[2] * r);
+            t.addVertex(bx + n1[0] * r, by + n1[1] * r, bz + n1[2] * r);
+            t.addVertex(ax + n1[0] * r, ay + n1[1] * r, az + n1[2] * r);
+        }
+        t.draw();
+        // Arrowheads every block and a half, sliding along while something flows.
+        final double gap = 1.5;
+        final double phase = flowing ? (System.currentTimeMillis() % 1500L) / 1500.0 * gap : gap / 2;
+        final int head = Hyb.mix(0xFF000000 | rgb, 0xFFFFFFFF, 0.3f) & 0xFFFFFF;
+        t.startDrawing(GL11.GL_TRIANGLES);
+        for (double at = phase; at < len - 0.25; at += gap) {
+            if (at < 0.25) continue;
+            final double cx = ax + d[0] * at, cy = ay + d[1] * at, cz = az + d[2] * at;
+            final double tip = 0.32, br = 0.17;
+            final double tx = cx + d[0] * tip, ty = cy + d[1] * tip, tz = cz + d[2] * tip;
+            for (int i = 0; i < 8; i++) {
+                final double a0 = 2 * Math.PI * i / 8, a1 = 2 * Math.PI * (i + 1) / 8;
+                final double[] n0 = ring(u, v, a0), n1 = ring(u, v, a1);
+                t.setColorRGBA_I(shade(head, n0, n1), 255);
+                t.addVertex(cx + n0[0] * br, cy + n0[1] * br, cz + n0[2] * br);
+                t.addVertex(cx + n1[0] * br, cy + n1[1] * br, cz + n1[2] * br);
+                t.addVertex(tx, ty, tz);
+                t.setColorRGBA_I(shade(head, d, d) & 0x7F7F7F, 255);
+                t.addVertex(cx + n1[0] * br, cy + n1[1] * br, cz + n1[2] * br);
+                t.addVertex(cx + n0[0] * br, cy + n0[1] * br, cz + n0[2] * br);
+                t.addVertex(cx, cy, cz);
+            }
+        }
+        t.draw();
+        GL11.glDepthMask(false);
+    }
+
+    private static double[] ring(final double[] u, final double[] v, final double a) {
+        final double c = Math.cos(a), s = Math.sin(a);
+        return new double[] { u[0] * c + v[0] * s, u[1] * c + v[1] * s, u[2] * c + v[2] * s };
+    }
+
+    /** The colour lit from above and a little to the side, for a face whose normal lies between two directions. */
+    private static int shade(final int rgb, final double[] n0, final double[] n1) {
+        final double nx = n0[0] + n1[0], ny = n0[1] + n1[1], nz = n0[2] + n1[2];
+        final double l = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        final double lit = l == 0 ? 0.5 : Math.max(0, (nx * 0.3 + ny * 0.85 + nz * 0.42) / l);
+        final float k = (float) (0.45 + 0.55 * lit);
+        final int r = Math.min(255, (int) ((rgb >> 16 & 0xFF) * k)), g = Math.min(255, (int) ((rgb >> 8 & 0xFF) * k)),
+            b = Math.min(255, (int) ((rgb & 0xFF) * k));
+        return r << 16 | g << 8 | b;
+    }
+
+    private static double[] cross(final double[] a, final double[] b) {
+        return new double[] { a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0] };
+    }
+
+    private static double[] norm(final double[] a) {
+        final double l = Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]);
+        return new double[] { a[0] / l, a[1] / l, a[2] / l };
     }
 
     /**

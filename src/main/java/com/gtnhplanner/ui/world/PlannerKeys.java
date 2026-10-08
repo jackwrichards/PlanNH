@@ -47,7 +47,7 @@ public final class PlannerKeys {
         if (Minecraft.getMinecraft().currentScreen != null) return;
         while (MINIMAP.isPressed()) PlannerSettings.setMinimap(!PlannerSettings.minimap());
         while (AR.isPressed()) PlannerSettings.setArLens(!PlannerSettings.arLens());
-        while (LINK.isPressed()) LinkChooser.openForCrosshair();
+        while (LINK.isPressed()) LinkTarget.beginForCrosshair();
         if (!PlannerSettings.minimap()) return;
         while (ZOOM_IN.isPressed()) PlannerSettings.setMinimapZoomIndex(PlannerSettings.minimapZoomIndex() + 1);
         while (ZOOM_OUT.isPressed()) PlannerSettings.setMinimapZoomIndex(PlannerSettings.minimapZoomIndex() - 1);

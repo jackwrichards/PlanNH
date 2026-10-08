@@ -444,6 +444,12 @@ public final class BoardScreen extends ModularScreen {
             }
             return super.onKeyPressed(typedChar, keyCode);
         }
+        // Linking a machine from the world: Esc gives up and goes back to the world.
+        if (com.gtnhplanner.ui.world.LinkTarget.active() && keyCode == org.lwjgl.input.Keyboard.KEY_ESCAPE
+            && !textFocused(this)) {
+            com.gtnhplanner.ui.world.LinkTarget.cancel();
+            return super.onKeyPressed(typedChar, keyCode);
+        }
         if (!textFocused(this)) {
             // Delete or Backspace removes the selection; Esc clears it (and only closes the planner when nothing is
             // selected).
@@ -555,7 +561,29 @@ public final class BoardScreen extends ModularScreen {
     @Override
     public void drawForeground() {
         super.drawForeground();
+        drawLinkBanner();
         drawPortTooltip();
+    }
+
+    /** While linking a machine from the world: what is being linked, and what to do, over the top of the board. */
+    private void drawLinkBanner() {
+        final com.gtnhplanner.ui.world.LinkTarget.Block b = com.gtnhplanner.ui.world.LinkTarget.target();
+        if (b == null) return;
+        final String what = "Link " + b.item()
+            .getDisplayName() + " at " + b.x() + ", " + b.y() + ", " + b.z() + " to a card";
+        final String how = "Click a lit card, in this plan or another (tabs, Library). Esc cancels.";
+        final String note = com.gtnhplanner.ui.world.LinkTarget.note();
+        final int w = Math.max(Math.max(Hyb.width(what) + 24, Hyb.width(how) + 24), Hyb.width(note) + 24) + 8;
+        final int h = note.isEmpty() ? 30 : 41;
+        final com.cleanroommc.modularui.widget.sizer.Area a = canvas.getArea();
+        final float x = a.x + (a.width - w) / 2f, y = a.y + a.height - h - 10;
+        Hyb.rect(x - 1, y - 1, w + 2, h + 2, Hyb.SELECTION);
+        Hyb.rect(x, y, w, h, 0xF0141416);
+        Hyb.item(b.item(), x + 6, y + 7, 16, 0);
+        org.lwjgl.opengl.GL11.glDisable(org.lwjgl.opengl.GL11.GL_LIGHTING);
+        Hyb.text(what, x + 28, y + 5, Hyb.INK);
+        Hyb.text(how, x + 28, y + 17, Hyb.MUTED);
+        if (!note.isEmpty()) Hyb.text(note, x + 28, y + 29, Hyb.RED_INK);
     }
 
     /**

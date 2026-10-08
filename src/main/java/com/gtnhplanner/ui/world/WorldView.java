@@ -26,7 +26,8 @@ import cpw.mods.fml.common.gameevent.TickEvent;
 /**
  * Cards' blocks in the world: outlined while they are being picked ({@link LinkPicker}); outlined with a beam and a
  * label for a while after "Show in the world"; and, for the linked block under the crosshair, outlined (with the rest
- * of its card's) and named under the crosshair, its card rung on the minimap.
+ * of its card's) and named under the crosshair, its card rung on the minimap. A linked block that is broken is
+ * unlinked.
  */
 public final class WorldView {
 
@@ -45,7 +46,15 @@ public final class WorldView {
     private boolean closing;
     /** A line at the top of the screen for a few seconds (the shown card being somewhere else). */
     private String note = "";
+    private int noteColor = Hyb.AMBER_INK;
     private long noteUntil;
+
+    /** A line at the top of the screen for a few seconds, after an action that sends the player back to the world. */
+    public static void say(final String text) {
+        INSTANCE.note = text;
+        INSTANCE.noteColor = Hyb.INK;
+        INSTANCE.noteUntil = System.currentTimeMillis() + 4000;
+    }
 
     /** The linked block under the crosshair and its card, found each tick. */
     @Nullable
@@ -82,11 +91,23 @@ public final class WorldView {
             final Node n = shown();
             if (n != null && WorldLinks.countIn(n, mc.theWorld.provider.dimensionId) == 0) {
                 note = "Its blocks are in another dimension";
+                noteColor = Hyb.AMBER_INK;
+                noteUntil = System.currentTimeMillis() + 4000;
+            }
+        }
+        // A linked block broken (or otherwise gone) is unlinked from its card, with a note saying so.
+        if (++ticks % 10 == 0) {
+            final java.util.List<String> lost = WorldLinks.pruneBroken(mc.theWorld);
+            if (!lost.isEmpty()) {
+                note = "Block removed: unlinked from " + String.join(", ", lost);
+                noteColor = Hyb.AMBER_INK;
                 noteUntil = System.currentTimeMillis() + 4000;
             }
         }
         findLook(mc);
     }
+
+    private int ticks;
 
     /** The linked block under the crosshair, further out than the arm reaches; and the minimap follows its card. */
     private void findLook(final Minecraft mc) {
@@ -170,6 +191,11 @@ public final class WorldView {
         final PlanSnapshot.Card card = snap == null ? null : snap.cardOf(node.id);
         if (card != null && card.name() != null) return card.name();
         if (node.isPower()) return node.powerSource;
+        // A card of a plan not open since: its machine is saved as an item key.
+        if (node.machineName != null && node.machineName.startsWith("item:")) {
+            final net.minecraft.item.ItemStack machine = com.gtnhplanner.ui.Resources.item(node.machineName);
+            if (machine != null) return machine.getDisplayName();
+        }
         return node.machineName != null ? node.machineName : "Machine";
     }
 
@@ -183,7 +209,7 @@ public final class WorldView {
         final float cx = sr.getScaledWidth() / 2f, cy = sr.getScaledHeight() / 2f;
         if (System.currentTimeMillis() < noteUntil) {
             Hyb.rect(cx - Hyb.width(note) / 2f - 4, 6, Hyb.width(note) + 8, 13, 0xE0141414);
-            Hyb.textCentered(note, cx, 9, Hyb.AMBER_INK);
+            Hyb.textCentered(note, cx, 9, noteColor);
         }
         if (look == null || !PlannerSettings.worldHighlight() || ArLens.on()) return;
         final Node node = look.node();

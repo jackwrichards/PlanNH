@@ -114,6 +114,15 @@ public class Plan {
         return INSTANCE;
     }
 
+    /**
+     * The plans if they are loaded, without loading them: for code that runs in the world (the minimap, world links),
+     * which must not be what loads them, since that can happen while NEI is still loading its recipes.
+     */
+    @Nullable
+    public static Plan loaded() {
+        return INSTANCE;
+    }
+
     public static Graph getActiveGraph() {
         Plan plan = getInstance();
         if (plan.graphs.isEmpty()) {
@@ -122,7 +131,25 @@ public class Plan {
         if (plan.activeIndex < 0 || plan.activeIndex >= plan.graphs.size()) {
             plan.activeIndex = 0;
         }
+        plan.reread(plan.activeIndex);
         return plan.graphs.get(plan.activeIndex);
+    }
+
+    /** A slot that could not be read at load, read again (NEI has its recipes by the time a slot is opened). */
+    private void reread(final int index) {
+        final Graph g = graphs.get(index);
+        if (g.getUnreadable() == null || !g.nodes.isEmpty()) return;
+        try {
+            final Graph read = Serializer.decode(g.getUnreadable());
+            read.setName(g.getName());
+            read.setOpen(g.isOpen());
+            read.setLastOpen(g.getLastOpen());
+            graphs.set(index, read);
+            com.gtnhplanner.GtnhPlanner.LOG.info("Slot '{}' read on a second try", g.getName());
+        } catch (final RuntimeException e) {
+            com.gtnhplanner.GtnhPlanner.LOG
+                .error("Slot '{}' still cannot be read; its data stays kept", g.getName(), e);
+        }
     }
 
     private static Plan loadPlan() {

@@ -337,11 +337,32 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     public void draw(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
         if (!com.gtnhplanner.dev.DevPerf.on()) {
             drawCard(context, widgetTheme);
+            drawLinkMode();
             return;
         }
         final long started = System.nanoTime();
         drawCard(context, widgetTheme);
+        drawLinkMode();
         com.gtnhplanner.dev.DevPerf.time("cards", System.nanoTime() - started);
+    }
+
+    /**
+     * Linking a machine from the world: a card whose recipe runs on it is ringed (gold when it is the card the machine
+     * is on now), the rest are dimmed.
+     */
+    private void drawLinkMode() {
+        if (!com.gtnhplanner.ui.world.LinkTarget.active() || model == null || layout == null) return;
+        final int h = layout.height;
+        final Node node = model.node;
+        if (com.gtnhplanner.ui.world.LinkTarget.holds(node)) Hyb.ring(-4, -4, CardLayout.W + 8, h + 8, 3, Hyb.GOLD);
+        else if (com.gtnhplanner.ui.world.LinkTarget.fits(session.graph(), node))
+            Hyb.ring(-4, -4, CardLayout.W + 8, h + 8, 3, Hyb.mix(Hyb.SELECTION, 0xFFFFFF, 0.3f + 0.7f * breathe()));
+        else Hyb.rect(0, 0, CardLayout.W, h, 0xC0101114);
+    }
+
+    /** A click on the card while linking a machine from the world: this card is the pick. */
+    void chooseForLink() {
+        if (model != null) com.gtnhplanner.ui.world.LinkTarget.choose(session.graph(), model.node);
     }
 
     private void drawCard(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
@@ -487,7 +508,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     }
 
     /** Rounds to the nearest half pixel: one screen pixel at the game's GUI scale 2, so text stays crisp. */
-    static float crisp(final float v) {
+    private static float crisp(final float v) {
         return Math.round(v * 2) / 2f;
     }
 
@@ -583,8 +604,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
      * a
      * hard shadow in the tier's dark, underlined from UV up.
      */
-    static void chip(final int x, final int y, final int w, final int h, final Hyb.Tier tier, final String label,
-        final boolean underline, final boolean hover) {
+    private static void chip(final int x, final int y, final int w, final int h, final Hyb.Tier tier,
+        final String label, final boolean underline, final boolean hover) {
         Hyb.rect(x, y, w, h, tier.border());
         Hyb.rect(x + 1, y + 1, w - 2, h - 2, hover ? Hyb.mix(tier.bg(), 0xFFFFFF, 0.88f) : tier.bg());
         Hyb.rect(x + 1, y + 1, w - 2, 1, 0x8CFFFFFF);
@@ -599,7 +620,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         if (underline) Hyb.rect(tx, ty + 8 * s, tw, 1, tier.text());
     }
 
-    static void chevron(final int x, final int y, final int color) {
+    private static void chevron(final int x, final int y, final int color) {
         Hyb.rect(x, y, 7, 1, color);
         Hyb.rect(x + 1, y + 1, 5, 1, color);
         Hyb.rect(x + 2, y + 2, 3, 1, color);
@@ -789,7 +810,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     /**
      * {@link #drawMachineArt(CardModel, float, float, float, float, float, float, boolean)} by machine name and item.
      */
-    static void drawMachineArt(final String artName, final ItemStack machineStack, final float x, final float y,
+    private static void drawMachineArt(final String artName, final ItemStack machineStack, final float x, final float y,
         final float w, final float h, final float itemSize, final float z, final boolean shadow) {
         final StructureArt.Art art = StructureArt.forMachine(artName);
         if (art != null) {
@@ -1353,6 +1374,10 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     @Override
     public Result onMousePressed(final int mouseButton) {
         if (model == null) return Result.IGNORE;
+        if (com.gtnhplanner.ui.world.LinkTarget.active()) {
+            if (mouseButton == 0) chooseForLink();
+            return Result.ACCEPT;
+        }
         final Part part = partAt(localX(), localY());
         final Node node = model.node;
         switch (part) {

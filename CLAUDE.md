@@ -66,11 +66,13 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   JSON (`library/PlanExport`, checked against the website's own schema). Test it all against
   `node tools/dev/mock-library.mjs` (a local stand-in; `call 'library?url=http://127.0.0.1:8789'`), never the real site.
 - While playing (`ui/world/`, `docs/design/minimap-and-world-links.md`): the minimap of the plan last open
-  (`Minimap`, drawn from the board's `PlanSnapshot`), cards linked to blocks in the world (`Node.worldLinks`, the
-  card menu's picker `LinkPicker`, L on a block opens `LinkChooser`), and the AR lens (Y): a card in the recipe
-  card's look over every machine around (`ArLens`, `ui/card/WorldCard`) with what it is doing now, read from
-  GregTech in single player (`GtMachineStatus`). The gear on the top bar holds their settings (`PlannerSettings`,
-  `config/gtnhplanner-settings.properties`). Test with `call 'machine?...'` and `call 'look?...'`.
+  (`Minimap`, from the board's `PlanSnapshot`); plan cards linked to the machines built for them (`Node.worldLinks`;
+  a block links only to a card whose recipe it runs, `MachineMatch`, and to one card at most; the card menu's picker
+  `LinkPicker`, or L on a machine opens the planner in link mode, `LinkTarget`); and the AR lens (Y), which shows
+  the machines as they are (`ArLens`, `ArPanel`: their window, live state, stats from `MachineStats`, read from
+  GregTech on the integrated server's thread by `GtMachineStatus`) with their plan link as a tag. World code never
+  loads the plans (`Plan.loaded()`). Settings are the top bar's gear (`PlannerSettings`). Test with
+  `call 'machine?...'` and `call 'look?...'`.
 - Multiblock pictures in `assets/gtnhplanner/textures/structures/` are Factory Flow's renders (`public/power-art`: the
   owner's processing multiblocks and the Power Planner workbook's power plants), scaled to 320 px palette PNGs with
   transparency. `ui/card/StructureArt` maps in-game machine names to them; `call 'gtmachines?art=1'` checks coverage.
@@ -79,7 +81,7 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 
 - Gradle provisions the JDKs (25 for the build, JetBrains Runtime 25 for `runClient25`). Keep the checkout at a
   short path: deep Windows paths break the clone and the Minecraft dev setup (MAX_PATH).
-- `./gradlew test`: 436 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
+- `./gradlew test`: 437 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
   many over gtnh-flow YAML charts in `src/test/resources/gtnh-flow/`. About 40s, no Minecraft. `addon.gradle`
   opts `test` out of the configuration cache; without that a clean build reports `:test NO-SOURCE` and silently
   runs nothing, so if you ever see NO-SOURCE, check the count in `build/test-results/test/*.xml`.

@@ -113,7 +113,12 @@ public final class Serializer {
             slotObj.addProperty("name", graph.getName());
             if (graph.getLastOpen() > 0) slotObj.addProperty("lastOpen", graph.getLastOpen());
             if (!graph.isOpen()) slotObj.addProperty("open", false);
-            if (debug) slotObj.add("data", graphToJson(graph));
+            // A slot that could not be read is written back as it was, unless it has been used since.
+            final boolean keep = graph.getUnreadable() != null && graph.nodes.isEmpty()
+                && graph.getDrawers()
+                    .isEmpty();
+            if (keep) slotObj.addProperty("data", graph.getUnreadable());
+            else if (debug) slotObj.add("data", graphToJson(graph));
             else slotObj.addProperty("data", encode(graph));
             arr.add(slotObj);
         }
@@ -144,8 +149,12 @@ public final class Serializer {
                         obj.get("data")
                             .getAsString());
                 } catch (final RuntimeException e) {
-                    GtnhPlanner.LOG.error("Slot '{}' could not be read and was left empty", name, e);
+                    GtnhPlanner.LOG
+                        .error("Slot '{}' could not be read; its data is kept and read again later", name, e);
                     graph = new Graph(name);
+                    graph.setUnreadable(
+                        obj.get("data")
+                            .getAsString());
                 }
                 graph.setName(name);
                 if (obj.has("open")) graph.setOpen(

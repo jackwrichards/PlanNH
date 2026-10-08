@@ -126,16 +126,41 @@ public final class LinkPicker {
             return;
         }
         final int dim = mc.theWorld.provider.dimensionId;
-        final boolean linked = WorldLinks.toggle(graph, node, dim, hit.blockX, hit.blockY, hit.blockZ);
-        Hyb.click();
-        if (!linked) {
+        if (WorldLinks.indexOf(node, dim, hit.blockX, hit.blockY, hit.blockZ) >= 0) {
+            WorldLinks.unlink(graph, node, dim, hit.blockX, hit.blockY, hit.blockZ);
+            Hyb.click();
             say("Unlinked", Hyb.MUTED);
             return;
         }
-        final ItemStack block = pickBlock(mc, hit);
-        if (machine != null && block != null && !same(block, machine))
-            say("Linked. This block is " + block.getDisplayName() + ", not " + name, Hyb.AMBER_INK);
-        else say("Linked", Hyb.PRODUCT_INK);
+        // Only a machine that runs the card's recipe; a block on another card moves to this one.
+        final String why = MachineMatch.refuse(graph, node, pickBlock(mc, hit));
+        if (why != null) {
+            say("Not linked: " + why, Hyb.RED_INK);
+            return;
+        }
+        final WorldLinks.Hit was = WorldLinks.assign(graph, node, dim, hit.blockX, hit.blockY, hit.blockZ);
+        Hyb.click();
+        say(
+            was == null ? "Linked"
+                : "Linked. Moved from " + WorldView.cardName(was.node())
+                    + (was.graph() != graph ? " in " + was.graph()
+                        .getName() : ""),
+            Hyb.PRODUCT_INK);
+    }
+
+    /** Whether the block under the crosshair can be the card's machine, worked out once per block looked at. */
+    private int fitX, fitY, fitZ = Integer.MIN_VALUE;
+    private boolean fit;
+
+    private boolean fits(final Minecraft mc, final MovingObjectPosition hit) {
+        if (hit.blockX != fitX || hit.blockY != fitY || hit.blockZ != fitZ) {
+            fitX = hit.blockX;
+            fitY = hit.blockY;
+            fitZ = hit.blockZ;
+            final Node node = node();
+            fit = node != null && MachineMatch.fits(graph, node, pickBlock(mc, hit));
+        }
+        return fit;
     }
 
     private void say(final String text, final int color) {
@@ -174,7 +199,8 @@ public final class LinkPicker {
         final boolean onBlock = hit != null && hit.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK;
         final boolean linked = onBlock && node != null
             && WorldLinks.indexOf(node, mc.theWorld.provider.dimensionId, hit.blockX, hit.blockY, hit.blockZ) >= 0;
-        final int c = linked ? Hyb.GOLD : onBlock ? Hyb.INK : Hyb.MUTED;
+        final boolean fits = onBlock && !linked && fits(mc, hit);
+        final int c = linked ? Hyb.GOLD : fits ? Hyb.INK : onBlock ? Hyb.RED_INK : Hyb.MUTED;
         // Four corners of a square, and a dot.
         final float r = 6, l = 3;
         for (final int sx : new int[] { -1, 1 }) for (final int sy : new int[] { -1, 1 }) {
@@ -184,7 +210,7 @@ public final class LinkPicker {
         }
         Hyb.rect(cx - 0.5f, cy - 0.5f, 1, 1, c);
         if (onBlock) {
-            final String what = linked ? "Click: unlink" : "Click: link";
+            final String what = linked ? "Click: unlink" : fits ? "Click: link" : "Not a machine for this card";
             Hyb.textCentered(what, cx, cy + 12, c);
         }
         // The hotbar draws next and expects textures on.

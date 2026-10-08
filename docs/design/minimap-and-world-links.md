@@ -28,39 +28,59 @@ order they are built.
 
 ## 3. Linking cards to blocks
 
-- A card's actions menu: **Link to blocks in the world** (then "Link more blocks"), **Show in the world** and **Clear
-  world links**. A card keeps a list of block positions (`Node.worldLinks`: dimension, x, y, z; a card is often
-  several machines), saved with the plan, never copied with it. A link edit is an undo step and is saved, but is not a
-  change to the plan: nothing re-solves and the minimap stays current (`ui/world/WorldLinks`).
-- Linking closes the planner and turns the crosshair into a picker (`ui/world/LinkPicker`): left-click a block to
-  link it (again to unlink), right-click or Esc when done, which opens the planner again. A block that is not the
-  card's machine (by its pick-block item) is linked with a note saying what it is.
-- From the world: the Link key (L) on the block under the crosshair opens `ui/world/LinkChooser`, the cards of the
-  plan last open, the same machine first; clicking one links or unlinks the block.
-- The card says how many blocks it is linked to ("2 IN WORLD" on its machines tile).
+The plan and the world are separate: a link says where a card's machines are built, to lay a build out by its plan
+and see the plan over it. It never makes the plan show what the machines are doing.
+
+- A block can be a card's machine only if it runs the card's recipe (every recipe, on a shared machine): one NEI lists
+  for it, and for GregTech's single blocks at a tier that can run it; a power card's block is its generator
+  (`ui/world/MachineMatch`). Several blocks can be one card's machines, but a block is one card's: linking it to a
+  card takes it off any other, in any plan (`WorldLinks.assign`).
+- From a card: its menu's **Link to blocks in the world** turns the crosshair into a picker (`ui/world/LinkPicker`):
+  left-click a block to link it (again to unlink), right-click or Esc to go back to the planner. A block that cannot
+  be the card's machine is refused with the reason.
+- From the world: the Link key (L) on a block, as far as the lens reaches, opens the planner in link mode
+  (`ui/world/LinkTarget`): a banner says what is being linked, the cards that can take it are lit (the one it is on
+  now in gold) and the rest dimmed, in any plan (tabs, Library). Clicking a lit card links the block and goes back to
+  the world; clicking its own card unlinks it; Esc cancels.
+- **Show in the world** and **Clear world links** on the card's menu; the card says "N IN WORLD". A linked block that
+  is broken is unlinked, with a note.
+- Links are saved with the plan, never copied with it, and undo like any edit, but are not changes to the plan: nothing
+  re-solves and the minimap stays current.
 
 ## 4. Seeing links in the world
 
 - **Show in the world**: the card's blocks are outlined through walls, with a beam and their name and distance, for
   30 seconds (`ui/world/WorldView`, drawing in `WorldMarks`).
-- Looking at a linked block (up to 64 blocks away) outlines it and the rest of its card's, names the card, its count
+- Looking at a linked block (up to 64 blocks away, the lens off) outlines it and the rest of its card's, names the card
   and plan under the crosshair, and centres the minimap on that card and rings it (when set).
 
 ## 5. The AR lens
 
-- A key (Y) and a setting show a card over every machine within range (`ui/world/ArLens`): GregTech's single blocks
-  and multiblock controllers, and any block linked to a card. Each is drawn in the recipe card's look with nothing to
-  press (`ui/card/WorldCard`): the name bar with the tier and amps chips, the running recipe's inputs and outputs per
-  second as port tiles, the machine in the middle with the progress under it, a POWER tile (EU/t drawn now, of the
-  most it can take) and a STATUS tile (progress and time left, or why it stopped; the linked card's count). The
-  nearest eight and the one looked at get a card, the rest the board's zoomed-out tile. Cards are projected from the
-  world's camera and drawn flat on the HUD, raised clear of nearer ones; their size is a setting (Medium default).
-- What a machine is doing comes from `ui/world/GtMachineStatus`. In single player it reads the integrated server's
-  copy: progress, the recipe (`processingLogic.lastRecipe` on multiblocks, `mLastRecipe` on single blocks, by
-  reflection) times its parallels over the real duration, the outputs of the running cycle, the energy hatches' tier,
-  amps and max input, maintenance, a formed structure, the shutdown reason and why it cannot start. On a server only
-  the running light reaches the client.
-- Wires between two cards that both have blocks here are drawn between them, in their resource's colour.
+The lens shows the machines as they are in the world, not the plan (`ui/world/ArLens`, `ArPanel`).
+
+- Every machine within range (GregTech's single blocks and multiblock controllers, and any linked block) is drawn as
+  its own window would show it, in the game's grey: near ones (the nearest eight) as a panel with the name and tier,
+  the running recipe in slots with a progress arrow, and what it is doing (running with the percentage and time left,
+  idle and why, stopped and why); far ones as a slot-sized tile with a state light. A link hangs under it as a dark
+  tag: the plan card, its plan, and how many of its machines are placed of how many the plan has.
+- The machine looked at (as far as the lens reaches) slides in beside the crosshair with the whole story: how busy it
+  has been over the last minute and hour, what it made and used (per minute lately, in the last hour, in all), its
+  power (EU/t now, of the most it can take, and parallels), and its plan tag, or the key to link it. Panels fade in
+  and out, and over the last 8 blocks of the range.
+- What it is doing comes from `ui/world/GtMachineStatus`: in single player the integrated server's copy, read on the
+  server's own thread for the machines the client asks about (progress, the recipe from `processingLogic.lastRecipe`
+  or `mLastRecipe` by reflection, the cycle's outputs, energy hatches' tier, amps and max input, maintenance, a formed
+  structure, shutdown reasons, power). `ui/world/MachineStats` samples every machine within 128 blocks twice a
+  second into per-second and per-minute buckets for this session. On a server only the running light reaches the
+  client, so panels show state alone.
+- Connectors run between linked machines whose cards are wired in the plan last open: a shaded tube in the resource's
+  colour with arrowheads sliding towards the machine it feeds.
+
+## Safety
+
+- Nothing in the world loads the plans (`Plan.loaded()`): loading them while NEI is still loading its recipes can
+  fail a slot. A slot that cannot be read is kept as it was (`Graph.unreadable`), written back unchanged while it
+  stays empty, and read again when it is opened.
 
 ## Order of work
 
@@ -71,4 +91,4 @@ order they are built.
 5. The AR lens.
 
 All five are built (2026-10-07). Keys (Controls, GTNH Planner): N minimap, [ and ] zoom, arrows pan, Y AR lens,
-L link the block you look at.
+L link the machine you look at to a card.

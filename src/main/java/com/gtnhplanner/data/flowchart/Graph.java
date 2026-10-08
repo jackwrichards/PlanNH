@@ -65,6 +65,14 @@ public class Graph {
     @Setter
     private boolean open = true;
 
+    /**
+     * A slot that could not be read when the plans were loaded: its saved data, written back as it was while the slot
+     * stays empty (so a failed read never costs the plan), and read again when the slot is opened. Null otherwise.
+     */
+    @Getter
+    @Setter
+    private transient String unreadable;
+
     @Getter
     private BalanceMode balanceMode = BalanceMode.AUTO;
 

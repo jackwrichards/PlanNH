@@ -87,6 +87,10 @@ public final class PortSlot extends Widget<PortSlot>
 
     @Override
     public Result onMousePressed(final int mouseButton) {
+        if (com.gtnhplanner.ui.world.LinkTarget.active()) {
+            if (mouseButton == 0) card.chooseForLink();
+            return Result.ACCEPT;
+        }
         // Left: its recipes, or a drag for a wire; right: its uses. As NEI's own lists.
         pressed = mouseButton == 0 || mouseButton == 1 ? mouseButton : -1;
         return pressed >= 0 ? Result.ACCEPT : Result.IGNORE;

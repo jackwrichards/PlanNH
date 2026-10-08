@@ -7,6 +7,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import javax.annotation.Nullable;
 
@@ -26,8 +27,8 @@ import org.lwjgl.util.glu.GLU;
 
 import com.gtnhplanner.data.flowchart.Graph;
 import com.gtnhplanner.data.flowchart.Node;
+import com.gtnhplanner.data.flowchart.Plan;
 import com.gtnhplanner.ui.PlannerSettings;
-import com.gtnhplanner.ui.card.WorldCard;
 import com.gtnhplanner.ui.theme.Hyb;
 
 import cpw.mods.fml.common.Loader;
@@ -35,39 +36,44 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
 
 /**
- * The AR lens: a panel over every machine around the player (GregTech's single blocks and multiblock controllers, and
- * any block linked to a card), saying what it is doing now (running with its progress and what it is making, idle,
- * turned off, or why it stopped) and, when linked to a card of the plan last open in the planner, what the plan has it
- * do. The wires between linked machines are drawn between them. The machine under the crosshair can be linked to a
- * card from here ({@link LinkChooser}).
+ * The AR lens: the machines around the player as they are in the world (GregTech's single blocks and multiblock
+ * controllers, and any block linked to a plan card), each drawn as its own window would show it ({@link ArPanel}):
+ * near ones as a panel with their slots, progress and state, far ones as a tile. The machine looked at (as far as the
+ * lens reaches) comes to the front beside the crosshair with what it made and used, how busy it was and its power
+ * ({@link MachineStats}), and its plan card, or how to link it to one. Panels fade in and out, and towards the edge of
+ * the range. Connectors run between linked machines whose cards are wired in the plan last open.
  *
  * <p>
- * Each machine is drawn as the planner draws a card ({@link WorldCard}), flat on the screen over its place (projected
- * with the world's last camera), so text and icons look as on the board: a card for the nearest few and the one looked
- * at, a glance tile (the board's zoomed-out card) for the rest.
+ * Panels are drawn flat on the HUD over each machine's place, projected with the world's last camera, so they look
+ * as any of the game's windows do; near ones are raised clear of nearer ones.
  */
 public final class ArLens {
 
     public static final ArLens INSTANCE = new ArLens();
 
     private static final boolean GREGTECH = Loader.isModLoaded("gregtech");
-    /** Full panels for this many of the nearest machines (and the one looked at); chips for the rest. */
-    private static final int FULL = 8;
+    /** Panels for this many of the nearest machines; tiles for the rest. */
+    private static final int NEAR = 8;
     private static final int MAX_SPOTS = 96;
+    /** The last blocks of the range, over which panels fade out. */
+    private static final float EDGE = 8;
 
-    /** A machine (or linked block) near the player, its card when linked, and what it is doing. */
+    /** A machine (or linked block) near the player, its plan card when linked, what it is doing, and its fade. */
     private static final class Spot {
 
         final int x, y, z;
         @Nullable
-        Node card;
+        WorldLinks.Hit card;
         @Nullable
         MachineStatus status;
+        @Nullable
+        ItemStack block;
         double distance;
+        float fade;
         /** Where the point over it is on the GUI, and whether it is in front of the camera. */
         float sx, sy;
         boolean seen;
-        /** Its panel's place and size this frame, raised off nearer panels. */
+        /** Its near panel's place this frame, raised off nearer panels. */
         float px, py;
         int pw, ph;
 
@@ -80,8 +86,11 @@ public final class ArLens {
 
     private List<Spot> spots = List.of();
     private int ticks;
+    /** The machine looked at, and the one before it while it fades out; how far each has come in or gone. */
     @Nullable
-    private Spot looked;
+    private Spot looked, leaving;
+    private float lookedIn, leavingOut;
+    private long lastFrame;
 
     private final FloatBuffer modelview = BufferUtils.createFloatBuffer(16),
         projection = BufferUtils.createFloatBuffer(16);
@@ -96,12 +105,6 @@ public final class ArLens {
         return PlannerSettings.arLens();
     }
 
-    /** The machine under the crosshair while the lens is on: its block, for linking it to a card. */
-    @Nullable
-    int[] lookedAt() {
-        return looked == null ? null : new int[] { looked.x, looked.y, looked.z };
-    }
-
     // region Finding machines
 
     @SubscribeEvent
@@ -110,21 +113,24 @@ public final class ArLens {
         final Minecraft mc = Minecraft.getMinecraft();
         if (!on() || mc.theWorld == null || mc.thePlayer == null) {
             spots = List.of();
-            looked = null;
+            looked = leaving = null;
             return;
         }
         if (ticks++ % 10 == 0) scan(mc);
-        if (ticks % 2 == 0) for (final Spot s : spots) s.status = read(mc, s);
+        // The near ones and the one looked at are read every other tick, so their progress moves smoothly.
+        if (ticks % 2 == 0) for (int i = 0; i < spots.size(); i++) {
+            final Spot s = spots.get(i);
+            if (i < NEAR || s == looked) s.status = read(mc, s);
+        }
         findLooked(mc);
     }
 
-    /** The machines within range: GregTech's, and the plan's linked blocks, nearest first. */
+    /** The machines within range, GregTech's and every plan's linked blocks, nearest first, with their cards. */
     private void scan(final Minecraft mc) {
         final double range = PlannerSettings.arRange(), r2 = range * range;
         final double px = mc.thePlayer.posX, py = mc.thePlayer.posY, pz = mc.thePlayer.posZ;
         final int dim = mc.theWorld.provider.dimensionId;
-        final Map<Long, Spot> found = new HashMap<>();
-        final Map<Long, Spot> before = new HashMap<>();
+        final Map<Long, Spot> found = new HashMap<>(), before = new HashMap<>();
         for (final Spot s : spots) before.put(key(s.x, s.y, s.z), s);
         if (GREGTECH) for (final Object o : mc.theWorld.loadedTileEntityList) {
             if (!(o instanceof final TileEntity te)) continue;
@@ -133,28 +139,29 @@ public final class ArLens {
             final long k = key(te.xCoord, te.yCoord, te.zCoord);
             found.put(k, before.getOrDefault(k, new Spot(te.xCoord, te.yCoord, te.zCoord)));
         }
-        final Graph graph = planGraph();
-        if (graph != null) for (final Node n : graph.nodes.values()) for (final int[] l : n.worldLinks) {
-            if (l[0] != dim) continue;
-            final double dx = l[1] + 0.5 - px, dy = l[2] + 0.5 - py, dz = l[3] + 0.5 - pz;
-            if (dx * dx + dy * dy + dz * dz > r2) continue;
-            final long k = key(l[1], l[2], l[3]);
-            found.computeIfAbsent(k, kk -> before.getOrDefault(kk, new Spot(l[1], l[2], l[3])));
-        }
+        final Map<Long, WorldLinks.Hit> cards = new HashMap<>();
+        final Plan plans = Plan.loaded();
+        if (plans != null) for (final Graph g : plans.getGraphs()) for (final Node n : g.nodes.values())
+            for (final int[] l : n.worldLinks) {
+                if (l[0] != dim) continue;
+                final double dx = l[1] + 0.5 - px, dy = l[2] + 0.5 - py, dz = l[3] + 0.5 - pz;
+                if (dx * dx + dy * dy + dz * dz > r2) continue;
+                final long k = key(l[1], l[2], l[3]);
+                cards.putIfAbsent(k, new WorldLinks.Hit(g, n));
+                found.computeIfAbsent(k, kk -> before.getOrDefault(kk, new Spot(l[1], l[2], l[3])));
+            }
         final List<Spot> list = new ArrayList<>(found.values());
         for (final Spot s : list) {
             final double dx = s.x + 0.5 - px, dy = s.y + 0.5 - py, dz = s.z + 0.5 - pz;
             s.distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            s.card = null;
-        }
-        if (graph != null) for (final Node n : graph.nodes.values()) for (final int[] l : n.worldLinks) {
-            if (l[0] != dim) continue;
-            final Spot s = found.get(key(l[1], l[2], l[3]));
-            if (s != null && s.card == null) s.card = n;
+            s.card = cards.get(key(s.x, s.y, s.z));
         }
         list.sort(Comparator.comparingDouble(s -> s.distance));
         spots = list.size() > MAX_SPOTS ? new ArrayList<>(list.subList(0, MAX_SPOTS)) : list;
-        for (final Spot s : spots) if (s.status == null) s.status = read(mc, s);
+        for (final Spot s : spots) {
+            if (s.status == null || !before.containsKey(key(s.x, s.y, s.z))) s.status = read(mc, s);
+            if (s.status == null && s.block == null) s.block = blockItem(mc, s);
+        }
     }
 
     @Nullable
@@ -164,23 +171,48 @@ public final class ArLens {
         return te == null ? null : GtMachineStatus.read(mc.theWorld, te);
     }
 
-    private void findLooked(final Minecraft mc) {
-        looked = null;
-        final EntityLivingBase eye = mc.renderViewEntity;
-        if (eye == null) return;
-        final MovingObjectPosition hit = eye.rayTrace(PlannerSettings.arRange(), 1f);
-        if (hit == null || hit.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK) return;
-        for (final Spot s : spots) if (s.x == hit.blockX && s.y == hit.blockY && s.z == hit.blockZ) {
-            looked = s;
-            return;
+    /** What a block that is not a GregTech machine is, by its pick-block item. */
+    @Nullable
+    private static ItemStack blockItem(final Minecraft mc, final Spot s) {
+        try {
+            final net.minecraft.block.Block b = mc.theWorld.getBlock(s.x, s.y, s.z);
+            return b == null ? null
+                : b.getPickBlock(
+                    new MovingObjectPosition(
+                        s.x,
+                        s.y,
+                        s.z,
+                        1,
+                        net.minecraft.util.Vec3.createVectorHelper(s.x, s.y, s.z)),
+                    mc.theWorld,
+                    s.x,
+                    s.y,
+                    s.z);
+        } catch (final RuntimeException e) {
+            return null;
         }
     }
 
-    /** The plan the lens tells about: the one last open in the planner. */
-    @Nullable
-    private static Graph planGraph() {
-        final PlanSnapshot snap = PlanSnapshot.latest();
-        return snap == null ? null : snap.graph();
+    /** The machine under the crosshair, as far as the lens reaches. */
+    private void findLooked(final Minecraft mc) {
+        Spot now = null;
+        final EntityLivingBase eye = mc.renderViewEntity;
+        if (eye != null && mc.currentScreen == null) {
+            final MovingObjectPosition hit = eye.rayTrace(PlannerSettings.arRange(), 1f);
+            if (hit != null && hit.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK)
+                for (final Spot s : spots) if (s.x == hit.blockX && s.y == hit.blockY && s.z == hit.blockZ) {
+                    now = s;
+                    break;
+                }
+        }
+        if (now == looked) return;
+        if (looked != null) {
+            leaving = looked;
+            leavingOut = 0;
+        }
+        looked = now;
+        lookedIn = 0;
+        if (looked != null && looked.status == null) looked.status = read(mc, looked);
     }
 
     private static long key(final int x, final int y, final int z) {
@@ -189,11 +221,11 @@ public final class ArLens {
 
     // endregion
 
-    // region The world: the camera, and the wires between linked machines
+    // region The world: the camera, the connectors, the machine looked at
 
     @SubscribeEvent
     public void onRenderWorld(final RenderWorldLastEvent event) {
-        if (!on() || spots.isEmpty() && planGraph() == null) {
+        if (!on()) {
             cameraKnown = false;
             return;
         }
@@ -207,31 +239,33 @@ public final class ArLens {
         camY = WorldMarks.cameraY();
         camZ = WorldMarks.cameraZ();
         cameraKnown = true;
-        drawWires();
+        WorldMarks.begin();
+        if (looked != null) WorldMarks.outline(looked.x, looked.y, looked.z, 0x22D3EE, 0.004f, 2f);
+        drawConnectors();
+        WorldMarks.end();
     }
 
-    /** Each wire of the plan between two cards that both have blocks here, from one's blocks to the other's. */
-    private void drawWires() {
+    /**
+     * Each wire of the plan last open between two cards that both have blocks here: a connector from the block(s) of
+     * the card that makes it to those of the card that uses it.
+     */
+    private void drawConnectors() {
         final PlanSnapshot snap = PlanSnapshot.latest();
         final Minecraft mc = Minecraft.getMinecraft();
         if (snap == null || mc.theWorld == null) return;
         final int dim = mc.theWorld.provider.dimensionId;
-        final Map<java.util.UUID, double[]> centres = new HashMap<>();
-        boolean any = false;
+        final Map<UUID, double[]> centres = new HashMap<>();
         for (final PlanSnapshot.Line w : snap.wires()) {
             if (w.from() == null || w.to() == null) continue;
             final double[] a = centres.computeIfAbsent(w.from(), id -> centre(snap.graph(), id, dim));
             final double[] b = centres.computeIfAbsent(w.to(), id -> centre(snap.graph(), id, dim));
             if (a.length == 0 || b.length == 0) continue;
-            if (!any) WorldMarks.begin();
-            any = true;
-            WorldMarks.line(a[0], a[1], a[2], b[0], b[1], b[2], w.color() & 0xFFFFFF, w.flowing() ? 4f : 3f);
+            WorldMarks.connector(a[0], a[1], a[2], b[0], b[1], b[2], w.color() & 0xFFFFFF, w.flowing());
         }
-        if (any) WorldMarks.end();
     }
 
-    /** The middle of a card's blocks in this dimension, a little above them; empty when it has none here. */
-    private static double[] centre(final Graph graph, final java.util.UUID nodeId, final int dim) {
+    /** The middle of a card's blocks in this dimension, just over them; empty when it has none here. */
+    private static double[] centre(final Graph graph, final UUID nodeId, final int dim) {
         final Node n = graph.nodes.get(nodeId);
         if (n == null) return new double[0];
         double x = 0, y = 0, z = 0;
@@ -239,49 +273,47 @@ public final class ArLens {
         for (final int[] l : n.worldLinks) {
             if (l[0] != dim) continue;
             x += l[1] + 0.5;
-            y += l[2] + 0.5;
+            y += l[2] + 1.25;
             z += l[3] + 0.5;
             k++;
         }
-        return k == 0 ? new double[0] : new double[] { x / k, y / k + 0.2, z / k };
+        return k == 0 ? new double[0] : new double[] { x / k, y / k, z / k };
     }
 
     // endregion
 
-    // region The cards
+    // region The panels
 
-    /** World cards against the board's size (a setting): at half, a font pixel to a screen pixel at GUI scale 2. */
-    private static float scale() {
-        return PlannerSettings.arScale();
-    }
-
-    /** A far machine's glance tile, GUI pixels. */
-    private static final int GLANCE = 30;
-
-    /** Before the minimap, which goes over the cards. */
+    /** Before the minimap, which goes over them. */
     @SubscribeEvent(priority = cpw.mods.fml.common.eventhandler.EventPriority.HIGH)
     public void onOverlay(final RenderGameOverlayEvent.Post event) {
         if (event.type != RenderGameOverlayEvent.ElementType.ALL || !on() || !cameraKnown) return;
         final Minecraft mc = Minecraft.getMinecraft();
         if (mc.currentScreen != null || mc.gameSettings.hideGUI || LinkPicker.active()) return;
+        final long nowMs = System.currentTimeMillis();
+        final float dt = lastFrame == 0 ? 0 : Math.min(0.1f, (nowMs - lastFrame) / 1000f);
+        lastFrame = nowMs;
         final ScaledResolution sr = event.resolution;
+        final float range = PlannerSettings.arRange();
         final List<Spot> shown = new ArrayList<>();
         for (final Spot s : spots) {
             project(s, sr, mc);
-            if (s.seen) shown.add(s);
+            // Fade in when it comes, and out towards the edge of the range.
+            final float target = s.seen ? Math.max(0, Math.min(1, (float) (range - s.distance) / EDGE)) : 0;
+            s.fade += (target - s.fade) * Math.min(1, dt * 7);
+            if (s.seen && s.fade > 0.02f && s != looked) shown.add(s);
         }
-        // Cards for the nearest few and the one looked at; glance tiles for the rest.
-        final List<Spot> full = new ArrayList<>();
-        for (int i = 0; i < shown.size() && full.size() < FULL; i++) full.add(shown.get(i));
-        if (looked != null && looked.seen && !full.contains(looked)) full.add(looked);
-        // Each card over its machine, raised clear of the nearer ones already placed (its stem grows to reach).
+        lookedIn = Math.min(1, lookedIn + dt / 0.18f);
+        leavingOut = Math.min(1, leavingOut + dt / 0.15f);
+        // Panels for the nearest few, raised clear of the nearer ones; tiles for the rest, behind.
+        final float scale = PlannerSettings.arScale();
+        final List<Spot> near = new ArrayList<>();
+        for (int i = 0; i < shown.size() && near.size() < NEAR; i++) near.add(shown.get(i));
         final List<float[]> taken = new ArrayList<>();
-        final List<WorldCard.Data> data = new ArrayList<>();
-        for (final Spot s : full) {
-            final WorldCard.Data d = data(s);
-            data.add(d);
-            s.pw = Math.round(WorldCard.W * scale());
-            s.ph = Math.round(WorldCard.height(d) * scale()) + (s == looked && hint() ? 12 : 0);
+        for (final Spot s : near) {
+            final ArPanel.View v = view(s);
+            s.pw = Math.round(ArPanel.width(v) * scale);
+            s.ph = Math.round(ArPanel.height(v) * scale);
             s.px = Math.round(s.sx - s.pw / 2f);
             s.py = Math.round(s.sy - s.ph - 6);
             for (int tries = 0; tries < 12; tries++) {
@@ -296,10 +328,25 @@ public final class ArLens {
         }
         for (int i = shown.size() - 1; i >= 0; i--) {
             final Spot s = shown.get(i);
-            if (!full.contains(s)) glance(s);
+            if (near.contains(s)) continue;
+            GL11.glPushMatrix();
+            GL11.glTranslatef(Math.round(s.sx - ArPanel.TILE / 2f), Math.round(s.sy - ArPanel.TILE - 4), 0);
+            ArPanel.far(view(s), s.fade);
+            GL11.glPopMatrix();
         }
-        for (int i = full.size() - 1; i >= 0; i--) card(full.get(i), data.get(i), full.get(i) == looked);
-        if (shown.isEmpty()) {
+        for (int i = near.size() - 1; i >= 0; i--) {
+            final Spot s = near.get(i);
+            Hyb.rect(s.sx - 0.5f, s.py + s.ph, 1, Math.max(1, s.sy - s.py - s.ph), alphaOf(0xC0000000, s.fade));
+            GL11.glPushMatrix();
+            GL11.glTranslatef(s.px, s.py, 0);
+            GL11.glScalef(scale, scale, 1);
+            ArPanel.near(view(s), s.fade, false);
+            GL11.glPopMatrix();
+        }
+        // The machine looked at, in front, beside the crosshair; the one before it fading away.
+        if (leaving != null && leaving != looked && leavingOut < 1) focus(leaving, sr, 1 - ease(leavingOut), mc);
+        if (looked != null && looked.seen) focus(looked, sr, ease(lookedIn), mc);
+        if (shown.isEmpty() && looked == null) {
             final String none = GREGTECH ? "No machines within " + PlannerSettings.arRange() + " blocks"
                 : "No linked machines within " + PlannerSettings.arRange() + " blocks";
             Hyb.rect(sr.getScaledWidth() / 2f - Hyb.width(none) / 2f - 4, 6, Hyb.width(none) + 8, 13, 0xC0141414);
@@ -309,7 +356,59 @@ public final class ArLens {
         GL11.glEnable(GL11.GL_TEXTURE_2D);
     }
 
-    /** Where the point just over a machine falls on the GUI; not seen when behind the camera or off screen. */
+    /** The panel for the machine looked at, sliding in beside the crosshair, with a line down to the machine. */
+    private void focus(final Spot s, final ScaledResolution sr, final float t, final Minecraft mc) {
+        if (t <= 0.01f) return;
+        final ArPanel.View v = view(s);
+        final MachineStats.Track track = MachineStats.INSTANCE.track(mc.theWorld.provider.dimensionId, s.x, s.y, s.z);
+        final String key = PlannerKeys.LINK.getKeyCode() == 0 ? ""
+            : GameSettings.getKeyDisplayString(PlannerKeys.LINK.getKeyCode());
+        final int w = ArPanel.focusWidth(v), h = ArPanel.focusHeight(v, track, v.tag() == null && !key.isEmpty());
+        final float cx = sr.getScaledWidth() / 2f, cy = sr.getScaledHeight() / 2f;
+        final boolean right = cx + 28 + w < sr.getScaledWidth() - 4;
+        final float x = Math.round((right ? cx + 28 : cx - 28 - w) + (right ? 1 : -1) * (1 - t) * 14);
+        final float y = Math.round(Math.max(4, Math.min(sr.getScaledHeight() - h - 4, cy - h / 2f)));
+        // A line from the panel to the machine.
+        final float ax = right ? x : x + w, ay = Math.max(y + 16, Math.min(y + h - 8, s.sy + 6));
+        line(ax, ay, s.sx, s.sy + 6, alphaOf(0xC022D3EE, t));
+        GL11.glPushMatrix();
+        GL11.glTranslatef(x, y, 0);
+        ArPanel.focus(v, track, t, key);
+        GL11.glPopMatrix();
+    }
+
+    /** A one-pixel line on the HUD, in whole pixels. */
+    private static void line(final float x0, final float y0, final float x1, final float y1, final int color) {
+        final int n = (int) Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+        Hyb.beginBatch();
+        for (int i = 0; i <= n; i++) {
+            final float f = n == 0 ? 0 : i / (float) n;
+            Hyb.rect(Math.round(x0 + (x1 - x0) * f), Math.round(y0 + (y1 - y0) * f), 1, 1, color);
+        }
+        Hyb.endBatch();
+    }
+
+    /** What a spot's panel shows: the machine, what it is doing, and its plan card. */
+    private static ArPanel.View view(final Spot s) {
+        final MachineStatus st = s.status;
+        ArPanel.Tag tag = null;
+        if (s.card != null) {
+            final Node n = s.card.node();
+            final PlanSnapshot snap = PlanSnapshot.latest();
+            final PlanSnapshot.Card planned = snap != null && snap.graph() == s.card.graph() ? snap.cardOf(n.id) : null;
+            tag = new ArPanel.Tag(
+                WorldView.cardName(n),
+                s.card.graph()
+                    .getName(),
+                n.worldLinks.size(),
+                planned == null ? -1 : (int) Math.ceil(planned.machines() - 1e-9));
+        }
+        final String name = st != null ? st.name()
+            : s.block != null ? s.block.getDisplayName() : s.card != null ? WorldView.cardName(s.card.node()) : "Block";
+        return new ArPanel.View(name, st != null ? st.icon() : s.block, st, tag, (int) Math.round(s.distance));
+    }
+
+    /** Where the point just over a machine falls on the GUI; not seen when behind the camera. */
     private void project(final Spot s, final ScaledResolution sr, final Minecraft mc) {
         out.clear();
         final boolean ok = GLU.gluProject(
@@ -326,106 +425,16 @@ public final class ArLens {
         final int f = sr.getScaleFactor();
         s.sx = out.get(0) / f;
         s.sy = (mc.displayHeight - out.get(1)) / f;
-        final float half = WorldCard.W * scale();
-        s.seen = s.sx > -half && s.sx < sr.getScaledWidth() + half && s.sy > -20 && s.sy < sr.getScaledHeight() + 120;
+        s.seen = s.sx > -200 && s.sx < sr.getScaledWidth() + 200 && s.sy > -20 && s.sy < sr.getScaledHeight() + 160;
     }
 
-    private static void glance(final Spot s) {
-        final MachineStatus st = s.status;
-        GL11.glPushMatrix();
-        GL11.glTranslatef(Math.round(s.sx - GLANCE / 2f), Math.round(s.sy - GLANCE - 3), 0);
-        WorldCard.glance(
-            name(s),
-            icon(s),
-            st != null ? st.state()
-                .ink() : Hyb.MUTED,
-            st != null ? st.progress() : -1,
-            s.card != null,
-            GLANCE);
-        GL11.glPopMatrix();
+    private static int alphaOf(final int argb, final float fade) {
+        return (Math.round((argb >>> 24) * fade) & 0xFF) << 24 | argb & 0xFFFFFF;
     }
 
-    /** A near machine's card, its stem down to the machine, and how to link it when it is the one looked at. */
-    private static void card(final Spot s, final WorldCard.Data d, final boolean lookedAt) {
-        final float cardH = WorldCard.height(d) * scale();
-        Hyb.rect(s.sx - 0.5f, s.py + cardH, 1, Math.max(1, s.sy - s.py - cardH), lookedAt ? Hyb.SELECTION : 0xC03C3E45);
-        GL11.glPushMatrix();
-        GL11.glTranslatef(s.px, s.py, 0);
-        GL11.glScalef(scale(), scale(), 1);
-        WorldCard.draw(d, lookedAt);
-        GL11.glPopMatrix();
-        GL11.glDisable(GL11.GL_LIGHTING);
-        GL11.glDisable(GL11.GL_DEPTH_TEST);
-        if (lookedAt && hint()) {
-            final String key = GameSettings.getKeyDisplayString(PlannerKeys.LINK.getKeyCode());
-            final String text = key + (s.card != null ? ": change its cards" : ": link to a card");
-            final float tw = Hyb.width(text) + 8, tx = Math.round(s.px + (s.pw - tw) / 2f), ty = s.py + cardH + 2;
-            Hyb.rect(tx, ty, tw, 11, 0xE0101114);
-            Hyb.text(text, tx + 4, ty + 2, Hyb.SELECTION);
-        }
-    }
-
-    private static boolean hint() {
-        return PlannerKeys.LINK.getKeyCode() != 0 && planGraph() != null;
-    }
-
-    @Nullable
-    private static PlanSnapshot.Card planned(final Spot s) {
-        final PlanSnapshot snap = PlanSnapshot.latest();
-        return s.card != null && snap != null ? snap.cardOf(s.card.id) : null;
-    }
-
-    private static String name(final Spot s) {
-        return s.status != null ? s.status.name() : s.card != null ? WorldView.cardName(s.card) : "Linked block";
-    }
-
-    @Nullable
-    private static ItemStack icon(final Spot s) {
-        if (s.status != null) return s.status.icon();
-        final PlanSnapshot.Card planned = planned(s);
-        return planned != null ? planned.machine() : null;
-    }
-
-    /**
-     * What a machine's card shows: its state and the recipe it runs (or last ran); when it is linked, the card's
-     * count. A linked block the lens cannot read shows the card's ports from the plan.
-     */
-    private static WorldCard.Data data(final Spot s) {
-        final MachineStatus st = s.status;
-        final PlanSnapshot.Card planned = planned(s);
-        final List<WorldCard.Port> ins = new ArrayList<>(), outs = new ArrayList<>();
-        if (st != null && !(st.inputs()
-            .isEmpty()
-            && st.outputs()
-                .isEmpty())) {
-            final boolean live = st.state() == MachineStatus.State.RUNNING && st.progress() >= 0;
-            for (final MachineStatus.Flow f : st.inputs())
-                ins.add(new WorldCard.Port(f.name(), f.item(), f.fluid(), f.perSecond(), live));
-            for (final MachineStatus.Flow f : st.outputs())
-                outs.add(new WorldCard.Port(f.name(), f.item(), f.fluid(), f.perSecond(), live));
-        } else if (planned != null) {
-            for (final PlanSnapshot.Flow f : planned.inputs())
-                if (!f.power()) ins.add(new WorldCard.Port(f.name(), f.item(), f.fluid(), 0, false));
-            for (final PlanSnapshot.Flow f : planned.outputs())
-                if (!f.power()) outs.add(new WorldCard.Port(f.name(), f.item(), f.fluid(), 0, false));
-        }
-        final MachineStatus.State state = st != null ? st.state() : MachineStatus.State.IDLE;
-        return new WorldCard.Data(
-            name(s),
-            icon(s),
-            st != null ? st.tier() : "",
-            st != null && st.multiblock() ? st.amps() : 0,
-            st == null ? "Linked" : state.word,
-            state.ink(),
-            st != null ? st.detail() : "",
-            st != null ? st.progress() : -1,
-            st != null ? st.ticksLeft() : -1,
-            st != null ? st.euPerTick() : 0,
-            st != null ? st.maxEuPerTick() : 0,
-            ins,
-            outs,
-            s.card == null ? Double.NaN : planned != null ? planned.machines() : 0,
-            planned != null && planned.pinned());
+    private static float ease(final float t) {
+        final float u = 1 - t;
+        return 1 - u * u * u;
     }
 
     // endregion
