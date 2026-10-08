@@ -163,7 +163,7 @@ public final class PlanOverlay {
             final boolean ringed = p.card.id()
                 .equals(looked);
             if (p.card.machine() != null && !built(mc, p)) WorldMarks.ghost(p.card.machine(), p.x, p.y, p.z);
-            WorldMarks.outline(p.x, p.y, p.z, ringed ? 0x22D3EE : boxColour(p.card), 0.012f, ringed ? 2.5f : 1.5f);
+            if (ringed) WorldMarks.outline(p.x, p.y, p.z, 0x22D3EE, 0.012f, 2f);
         }
         for (final Conn c : conns(placed)) WorldMarks.connector(
             c.from.x + 0.5,
@@ -257,15 +257,13 @@ public final class PlanOverlay {
                 .equals(looked);
             final float w = PlanCardView.width() * p.scale, h = PlanCardView.height(p.card) * p.scale;
             // The stem from the card down to its block.
-            final int stem = ringed ? 0xE022D3EE : 0xD0000000 | boxColour(p.card);
-            final float sw = Math.max(1, Math.round(2 * Math.min(1, p.scale * 2)));
+            final int stem = ringed ? 0xA022D3EE : 0x70A4A8B0;
+            final float sw = 3;
             com.gtnhplanner.ui.theme.Hyb.rect(p.sx - sw / 2f, p.sy, sw, Math.max(1, p.by - p.sy), stem);
-            com.gtnhplanner.ui.theme.Hyb.rect(p.bx - sw - 1, p.by - sw / 2f, 2 * sw + 2, sw, stem);
             GL11.glPushMatrix();
             GL11.glTranslatef(Math.round(p.sx - w / 2f), Math.round(p.sy - h), 0);
             GL11.glScalef(p.scale, p.scale, 1);
-            if (p.scale <= RecipeCard.GLANCE_ZOOM) PlanCardView.glance(p.card, p.scale, ringed);
-            else PlanCardView.draw(p.card, snap.rateUnit(), ringed);
+            PlanCardView.draw(p.card, snap.rateUnit(), ringed);
             GL11.glPopMatrix();
         }
         if (near != null) wireLabel(near, snap, cx, cy);
@@ -281,12 +279,19 @@ public final class PlanOverlay {
         return (float) Math.hypot(px - (a[0] + t * dx), py - (a[1] + t * dy));
     }
 
-    /** What goes along a wire, at its middle: the item or fluid on a small dark disc. */
+    /** What goes along a wire, at its middle: the item or fluid, on a faint soft disc (cyan when the wire is lit). */
     private static void wireIcon(final PlanSnapshot.Flow f, final float x, final float y, final boolean lit) {
-        final int size = 12;
+        final int size = 20;
         final float ix = Math.round(x - size / 2f), iy = Math.round(y - size / 2f);
-        com.gtnhplanner.ui.theme.Hyb.rect(ix - 2, iy - 1, size + 4, size + 2, lit ? 0xE022D3EE : 0xD0141416);
-        com.gtnhplanner.ui.theme.Hyb.rect(ix - 1, iy - 2, size + 2, size + 4, lit ? 0xE022D3EE : 0xD0141416);
+        final int disc = lit ? 0x22D3EE : 0x000000;
+        for (int r = 0; r < 4; r++) {
+            final int a = (lit ? 0x30 : 0x22) + r * 0x10;
+            final float g = 6 - r * 1.5f;
+            com.gtnhplanner.ui.theme.Hyb
+                .rect(ix - g + 2, iy - g + 4, size + 2 * g - 4, size + 2 * g - 8, a << 24 | disc);
+            com.gtnhplanner.ui.theme.Hyb
+                .rect(ix - g + 4, iy - g + 2, size + 2 * g - 8, size + 2 * g - 4, a << 24 | disc);
+        }
         if (f.power()) RecipeCard.euIcon(ix, iy, size);
         else com.gtnhplanner.ui.theme.Hyb.icon(f.item(), f.fluid(), ix, iy, size, 0);
         GL11.glDisable(GL11.GL_LIGHTING);
