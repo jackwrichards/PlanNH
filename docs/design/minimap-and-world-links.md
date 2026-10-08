@@ -65,8 +65,8 @@ Nothing shows until a card of the plan last open is placed.
 - Each placed spot shows a ghost of the card's machine (its own block model, see-through, over the world; not when the
   machine is built there already), and the card floats a third of a block over it with a faint grey stem down to it,
   drawn as the board draws it (`ui/card/PlanCardView`: name bar and tier chips, ports with the plan's rates, the
-  machine's picture, POWER and MACHINES), with nothing to press. A card is drawn full size within ten blocks of you and shrinks with distance
-  beyond (always the whole card); nearer cards cover farther ones.
+  machine's picture, POWER and MACHINES), with nothing to press. A card is drawn at half the board's size (a screen pixel per font pixel at GUI scale
+  2) within ten blocks of you and shrinks with distance beyond (always the whole card); nearer cards cover farther ones.
 - The crosshair is on a card when it is over the card itself or meets its spot (its ghost), through blocks: the card is
   highlighted, drawn over the others, its spot outlined, and the minimap highlights it and glides to it.
 - The plan's wires between placed cards are drawn flat on the screen as the board draws them, from where they leave

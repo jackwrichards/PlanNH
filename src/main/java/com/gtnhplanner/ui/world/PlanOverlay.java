@@ -46,10 +46,11 @@ public final class PlanOverlay {
     public static final PlanOverlay INSTANCE = new PlanOverlay();
 
     /**
-     * Cards and wire tags are drawn full size within this many blocks of the eye, and shrink with distance beyond it as
-     * objects do. How far a card floats over its spot, in blocks.
+     * Cards and wire tags are drawn at {@link #SIZE} of the board's size within this many blocks of the eye (half: a
+     * screen pixel per font pixel at GUI scale 2, small and sharp), and shrink with distance beyond it as objects do.
+     * How far a card floats over its spot, in blocks.
      */
-    private static final float FULL_SIZE_WITHIN = 10f, LIFT = 0.35f;
+    private static final float FULL_SIZE_WITHIN = 10f, SIZE = 0.5f, LIFT = 0.35f;
 
     /** How far the crosshair reaches to a wire's line, in GUI pixels. */
     private static final float WIRE_REACH = 24;
@@ -338,7 +339,7 @@ public final class PlanOverlay {
             // Sized as the cards are: full size near, shrinking with distance.
             final double far = Math
                 .sqrt((mx - camX) * (mx - camX) + (my - camY) * (my - camY) + (mz - camZ) * (mz - camZ));
-            final float scale = (float) Math.min(1, FULL_SIZE_WITHIN / far);
+            final float scale = (float) (SIZE * Math.min(1, FULL_SIZE_WITHIN / far));
             final PlanSnapshot.Flow f = c.flow;
             final String rate = f == null ? ""
                 : f.power() ? com.gtnhplanner.ui.theme.Fmt.power(f.perSecond() / 20) + " EU/t"
@@ -490,7 +491,8 @@ public final class PlanOverlay {
 
     /**
      * Where a card's foot (floating {@link #LIFT} blocks over its block) and its block's top fall on the GUI, and the
-     * card's scale: full size within {@link #FULL_SIZE_WITHIN} blocks, shrinking with distance beyond. False when it is
+     * card's scale: {@link #SIZE} within {@link #FULL_SIZE_WITHIN} blocks, shrinking with distance beyond. False when
+     * it is
      * behind the camera or off the screen.
      */
     private boolean project(final Placed p, final ScaledResolution sr, final Minecraft mc) {
@@ -501,7 +503,7 @@ public final class PlanOverlay {
         p.sy = top[1];
         p.bx = block[0];
         p.by = block[1];
-        p.scale = (float) Math.min(1, FULL_SIZE_WITHIN / Math.max(0.5, p.distance));
+        p.scale = (float) (SIZE * Math.min(1, FULL_SIZE_WITHIN / Math.max(0.5, p.distance)));
         p.w = PlanCardView.width() * p.scale;
         p.h = PlanCardView.height(p.card) * p.scale;
         return p.scale > 0.02f && p.sx > -p.w
