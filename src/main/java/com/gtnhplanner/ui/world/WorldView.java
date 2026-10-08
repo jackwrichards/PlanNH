@@ -211,7 +211,7 @@ public final class WorldView {
             Hyb.rect(cx - Hyb.width(note) / 2f - 4, 6, Hyb.width(note) + 8, 13, 0xE0141414);
             Hyb.textCentered(note, cx, 9, noteColor);
         }
-        if (look == null || !PlannerSettings.worldHighlight() || ArLens.on()) return;
+        if (look == null || !PlannerSettings.worldHighlight() || PlanOverlay.on()) return;
         final Node node = look.node();
         final PlanSnapshot snap = PlanSnapshot.latest();
         final PlanSnapshot.Card card = snap != null && snap.graph() == look.graph() ? snap.cardOf(node.id) : null;

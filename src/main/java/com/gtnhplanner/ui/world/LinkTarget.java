@@ -21,10 +21,10 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
 
 /**
- * Linking a machine in the world to a card from the planner: the Link key on a block opens the planner in link mode.
- * The board says what is being linked, lights the cards whose recipe runs on that machine (the one it is on now in
- * gold) and dims the rest; any plan can be opened meanwhile. Clicking a lit card links the block to it (taking it off
- * any other card) and goes back to the world; clicking its own card unlinks it. Esc, or leaving the planner, cancels.
+ * Placing a plan card on a block from the world: the Link key on a block opens the planner in link mode. The board says
+ * which block, rings every card (the one on it now in gold); any plan can be opened meanwhile. Clicking a card places
+ * it on the block (taking the block from any other card) and goes back to the world; clicking the card on it now
+ * removes it. Esc, or leaving the planner, cancels.
  */
 public final class LinkTarget {
 
@@ -74,11 +74,9 @@ public final class LinkTarget {
         FITS.clear();
     }
 
-    /** Whether a card can take the block. */
+    /** Whether a card can take the block: any card can. */
     public static boolean fits(final Graph graph, final Node card) {
-        final Block b = target;
-        if (b == null) return false;
-        return FITS.computeIfAbsent(card.id, id -> MachineMatch.fits(graph, card, b.item()));
+        return target != null;
     }
 
     /** Whether the block is on this card now. */
@@ -93,20 +91,13 @@ public final class LinkTarget {
         if (b == null) return;
         if (holds(card)) {
             WorldLinks.unlink(graph, card, b.dim(), b.x(), b.y(), b.z());
-            WorldView.say("Unlinked from " + WorldView.cardName(card));
+            WorldView.say("Removed " + WorldView.cardName(card) + " from the world");
         } else {
-            final String why = MachineMatch.refuse(graph, card, b.item());
-            if (why != null) {
-                note = why;
-                noteUntil = System.currentTimeMillis() + 3500;
-                return;
-            }
             final WorldLinks.Hit was = WorldLinks.assign(graph, card, b.dim(), b.x(), b.y(), b.z());
             WorldView.say(
-                "Linked to " + WorldView.cardName(card)
-                    + " in "
-                    + graph.getName()
-                    + (was == null ? "" : ". Moved from " + WorldView.cardName(was.node())));
+                "Placed " + WorldView.cardName(card)
+                    + " here"
+                    + (was == null || was.node() == card ? "" : ". Taken from " + WorldView.cardName(was.node())));
         }
         Hyb.click();
         cancel();

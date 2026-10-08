@@ -108,36 +108,20 @@ public final class SettingsPanel extends Widget<SettingsPanel> implements Intera
         rows.add(Row.heading("IN THE WORLD"));
         rows.add(
             new Row(
-                "Outline linked machines you look at",
-                () -> onOff(PlannerSettings.worldHighlight()),
-                s -> PlannerSettings.setWorldHighlight(!PlannerSettings.worldHighlight())));
-        rows.add(
-            new Row(
-                "AR lens: panels over machines",
+                "Show the plan over the world (AR)",
                 () -> onOff(PlannerSettings.arLens()),
                 s -> PlannerSettings.setArLens(!PlannerSettings.arLens())));
         rows.add(
             new Row(
-                "AR lens: only machines linked to a plan",
-                () -> onOff(PlannerSettings.arLinkedOnly()),
-                s -> PlannerSettings.setArLinkedOnly(!PlannerSettings.arLinkedOnly())));
-        rows.add(
-            new Row(
-                "AR lens: charts of the last hour",
-                () -> onOff(PlannerSettings.arCharts()),
-                s -> PlannerSettings.setArCharts(!PlannerSettings.arCharts())));
-        rows.add(
-            new Row(
-                "AR lens range",
+                "How far to show it",
                 () -> PlannerSettings.arRange() + " blocks",
                 s -> PlannerSettings
                     .setArRangeIndex(cycle(PlannerSettings.arRangeIndex(), s, PlannerSettings.AR_RANGES.length))));
         rows.add(
             new Row(
-                "AR lens panel size",
-                () -> PlannerSettings.AR_SCALE_NAMES[PlannerSettings.arScaleIndex()],
-                s -> PlannerSettings
-                    .setArScaleIndex(cycle(PlannerSettings.arScaleIndex(), s, PlannerSettings.AR_SCALES.length))));
+                "Outline a placed block you look at",
+                () -> onOff(PlannerSettings.worldHighlight()),
+                s -> PlannerSettings.setWorldHighlight(!PlannerSettings.worldHighlight())));
         rows.add(Row.heading("KEYS"));
         rows.add(new Row("Set them in Controls", () -> "Open", s -> {
             final Minecraft mc = Minecraft.getMinecraft();

@@ -26,63 +26,44 @@ order they are built.
 - Keys (Minecraft's Controls, category GTNH Planner): toggle the minimap, zoom in and out, pan (arrow keys), re-centre.
 - Square maps clip with the scissor test; round ones mask their corners with the depth buffer.
 
-## 3. Linking cards to blocks
+## 3. Placing cards in the world
 
-The plan and the world are separate: a link says where a card's machines are built, to lay a build out by its plan
-and see the plan over it. It never makes the plan show what the machines are doing.
+The plan and the world are separate: placing a card on a block says where that part of the plan goes (or is). It
+never makes the plan show what the machines are doing.
 
-- A block can be a card's machine only if it runs the card's recipe (every recipe, on a shared machine): one NEI lists
-  for it, and for GregTech's single blocks at a tier that can run it; a power card's block is its generator
-  (`ui/world/MachineMatch`). Several blocks can be one card's machines, but a block is one card's: linking it to a
-  card takes it off any other, in any plan (`WorldLinks.assign`).
-- From a card: its menu's **Link to blocks in the world** turns the crosshair into a picker (`ui/world/LinkPicker`):
-  left-click a block to link it (again to unlink), right-click or Esc to go back to the planner. A block that cannot
-  be the card's machine is refused with the reason.
-- From the world: the Link key (L) on a block, as far as the lens reaches, opens the planner in link mode
-  (`ui/world/LinkTarget`): a banner says what is being linked, the cards that can take it are lit (the one it is on
-  now in gold) and the rest dimmed, in any plan (tabs, Library). Clicking a lit card links the block and goes back to
-  the world; clicking its own card unlinks it; Esc cancels.
-- **Show in the world** and **Clear world links** on the card's menu; the card says "N IN WORLD". A linked block that
-  is broken is unlinked, with a note.
-- Links are saved with the plan, never copied with it, and undo like any edit, but are not changes to the plan: nothing
-  re-solves and the minimap stays current.
+- Every card has a place key (a map pin, beside its menu key; gold once placed). Left-click: the planner closes and the
+  crosshair picks a block, any block; a click places the card on it and opens the planner again (`ui/world/LinkPicker`).
+  Right-click: removes it from the world. The card's menu also has **Show in the world** and **Remove from the world**.
+- A card is placed on one block and a block holds one card: placing a card on a block takes the block from any other
+  card, in any plan (`ui/world/WorldLinks`, `Node.worldLinks`). A placed block that is broken is unlinked, with a note.
+- From the world: the Link key (L) on a block opens the planner in link mode (`ui/world/LinkTarget`); clicking a card
+  places it there, clicking the card already there removes it, Esc cancels.
+- Placements are saved with the plan, never copied with it, and undo like any edit, but are not changes to the plan:
+  nothing re-solves and the minimap stays current.
 
-## 4. Seeing links in the world
+## 4. Seeing placements in the world
 
-- **Show in the world**: the card's blocks are outlined through walls, with a beam and their name and distance, for
-  30 seconds (`ui/world/WorldView`, drawing in `WorldMarks`).
-- Looking at a linked block (up to 64 blocks away, the lens off) outlines it and the rest of its card's, names the card
-  and plan under the crosshair, and centres the minimap on that card and rings it (when set).
+- **Show in the world**: the card's block is outlined through walls, with a beam and its name and distance, for 30
+  seconds (`ui/world/WorldView`, drawing in `WorldMarks`).
+- With the overlay off, looking at a placed block (up to 64 blocks away) outlines it, names its card and plan under the
+  crosshair, and centres the minimap on that card (when set).
 
-## 5. The AR lens
+## 5. The plan over the world (AR)
 
-The lens shows the machines as they are in the world, not the plan, in the planner's look (`ui/world/ArLens`,
-`ArPanel`). Everything is on the panel all the time; looking at a machine only rings its panel and brings it to the
-front.
+`ui/world/PlanOverlay`, toggled with Y and in the settings ("Show the plan over the world (AR)", "How far to show it").
+Nothing shows until a card of the plan last open is placed.
 
-- Every machine within range (GregTech's single blocks and multiblock controllers, and any linked block; only linked
-  ones when "AR lens: only machines linked to a plan" is on) gets a small dark panel whose size depends on the machine
-  alone, never on its numbers: its name (a small gold star when it is a plan card's machine) and tier chip; what its
-  recipe takes and makes in tiles either side of an arrow that fills with the recipe's progress, each tile's recent
-  rate under it and the time left under the arrow; two charts of the last hour, a dot each two minutes joined by a
-  line, each in its own space and scale (Made: per minute, with the hour's average; Power: EU/t against the most it can
-  take, with the figure now; a setting turns the charts off), and why it is stopped across the first; and a footer with its state, how much it has made and how busy it has been
-  this last hour. The nearest eight and the one looked at get panels, the rest a tile with a state light. Panels fade
-  in and out and over the last 8 blocks of the range.
-- Panels keep out of each other's way and off the minimap: over the machine (nudged onto the screen at its edges) when
-  there is room, else the nearest free place a few steps up, down (under the machine) or to the side, with a slanted
-  stem back to the machine. A panel keeps the place it has unless it must move,
-  and the panels that came first keep their claim, so they never swap.
-- What it is doing comes from `ui/world/GtMachineStatus`: in single player the integrated server's copy, read on the
-  server's own thread for the machines the client asks about (progress, the recipe from `processingLogic.lastRecipe`
-  or `mLastRecipe` by reflection, the cycle's outputs, energy hatches' tier, amps and max input, maintenance, a formed
-  structure, shutdown reasons, power). `ui/world/MachineStats` samples every machine within 128 blocks twice a
-  second into per-second and per-minute buckets (time watched, time running, what it made and used, EU drawn) for this
-  session. On a server only the running light reaches the
-  client, so panels show state alone.
-- Connectors run between linked machines whose cards are wired in the plan last open, block centre to block centre: a
-  thin shaded tube in the resource's colour with arrowheads every block and a quarter sliding towards the machine it
-  feeds, and only a faint line where something hides it.
+- Each placed block is boxed in its machine's colour, and its card floats over it, a stem down to the block, drawn as
+  the board draws it (`ui/card/PlanCardView`: name bar and tier chips, ports with the plan's rates, the machine's
+  picture, POWER and MACHINES), with nothing to press. A card is two and a half blocks wide in the world, so it
+  shrinks with distance and turns into the board's zoomed-out card past the board's glance zoom; nearer cards cover
+  farther ones. The card looked at, and its block, are ringed.
+- The plan's wires between placed cards run along the tops of their blocks as connectors (`WorldMarks.connector`):
+  a thin shaded tube in the resource's colour with arrowheads sliding towards the card it feeds, only a faint line
+  where something hides it.
+
+The earlier AR lens (every machine's live state, read from GregTech, with stats and charts) is shelved on the branch
+`shelf/ar-machine-lens`.
 
 ## Safety
 
@@ -94,9 +75,9 @@ front.
 
 1. Settings and zoomed-out names.
 2. Plan snapshot and the minimap, with its keys and settings.
-3. World links: the data, the card menu, the picker, linking from the world.
-4. Show in the world, and looking at a linked block.
-5. The AR lens.
+3. Placing cards: the data, the place key, the picker, placing from the world.
+4. Show in the world, and looking at a placed block.
+5. The plan over the world.
 
-All five are built (2026-10-07). Keys (Controls, GTNH Planner): N minimap, [ and ] zoom, arrows pan, Y AR lens,
-L link the machine you look at to a card.
+All five are built (2026-10-08). Keys (Controls, GTNH Planner): N minimap, [ and ] zoom, arrows pan, Y the plan over
+the world, L place a card on the block you look at.

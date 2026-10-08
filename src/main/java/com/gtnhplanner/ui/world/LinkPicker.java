@@ -25,10 +25,9 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
 
 /**
- * Linking a card to blocks in the world. Started from the card's menu: the planner closes and the crosshair picks
- * blocks, a left-click linking the block under it (or unlinking it, when linked), until a right-click or Esc, which
- * opens the planner again. Opening the planner any other way ends it too. The card's blocks are outlined meanwhile
- * ({@link WorldView}).
+ * Placing a plan card in the world. Started from the card's place key: the planner closes and the crosshair picks a
+ * block, any block; a left-click places the card there (on that block alone, taking the block from any other card)
+ * and opens the planner again. A right-click or Esc gives up; opening the planner any other way does too.
  */
 public final class LinkPicker {
 
@@ -41,23 +40,18 @@ public final class LinkPicker {
     private String name = "";
     @Nullable
     private ItemStack machine;
-    /** The line under the hint after a click, its colour, and until when it shows. */
-    private String note = "";
-    private int noteColor;
-    private long noteUntil;
     /** Set from a menu or an event: the screen changes on the next tick, outside them. */
     private boolean starting, finishing;
 
     private LinkPicker() {}
 
-    /** Starts picking blocks for a card; the planner closes on the next tick. */
+    /** Starts picking a block for a card; the planner closes on the next tick. */
     public static void start(final Graph graph, final UUID nodeId, final String name,
         @Nullable final ItemStack machine) {
         INSTANCE.graph = graph;
         INSTANCE.nodeId = nodeId;
         INSTANCE.name = name == null ? "" : name;
         INSTANCE.machine = machine;
-        INSTANCE.note = "";
         INSTANCE.starting = true;
         INSTANCE.finishing = false;
     }
@@ -66,7 +60,7 @@ public final class LinkPicker {
         return INSTANCE.graph != null && !INSTANCE.starting;
     }
 
-    /** The card being linked, while picking. */
+    /** The card being placed, while picking. */
     @Nullable
     static Node node() {
         return WorldLinks.node(INSTANCE.graph, INSTANCE.nodeId);
@@ -96,17 +90,17 @@ public final class LinkPicker {
         }
     }
 
-    /** Left-click links or unlinks; right-click finishes. Neither reaches the game while picking. */
+    /** Left-click places the card on the block; right-click gives up. Neither reaches the game while picking. */
     @SubscribeEvent
     public void onMouse(final MouseEvent event) {
         if (!active() || event.button < 0 || event.button > 1 || Minecraft.getMinecraft().currentScreen != null) return;
         event.setCanceled(true);
         if (!event.buttonstate) return;
-        if (event.button == 1) finishing = true;
-        else pick();
+        if (event.button == 0) pick();
+        else finishing = true;
     }
 
-    /** Esc finishes instead of pausing; the planner opening (its key) ends picking. */
+    /** Esc gives up instead of pausing; the planner opening (its key) ends picking. */
     @SubscribeEvent
     public void onGuiOpen(final GuiOpenEvent event) {
         if (!active()) return;
@@ -120,53 +114,20 @@ public final class LinkPicker {
         final Minecraft mc = Minecraft.getMinecraft();
         final Node node = node();
         final MovingObjectPosition hit = mc.objectMouseOver;
-        if (node == null) return;
-        if (hit == null || hit.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK) {
-            say("Look at a block, then click", Hyb.MUTED);
-            return;
-        }
-        final int dim = mc.theWorld.provider.dimensionId;
-        if (WorldLinks.indexOf(node, dim, hit.blockX, hit.blockY, hit.blockZ) >= 0) {
-            WorldLinks.unlink(graph, node, dim, hit.blockX, hit.blockY, hit.blockZ);
-            Hyb.click();
-            say("Unlinked", Hyb.MUTED);
-            return;
-        }
-        // Only a machine that runs the card's recipe; a block on another card moves to this one.
-        final String why = MachineMatch.refuse(graph, node, pickBlock(mc, hit));
-        if (why != null) {
-            say("Not linked: " + why, Hyb.RED_INK);
-            return;
-        }
-        final WorldLinks.Hit was = WorldLinks.assign(graph, node, dim, hit.blockX, hit.blockY, hit.blockZ);
+        if (node == null || hit == null || hit.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK) return;
+        final WorldLinks.Hit was = WorldLinks
+            .assign(graph, node, mc.theWorld.provider.dimensionId, hit.blockX, hit.blockY, hit.blockZ);
         Hyb.click();
-        say(
-            was == null ? "Linked"
-                : "Linked. Moved from " + WorldView.cardName(was.node())
-                    + (was.graph() != graph ? " in " + was.graph()
-                        .getName() : ""),
-            Hyb.PRODUCT_INK);
-    }
-
-    /** Whether the block under the crosshair can be the card's machine, worked out once per block looked at. */
-    private int fitX, fitY, fitZ = Integer.MIN_VALUE;
-    private boolean fit;
-
-    private boolean fits(final Minecraft mc, final MovingObjectPosition hit) {
-        if (hit.blockX != fitX || hit.blockY != fitY || hit.blockZ != fitZ) {
-            fitX = hit.blockX;
-            fitY = hit.blockY;
-            fitZ = hit.blockZ;
-            final Node node = node();
-            fit = node != null && MachineMatch.fits(graph, node, pickBlock(mc, hit));
-        }
-        return fit;
-    }
-
-    private void say(final String text, final int color) {
-        note = text;
-        noteColor = color;
-        noteUntil = System.currentTimeMillis() + 3000;
+        WorldView.say(
+            "Placed " + name
+                + " at "
+                + hit.blockX
+                + ", "
+                + hit.blockY
+                + ", "
+                + hit.blockZ
+                + (was == null || was.node() == node ? "" : ". Taken from " + WorldView.cardName(was.node())));
+        finishing = true;
     }
 
     /** What the block under the crosshair is, as its pick-block item, or null. */
@@ -180,10 +141,6 @@ public final class LinkPicker {
         }
     }
 
-    static boolean same(final ItemStack a, final ItemStack b) {
-        return a.getItem() == b.getItem() && a.getItemDamage() == b.getItemDamage();
-    }
-
     // region HUD
 
     /** A picking crosshair in place of the game's. */
@@ -193,14 +150,9 @@ public final class LinkPicker {
         event.setCanceled(true);
         final ScaledResolution sr = event.resolution;
         final float cx = sr.getScaledWidth() / 2f, cy = sr.getScaledHeight() / 2f;
-        final Node node = node();
-        final Minecraft mc = Minecraft.getMinecraft();
-        final MovingObjectPosition hit = mc.objectMouseOver;
+        final MovingObjectPosition hit = Minecraft.getMinecraft().objectMouseOver;
         final boolean onBlock = hit != null && hit.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK;
-        final boolean linked = onBlock && node != null
-            && WorldLinks.indexOf(node, mc.theWorld.provider.dimensionId, hit.blockX, hit.blockY, hit.blockZ) >= 0;
-        final boolean fits = onBlock && !linked && fits(mc, hit);
-        final int c = linked ? Hyb.GOLD : fits ? Hyb.INK : onBlock ? Hyb.RED_INK : Hyb.MUTED;
+        final int c = onBlock ? Hyb.GOLD : Hyb.MUTED;
         // Four corners of a square, and a dot.
         final float r = 6, l = 3;
         for (final int sx : new int[] { -1, 1 }) for (final int sy : new int[] { -1, 1 }) {
@@ -209,10 +161,6 @@ public final class LinkPicker {
             Hyb.rect(x, sy < 0 ? y : y - l + 1, 1, l, c);
         }
         Hyb.rect(cx - 0.5f, cy - 0.5f, 1, 1, c);
-        if (onBlock) {
-            final String what = linked ? "Click: unlink" : fits ? "Click: link" : "Not a machine for this card";
-            Hyb.textCentered(what, cx, cy + 12, c);
-        }
         // The hotbar draws next and expects textures on.
         GL11.glColor4f(1, 1, 1, 1);
         GL11.glEnable(GL11.GL_TEXTURE_2D);
@@ -220,35 +168,22 @@ public final class LinkPicker {
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
     }
 
-    /** What is being linked and how to finish, at the top of the screen. */
+    /** What is being placed and how, at the top of the screen. */
     @SubscribeEvent
     public void onOverlay(final RenderGameOverlayEvent.Post event) {
         if (event.type != RenderGameOverlayEvent.ElementType.ALL || !active()) return;
         final Minecraft mc = Minecraft.getMinecraft();
         if (mc.currentScreen != null || mc.gameSettings.hideGUI) return;
-        final Node node = node();
-        if (node == null) return;
-        final int linked = node.worldLinks.size();
-        final String title = "Linking " + name;
-        final String how = "Left-click a block to link or unlink it. Right-click or Esc when done.";
-        final String count = linked == 0 ? "No blocks linked yet"
-            : linked == 1 ? "1 block linked" : linked + " blocks linked";
-        final boolean noting = System.currentTimeMillis() < noteUntil && !note.isEmpty();
-        final int w = Math
-            .max(Math.max(Hyb.width(title) + 22 + Hyb.width(count) + 12, Hyb.width(how)), noting ? Hyb.width(note) : 0)
-            + 12;
-        final int h = noting ? 44 : 29;
+        final String title = "Place " + name;
+        final String how = "Click the block to put it on. Right-click or Esc to cancel.";
+        final int w = Math.max(Hyb.width(title) + 22, Hyb.width(how)) + 12, h = 29;
         final float x = (event.resolution.getScaledWidth() - w) / 2f, y = 6;
         Hyb.rect(x - 1, y - 1, w + 2, h + 2, Hyb.FRAME);
         Hyb.rect(x, y, w, h, 0xE0141414);
         if (machine != null) Hyb.item(machine, x + 5, y + 3, 12, 0);
+        GL11.glDisable(GL11.GL_LIGHTING);
         Hyb.text(title, x + (machine != null ? 21 : 6), y + 5, Hyb.GOLD);
-        Hyb.textRight(count, x + w - 6, y + 5, Hyb.INK);
         Hyb.text(how, x + 6, y + 17, Hyb.MUTED);
-        if (noting) {
-            Hyb.rect(x + 6, y + 28, w - 12, 1, Hyb.TILE);
-            Hyb.text(note, x + 6, y + 32, noteColor);
-        }
         GL11.glColor4f(1, 1, 1, 1);
         GL11.glEnable(GL11.GL_TEXTURE_2D);
     }

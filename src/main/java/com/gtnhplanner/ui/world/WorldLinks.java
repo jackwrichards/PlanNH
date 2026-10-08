@@ -15,9 +15,10 @@ import com.gtnhplanner.data.flowchart.Node;
 import com.gtnhplanner.data.flowchart.Plan;
 
 /**
- * Cards' links to blocks in the world ({@link Node#worldLinks}): which card a block belongs to, and linking or
- * unlinking one. A block is one card's machine: linking it to a card takes it off any other card, in any plan; a card
- * can have many blocks. A link edit is an undo step and is saved, but does not count as a change to the plan: nothing
+ * Plan cards placed on blocks in the world ({@link Node#worldLinks}): which card a block holds, and placing or removing
+ * one. A card is placed on one block, and a block holds one card: placing a card on a block takes the block from any
+ * other card, in any plan. A link edit is an undo step and is saved, but does not count as a change to the plan:
+ * nothing
  * is
  * solved again and the minimap does not go out of date.
  */
@@ -93,8 +94,8 @@ public final class WorldLinks {
         }
         final Node holder = holder(graph, at, node);
         if (holder != null) was = new Hit(graph, holder);
-        if (holder != null || indexOf(node, dim, x, y, z) < 0)
-            PlanAPI.recordEdit(graph, () -> moveWithin(graph, node, at));
+        final boolean there = node.worldLinks.size() == 1 && indexOf(node, dim, x, y, z) == 0;
+        if (holder != null || !there) PlanAPI.recordEdit(graph, () -> moveWithin(graph, node, at));
         PlanAPI.save();
         return was;
     }
@@ -108,15 +109,18 @@ public final class WorldLinks {
     }
 
     /**
-     * Within one plan, takes the block off every card but {@code keep} and puts it on {@code keep} (when not null and
-     * not already there). No undo, no save: {@link #assign} wraps it.
+     * Within one plan, takes the block off every card but {@code keep} and places {@code keep} on it alone (when not
+     * null). No undo, no save: {@link #assign} wraps it.
      */
     static void moveWithin(final Graph graph, @Nullable final Node keep, final int[] at) {
         for (final Node n : graph.nodes.values()) {
             if (n == keep) continue;
             n.worldLinks.removeIf(l -> l[0] == at[0] && l[1] == at[1] && l[2] == at[2] && l[3] == at[3]);
         }
-        if (keep != null && indexOf(keep, at[0], at[1], at[2], at[3]) < 0) keep.worldLinks.add(at.clone());
+        if (keep != null) {
+            keep.worldLinks.clear();
+            keep.worldLinks.add(at.clone());
+        }
     }
 
     /** Unlinks every block of the card. */

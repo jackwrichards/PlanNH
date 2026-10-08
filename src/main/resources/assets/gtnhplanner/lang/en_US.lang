@@ -246,5 +246,5 @@ key.gtnhplanner.minimapDown=Minimap: pan down
 key.gtnhplanner.minimapLeft=Minimap: pan left
 key.gtnhplanner.minimapRight=Minimap: pan right
 key.gtnhplanner.minimapRecentre=Minimap: back to the board's view
-key.gtnhplanner.ar=Show or hide the AR lens
-key.gtnhplanner.link=Link the machine you look at to a card
+key.gtnhplanner.ar=Show or hide the plan over the world
+key.gtnhplanner.link=Place a plan card on the block you look at

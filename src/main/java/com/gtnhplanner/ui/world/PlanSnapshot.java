@@ -19,9 +19,10 @@ import com.gtnhplanner.ui.card.StructureArt;
  * @param graph        the plan it was taken of (compared by identity)
  * @param graphVersion the plan's version when taken: a different version now means it changed since
  * @param viewX        the board's view centre, world units
+ * @param rateUnit     the unit the board shows rates in
  */
 public record PlanSnapshot(Graph graph, String planName, long graphVersion, List<Card> cards, List<Box> drawers,
-    List<Line> wires, float viewX, float viewY) {
+    List<Line> wires, float viewX, float viewY, com.gtnhplanner.ui.theme.Fmt.RateUnit rateUnit) {
 
     /** What flows through a port or drawer, per second. */
     public record Flow(String name, @Nullable ItemStack item, @Nullable FluidStack fluid, boolean power,
@@ -36,7 +37,8 @@ public record PlanSnapshot(Graph graph, String planName, long graphVersion, List
      */
     public record Card(UUID id, List<UUID> nodeIds, float x, float y, float w, float h, String name,
         @Nullable ItemStack machine, @Nullable StructureArt.Art art, int tint, double machines, boolean pinned,
-        List<Flow> inputs, List<Flow> outputs, double euPerTick, double madeEuPerTick, List<int[]> links) {}
+        List<Flow> inputs, List<Flow> outputs, double euPerTick, double madeEuPerTick, List<int[]> links, String tier,
+        int amps) {}
 
     /** A drawer: its resource, kind (a source supplies, the rest take) and rate. */
     public record Box(UUID id, float x, float y, float w, float h, String label, @Nullable ItemStack item,

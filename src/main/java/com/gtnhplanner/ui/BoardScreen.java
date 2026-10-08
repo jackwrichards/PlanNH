@@ -565,13 +565,13 @@ public final class BoardScreen extends ModularScreen {
         drawPortTooltip();
     }
 
-    /** While linking a machine from the world: what is being linked, and what to do, over the top of the board. */
+    /** While placing a card on a block from the world: which block, and what to do, at the bottom of the board. */
     private void drawLinkBanner() {
         final com.gtnhplanner.ui.world.LinkTarget.Block b = com.gtnhplanner.ui.world.LinkTarget.target();
         if (b == null) return;
-        final String what = "Link " + b.item()
-            .getDisplayName() + " at " + b.x() + ", " + b.y() + ", " + b.z() + " to a card";
-        final String how = "Click a lit card, in this plan or another (tabs, Library). Esc cancels.";
+        final String what = "Place a card on the " + b.item()
+            .getDisplayName() + " at " + b.x() + ", " + b.y() + ", " + b.z();
+        final String how = "Click a card, in this plan or another (tabs, Library). Esc cancels.";
         final String note = com.gtnhplanner.ui.world.LinkTarget.note();
         final int w = Math.max(Math.max(Hyb.width(what) + 24, Hyb.width(how) + 24), Hyb.width(note) + 24) + 8;
         final int h = note.isEmpty() ? 30 : 41;

@@ -43,6 +43,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     /** The parts of a card that react to the mouse. */
     public enum Part {
         ACTIONS,
+        /** The key that places the card on a block in the world. */
+        PLACE,
         MACHINE,
         AMPS,
         TIER,
@@ -66,7 +68,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     private static final int CHIP_W = 48;
     private static final int SINGLE_TIER_W = 42;
     private static final int AMPS_X = RIGHT - 2 * CHIP_W;
-    private static final int BAR_X = KEY_X + KEY_W + 4;
+    private static final int PLACE_X = KEY_X + KEY_W + 2;
+    private static final int BAR_X = PLACE_X + KEY_W + 4;
     private static final int COIL_X = CardLayout.PAD + 3;
     private static final int COIL_W = CardLayout.W - 2 * CardLayout.PAD - 6;
     private static final int COIL_DY = 12;
@@ -302,6 +305,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         if (model == null) return null;
         return switch (part) {
             case ACTIONS -> new int[] { KEY_X, CHIP_Y, KEY_W, CHIP_H };
+            case PLACE -> new int[] { PLACE_X, CHIP_Y, KEY_W, CHIP_H };
             case TIER -> hasTier() ? new int[] { tierX(), CHIP_Y, tierW(), CHIP_H } : null;
             case AMPS -> model.multiblock ? new int[] { AMPS_X, CHIP_Y, CHIP_W, CHIP_H } : null;
             case MACHINE -> new int[] { BAR_X, CHIP_Y, barRight() - BAR_X, CHIP_H };
@@ -508,7 +512,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     }
 
     /** Rounds to the nearest half pixel: one screen pixel at the game's GUI scale 2, so text stays crisp. */
-    private static float crisp(final float v) {
+    static float crisp(final float v) {
         return Math.round(v * 2) / 2f;
     }
 
@@ -551,6 +555,18 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             Hyb.KEY_EDGE,
             1);
         for (int i = 0; i < 3; i++) Hyb.rect(KEY_X + 5, y + 5 + i * 4, 10, 2, Hyb.INK);
+        // The place key: a map pin, gold once the card is on a block in the world.
+        Hyb.bevel(
+            PLACE_X + 1,
+            y + 1,
+            KEY_W - 2,
+            CHIP_H - 2,
+            hover == Part.PLACE ? Hyb.KEY_HOVER : Hyb.KEY,
+            Hyb.KEY_HI,
+            Hyb.KEY_LO,
+            Hyb.KEY_EDGE,
+            1);
+        pin(PLACE_X + 6, y + 4, placed() ? Hyb.GOLD : Hyb.INK);
 
         if (m.gregtech) {
             // Amps wear the tier's colours too: together they read as one figure, 16A UV.
@@ -604,8 +620,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
      * a
      * hard shadow in the tier's dark, underlined from UV up.
      */
-    private static void chip(final int x, final int y, final int w, final int h, final Hyb.Tier tier,
-        final String label, final boolean underline, final boolean hover) {
+    static void chip(final int x, final int y, final int w, final int h, final Hyb.Tier tier, final String label,
+        final boolean underline, final boolean hover) {
         Hyb.rect(x, y, w, h, tier.border());
         Hyb.rect(x + 1, y + 1, w - 2, h - 2, hover ? Hyb.mix(tier.bg(), 0xFFFFFF, 0.88f) : tier.bg());
         Hyb.rect(x + 1, y + 1, w - 2, 1, 0x8CFFFFFF);
@@ -1119,11 +1135,6 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         for (int dx = 0; dx < cw; dx += 3) Hyb.rect(MACHINES_X + 4 + dx, y + 27, 1, 1, Hyb.MUTED);
         final int pencil = hover == Part.MACHINES ? Hyb.INK : Hyb.MUTED;
         for (int i = 0; i < 5; i++) Hyb.rect(MACHINES_X + 8 + cw + i, y + 24 - i, 2, 2, pencil);
-        // How many blocks in the world it is linked to, under the aside, where the count leaves room.
-        final int linked = m.node.worldLinks.size();
-        final String world = linked + " IN WORLD";
-        if (linked > 0 && MACHINES_X + 18 + cw < MACHINES_X + mw - 4 - Hyb.width(world))
-            Hyb.textRight(world, MACHINES_X + mw - 4, y + 18, 0xFF67C8DA);
     }
 
     private void drawCircuit(final CardModel m, final int y, final float z, final Part hover) {
@@ -1202,6 +1213,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final CardModel m = model;
         if (m.isPower()) return powerTip(part);
         return switch (part) {
+            case PLACE -> placeTip();
             case ACTIONS -> Tip.of("Card actions")
                 .action(Tip.Input.LEFT, "Clone, add a recipe, settings, delete");
             case SECTION -> {
@@ -1288,6 +1300,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final com.gtnhplanner.power.PowerModel pm = m.power.model();
         final double each = pm == null ? 0 : pm.euPerTick();
         return switch (part) {
+            case PLACE -> placeTip();
             case ACTIONS -> Tip.of("Card actions")
                 .action(Tip.Input.LEFT, "Clone, delete");
             case MACHINE -> {
@@ -1383,6 +1396,11 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         switch (part) {
             case ACTIONS -> {
                 if (mouseButton == 0) openActions();
+            }
+            case PLACE -> {
+                if (mouseButton == 0) com.gtnhplanner.ui.world.LinkPicker
+                    .start(session.graph(), node.id, placeName(), model.machineStack);
+                else if (mouseButton == 1 && placed()) com.gtnhplanner.ui.world.WorldLinks.clear(session.graph(), node);
             }
             case SECTION -> {
                 final int[] key = sectionKeyAt(localX(), localY());
@@ -1547,6 +1565,42 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         session.chooseMachine(model.node, machines.get(i), model.gregtech);
     }
 
+    /** Whether the card is placed on a block in the world. */
+    private boolean placed() {
+        return model != null && !model.node.worldLinks.isEmpty();
+    }
+
+    private String placeName() {
+        return model.isPower() ? model.node.powerSource : model.machineName;
+    }
+
+    private Tip placeTip() {
+        if (!placed()) return Tip.of("Place in the world")
+            .sub("Show this card over a block in the world")
+            .action(Tip.Input.LEFT, "Pick the block");
+        final int[] at = model.node.worldLinks.get(0);
+        return Tip.of("Placed in the world")
+            .sub("On the block at " + at[1] + ", " + at[2] + ", " + at[3])
+            .action(Tip.Input.LEFT, "Pick another block")
+            .action(Tip.Input.RIGHT, "Remove it from the world");
+    }
+
+    /** A map pin: a round head with a hole, on a point. */
+    private static void pin(final int x, final int y, final int color) {
+        Hyb.rect(x + 2, y, 4, 1, color);
+        Hyb.rect(x + 1, y + 1, 6, 1, color);
+        Hyb.rect(x, y + 2, 2, 3, color);
+        Hyb.rect(x + 6, y + 2, 2, 3, color);
+        Hyb.rect(x + 3, y + 2, 2, 1, color);
+        Hyb.rect(x + 2, y + 3, 1, 1, color);
+        Hyb.rect(x + 5, y + 3, 1, 1, color);
+        Hyb.rect(x + 3, y + 4, 2, 1, color);
+        Hyb.rect(x + 1, y + 5, 6, 1, color);
+        Hyb.rect(x + 2, y + 6, 4, 1, color);
+        Hyb.rect(x + 3, y + 7, 2, 2, color);
+        Hyb.rect(x + 3.5f, y + 9, 1, 2, color);
+    }
+
     private void openActions() {
         final Node node = model.node;
         final List<PickList.Entry> rows = new ArrayList<>();
@@ -1555,19 +1609,15 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             rows.add(PickList.Entry.of("Add another recipe", () -> session.addRecipeTo(node.id)));
             rows.add(PickList.Entry.of("Machine settings", this::openSettings));
         }
-        // Where it is built: blocks in the world, picked with the crosshair.
-        final String name = model.isPower() ? node.powerSource : model.machineName;
-        rows.add(
-            PickList.Entry.of(
-                node.worldLinks.isEmpty() ? "Link to blocks in the world" : "Link more blocks in the world",
-                () -> com.gtnhplanner.ui.world.LinkPicker.start(session.graph(), node.id, name, model.machineStack)));
-        if (!node.worldLinks.isEmpty()) {
+        // Its place in the world, once it has one.
+        if (placed()) {
             rows.add(
                 PickList.Entry
                     .of("Show in the world", () -> com.gtnhplanner.ui.world.WorldView.show(session.graph(), node.id)));
             rows.add(
-                PickList.Entry
-                    .of("Clear world links", () -> com.gtnhplanner.ui.world.WorldLinks.clear(session.graph(), node)));
+                PickList.Entry.of(
+                    "Remove from the world",
+                    () -> com.gtnhplanner.ui.world.WorldLinks.clear(session.graph(), node)));
         }
         rows.add(new PickList.Entry(null, "Delete node", "", Hyb.RED_INK, false, () -> session.delete(node)));
         Popup.open(

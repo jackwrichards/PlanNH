@@ -66,13 +66,11 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   JSON (`library/PlanExport`, checked against the website's own schema). Test it all against
   `node tools/dev/mock-library.mjs` (a local stand-in; `call 'library?url=http://127.0.0.1:8789'`), never the real site.
 - While playing (`ui/world/`, `docs/design/minimap-and-world-links.md`): the minimap of the plan last open
-  (`Minimap`, from the board's `PlanSnapshot`); plan cards linked to the machines built for them (`Node.worldLinks`;
-  a block links only to a card whose recipe it runs, `MachineMatch`, and to one card at most; the card menu's picker
-  `LinkPicker`, or L on a machine opens the planner in link mode, `LinkTarget`); and the AR lens (Y), which shows
-  the machines as they are (`ArLens`, `ArPanel`: their window, live state, stats from `MachineStats`, read from
-  GregTech on the integrated server's thread by `GtMachineStatus`) with their plan link as a tag. World code never
-  loads the plans (`Plan.loaded()`). Settings are the top bar's gear (`PlannerSettings`). Test with
-  `call 'machine?...'` and `call 'look?...'`.
+  (`Minimap`, from the board's `PlanSnapshot`), and the plan over the world: a card's place key (or L on a block)
+  places it on any block (`LinkPicker`, `LinkTarget`, `WorldLinks`, `Node.worldLinks`, one block per card), and
+  `PlanOverlay` (Y) draws each placed card over its block as the board does (`ui/card/PlanCardView`), with the plan's
+  wires as connectors. World code never loads the plans (`Plan.loaded()`). The earlier lens of every machine's live
+  state is shelved on `shelf/ar-machine-lens`. Settings are the top bar's gear (`PlannerSettings`).
 - Multiblock pictures in `assets/gtnhplanner/textures/structures/` are Factory Flow's renders (`public/power-art`: the
   owner's processing multiblocks and the Power Planner workbook's power plants), scaled to 320 px palette PNGs with
   transparency. `ui/card/StructureArt` maps in-game machine names to them; `call 'gtmachines?art=1'` checks coverage.

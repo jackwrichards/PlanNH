@@ -46,10 +46,10 @@ public class ClientProxy extends CommonProxy {
             .bus()
             .register(new com.gtnhplanner.ui.world.PlannerKeys());
         MinecraftForge.EVENT_BUS.register(com.gtnhplanner.ui.world.Minimap.INSTANCE);
-        // Cards linked to blocks: picking them, seeing them, and the AR lens over every machine around.
+        // Plan cards placed on blocks: placing them, seeing them, and the plan overlaid on the world.
         for (final Object world : new Object[] { com.gtnhplanner.ui.world.LinkPicker.INSTANCE,
-            com.gtnhplanner.ui.world.LinkTarget.INSTANCE, com.gtnhplanner.ui.world.MachineStats.INSTANCE,
-            com.gtnhplanner.ui.world.WorldView.INSTANCE, com.gtnhplanner.ui.world.ArLens.INSTANCE }) {
+            com.gtnhplanner.ui.world.LinkTarget.INSTANCE, com.gtnhplanner.ui.world.WorldView.INSTANCE,
+            com.gtnhplanner.ui.world.PlanOverlay.INSTANCE }) {
             MinecraftForge.EVENT_BUS.register(world);
             FMLCommonHandler.instance()
                 .bus()

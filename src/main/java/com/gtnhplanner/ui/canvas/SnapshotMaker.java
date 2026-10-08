@@ -64,7 +64,9 @@ final class SnapshotMaker {
                     outs,
                     eu,
                     made,
-                    copyLinks(n.worldLinks)));
+                    copyLinks(n.worldLinks),
+                    m.gregtech && m.tier != null ? m.tier : "",
+                    m.multiblock ? m.amps : 0));
         }
         final List<PlanSnapshot.Box> boxes = new ArrayList<>();
         for (final Drawer d : graph.getDrawers()) {
@@ -100,7 +102,16 @@ final class SnapshotMaker {
                     e == null ? null : e.sourceNodeId,
                     e == null ? null : e.targetNodeId));
         }
-        return new PlanSnapshot(graph, graph.getName(), graph.version(), outCards, boxes, lines, viewX, viewY);
+        return new PlanSnapshot(
+            graph,
+            graph.getName(),
+            graph.version(),
+            outCards,
+            boxes,
+            lines,
+            viewX,
+            viewY,
+            session.rateUnit());
     }
 
     private static PlanSnapshot.Flow flow(final CardModel.PortView p) {
