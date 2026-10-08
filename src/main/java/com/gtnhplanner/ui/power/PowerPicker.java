@@ -40,9 +40,13 @@ import com.gtnhplanner.ui.theme.Hyb;
 public final class PowerPicker extends ParentWidget<PowerPicker> implements Interactable {
 
     private static final int HEAD_H = 26, PAD = 8, GAP = 8, COL_W = 150, COL_MIN = 120, TITLE_H = 14;
-    /** One machine per row: its icon, name and unlock tier; a search hit adds what matched under the name. */
-    private static final int ROW_H = 18, VIA_ROW_H = 27, ICON = 16;
-    private static final int SHEET_BG = 0xFF101215, SHEET_EDGE = 0xFF23262D, TILE_HOT = 0xFF2E3036, ART_BG = 0xFF0B0D10;
+    /**
+     * One machine per tile, stacked with a small gap: its picture (the multiblock's structure render, or a single
+     * block's item) on the left, its name on up to two lines, and its unlock tier; a search hit adds what matched.
+     */
+    private static final int ROW_H = 30, VIA_ROW_H = 40, ROW_GAP = 2, PIC_W = 44, ICON = 24;
+    private static final int SHEET_BG = 0xFF101215, SHEET_EDGE = 0xFF23262D, TILE_BG = 0xFF24262B,
+        TILE_HOT = 0xFF2E3036, TILE_EDGE = 0xFF3A3C43, ART_BG = 0xFF0B0D10;
     /** The column titles: a dim brass (35% of #d99a2b over the card grey), with light amber ink. */
     private static final int BRASS = Hyb.mix(0xD99A2B, 0x31333A, 0.35f) | 0xFF000000, BRASS_INK = 0xFFFEF3C7,
         AMBER = 0xFFFCD34D, CYAN = 0xFF22D3EE;
@@ -251,42 +255,62 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
         return bottom;
     }
 
-    /** One machine as a row: its icon, its name and unlock tier, and on a search what matched; returns the bottom. */
+    /**
+     * One machine as a tile: its picture, its name and unlock tier, and on a search what matched; returns the bottom.
+     */
     private int drawRow(final PowerSearch.Hit hit, final int x, final int y, final int w, final float z,
         final Hit hover) {
         final PowerSource source = hit.source();
         final int h = hit.via() != null ? VIA_ROW_H : ROW_H;
         final boolean hot = hover != null && hover.kind() == Kind.TILE && hover.data() == hit;
-        if (hot) {
-            Hyb.rect(x, y, w, h, TILE_HOT);
-            Hyb.rect(x, y, 2, h, AMBER);
-        }
-        drawIcon(source, x + 3, y + (ROW_H - ICON) / 2, z);
+        Hyb.rect(x, y, w, h, hot ? 0xB3FCD34D : TILE_EDGE);
+        Hyb.rect(x + 1, y + 1, w - 2, h - 2, hot ? TILE_HOT : TILE_BG);
+        Hyb.rect(x + 1, y + 1, PIC_W, ROW_H - 2, ART_BG);
+        drawPicture(source, x + 2, y + 2, PIC_W - 2, ROW_H - 4, z);
         final String tier = source.unlock();
         final int badgeW = tier == null ? 0 : Hyb.width(tier) + 6;
-        Hyb.text(Hyb.fit(source.name(), w - ICON - 10 - badgeW), x + ICON + 6, y + 5, Hyb.INK);
-        if (tier != null) badge(tier, x + w - 2 - badgeW, y + 4, badgeW);
+        final int tx = x + PIC_W + 5, room = w - PIC_W - 8;
+        // The name on two lines when it needs them; the badge on the line it leaves room on.
+        final List<String> lines = Hyb.font()
+            .listFormattedStringToWidth(source.name(), room);
+        if (lines.size() == 1 && Hyb.width(lines.get(0)) + 4 + badgeW <= room) {
+            Hyb.text(lines.get(0), tx, y + 11, Hyb.INK);
+            if (tier != null) badge(tier, x + w - 3 - badgeW, y + 10, badgeW);
+        } else {
+            Hyb.text(Hyb.fit(lines.get(0), room), tx, y + 5, Hyb.INK);
+            final String rest = lines.size() > 1 ? source.name()
+                .substring(
+                    Math.min(
+                        source.name()
+                            .length(),
+                        lines.get(0)
+                            .length()))
+                .trim() : "";
+            Hyb.text(Hyb.fit(rest, room - 4 - badgeW), tx, y + 16, Hyb.INK);
+            if (tier != null) badge(tier, x + w - 3 - badgeW, y + 16, badgeW);
+        }
         if (hit.via() != null) {
             final String via = (hit.via()
                 .takes() ? "Takes " : "Makes ") + hit.via()
                     .name();
-            Hyb.text(Hyb.fit(via, w - ICON - 8), x + ICON + 6, y + 15, CYAN);
+            Hyb.text(Hyb.fit(via, w - 8), x + 4, y + ROW_H + 1, CYAN);
         }
         // Only what is in view takes a click.
         hits.add(new Hit(Kind.TILE, x, y, x + w, y + h, hit));
-        return y + h;
+        return y + h + ROW_GAP;
     }
 
-    /** The machine's own item, as NEI shows it; failing that its structure picture, small; failing that the bolt. */
-    private void drawIcon(final PowerSource source, final float x, final float y, final float z) {
-        final ItemStack stack = machineStacks.computeIfAbsent(source.id(), PowerPorts::machineStack);
-        if (stack != null) {
-            Hyb.item(stack, x, y, ICON, z);
+    /** The machine's picture in a box: its structure render, fitted; else its item; else the bolt. */
+    private void drawPicture(final PowerSource source, final float x, final float y, final float w, final float h,
+        final float z) {
+        final StructureArt.Art art = StructureArt.forMachine(source.id());
+        if (art != null) {
+            drawArt(art, x, y, w, h);
             return;
         }
-        final StructureArt.Art art = StructureArt.forMachine(source.id());
-        if (art != null) drawArt(art, x, y, ICON, ICON);
-        else bolt(x + 4, y + 2, AMBER);
+        final ItemStack stack = machineStacks.computeIfAbsent(source.id(), PowerPorts::machineStack);
+        if (stack != null) Hyb.item(stack, x + (w - ICON) / 2f, y + (h - ICON) / 2f, ICON, z);
+        else bolt(x + w / 2f - 3, y + h / 2f - 5, AMBER);
     }
 
     /** A structure picture fitted to a box, keeping its shape. */
