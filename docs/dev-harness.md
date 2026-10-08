@@ -58,6 +58,7 @@ is a thin curl wrapper. Every request waits until the game has processed it, so 
 | `/machine?x&y&z&feed=minecraft:iron_ore&count=16` | GT runs: fill a single-block machine's energy and put the stack in its input, so it runs a real recipe (for the AR lens) |
 | `/machine?own=1` | GT runs: give every ownerless GregTech machine near the player an owner (machines placed with `/setblock ... {mID:1000}` have none, and GregTech crashes when an ownerless multiblock is broken) |
 | `/board` | the open board as data: zoom/pan, per card its state (tier, amps, coil, machines, pinned, ports) and the GUI rect of each control and port (`parts.TIER`, `parts.OUT1`, with `cx/cy`), per drawer its kind, rule, target, rate, unmet flag and parts, the edge count, every routed wire (`wires`: resource, then its points), `solving`, and the notices |
+| `/cards?from&count&scale` | card designs side by side for the plan last open: today's card and the trial (`ui/card/CleanCardView`), on the board's canvas (`dev/CardGallery`); Esc closes it |
 | `/view?zoom&panX&panY` | set the board view (defaults 1, 0, 0) so tests start from a known place |
 | `/slots[?add=name \| switch=i \| delete=i]` | the plan slots (`slots`, `active`); `add` opens a new one, so a check can work without touching the owner's plans |
 | `/importff?file=path \| text=...` | imports a Factory Flow plan (JSON, plan code or link; a relative path is from the repo root) as a new slot and makes it active; returns `name`, `summary` and the `report` lines |

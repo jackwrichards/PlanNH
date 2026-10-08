@@ -409,6 +409,16 @@ public final class DevHarness {
                         return error("GregTech is not loaded (start with PLANNH_GTNH=1)");
                     }
                 });
+            case "/cards":
+                // Card designs side by side (today's and the trial), for the plan last open.
+                return onClient(() -> {
+                    mc.displayGuiScreen(
+                        new CardGallery(
+                            Integer.parseInt(q.getOrDefault("from", "0")),
+                            Integer.parseInt(q.getOrDefault("count", "3")),
+                            Float.parseFloat(q.getOrDefault("scale", "0.8"))));
+                    return ok();
+                });
             case "/neiinput":
                 // What NEI's input hooks saw on the planner since last asked: presses, releases, drags.
                 return Map.of("seen", DevNeiInput.INSTANCE.take());
