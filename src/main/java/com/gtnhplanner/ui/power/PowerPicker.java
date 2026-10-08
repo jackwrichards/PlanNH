@@ -472,10 +472,14 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
                 Hyb.click();
                 final PowerSearch.Hit picked = (PowerSearch.Hit) hit.data();
                 close.run();
+                // The settings last changed on this source, then what the search picked over them.
                 session.addPower(
                     picked.source()
                         .id(),
-                    picked.settings());
+                    com.gtnhplanner.ui.card.SettingMemory.powerSettings(
+                        picked.source()
+                            .id(),
+                        picked.settings()));
             }
             case GROUP -> {
                 Hyb.click();

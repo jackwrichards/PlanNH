@@ -284,6 +284,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     /** What the last snapshot was taken from: a change in any of them takes a new one. */
     private Object snapshotWires, snapshotModels, snapshotDrawers;
     private long snapshotVersion = Long.MIN_VALUE;
+    private int snapshotPins = -1;
 
     /** Publishes the board as drawn for the minimap and the world views, when the plan, its answer or wires changed. */
     private void publishSnapshot(final List<WireLayer.Wire> routed) {
@@ -294,11 +295,13 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         final long version = graph().version();
         if (routed == snapshotWires && models == snapshotModels
             && drawerModels == snapshotDrawers
-            && version == snapshotVersion) return;
+            && version == snapshotVersion
+            && com.gtnhplanner.ui.card.SettingPins.version() == snapshotPins) return;
         snapshotWires = routed;
         snapshotModels = models;
         snapshotDrawers = drawerModels;
         snapshotVersion = version;
+        snapshotPins = com.gtnhplanner.ui.card.SettingPins.version();
         final Area a = getArea();
         com.gtnhplanner.ui.world.PlanSnapshot.publish(
             SnapshotMaker.make(session, cards, drawers, routed, worldX(a.x + a.width / 2), worldY(a.y + a.height / 2)));

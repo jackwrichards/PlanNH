@@ -326,7 +326,7 @@ public final class BoardSession {
         drawer.setX(output ? worldX : worldX - DrawerCard.W);
         // Dropped nearly level with the port: make it level, so the wire runs straight instead of jogging.
         final CardModel card = models.get(fromNode);
-        final int portY = card == null ? worldY : node.y + new CardLayout(card).anchorY(output, port);
+        final int portY = card == null ? worldY : node.y + new CardLayout(card, graph()).anchorY(output, port);
         drawer.setY((Math.abs(worldY - portY) <= 24 ? portY : worldY) - DrawerCard.ANCHOR_Y);
         edit(() -> {
             graph.addDrawer(drawer);
@@ -348,7 +348,7 @@ public final class BoardSession {
                     .equals(key)) continue;
                 x = source ? card.node.x - DrawerCard.W - 60 : card.node.x + CardLayout.W + 60;
                 // Its wire runs straight: the drawer's anchor level with the port's.
-                y = card.node.y + new CardLayout(card).anchorY(!source, i) - DrawerCard.ANCHOR_Y;
+                y = card.node.y + new CardLayout(card, graph()).anchorY(!source, i) - DrawerCard.ANCHOR_Y;
                 break search;
             }
         }

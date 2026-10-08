@@ -17,7 +17,6 @@ import com.cleanroommc.modularui.theme.WidgetThemeEntry;
 import com.cleanroommc.modularui.widget.ParentWidget;
 import com.cleanroommc.modularui.widget.sizer.Area;
 import com.gtnhplanner.data.MachineConfig;
-import com.gtnhplanner.data.RecipeContext;
 import com.gtnhplanner.data.SettingDef;
 import com.gtnhplanner.data.flowchart.Node;
 import com.gtnhplanner.data.provider.GTProvider;
@@ -48,14 +47,15 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         MACHINE,
         AMPS,
         TIER,
-        COIL,
+        /** The gear key, which opens the card's settings. */
+        SETTINGS,
         MACHINES,
         POWER,
         CIRCUIT,
         /** A key on a shared machine's recipe rule: up, down or off. */
         SECTION,
-        /** A power card's setting or reading tile. */
-        SETTING,
+        /** A setting pinned to the card, as a chip. */
+        CHIP,
         BODY
     }
 
@@ -70,8 +70,9 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     private static final int SINGLE_TIER_W = 42;
     private static final int AMPS_X = RIGHT - 2 * CHIP_W - 2;
     private static final int PLACE_X = KEY_X + KEY_W + 2;
+    private static final int GEAR_X = PLACE_X + KEY_W + 2;
     /** Where the machine's name starts, after the keys. */
-    private static final int BAR_X = PLACE_X + KEY_W + 8;
+    private static final int BAR_X = GEAR_X + KEY_W + 8;
 
     private final BoardSession session;
     /** The card's own node: the recipe it was made for, the first on a shared machine. */
@@ -155,7 +156,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         sections = ids;
         models = next;
         model = next.get(0);
-        final CardLayout nextLayout = new CardLayout(next);
+        final CardLayout nextLayout = new CardLayout(next, session.graph());
         if (layout == null || layout.height != nextLayout.height) {
             layout = nextLayout;
             size(CardLayout.W, layout.height);
@@ -188,10 +189,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         for (int s = 0; s < sections.size() && !changed; s++) changed = session.model(sections.get(s)) != models.get(s);
         if (changed || sections.isEmpty()) refresh();
         if (model != null) commitWheel();
-        if (reopenSettingsAfter != null && model != reopenSettingsAfter) {
-            reopenSettingsAfter = null;
-            openSettings();
-        }
+        if (layout != null && layout.pinsVersion != SettingPins.version()) refresh();
     }
 
     /** The machines the card runs: all its recipes' together on a shared machine. */
@@ -212,6 +210,12 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     private boolean pinned() {
         final com.gtnhplanner.data.flowchart.MachineGroup g = session.sharedOf(nodeId);
         return g != null ? g.isPinned() : model.pinned;
+    }
+
+    /** Whether a coil too cold stops any of the card's recipes. */
+    private boolean coilTooCold() {
+        for (final CardModel m : models) if (SettingControls.coilTooCold(m)) return true;
+        return false;
     }
 
     private boolean anyTierTooLow() {
@@ -276,11 +280,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         // Far out the controls are not drawn, so nothing invisible answers a click or the wheel.
         if (glance()) return Part.BODY;
         if (sectionKeyAt(x, y) != null) return Part.SECTION;
-        final int chip = layout.chipAt(x, y);
-        if (chip >= 0) return layout.chips.get(chip)
-            .kind() == CardChips.Kind.COIL ? Part.COIL
-                : layout.chips.get(chip)
-                    .kind() == CardChips.Kind.PARALLEL ? Part.BODY : Part.SETTING;
+        if (layout.chipAt(x, y) >= 0) return Part.CHIP;
         for (final Part part : Part.values()) {
             if (part == Part.BODY || part == Part.SECTION) continue;
             final int[] r = partRect(part);
@@ -305,7 +305,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             case TIER -> hasTier() ? new int[] { tierX(), CHIP_Y, tierW(), CHIP_H } : null;
             case AMPS -> model.multiblock ? new int[] { AMPS_X, CHIP_Y, CHIP_W, CHIP_H } : null;
             case MACHINE -> new int[] { BAR_X, CHIP_Y, barRight() - BAR_X, CHIP_H };
-            case COIL -> chipOf(CardChips.Kind.COIL) >= 0 ? layout.chipRect(chipOf(CardChips.Kind.COIL)) : null;
+            case SETTINGS -> new int[] { GEAR_X, CHIP_Y, KEY_W, CHIP_H };
             case POWER -> layout.powerRowY >= 0
                 ? new int[] { CardLayout.IN_RAIL_X, layout.powerRowY, CardLayout.RAIL_W, CardLayout.ROW }
                 : null;
@@ -314,16 +314,9 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 : layout.circuitRowY >= 0
                     ? new int[] { CardLayout.IN_RAIL_X, layout.circuitRowY, CardLayout.RAIL_W, CardLayout.ROW }
                     : new int[] { layout.picture()[0], layout.picture()[1] + CardLayout.PICTURE - 24, 24, 24 };
-            case SECTION, SETTING -> null;
+            case SECTION, CHIP -> null;
             case BODY -> new int[] { 0, 0, CardLayout.W, layout.height };
         };
-    }
-
-    /** The strip's first chip of a kind, or -1. */
-    private int chipOf(final CardChips.Kind kind) {
-        for (int i = 0; i < layout.chips.size(); i++) if (layout.chips.get(i)
-            .kind() == kind) return i;
-        return -1;
     }
 
     /** The machine count as the card shows it: a wheeled count at once, before the solve catches up. */
@@ -400,8 +393,10 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         if (unwired) drawUnwiredRing();
         if (session.isSelected(nodeId)) Hyb.ring(-2, -2, w + 4, h + 4, 2, Hyb.SELECTION);
         CardPaint.surface(w, h);
-        if (anyTierTooLow()) {
-            // Can't run: the tier is below the recipe's. A red ring outside the card; the power row says TIER!.
+        if (anyTierTooLow() || coilTooCold()) {
+            // Can't run: the tier is below the recipe's (the power row says TIER!) or the coil is too cold (the gear
+            // key
+            // is red). A red ring outside the card.
             Hyb.rect(-2, -2, w + 4, 2, Hyb.RED_INK);
             Hyb.rect(-2, h, w + 4, 2, Hyb.RED_INK);
             Hyb.rect(-2, 0, 2, h, Hyb.RED_INK);
@@ -577,6 +572,18 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             Hyb.KEY_EDGE,
             1);
         pin(PLACE_X + 6, y + 4, placed() ? Hyb.GOLD : Hyb.INK);
+        // The settings key: a gear, red when a setting stops the recipe (a coil too cold).
+        Hyb.bevel(
+            GEAR_X + 1,
+            y + 1,
+            KEY_W - 2,
+            CHIP_H - 2,
+            hover == Part.SETTINGS ? Hyb.KEY_HOVER : Hyb.KEY,
+            Hyb.KEY_HI,
+            Hyb.KEY_LO,
+            Hyb.KEY_EDGE,
+            1);
+        gear(GEAR_X + KEY_W / 2f, y + CHIP_H / 2f, coilTooCold() ? Hyb.RED_INK : Hyb.INK);
 
         if (m.gregtech) {
             // Amps wear the tier's colours too: together they read as one figure, 16A UV.
@@ -604,6 +611,47 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final float end = CardPaint
             .name(m.machineName, BAR_X, barRight() - (menu ? 12 : 0), m.isPower() ? 0xFFFEF3C7 : Hyb.INK);
         if (menu) chevron(Math.round(end + 5), y + 9, hover == Part.MACHINE ? Hyb.INK : Hyb.MUTED);
+    }
+
+    /**
+     * A gear drawn as a shape, not pixels, so it stays a gear at the screen's full sharpness: a ring with a hole in it
+     * and eight tapered teeth, centred on a point.
+     */
+    private static void gear(final float cx, final float cy, final int color) {
+        final float hole = 2.4f, body = 5.4f, root = 5.0f, tip = 7.9f;
+        final int seg = 32;
+        for (int i = 0; i < seg; i++) {
+            final double a0 = 2 * Math.PI * i / seg, a1 = 2 * Math.PI * (i + 1) / seg;
+            final float c0 = (float) Math.cos(a0), s0 = (float) Math.sin(a0), c1 = (float) Math.cos(a1),
+                s1 = (float) Math.sin(a1);
+            Hyb.triangle(
+                cx + hole * c0,
+                cy + hole * s0,
+                cx + body * c0,
+                cy + body * s0,
+                cx + body * c1,
+                cy + body * s1,
+                color);
+            Hyb.triangle(
+                cx + hole * c0,
+                cy + hole * s0,
+                cx + body * c1,
+                cy + body * s1,
+                cx + hole * c1,
+                cy + hole * s1,
+                color);
+        }
+        for (int k = 0; k < 8; k++) {
+            final double a = k * Math.PI / 4;
+            final float[] b0 = polar(cx, cy, root, a - 0.30), b1 = polar(cx, cy, root, a + 0.30),
+                t0 = polar(cx, cy, tip, a - 0.19), t1 = polar(cx, cy, tip, a + 0.19);
+            Hyb.triangle(b0[0], b0[1], t0[0], t0[1], t1[0], t1[1], color);
+            Hyb.triangle(b0[0], b0[1], t1[0], t1[1], b1[0], b1[1], color);
+        }
+    }
+
+    private static float[] polar(final float cx, final float cy, final float r, final double a) {
+        return new float[] { cx + r * (float) Math.cos(a), cy + r * (float) Math.sin(a) };
     }
 
     /** The power wing's amber (the website's text-amber-400). */
@@ -907,49 +955,154 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     // region Settings strip
 
     /**
-     * The settings strip along the bottom: a hairline, then the chips ({@link CardChips}), lit under the mouse where a
-     * click does something; a power card's warnings under it, amber.
+     * The settings strip along the bottom: a hairline, then a chip for each setting pinned to the card
+     * ({@link SettingPins}), lit under the mouse where a click changes it; a power card's warnings under it, amber.
      */
     private void drawStrip(final CardModel m, final float z, final Part hover) {
         if (!layout.chips.isEmpty()) CardPaint.hair(layout.stripY);
-        final int hot = isHovering() ? layout.chipAt(localX(), localY()) : -1;
+        final int hot = hover == Part.CHIP ? layout.chipAt(localX(), localY()) : -1;
         for (int i = 0; i < layout.chips.size(); i++) {
-            final CardChips.Chip c = layout.chips.get(i);
+            final SettingControls.Control c = layout.chips.get(i);
             final int[] r = layout.chipRect(i);
-            final boolean reading = c.kind() == CardChips.Kind.READING;
-            final boolean live = !reading && c.kind() != CardChips.Kind.PARALLEL;
-            CardPaint.chip(r[0], r[1], r[2], c.label(), c.value(), c.icon(), c.warn(), reading, live && hot == i, z);
+            final boolean reading = c.type() == SettingControls.Type.READING;
+            CardPaint.chip(
+                r[0],
+                r[1],
+                r[2],
+                c.label(),
+                c.value(),
+                c.icon(),
+                c.warn(),
+                reading,
+                !reading && c.enabled() && hot == i,
+                z);
         }
         for (int k = 0; k < layout.warningLines.size(); k++)
             Hyb.text(layout.warningLines.get(k), CardLayout.PAD + 2, layout.warningsY + k * 9, Hyb.AMBER_INK);
     }
 
     /**
-     * A click on a power setting's chip: the left button lists a select's options (flips one of two), flips a toggle or
-     * asks for a number; the right steps it back.
+     * A click on a setting, from its chip or the settings sheet: the left button flips a switch, asks for a number, or
+     * lists the choices (flips one of two); the right steps it back. Popups open at the screen point given.
      */
-    private boolean pressPowerChip(final int chip, final int mouseButton) {
-        final CardChips.Chip c = layout.chips.get(chip);
-        if (c.kind() != CardChips.Kind.POWER) return false;
-        final PowerTiles.Tile t = PowerTiles.of(model)
-            .get(c.tile());
+    void pressSetting(final SettingControls.Control c, final int mouseButton, final int sx, final int sy) {
+        if (model == null || !c.enabled() || c.type() == SettingControls.Type.READING) return;
+        if (mouseButton == 1 && c.type() != SettingControls.Type.TOGGLE) {
+            stepSetting(c, -1);
+            return;
+        }
+        if (c.type() == SettingControls.Type.COIL) {
+            openCoils(sx, sy);
+            return;
+        }
+        if (c.key()
+            .startsWith("power:")) {
+            pressPower(c.key(), sx, sy);
+            return;
+        }
+        final SettingDef<?> def = SettingControls.def(model, c.key());
+        if (def == null) return;
+        final Node node = model.node;
+        final MachineConfig cfg = node.machineConfig;
+        switch (c.type()) {
+            case TOGGLE -> changeSetting(node, c.key(), !CardDefaults.boolSetting(cfg, c.key()));
+            case NUMBER -> Popup.open(
+                getPanel(),
+                NumberPopup.create(
+                    def.label,
+                    def.minInt + " to " + def.maxInt,
+                    CardDefaults.intSetting(cfg, c.key()),
+                    def.minInt,
+                    def.maxInt,
+                    v -> changeSetting(node, c.key(), (int) Math.max(def.minInt, Math.min(def.maxInt, Math.round(v))))),
+                sx,
+                sy);
+            case CHOICE -> {
+                final String now = CardDefaults.stringSetting(cfg, c.key());
+                final List<PickList.Entry> rows = new ArrayList<>();
+                for (final String option : def.options) rows.add(
+                    new PickList.Entry(
+                        null,
+                        option,
+                        "",
+                        Hyb.INK,
+                        option.equals(now),
+                        () -> changeSetting(node, c.key(), option)));
+                Popup.open(
+                    getPanel(),
+                    PickList.popup("gtnhplanner_setting_choice", null, rows, rows.size() > 10, 150),
+                    sx,
+                    sy);
+            }
+            default -> {}
+        }
+    }
+
+    /** One step along a setting: the wheel on its chip or row, and the right button. */
+    void stepSetting(final SettingControls.Control c, final int step) {
+        if (model == null || !c.enabled() || c.type() == SettingControls.Type.READING) return;
+        if (c.type() == SettingControls.Type.COIL) {
+            stepCoil(step);
+            return;
+        }
+        if (c.key()
+            .startsWith("power:")) {
+            final com.gtnhplanner.power.PowerSource source = model.power.source();
+            final com.gtnhplanner.power.PowerSetting setting = source == null ? null
+                : source.setting(
+                    c.key()
+                        .substring(6));
+            if (setting != null) stepPower(setting, step);
+            return;
+        }
+        final SettingDef<?> def = SettingControls.def(model, c.key());
+        if (def == null) return;
+        final Node node = model.node;
+        final MachineConfig cfg = node.machineConfig;
+        switch (c.type()) {
+            case TOGGLE -> changeSetting(node, c.key(), step > 0);
+            case NUMBER -> {
+                final int next = Math
+                    .max(def.minInt, Math.min(def.maxInt, CardDefaults.intSetting(cfg, c.key()) + step));
+                if (next != CardDefaults.intSetting(cfg, c.key())) changeSetting(node, c.key(), next);
+            }
+            case CHOICE -> {
+                final int i = def.options.indexOf(CardDefaults.stringSetting(cfg, c.key()));
+                final int n = def.options.size();
+                changeSetting(node, c.key(), def.options.get(((i + step) % n + n) % n));
+            }
+            default -> {}
+        }
+    }
+
+    /** Changes a machine setting, and remembers it for the machine's next card. */
+    private void changeSetting(final Node node, final String key, final Object value) {
+        session.setSetting(node, key, value);
+        SettingMemory.remember(node, key, value);
+    }
+
+    /** Changes a power card's setting, and remembers it for its source's next card. */
+    private void changePower(final String settingId, final String value) {
+        session.setPowerSetting(model.node, settingId, value);
+        SettingMemory.rememberPower(model.node.powerSource, settingId, value);
+    }
+
+    /** A left click on a power card's setting: flips a toggle or one of two, lists the choices, asks a number. */
+    private void pressPower(final String key, final int sx, final int sy) {
         final com.gtnhplanner.power.PowerSource source = model.power.source();
         final java.util.Map<String, String> values = model.node.powerSettings;
-        if (!t.isSetting() || source == null || !PowerTiles.enabled(source, t.setting(), values)) return false;
-        final com.gtnhplanner.power.PowerSetting setting = t.setting();
-        if (mouseButton == 1) return stepPower(setting, -1);
-        final int[] at = layout.chipRect(chip);
+        final com.gtnhplanner.power.PowerSetting setting = source == null ? null : source.setting(key.substring(6));
+        if (setting == null || !PowerTiles.enabled(source, setting, values)) return;
         switch (setting) {
-            case com.gtnhplanner.power.PowerSetting.Toggle toggle -> session
-                .setPowerSetting(model.node, setting.id(), toggle.value(values.get(setting.id())) ? "0" : "1");
+            case com.gtnhplanner.power.PowerSetting.Toggle toggle -> changePower(setting.id(), toggle.value(values.get(setting.id())) ? "0" : "1");
             case com.gtnhplanner.power.PowerSetting.Select select -> {
                 if (select.options()
                     .size() <= 2) {
                     final String now = select.value(values.get(setting.id()));
                     for (final com.gtnhplanner.power.PowerSetting.Option o : select.options())
                         if (!o.key()
-                            .equals(now)) session.setPowerSetting(model.node, setting.id(), o.key());
-                } else openPowerOptions(at, select);
+                            .equals(now)) changePower(setting.id(), o.key());
+                } else openPowerOptions(sx, sy, select);
             }
             case com.gtnhplanner.power.PowerSetting.Number number -> Popup.open(
                 getPanel(),
@@ -959,14 +1112,12 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                     number.value(values.get(setting.id())),
                     number.min(),
                     number.max(),
-                    v -> session.setPowerSetting(
-                        model.node,
+                    v -> changePower(
                         number.id(),
                         PowerTiles.plain(Math.max(number.min(), Math.min(number.max(), v))))),
-                screenX(at[0]),
-                screenY(at[1] + CardLayout.CHIP + 2));
+                sx,
+                sy);
         }
-        return true;
     }
 
     /** One step along a power setting; false when it is already at that end. */
@@ -974,11 +1125,11 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final java.util.Map<String, String> values = model.node.powerSettings;
         final String next = PowerTiles.step(setting, values, step);
         if (next.equals(PowerTiles.value(setting, values))) return false;
-        session.setPowerSetting(model.node, setting.id(), next);
+        changePower(setting.id(), next);
         return true;
     }
 
-    private void openPowerOptions(final int[] at, final com.gtnhplanner.power.PowerSetting.Select select) {
+    private void openPowerOptions(final int sx, final int sy, final com.gtnhplanner.power.PowerSetting.Select select) {
         final String now = select.value(model.node.powerSettings.get(select.id()));
         final List<PickList.Entry> rows = new ArrayList<>();
         for (final com.gtnhplanner.power.PowerSetting.Option option : select.options()) rows.add(
@@ -989,7 +1140,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 Hyb.INK,
                 option.key()
                     .equals(now),
-                () -> session.setPowerSetting(model.node, select.id(), option.key())));
+                () -> changePower(select.id(), option.key())));
         Popup.open(
             getPanel(),
             PickList.popup(
@@ -998,9 +1149,9 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                     .toUpperCase(java.util.Locale.ROOT),
                 rows,
                 rows.size() > 10,
-                Math.max(150, at[2])),
-            screenX(at[0]),
-            screenY(at[1] + CardLayout.CHIP + 2));
+                150),
+            sx,
+            sy);
     }
 
     /** The head's tier chip on a generator: its tier select, a step at a time. */
@@ -1121,18 +1272,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 .row("Draw per machine", Fmt.power(m.euPerTick) + " EU/t")
                 .row("Demand for this card", Fmt.power(session.power(m)) + " EU/t")
                 .muted("Not wired in plans.");
-            case COIL -> {
-                final GtCoils.Coil coil = GtCoils.forHeat(m.coilHeat);
-                final Tip tip = Tip.of("Heating coil")
-                    .sub(coil == null ? "None picked" : coil.name() + ", " + coil.heat() + " K");
-                if (m.recipeHeat > 0) tip.row("Recipe needs", m.recipeHeat + " K");
-                tip.row("Time per operation", Fmt.compact(m.durationTicks / 20.0) + " s")
-                    .row("Draw per machine", Fmt.power(m.euPerTick) + " EU/t");
-                if (coil != null && m.recipeHeat > coil.heat())
-                    tip.note("Too cold for this recipe: it cannot run.", Hyb.RED_INK);
-                yield tip.action(Tip.Input.LEFT, "Pick")
-                    .action(Tip.Input.WHEEL, "Step");
-            }
+            case SETTINGS -> settingsTip();
+            case CHIP -> chipTip();
             case MACHINES -> {
                 final double machines = machinesTotal();
                 final boolean pin = pinned();
@@ -1149,15 +1290,6 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             case CIRCUIT -> Tip.of("Programmed circuit")
                 .row("Required setting", Integer.toString(m.circuit.getItemDamage()))
                 .muted("Not consumed.");
-            case SETTING -> {
-                final int chip = layout.chipAt(localX(), localY());
-                if (chip < 0) yield null;
-                final CardChips.Chip c = layout.chips.get(chip);
-                yield Tip.of(c.label())
-                    .row("Set to", c.value())
-                    .muted("Changed from its default.")
-                    .action(Tip.Input.LEFT, "Machine settings");
-            }
             default -> {
                 // Far out the card answers with its reveal panel; close in, the body says nothing.
                 yield null;
@@ -1194,39 +1326,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 .action(Tip.Input.LEFT, "Up")
                 .action(Tip.Input.RIGHT, "Down")
                 .action(Tip.Input.WHEEL, "Step");
-            case SETTING -> {
-                final int chip = layout.chipAt(localX(), localY());
-                if (chip < 0) yield null;
-                final PowerTiles.Tile t = PowerTiles.of(m)
-                    .get(
-                        layout.chips.get(chip)
-                            .tile());
-                if (!t.isSetting()) yield Tip.of(
-                    t.stat()
-                        .label())
-                    .sub(
-                        t.stat()
-                            .value());
-                final com.gtnhplanner.power.PowerSetting s = t.setting();
-                final Tip tip = Tip.of(PowerTiles.caption(s))
-                    .row("Set to", PowerTiles.shown(s, m.node.powerSettings));
-                if (source != null && !PowerTiles.enabled(source, s, m.node.powerSettings)) {
-                    final com.gtnhplanner.power.PowerSetting.Condition when = s.enabledWhen();
-                    final com.gtnhplanner.power.PowerSetting other = source.setting(when.settingId());
-                    yield tip.muted(
-                        "Only used when " + (other == null ? when.settingId() : other.label())
-                            + " is "
-                            + optionLabel(other, when.equals())
-                            + ".");
-                }
-                if (s instanceof com.gtnhplanner.power.PowerSetting.Select sel && sel.options()
-                    .size() > 2) tip.action(Tip.Input.LEFT, "Choose");
-                else if (s instanceof com.gtnhplanner.power.PowerSetting.Number)
-                    tip.action(Tip.Input.LEFT, "Type a value");
-                else tip.action(Tip.Input.LEFT, "Toggle");
-                yield tip.action(Tip.Input.RIGHT, "Step back")
-                    .action(Tip.Input.WHEEL, "Step");
-            }
+            case SETTINGS -> settingsTip();
+            case CHIP -> chipTip();
             case POWER -> Tip.of(each < 0 ? "Power drawn" : "Power made")
                 .row(each < 0 ? "Draws per machine" : "Makes per machine", Fmt.power(Math.abs(each)) + " EU/t")
                 .row("All its machines", Fmt.power(Math.abs(each) * machinesTotal()) + " EU/t")
@@ -1244,6 +1345,51 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             }
             default -> null;
         };
+    }
+
+    /** The gear key's tooltip: what it opens, and what stops the recipe. */
+    private Tip settingsTip() {
+        final Tip tip = Tip.of("Machine settings")
+            .muted("Pin a setting there to show it on the card.");
+        if (coilTooCold()) tip.note("The coil is too cold for this recipe: it cannot run.", Hyb.RED_INK);
+        return tip.action(Tip.Input.LEFT, "Open");
+    }
+
+    /** A pinned setting's chip: what it is set to, why it is moot, how to change it. */
+    private Tip chipTip() {
+        final int i = layout.chipAt(localX(), localY());
+        if (i < 0) return null;
+        final SettingControls.Control c = layout.chips.get(i);
+        final Tip tip = Tip.of(c.label())
+            .row(c.type() == SettingControls.Type.READING ? "Reads" : "Set to", c.value());
+        if (c.type() == SettingControls.Type.COIL && model.recipeHeat > 0)
+            tip.row("Recipe needs", model.recipeHeat + " K");
+        if (c.warn()) tip.note("Too cold for this recipe: it cannot run.", Hyb.RED_INK);
+        if (!c.enabled()) {
+            final com.gtnhplanner.power.PowerSource source = model.power == null ? null : model.power.source();
+            final com.gtnhplanner.power.PowerSetting s = source == null ? null
+                : source.setting(
+                    c.key()
+                        .substring(6));
+            if (s != null && s.enabledWhen() != null) {
+                final com.gtnhplanner.power.PowerSetting.Condition when = s.enabledWhen();
+                final com.gtnhplanner.power.PowerSetting other = source.setting(when.settingId());
+                tip.muted(
+                    "Only used when " + (other == null ? when.settingId() : other.label())
+                        + " is "
+                        + optionLabel(other, when.equals())
+                        + ".");
+            }
+        } else if (c.type() != SettingControls.Type.READING) {
+            tip.action(Tip.Input.LEFT, switch (c.type()) {
+                case TOGGLE -> "Switch";
+                case NUMBER -> "Type a value";
+                default -> "Choose";
+            })
+                .action(Tip.Input.RIGHT, c.type() == SettingControls.Type.TOGGLE ? "Switch" : "Step back")
+                .action(Tip.Input.WHEEL, "Step");
+        }
+        return tip.muted("Pinned to the card: unpin it in the settings.");
     }
 
     /** An option's label for a setting's stored key (the key itself for anything but a select). */
@@ -1294,21 +1440,18 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 if (model.isPower()) stepPowerTier(mouseButton == 1 ? -1 : 1);
                 else stepTier(mouseButton == 1 ? -1 : 1);
             }
-            case SETTING -> {
-                final int chip = layout.chipAt(localX(), localY());
-                if (chip < 0) return Result.ACCEPT;
-                if (layout.chips.get(chip)
-                    .kind() == CardChips.Kind.SETTING) {
-                    if (mouseButton != 0) return Result.ACCEPT;
-                    openSettings();
-                } else if (!pressPowerChip(chip, mouseButton)) return Result.ACCEPT;
+            case CHIP -> {
+                final int i = layout.chipAt(localX(), localY());
+                if (i < 0 || mouseButton > 1) return Result.ACCEPT;
+                final int[] r = layout.chipRect(i);
+                pressSetting(layout.chips.get(i), mouseButton, screenX(r[0]), screenY(r[1] + CardLayout.CHIP + 2));
+            }
+            case SETTINGS -> {
+                if (mouseButton == 0) openSheet();
             }
             case AMPS -> {
                 if (mouseButton == 1) session.setSetting(node, "amp", Math.max(1, model.amps - 1));
                 else openAmps();
-            }
-            case COIL -> {
-                if (mouseButton == 0) openCoils();
             }
             case MACHINES -> {
                 if (mouseButton == 0) openPin();
@@ -1363,23 +1506,16 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 if (model.isPower()) stepPowerTier(step);
                 else stepTier(step);
             }
-            case SETTING -> {
-                final int chip = layout.chipAt(localX(), localY());
-                if (chip < 0 || layout.chips.get(chip)
-                    .kind() != CardChips.Kind.POWER) return false;
-                final PowerTiles.Tile t = PowerTiles.of(model)
-                    .get(
-                        layout.chips.get(chip)
-                            .tile());
-                if (!t.isSetting()) return false;
-                stepPower(t.setting(), step);
+            case CHIP -> {
+                final int i = layout.chipAt(localX(), localY());
+                if (i < 0) return false;
+                stepSetting(layout.chips.get(i), step);
             }
             case AMPS -> {
                 pendingAmps = stepAmps(pendingAmps > 0 ? pendingAmps : model.amps, step);
                 wheelAt = System.currentTimeMillis();
                 committedOver = null;
             }
-            case COIL -> stepCoil(step);
             case MACHINE -> stepMachine(step);
             case MACHINES -> {
                 pendingCount = Math.max(1, (pendingCount > 0 ? pendingCount : Math.round(machinesTotal())) + step);
@@ -1431,6 +1567,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             cfg.setBoolean("gt_multiblock", true);
             cfg.setInt("machine_heat", coil.heat());
         });
+        SettingMemory.remember(model.node, "machine_heat", coil.heat());
     }
 
     /** The machines the card can run on: its recipe's, or on a shared machine those that run every recipe on it. */
@@ -1490,7 +1627,6 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         rows.add(PickList.Entry.of("Clone node", () -> session.cloneNode(node)));
         if (!model.isPower()) {
             rows.add(PickList.Entry.of("Add another recipe", () -> session.addRecipeTo(node.id)));
-            rows.add(PickList.Entry.of("Machine settings", this::openSettings));
         }
         // Its place in the world, once it has one.
         if (placed()) {
@@ -1550,7 +1686,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             screenY(CHIP_Y + CHIP_H + 2));
     }
 
-    private void openCoils() {
+    private void openCoils(final int sx, final int sy) {
         final List<PickList.Entry> rows = new ArrayList<>();
         final GtCoils.Coil now = GtCoils.forHeat(model.coilHeat);
         for (final GtCoils.Coil coil : GtCoils.all()) {
@@ -1565,11 +1701,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                     () -> setCoil(coil)));
         }
         if (rows.isEmpty()) return;
-        Popup.open(
-            getPanel(),
-            PickList.popup("gtnhplanner_coils", null, rows, true, 200),
-            screenX(partRect(Part.COIL)[0]),
-            screenY(partRect(Part.COIL)[1] + CardLayout.CHIP + 2));
+        Popup.open(getPanel(), PickList.popup("gtnhplanner_coils", null, rows, true, 200), sx, sy);
     }
 
     private void openAmps() {
@@ -1602,67 +1734,9 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     }
 
     /** Every setting the machine's profile offers, as rows: toggles flip, lists step, numbers ask. */
-    private void openSettings() {
-        final Node node = model.node;
-        final MachineConfig cfg = node.machineConfig;
-        if (cfg.getProfile() == null) return;
-        final List<PickList.Entry> rows = new ArrayList<>();
-        for (final SettingDef<?> def : cfg.getProfile()
-            .visibleSettings(new RecipeContext(node.properties), cfg.settings)) {
-            final String key = def.key;
-            if ("machines".equals(key)) continue;
-            if (def.type == Boolean.class) {
-                final boolean on = CardDefaults.boolSetting(cfg, key);
-                rows.add(new PickList.Entry(null, def.label, on ? "on" : "off", Hyb.INK, on, () -> {
-                    session.setSetting(node, key, !on);
-                    reopenSettingsNextTick();
-                }));
-            } else if (def.type == Integer.class) {
-                final int value = CardDefaults.intSetting(cfg, key);
-                rows.add(
-                    new PickList.Entry(
-                        null,
-                        def.label,
-                        Integer.toString(value),
-                        Hyb.INK,
-                        false,
-                        () -> Popup.open(
-                            getPanel(),
-                            NumberPopup.create(
-                                def.label,
-                                def.minInt + " to " + def.maxInt,
-                                value,
-                                def.minInt,
-                                def.maxInt,
-                                v -> session.setSetting(
-                                    node,
-                                    key,
-                                    (int) Math.max(def.minInt, Math.min(def.maxInt, Math.round(v))))),
-                            screenX(KEY_X),
-                            screenY(CHIP_Y + CHIP_H + 2))));
-            } else if (def.options != null && !def.options.isEmpty()) {
-                final String value = CardDefaults.stringSetting(cfg, key);
-                rows.add(new PickList.Entry(null, def.label, value, Hyb.INK, false, () -> {
-                    final int i = def.options.indexOf(value);
-                    session.setSetting(node, key, def.options.get((i + 1) % def.options.size()));
-                    reopenSettingsNextTick();
-                }));
-            }
-        }
-        if (rows.isEmpty()) return;
-        Popup.open(
-            getPanel(),
-            PickList.popup("gtnhplanner_settings", "MACHINE SETTINGS", rows, false, 260),
-            screenX(KEY_X),
-            screenY(CHIP_Y + CHIP_H + 2));
-    }
-
-    /** The model shown when a setting was toggled; once a newer one arrives the settings list opens again. */
-    private CardModel reopenSettingsAfter;
-
-    /** Toggling closes the list (it is a pick list); bring it back, re-solved, so settings can be changed in a row. */
-    private void reopenSettingsNextTick() {
-        reopenSettingsAfter = model;
+    /** The card's settings, under its gear key. */
+    private void openSheet() {
+        SettingsSheet.open(this, screenX(GEAR_X), screenY(CHIP_Y + CHIP_H + 2));
     }
 
     // endregion

@@ -60,6 +60,13 @@ public class Graph {
     @Setter
     private long lastOpen;
 
+    /**
+     * The settings each machine's cards show on themselves, pinned from the settings sheet: machine (a card's
+     * {@code SettingPins.machine}) to setting keys, in order. A machine missing here shows its defaults. Saved with the
+     * plan, so it looks the same wherever it is opened.
+     */
+    public final java.util.Map<String, java.util.List<String>> settingPins = new java.util.TreeMap<>();
+
     /** Whether the plan has a tab. A closed plan is still kept, in the library's My plans. Saved with the slot. */
     @Getter
     @Setter

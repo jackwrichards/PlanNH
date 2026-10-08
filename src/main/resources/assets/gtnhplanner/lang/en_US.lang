@@ -2,56 +2,56 @@
 
 ## Settings
 ## Settings - General
-gtnhplanner.settings.duration_ticks=Duration
-gtnhplanner.settings.tick_modifier=Accel
-gtnhplanner.settings.machines=Mach
-gtnhplanner.settings.energy_per_tick=Energy/t
-gtnhplanner.settings.inputs_per_tick=Inputs/t
-gtnhplanner.settings.burnable_override=Burnable
+gtnhplanner.settings.duration_ticks=Duration (ticks)
+gtnhplanner.settings.tick_modifier=Tick rate (%)
+gtnhplanner.settings.machines=Machines
+gtnhplanner.settings.energy_per_tick=Energy per tick
+gtnhplanner.settings.inputs_per_tick=Inputs per tick
+gtnhplanner.settings.burnable_override=Burnable override
 
 ## Settings - GT
 gtnhplanner.settings.voltage=Tier
-gtnhplanner.settings.amp=Amp
-gtnhplanner.settings.speed=Speed
-gtnhplanner.settings.parallels=Par
+gtnhplanner.settings.amp=Amps
+gtnhplanner.settings.speed=Speed (%)
+gtnhplanner.settings.parallels=Parallels
 gtnhplanner.settings.gt_multiblock=Multiblock
-gtnhplanner.settings.machine_heat=M. Heat
-gtnhplanner.settings.recipe_heat=R. Heat
-gtnhplanner.settings.heat_discount_mult=HD Mult.%
-gtnhplanner.settings.eut_discount=EU Disc.%
-gtnhplanner.settings.eut_increase_per_oc=EU%/OC
-gtnhplanner.settings.duration_decrease_per_oc=Spd%/OC
-gtnhplanner.settings.max_overclocks=Max OC
-gtnhplanner.settings.max_regular_oc=Max Reg OC
-gtnhplanner.settings.max_tier_skips=Max Skips
-gtnhplanner.settings.fuel_efficiency=Fuel Eff.%
-gtnhplanner.settings.perfect_oc=Perfect OC
-gtnhplanner.settings.heat_oc=Heat OC
-gtnhplanner.settings.heat_discount=Heat Disc.
-gtnhplanner.settings.laser_oc=Laser OC
-gtnhplanner.settings.unlimited_skips=Unl. Skips
-gtnhplanner.settings.no_overclock=No OC
-gtnhplanner.settings.catalyst_astral_arrays=Astral Arrays
-gtnhplanner.settings.catalyst_accel_card=Accel. Card
+gtnhplanner.settings.machine_heat=Coil heat (K)
+gtnhplanner.settings.recipe_heat=Recipe heat (K)
+gtnhplanner.settings.heat_discount_mult=Heat discount strength (%)
+gtnhplanner.settings.eut_discount=Power discount (%)
+gtnhplanner.settings.eut_increase_per_oc=Power per overclock (%)
+gtnhplanner.settings.duration_decrease_per_oc=Speed per overclock (%)
+gtnhplanner.settings.max_overclocks=Overclock limit
+gtnhplanner.settings.max_regular_oc=Regular overclock limit
+gtnhplanner.settings.max_tier_skips=Tier skip limit
+gtnhplanner.settings.fuel_efficiency=Fuel efficiency (%)
+gtnhplanner.settings.perfect_oc=Perfect overclocks
+gtnhplanner.settings.heat_oc=Heat overclocks
+gtnhplanner.settings.heat_discount=Heat discount
+gtnhplanner.settings.laser_oc=Laser overclocks
+gtnhplanner.settings.unlimited_skips=Unlimited tier skips
+gtnhplanner.settings.no_overclock=No overclocking
+gtnhplanner.settings.catalyst_astral_arrays=Astral arrays
+gtnhplanner.settings.catalyst_accel_card=Acceleration cards
 
 ## Settings - Botania
-gtnhplanner.settings.mana_per_tick=Mana/t
+gtnhplanner.settings.mana_per_tick=Mana per tick
 
 ## Settings - Thaumcraft (and friends)
-gtnhplanner.settings.vis_per_tick=Vis/t
+gtnhplanner.settings.vis_per_tick=Vis per tick
 
 ## Settings - Forestry
-gtnhplanner.settings.forestry_rf_per_tick=For. RF/t
+gtnhplanner.settings.forestry_rf_per_tick=RF per tick (Forestry)
 
 ## Settings - BloodMagic
-gtnhplanner.settings.lp_per_tick=BM LP/t
+gtnhplanner.settings.lp_per_tick=LP per tick
 
 ## Settings - Cofh core
-gtnhplanner.settings.rf_per_tick=RF/t
+gtnhplanner.settings.rf_per_tick=RF per tick
 
 ## Settings - Steam
-gtnhplanner.settings.steam_eut_discount=Steam EU%
-gtnhplanner.settings.steam_duration_modifier=Steam Spd%
+gtnhplanner.settings.steam_eut_discount=Steam use (%)
+gtnhplanner.settings.steam_duration_modifier=Steam speed (%)
 
 ## Properties
 ## Properties - General

@@ -9,7 +9,8 @@ import com.gtnhplanner.ui.theme.Hyb;
  * Geometry of a card in GUI pixels, shared by drawing, the child widgets and wire anchors: the clean card
  * ({@code docs/design/card-redesign.md}). One surface, no boxes inside it: a header band (keys, the machine's name,
  * the amps and tier chips), inputs against the left edge and outputs against the right where their wires meet the card,
- * the machine's picture in the middle, and a strip of setting chips along the bottom. A port row is its icon at the
+ * the machine's picture in the middle, and a strip along the bottom of the settings pinned to it. A port row is its
+ * icon at the
  * edge, how much in large type and its name small under it. Power drawn, and the circuit when set so, are one more row
  * after a recipe's inputs.
  */
@@ -48,9 +49,11 @@ public final class CardLayout {
     public static final int SECTION_RULE = 16, SECTION_GAP = 8;
 
     public final int railsH;
-    /** Where the settings strip starts (its hairline), the chips under it, each {x, y, w}. */
+    /** Where the settings strip starts (its hairline), the pinned settings under it as chips, each {x, y, w}. */
     public final int stripY;
-    public final List<CardChips.Chip> chips;
+    public final List<SettingControls.Control> chips;
+    /** The pins the strip was laid out by ({@link SettingPins#version()}). */
+    public final int pinsVersion;
     private final int[][] chipAt;
     /** A power card's warnings, wrapped to the card, under the strip. */
     public final List<String> warningLines;
@@ -67,8 +70,8 @@ public final class CardLayout {
     /** Where the rails end: below the last recipe's (and the power row). */
     public final int railsEnd;
 
-    public CardLayout(final CardModel model) {
-        this(List.of(model));
+    public CardLayout(final CardModel model, final com.gtnhplanner.data.flowchart.Graph plan) {
+        this(List.of(model), plan);
     }
 
     /**
@@ -76,7 +79,7 @@ public final class CardLayout {
      * circuit and keys on the right) over its rails, which are as tall as its longer side so its inputs and outputs
      * face each other; its power is one row after them all.
      */
-    public CardLayout(final List<CardModel> models) {
+    public CardLayout(final List<CardModel> models, final com.gtnhplanner.data.flowchart.Graph plan) {
         sections = models.size();
         final boolean shared = sections > 1;
         final CardModel first = models.get(0);
@@ -114,7 +117,8 @@ public final class CardLayout {
         powerRowY = powerY;
         railsH = Math.max(railsEnd - RAILS_Y, PICTURE_MIN);
         // The strip: chips left to right, a new row when one would pass the edge.
-        chips = CardChips.of(first);
+        chips = SettingControls.pinned(plan, first);
+        pinsVersion = SettingPins.version();
         chipAt = new int[chips.size()][];
         stripY = RAILS_Y + railsH + 6;
         int cx = PAD, cy = stripY + 4;
@@ -141,7 +145,7 @@ public final class CardLayout {
     }
 
     /** A chip's width: its icon, label and value. */
-    public static int chipW(final CardChips.Chip c) {
+    public static int chipW(final SettingControls.Control c) {
         return chipW(c.label(), c.value(), c.icon() != null);
     }
 

@@ -68,7 +68,7 @@ final class SnapshotMaker {
                     m.gregtech && m.tier != null ? m.tier : "",
                     m.multiblock ? m.amps : 0,
                     m.isPower() ? null : m.circuit,
-                    settings(m)));
+                    settings(session, m)));
         }
         final List<PlanSnapshot.Box> boxes = new ArrayList<>();
         for (final Drawer d : graph.getDrawers()) {
@@ -126,16 +126,19 @@ final class SnapshotMaker {
         return out;
     }
 
-    /** The card's settings strip, as the board's card shows it. */
-    private static List<PlanSnapshot.Setting> settings(final com.gtnhplanner.ui.card.CardModel m) {
+    /** The settings pinned to the card, as the board's card shows them. */
+    private static List<PlanSnapshot.Setting> settings(final BoardSession session,
+        final com.gtnhplanner.ui.card.CardModel m) {
         final List<PlanSnapshot.Setting> out = new ArrayList<>();
-        for (final com.gtnhplanner.ui.card.CardChips.Chip c : com.gtnhplanner.ui.card.CardChips.of(m)) out.add(
-            new PlanSnapshot.Setting(
-                c.label(),
-                c.value(),
-                c.icon(),
-                c.warn(),
-                c.kind() == com.gtnhplanner.ui.card.CardChips.Kind.READING));
+        for (final com.gtnhplanner.ui.card.SettingControls.Control c : com.gtnhplanner.ui.card.SettingControls
+            .pinned(session.graph(), m))
+            out.add(
+                new PlanSnapshot.Setting(
+                    c.label(),
+                    c.value(),
+                    c.icon(),
+                    c.warn(),
+                    c.type() == com.gtnhplanner.ui.card.SettingControls.Type.READING));
         return out;
     }
 }

@@ -228,6 +228,15 @@ public final class Serializer {
         root.addProperty("panX", graph.getPanX());
         root.addProperty("panY", graph.getPanY());
         root.addProperty("name", graph.getName());
+        if (!graph.settingPins.isEmpty()) {
+            final JsonObject pins = new JsonObject();
+            for (final java.util.Map.Entry<String, java.util.List<String>> e : graph.settingPins.entrySet()) {
+                final JsonArray keys = new JsonArray();
+                for (final String k : e.getValue()) keys.add(new com.google.gson.JsonPrimitive(k));
+                pins.add(e.getKey(), keys);
+            }
+            root.add("settingPins", pins);
+        }
 
         final JsonArray nodesArray = new JsonArray();
         for (final Node node : graph.getNodes()) {
@@ -451,6 +460,20 @@ public final class Serializer {
             // a machine group, and reading it as Group would drop the machine group's own fields.
             final Group group = (Group) GSON.fromJson(elem, GraphData.class);
             graph.groups.put(group.getId(), group);
+        }
+
+        // Absent from saves written before pins existed; those show each machine's defaults.
+        if (root.has("settingPins") && root.get("settingPins")
+            .isJsonObject()) {
+            for (final java.util.Map.Entry<String, JsonElement> e : root.getAsJsonObject("settingPins")
+                .entrySet()) {
+                if (!e.getValue()
+                    .isJsonArray()) continue;
+                final java.util.List<String> keys = new java.util.ArrayList<>();
+                for (final JsonElement k : e.getValue()
+                    .getAsJsonArray()) keys.add(k.getAsString());
+                graph.settingPins.put(e.getKey(), keys);
+            }
         }
 
         // Absent from saves written before drawers existed; those load with none.

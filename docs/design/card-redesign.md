@@ -27,6 +27,15 @@ world draws them (`dev/CardGallery`, arrow keys).
 - A settings strip along the bottom: a chip for the coil (heat recipes; red when too cold), parallels when more than
   one, and every setting changed from its default (`PlanSnapshot.Setting`, from `SnapshotMaker.settings`); a card left
   at its defaults has no strip.
+- Settings: a gear key in the header (beside the actions and place keys; red when a setting stops the recipe) opens
+  the settings sheet (`ui/card/SettingsSheet`): "Settings" faint at the top, the settings by section (Machine,
+  Overclocking, Heat; a power card's Settings and Readings), two columns when there are more than seven, each row a
+  pin, a plain name and its control (a switch, a number with arrows, a list). Pinned settings show on the card as chips
+  that change in place (click, right-click back, scroll), on every card of the machine in the plan; the pins are saved
+  with the plan (`Graph.settingPins`, `ui/card/SettingPins`), the coil pinned by default on a heat recipe. A setting
+  changed from the sheet or a chip is remembered for the machine's next card (`ui/card/SettingMemory`, config
+  folder); cards on the board and imported plans keep their own. Posting to the library does not carry the pins yet:
+  Factory Flow's project format has no place for them.
 - Shadows a fifth lighter everywhere (cards, drawers, icons, structure pictures): done for the whole mod.
 - The same look carries to the zoomed-out (glance) card, the minimap and the cards over the world.
 

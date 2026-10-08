@@ -43,6 +43,7 @@ public final class MachineChoices {
             if (use == null && !all.isEmpty() && (gregtech(node) || all.size() > 1)) use = all.get(0);
         }
         if (use != null) CardDefaults.useMachine(node, use.machine(), gregtech(node));
+        SettingMemory.applyTo(node);
         return node;
     }
 

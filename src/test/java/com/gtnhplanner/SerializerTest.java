@@ -216,6 +216,24 @@ class SerializerTest {
     }
 
     @Test
+    void settingPinsSurviveARoundTrip() {
+        final LoadedChart chart = GtnhFlowLoader.load("light_fuel");
+        chart.graph().settingPins.put("machine:Electric Blast Furnace", List.of("machine_heat", "perfect_oc"));
+        chart.graph().settingPins.put("power:large-steam-turbine", List.of());
+
+        final Graph decoded = Serializer.decode(Serializer.encode(chart.graph()));
+
+        assertEquals(List.of("machine_heat", "perfect_oc"), decoded.settingPins.get("machine:Electric Blast Furnace"));
+        assertEquals(List.of(), decoded.settingPins.get("power:large-steam-turbine"), "a machine with all unpinned");
+        assertTrue(
+            Serializer.decode(
+                Serializer.encode(
+                    GtnhFlowLoader.load("light_fuel")
+                        .graph())).settingPins.isEmpty(),
+            "a plan with no pins gets none");
+    }
+
+    @Test
     void machineSettingsSurviveARoundTrip() {
         registerGtProfile();
         final LoadedChart chart = GtnhFlowLoader.load("light_fuel");
