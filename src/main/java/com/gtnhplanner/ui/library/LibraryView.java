@@ -1018,32 +1018,30 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         return switch (hit.kind()) {
             case TILE -> {
                 final CommunityApi.Setup s = (CommunityApi.Setup) hit.data();
-                yield List.of(s.name(), "§7Click: details  Double-click: open as a new plan");
+                yield List.of(s.name(), "§7Double-click to open as a new plan");
             }
-            case OPEN -> List.of("Bring it in as a new plan tab", "§7Its recipes are matched to this pack's");
-            case WEB -> List.of("Open its page on gtnhplanner.com", "§7Comments and votes are there");
-            case TAG -> List.of("Setups tagged #" + hit.data());
-            case AUTHOR -> List.of("Setups by " + hit.data());
-            case TIER_BADGE -> List.of("Setups up to this tier");
+            case OPEN -> List.of("Open as a new plan");
+            case WEB -> List.of("Open on gtnhplanner.com (comments and votes)");
+            case TAG -> List.of("Show plans tagged #" + hit.data());
+            case AUTHOR -> List.of("Show plans by " + hit.data());
+            case TIER_BADGE -> List.of("Show plans up to this tier");
             case CLOSE -> List.of("Back to the board (Esc)");
-            case SORT -> List.of("Sort the setups");
-            case TIER -> List.of("Only setups up to a tier");
-            case VERSION -> List.of("Only setups made for a pack version");
-            case MAKES_CLEAR -> List.of("Show every setup again");
-            case SHELF -> (Boolean) hit.data()
-                ? List.of("My plans", "§7Every plan you have made or opened, in a tab or not")
-                : List.of("Public setups", "§7Everyone's shared setups, from gtnhplanner.com");
+            case SORT -> List.of("Sort");
+            case TIER -> List.of("Filter by highest tier");
+            case VERSION -> List.of("Filter by pack version");
+            case MAKES_CLEAR -> List.of("Clear this filter");
+            case SHELF -> (Boolean) hit.data() ? List.of("My plans: every plan you have, open or closed")
+                : List.of("Public plans from gtnhplanner.com");
             case MY_TILE -> List.of(
                 Plan.getInstance()
                     .getGraphs()
                     .get((Integer) hit.data())
                     .getName(),
-                "§7Click: open  Right click: rename, copy, delete");
-            case NEW_TILE -> List.of("Start a new plan");
-            case ACCOUNT -> com.gtnhplanner.library.Account.signedIn()
-                ? List.of("Signed in to gtnhplanner.com", "§7Click: your posts, or sign out")
-                : List.of("Sign in to gtnhplanner.com", "§7To post your plans to the public library");
-            case MINE_CLEAR -> List.of("Show everyone's setups again");
+                "§7Right-click to rename, copy or delete");
+            case NEW_TILE -> List.of("New plan");
+            case ACCOUNT -> com.gtnhplanner.library.Account.signedIn() ? List.of("Your gtnhplanner.com account")
+                : List.of("Sign in to gtnhplanner.com to post plans");
+            case MINE_CLEAR -> List.of("Clear this filter");
             default -> List.of();
         };
     }

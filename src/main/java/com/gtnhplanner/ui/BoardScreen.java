@@ -114,30 +114,22 @@ public final class BoardScreen extends ModularScreen {
             picker.setEnabled(true);
         };
         session.setPowerPickerOpener(openPicker);
+        topBar.child(boltKey("Non-recipe machines: generators, turbines, boilers, reactors", () -> {
+            // The key opens the picker and closes it again.
+            if (picker.isEnabled()) picker.setEnabled(false);
+            else openPicker.run();
+        }).marginLeft(GROUP_GAP));
+        topBar.child(iconKey(Arrow.UNDO, session::canUndo, "Undo (Ctrl+Z)", session::undo).marginLeft(GROUP_GAP));
+        topBar.child(iconKey(Arrow.REDO, session::canRedo, "Redo (Ctrl+Shift+Z or Ctrl+Y)", session::redo));
         topBar.child(
-            boltKey(
-                "Non-recipe machines\n§7Generators, turbines, boilers, reactors and the rest: machines that run no NEI"
-                    + " recipe\nClick: pick one to put on the board; click again to close",
-                () -> {
-                    // The key opens the picker and closes it again.
-                    if (picker.isEnabled()) picker.setEnabled(false);
-                    else openPicker.run();
-                }).marginLeft(GROUP_GAP));
-        topBar.child(iconKey(Arrow.UNDO, session::canUndo, "Undo\n§7Ctrl+Z", session::undo).marginLeft(GROUP_GAP));
-        topBar.child(iconKey(Arrow.REDO, session::canRedo, "Redo\n§7Ctrl+Shift+Z or Ctrl+Y", session::redo));
-        topBar.child(
-            key(
-                () -> "Arrange",
-                () -> true,
-                "Lay the plan out left to right\n§7One step: Undo puts it back",
-                fit("Arrange"),
-                canvas::arrange).marginLeft(GROUP_GAP));
-        topBar.child(key(() -> "Fit", () -> true, "Fit the whole plan in view", fit("Fit"), canvas::frameAll));
+            key(() -> "Arrange", () -> true, "Auto-arrange the plan", fit("Arrange"), canvas::arrange)
+                .marginLeft(GROUP_GAP));
+        topBar.child(key(() -> "Fit", () -> true, "Zoom to fit the whole plan", fit("Fit"), canvas::frameAll));
         topBar.child(
             key(
                 () -> session.rateUnit().suffix,
                 () -> true,
-                "Rates per tick, second, minute or hour\n§7Click: the next one",
+                "Rate unit: per tick, second, minute or hour",
                 fit("/t", "/s", "/min", "/hr"),
                 () -> session.setRateUnit(
                     session.rateUnit()
@@ -146,33 +138,30 @@ public final class BoardScreen extends ModularScreen {
             key(
                 () -> session.powerKey() == BoardSession.PowerKey.EU ? "EU/t" : "Amps",
                 () -> true,
-                "Power in EU/t, or in amps at each card's tier\n§7Click: switch",
+                "Show power as EU/t, or as amps at each machine's tier",
                 fit("EU/t", "Amps"),
                 session::togglePowerKey));
         topBar.child(
             key(
                 () -> session.peakPower() ? "Peak" : "Avg",
                 () -> true,
-                "Power on average, or at peak\n§7Average counts the machines the plan needs; peak, every machine running at once",
+                "Average or peak power use (peak: every machine running at once)",
                 fit("Peak", "Avg"),
                 session::togglePeakPower));
         topBar.child(
             key(
                 () -> library.open ? "Board" : "Library",
                 () -> true,
-                "Your plans, and everyone's public setups\n"
-                    + "§7My plans: every plan you have, in a tab or not. Public setups: shared on gtnhplanner.com",
+                "Library: your plans, and public plans from gtnhplanner.com",
                 fit("Library", "Board"),
                 () -> library.set(!library.open)).marginLeft(GROUP_GAP));
         topBar.child(
             iconKey(
                 Arrow.FEEDBACK,
                 () -> true,
-                "Feedback: report a bug, or talk about GTNH Planner's development\n"
-                    + "§7It's a thread on the GT New Horizons Discord: join that server first to see it\n"
-                    + "Click: open it in your browser",
+                "Feedback and bug reports: a thread on the GT New Horizons Discord (join the server to see it)",
                 BoardScreen::openFeedback).marginLeft(GROUP_GAP));
-        topBar.child(key(() -> "?", () -> true, "How the board works", 16, () -> showHelp(panel)));
+        topBar.child(key(() -> "?", () -> true, "Help: controls and shortcuts", 16, () -> showHelp(panel)));
 
         final Flow column = Flow.column()
             .widthRel(1f)
@@ -231,20 +220,18 @@ public final class BoardScreen extends ModularScreen {
     /** Every gesture on the board, in one list. */
     private static void showHelp(final ModularPanel panel) {
         final List<com.gtnhplanner.ui.popup.PickList.Entry> rows = new ArrayList<>();
-        final String[][] tips = { { "R or U over any item", "its recipes or uses in NEI; + puts one here" },
-            { "Drag an item out of NEI", "then click the board: a drawer for it" },
-            { "Click a port", "NEI: what makes an input, uses an output; + wires it in" },
-            { "Drag a port", "onto a card: wire it; onto the board: a drawer" },
-            { "Right-click a wire", "a drawer on it, or delete it" },
-            { "Middle-click a rate", "clear it back to rate?" },
-            { "Click a card or drawer", "select it (Shift: add to the selection)" },
-            { "Drag the board", "pan (or middle-drag anywhere; Shift: box select)" },
-            { "Drag a selected card", "move the whole selection" }, { "Ctrl+A", "select everything" },
-            { "Delete", "remove the selection (Esc: clear it)" }, { "Wheel", "zoom; over a control: change it" },
-            { "WASD or arrows", "pan (+ and -, Page Up and Down: zoom)" },
-            { "Ctrl+C, Ctrl+X, Ctrl+V", "copy, cut, paste the selection and its wires" },
-            { "Ctrl+Z, Ctrl+Shift+Z", "undo, redo" },
-            { "Overview: double-click", "fly to the cards that use a resource" } };
+        final String[][] tips = { { "R or U over an item", "Show its recipes or uses in NEI; + adds a recipe" },
+            { "Drag an item out of NEI", "Click the board to add a drawer for it" },
+            { "Click a port", "Find recipes for it in NEI; adding one wires it to this port" },
+            { "Drag a port", "Drop on a card to wire it, or on empty board to add a drawer" },
+            { "Right-click a wire", "Add a drawer on it, or delete it" }, { "Middle-click a rate", "Clear the rate" },
+            { "Click a card or drawer", "Select it (Shift-click adds to the selection)" },
+            { "Drag the board", "Pan (Shift-drag selects a box)" }, { "Drag a selected card", "Move the selection" },
+            { "Ctrl+A", "Select everything" }, { "Delete", "Delete the selection (Esc deselects)" },
+            { "Wheel", "Zoom; over a value, change it" }, { "WASD or arrows", "Pan (+/- or Page Up/Down zoom)" },
+            { "Ctrl+C, Ctrl+X, Ctrl+V", "Copy, cut, paste the selection and its wires" },
+            { "Ctrl+Z, Ctrl+Shift+Z", "Undo, redo" },
+            { "Double-click an overview row", "Show the cards that make or use it" } };
         for (final String[] tip : tips)
             rows.add(new com.gtnhplanner.ui.popup.PickList.Entry(null, tip[0], tip[1], Hyb.INK, false, () -> {}));
         com.cleanroommc.modularui.screen.ModularPanel p = com.gtnhplanner.ui.popup.PickList
@@ -598,8 +585,8 @@ public final class BoardScreen extends ModularScreen {
         } else if (hovered == null || hovered == canvas) {
             tip = Tip.ofLines(canvas.wireLines());
         } else if (hovered instanceof SelectionBar) {
-            tip = Tip.of("One machine runs all of these recipes")
-                .muted("Their recipes become one card: the machine and its settings shared, the count all of theirs together.");
+            tip = Tip.of("Combine into one shared machine")
+                .muted("The selected recipes run on one machine and share its settings.");
         } else if (hovered instanceof final PortSlot slot) {
             tip = portTip(slot);
         } else if (hovered instanceof final IWidget w && KEY_TIPS.containsKey(w)) {
@@ -632,8 +619,8 @@ public final class BoardScreen extends ModularScreen {
         if (!view.wired()) {
             tip.note("Unconnected", Tip.WARN);
             tip.muted(
-                view.output() ? "Wire it to a card, or drop it on the board for a drawer."
-                    : "You must connect this input.");
+                view.output() ? "Wire it to a card, or drag it onto the board to add a drawer."
+                    : "Wire it to a card that makes it, or drag it onto the board to add a drawer.");
         }
         return tip.action(Tip.Input.LEFT, view.output() ? "What uses it" : "What makes it")
             .action(Tip.Input.DRAG, "Connect")

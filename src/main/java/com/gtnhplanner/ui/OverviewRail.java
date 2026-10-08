@@ -684,8 +684,8 @@ final class OverviewRail extends ParentWidget<OverviewRail>
             case FOLD -> List.of(open ? "Fold the overview" : "Open the overview");
             case SCROLLBAR -> null;
             case ADD -> List.of(
-                inputs.contains(hit.data()) ? "Add a source for it" : "Add a product for it",
-                hint + "Linked to every port waiting for it");
+                inputs.contains(hit.data()) ? "Add a source drawer for it" : "Add a product drawer for it",
+                hint + "Connected to every unwired port of it");
             case SECTION -> List.of(hint + "Click: fold or unfold");
             case RESOURCE -> {
                 final BoardSession.TotalLine line = (BoardSession.TotalLine) hit.data();
@@ -693,24 +693,22 @@ final class OverviewRail extends ParentWidget<OverviewRail>
                     line.label(),
                     hint + Fmt.rate(line.amount(), unit, line.isFluid()),
                     hint + "Double-click: show the cards that make or use it",
-                    hint + "Right-click: public setups that make it",
+                    hint + "Right-click: find public plans that make it",
                     hint + "R, U: its recipes and uses in NEI");
             }
-            case RULE -> List.of("Rule", hint + "Click: pick  Right click: previous  Wheel: step  Middle click: clear");
-            case RATE -> List
-                .of("Rate", hint + "Click: type (2.5k, 1/3)  Wheel: +1, Ctrl 10, Shift 100  Middle click: clear");
+            case RULE -> List.of("Rule", hint + "Click: choose  Wheel: next  Middle click: clear");
+            case RATE -> List.of("Rate", hint + "Click: type it  Wheel: +1 (Ctrl 10, Shift 100)  Middle click: clear");
             case PEAK -> List.of(
-                session.peakPower() ? "Peak: every machine running at once"
-                    : "Average: the solved fraction of a machine",
-                hint + "Click: switch");
-            case GROUP -> List.of((String) hit.data(), hint + "Click: show its cards in turn");
+                session.peakPower() ? "Peak power: every machine running at once"
+                    : "Average power: machines running only as much as the plan needs");
+            case GROUP -> List.of((String) hit.data(), hint + "Click: go to its cards one by one");
             case MACHINE -> {
                 final BoardSession.MachineLine m = (BoardSession.MachineLine) hit.data();
                 yield List.of(
                     m.name(),
                     hint + Fmt.machines(m.machines()) + " machines" + (m.pinned() ? " (pinned)" : ""),
                     hint + Fmt.power(m.euPerTick()) + " EU/t " + (session.peakPower() ? "peak" : "average"),
-                    hint + "Click: show the card");
+                    hint + "Click: go to the card");
             }
         };
     }

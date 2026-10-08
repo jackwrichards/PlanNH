@@ -229,13 +229,12 @@ final class PlanTabs extends Widget<PlanTabs> implements Interactable {
         if (!isHovering()) return null;
         final Tab t = tabAtMouse();
         if (t == null) return null;
-        if (t.slot() < 0)
-            return List.of("New plan, or open one", "§7From My plans, a Factory Flow link or code, or the library");
-        if (onClose(t)) return List.of("Close the tab", "§7The plan stays in My plans");
+        if (t.slot() < 0) return List.of("New plan, or open an existing one");
+        if (onClose(t)) return List.of("Close tab (the plan is kept in My plans)");
         return List.of(
             session.slots()
                 .get(t.slot())
                 .getName(),
-            "§7Click: open  Middle click: close  Right click: rename, copy, close, delete");
+            "§7Middle-click to close, right-click for more");
     }
 }

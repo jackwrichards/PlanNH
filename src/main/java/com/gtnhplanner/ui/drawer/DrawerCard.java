@@ -397,7 +397,7 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
             case DELETE -> com.gtnhplanner.ui.popup.Tip.of("Delete this drawer")
                 .action(com.gtnhplanner.ui.popup.Tip.Input.LEFT, "Delete");
             case CYCLE -> com.gtnhplanner.ui.popup.Tip.of(kindName(m.kind))
-                .muted("Product, byproduct or trash: what happens to what arrives.")
+                .muted("Product: what you want. Byproduct: surplus. Trash: voided.")
                 .action(com.gtnhplanner.ui.popup.Tip.Input.LEFT, "Next kind");
             case RULE -> com.gtnhplanner.ui.popup.Tip.of("Rule")
                 .sub(ruleLabel(m.rule))
@@ -420,9 +420,10 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
                     .row(m.kind == Drawer.Kind.SOURCE ? "Supplies" : "Takes", m.rate(m.rate, unit));
                 if (!m.linked) tip.note("Unconnected", com.gtnhplanner.ui.popup.Tip.WARN);
                 if (m.shortfall != null) tip.note(
-                    "Can't reach the target: " + m.rate(m.shortfall.reachable(), unit)
-                        + " of "
-                        + m.rate(m.shortfall.target(), unit),
+                    "Reaches only " + m.rate(m.shortfall.reachable(), unit)
+                        + " of its "
+                        + m.rate(m.shortfall.target(), unit)
+                        + " target",
                     Hyb.RED_INK);
                 yield tip.action(com.gtnhplanner.ui.popup.Tip.Input.DRAG, "Move")
                     .action(com.gtnhplanner.ui.popup.Tip.Input.KEY, "R, U");

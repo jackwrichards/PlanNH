@@ -1166,8 +1166,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 yield switch (key[1]) {
                     case 0 -> Tip.of("Move this recipe up");
                     case 1 -> Tip.of("Move this recipe down");
-                    default -> Tip.of("Take this recipe off the machine")
-                        .muted("The recipe and its wires go.");
+                    default -> Tip.of("Remove this recipe from the card")
+                        .muted("Its wires are removed too.");
                 };
             }
             case MACHINE -> {
@@ -1179,7 +1179,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 tip.row("Time per operation", Fmt.compact(m.durationTicks / 20.0) + " s")
                     .row("Draw per machine", Fmt.power(m.euPerTick) + " EU/t");
                 if (m.parallels > 1) tip.row("Parallel operations", Integer.toString(m.parallels));
-                if (shared()) tip.muted("Runs its recipes one at a time; each row says how its share goes.");
+                if (shared()) tip.muted("One machine runs these recipes in turns.");
                 if (machineChoices().size() > 1)
                     tip.action(Tip.Input.LEFT, shared() ? "Machines that run them all" : "Machines that run it")
                         .action(Tip.Input.WHEEL, "Next machine");
@@ -1222,8 +1222,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 final double whole = Math.ceil(machines - 1e-9);
                 if (machines > 0 && whole != machines) tip.row("Whole machines", "×" + (long) whole)
                     .row("Average utilization", Fmt.compact(100 * machines / whole) + "%");
-                if (shared()) tip.muted("All its recipes' machines together: they take turns on the same ones.");
-                if (machines <= 0) tip.muted("No production target requires this machine.");
+                if (shared()) tip.muted("The total for all its recipes, which share the machines.");
+                if (machines <= 0) tip.muted("No rate or pinned count in the plan needs this machine yet.");
                 yield tip.action(Tip.Input.LEFT, pin ? "Change or unpin" : "Pin count")
                     .action(Tip.Input.WHEEL, "+1 / -1");
             }
@@ -1252,7 +1252,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                         "Non-recipe machine"
                             + (source != null ? ", " + source.group().title.toLowerCase(java.util.Locale.ROOT) : ""));
                 if (source != null) tip.muted(source.blurb());
-                if (source == null) tip.note("This build does not know this machine.", Hyb.RED_INK);
+                if (source == null)
+                    tip.note("Unknown machine: this version of GTNH Planner doesn't have it.", Hyb.RED_INK);
                 tip.row(each < 0 ? "Draws per machine" : "Makes per machine", Fmt.power(Math.abs(each)) + " EU/t")
                     .row(pinned() ? "Pinned machines" : "Required machines", "×" + Fmt.machines(machinesTotal()));
                 if (source != null && source.unlock() != null) tip.row("Unlocks at", source.unlock());
@@ -1281,31 +1282,30 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                     final com.gtnhplanner.power.PowerSetting.Condition when = s.enabledWhen();
                     final com.gtnhplanner.power.PowerSetting other = source.setting(when.settingId());
                     yield tip.muted(
-                        "Only counts while " + (other == null ? when.settingId() : other.label())
+                        "Only used when " + (other == null ? when.settingId() : other.label())
                             + " is "
                             + optionLabel(other, when.equals())
                             + ".");
                 }
                 if (s instanceof com.gtnhplanner.power.PowerSetting.Select sel && sel.options()
-                    .size() > 2) tip.action(Tip.Input.LEFT, "Pick, or step at the arrows");
+                    .size() > 2) tip.action(Tip.Input.LEFT, "Choose (the arrows step)");
                 else if (s instanceof com.gtnhplanner.power.PowerSetting.Number)
-                    tip.action(Tip.Input.LEFT, "Type it, or step at the arrows");
-                else tip.action(Tip.Input.LEFT, "Switch");
+                    tip.action(Tip.Input.LEFT, "Type a value (the arrows step)");
+                else tip.action(Tip.Input.LEFT, "Toggle");
                 yield tip.action(Tip.Input.WHEEL, "Step");
             }
             case POWER -> Tip.of(each < 0 ? "Power drawn" : "Power made")
                 .row(each < 0 ? "Draws per machine" : "Makes per machine", Fmt.power(Math.abs(each)) + " EU/t")
                 .row("All its machines", Fmt.power(Math.abs(each) * machinesTotal()) + " EU/t")
                 .muted(
-                    each < 0 ? "Counted with the plan's power use."
-                        : "Wire its EU to a drawer and give that a rate to size it, or pin the count.");
+                    each < 0 ? "Added to the plan's power use."
+                        : "To size it, wire its EU output to a drawer and set a rate, or pin a machine count.");
             case MACHINES -> {
                 final double machines = machinesTotal();
                 final boolean pin = pinned();
                 final Tip tip = Tip.of(pin ? "Pinned machines" : "Required machines")
                     .row(pin ? "Pinned" : "Calculated", "×" + Fmt.machines(machines));
-                if (machines <= 0)
-                    tip.muted("Nothing asks for its power yet: pin a count, or give its EU drawer a rate.");
+                if (machines <= 0) tip.muted("Not sized yet: pin a machine count, or set a rate on its EU drawer.");
                 yield tip.action(Tip.Input.LEFT, pin ? "Change or unpin" : "Pin count")
                     .action(Tip.Input.WHEEL, "+1 / -1");
             }

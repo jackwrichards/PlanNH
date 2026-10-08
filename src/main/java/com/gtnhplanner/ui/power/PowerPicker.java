@@ -496,17 +496,17 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
                 final PowerSearch.Hit h = (PowerSearch.Hit) hit.data();
                 final PowerSource s = h.source();
                 final Tip tip = Tip.of(s.name())
-                    .sub(s.group().title + (s.unlock() != null ? ", from " + s.unlock() : ""))
+                    .sub(s.group().title + (s.unlock() != null ? ", unlocks at " + s.unlock() : ""))
                     .muted(s.blurb());
                 if (h.via() != null) tip.row(
                     h.via()
                         .takes() ? "Takes" : "Makes",
                     h.via()
                         .name());
-                yield tip.action(Tip.Input.LEFT, "Put it on the board");
+                yield tip.action(Tip.Input.LEFT, "Add to the plan");
             }
-            case GROUP -> Tip.of("Kind of machine");
-            case TIER -> Tip.of("The tier that unlocks it");
+            case GROUP -> Tip.of("Filter by type");
+            case TIER -> Tip.of("Filter by unlock tier");
             case CLOSE -> Tip.of("Close (Esc)");
             default -> null;
         };

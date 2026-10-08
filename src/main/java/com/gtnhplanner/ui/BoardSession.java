@@ -1621,14 +1621,15 @@ public final class BoardSession {
                     if (nothingToSolveFor) out.add(
                         new Notice(
                             Severity.INFO,
-                            "Give a product a rate, or pin a machine count, to size the plan",
+                            "Nothing to calculate yet: set a rate on a drawer, or pin a machine count",
                             List.of()));
                 }
             }
             for (final DrawerReadout.Shortfall s : result.drawers()
                 .shortfalls()) {
                 final DrawerModel d = drawerModels.get(s.drawer());
-                final String label = d == null ? "A product" : d.label;
+                final boolean supply = d != null && d.kind == Drawer.Kind.SOURCE;
+                final String label = "The " + (d == null ? "" : d.label + " ") + (supply ? "supply" : "drawer");
                 final List<UUID> focus = new ArrayList<>();
                 focus.add(s.drawer());
                 focus.addAll(s.limitingNodes());
@@ -1636,37 +1637,49 @@ public final class BoardSession {
                 final String reach = d == null ? Fmt.rate(s.reachable(), rateUnit, false)
                     : d.rate(s.reachable(), rateUnit);
                 final String target = d == null ? Fmt.rate(s.target(), rateUnit, false) : d.rate(s.target(), rateUnit);
-                // Short of a floor reads "only"; past a ceiling (an at-most rule, or exactly from above) says so.
-                final String text = s.reachable() > s.target()
-                    ? label + ": " + reach + ", over its " + target + " limit"
-                    : label + ": only " + reach + " of " + target;
+                // Plain sentences: what the drawer asks for, and what the plan does instead.
+                final String asks = s.rule() == Drawer.Rule.EXACTLY ? "exactly " : "";
+                final String text;
+                if (s.reachable() > s.target()) text = label + " allows at most "
+                    + target
+                    + ", but the plan "
+                    + (supply ? "needs " : "makes ")
+                    + reach;
+                else text = label + (supply ? " should give " : " wants ")
+                    + asks
+                    + target
+                    + ", but the plan can only "
+                    + (supply ? "use " : "make ")
+                    + reach;
                 out.add(new Notice(Severity.WARN, text, focus));
             }
-            // Made on the board but not wired to where it is used: one line for all of them.
-            final List<String> notWiredIn = new ArrayList<>();
-            final List<UUID> notWiredFocus = new ArrayList<>();
             for (final Note note : result.notes()) {
                 switch (note.message()) {
+                    // A machine on the board makes what another takes from outside: say which, and what to wire.
                     case WIRING_UNLINKED -> {
-                        final String what = String.valueOf(named(note).args()[1]);
-                        if (!notWiredIn.contains(what)) notWiredIn.add(what);
-                        notWiredFocus.addAll(idsIn(note));
+                        final Object[] a = named(note).args();
+                        out.add(
+                            new Notice(
+                                Severity.WARN,
+                                a[0].equals(a[2]) ? "Wire " + a[1] + " from one " + a[2] + " to the other"
+                                    : "Wire " + a[1] + " from the " + a[2] + " to the " + a[0],
+                                idsIn(note)));
                     }
                     case OVERSHOOTS_TARGET -> out.add(overshoot(note, cards));
                     case DRAWER_NOT_CONNECTED -> out.add(
                         new Notice(
                             Severity.WARN,
-                            note.args()[0] + ": has a rate, but nothing reaches it",
+                            "The " + note.args()[0] + " drawer has a rate, but nothing is wired to it",
                             idsIn(note)));
                     case DRAWER_WIRED_IGNORED -> out.add(
                         new Notice(
                             Severity.WARN,
-                            note.args()[0] + ": its rate does nothing, as its ports are wired",
+                            "The " + note.args()[0] + " drawer's rate does nothing: the ports it's on are wired",
                             idsIn(note)));
                     case CHOICE_NO_LONGER_FITS, CHOICE_NEEDS_MORE_GATES -> out.add(
                         new Notice(
                             Severity.WARN,
-                            "Your saved choice no longer fits; showing the solver's own",
+                            "Your saved choice no longer fits this plan, so the planner's own answer is shown",
                             List.of()));
                     default -> {
                         if (note.severity() == Severity.ERROR && note.message() != SolverMessage.EMPTY_GRAPH)
@@ -1674,30 +1687,39 @@ public final class BoardSession {
                     }
                 }
             }
-            if (!notWiredIn.isEmpty()) out.add(
-                new Notice(
-                    Severity.WARN,
-                    notWiredIn.size() == 1 ? notWiredIn.get(0) + " is made here but not wired in"
-                        : "Made here, not wired in: " + String.join(", ", notWiredIn),
-                    notWiredFocus));
         } else if (lastResult != null && lastResult.errorNote() != null) {
             out.add(failure(lastResult.errorNote()));
         }
         final List<UUID> unwiredCards = new ArrayList<>();
-        int unwired = 0;
+        int unwired = 0, looseIn = 0, looseOut = 0;
         for (final CardModel card : cards.values()) {
             int here = 0;
-            for (final CardModel.PortView p : card.inputs) if (!p.wired()) here++;
-            for (final CardModel.PortView p : card.outputs) if (!p.wired()) here++;
+            for (final CardModel.PortView p : card.inputs) if (!p.wired()) {
+                here++;
+                looseIn++;
+            }
+            for (final CardModel.PortView p : card.outputs) if (!p.wired()) {
+                here++;
+                looseOut++;
+            }
             if (here > 0) unwiredCards.add(card.node.id);
             unwired += here;
         }
-        if (unwired > 0) out
-            .add(new Notice(Severity.WARN, unwired + (unwired == 1 ? " port" : " ports") + " not wired", unwiredCards));
+        if (unwired > 0)
+            out.add(new Notice(Severity.WARN, loose(looseIn, looseOut) + " no wire or drawer yet", unwiredCards));
         return out;
     }
 
-    /** An output made past its target: "Steel: 12/s, over its 10/s target". */
+    /** "2 inputs and 1 output have", "1 input has": the ports with nothing on them. */
+    private static String loose(final int inputs, final int outputs) {
+        final String in = inputs + (inputs == 1 ? " input" : " inputs"),
+            out = outputs + (outputs == 1 ? " output" : " outputs");
+        if (outputs == 0) return in + (inputs == 1 ? " has" : " have");
+        if (inputs == 0) return out + (outputs == 1 ? " has" : " have");
+        return in + " and " + out + " have";
+    }
+
+    /** An output made past its target, said in full. */
     private Notice overshoot(final Note note, final Map<UUID, CardModel> cards) {
         final Object[] a = note.args();
         final String what = String.valueOf(a[1]);
@@ -1709,7 +1731,14 @@ public final class BoardSession {
         final double target = a[3] instanceof final Number n ? n.doubleValue() : 0;
         return new Notice(
             Severity.WARN,
-            what + ": " + Fmt.rate(made, rateUnit, fluid) + ", over its " + Fmt.rate(target, rateUnit, fluid) + " target",
+            "The " + named(note).args()[0]
+                + " makes "
+                + Fmt.rate(made, rateUnit, fluid)
+                + " of "
+                + what
+                + ", more than its "
+                + Fmt.rate(target, rateUnit, fluid)
+                + " target, because another of its outputs needs more",
             idsIn(note));
     }
 
@@ -1733,19 +1762,25 @@ public final class BoardSession {
                 if (!names.contains(name)) names.add(name);
                 ids.addAll(idsIn(pin));
             }
-            return new Notice(Severity.ERROR, "These pins can't all hold: " + String.join(", ", names), ids);
+            return new Notice(
+                Severity.ERROR,
+                "The pinned counts on " + String.join(" and ", names) + " can't all be met at once: unpin one",
+                ids);
         }
         if (note.containsMessage(SolverMessage.MACHINES_CANNOT_RUN))
-            return new Notice(Severity.ERROR, "Some machines can't run with these pins and rates", List.of());
+            return new Notice(Severity.ERROR, "Some machines can't run with these rates and pinned counts", List.of());
         if (note.containsMessage(SolverMessage.SOLVER_UNSATISFIABLE)
             || note.containsMessage(SolverMessage.SOLVER_NO_SOLUTION)
             || note.containsMessage(SolverMessage.SOLVER_BUDGET)
             || note.containsMessage(SolverMessage.STAGE_FAILED))
             return new Notice(
                 Severity.ERROR,
-                "No answer fits these rates and pins: loosen a rate or unpin a count",
+                "There's no way to meet all these rates and pinned counts: change a rate or unpin a count",
                 List.of());
-        return new Notice(Severity.ERROR, "The solver hit a problem (details in the log)", List.of());
+        return new Notice(
+            Severity.ERROR,
+            "The planner couldn't solve this plan (the details are in the log)",
+            List.of());
     }
 
     private String lastFailureLogged = "";
