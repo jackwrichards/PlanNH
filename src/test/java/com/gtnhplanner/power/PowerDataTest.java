@@ -47,6 +47,10 @@ class PowerDataTest {
         assertEquals("1", Helpers.number(1));
         assertEquals("0.5", Helpers.number(0.5));
         assertEquals("-1,597", Helpers.number(-1597.0001));
+        // ICU rounds the shortest round-trip decimal, not the binary value (1.005 is stored as 1.00499999...).
+        assertEquals("1.01", Helpers.number(1.005));
+        assertEquals("2.49", Helpers.number(1 + 1.5 * 0.99));
+        assertEquals("-2.49", Helpers.number(-2.485));
         assertEquals("1.5M", Helpers.formatAmount(1_500_000));
         assertEquals("2G", Helpers.formatAmount(2e9));
         assertEquals("-", Helpers.formatAmount(Double.NaN));
