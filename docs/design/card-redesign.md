@@ -1,8 +1,10 @@
 # The card redesign
 
-A cleaner recipe card for the board, the minimap, the plan over the world and the zoomed-out view. The trial is
-`ui/card/CleanCardView` (draw-only, from a `PlanSnapshot` card); `call 'cards?from=0&count=3&scale=0.8'` shows each card
-of the plan last open in today's style and the trial's, side by side (`dev/CardGallery`).
+The clean card, on the board, the minimap, the plan over the world and the zoomed-out view (2026-10-08): geometry in
+`ui/card/CardLayout`, the pieces both kinds draw in `ui/card/CardPaint`, the settings strip's chips in
+`ui/card/CardChips`; the board's interactive card is `ui/card/RecipeCard`, the snapshot's (world, minimap)
+`ui/card/CleanCardView`. `call 'cards?count=6&scale=0.6&match=<name>'` pages through the plan's cards as the
+world draws them (`dev/CardGallery`, arrow keys).
 
 ## Settled so far (2026-10-08)
 

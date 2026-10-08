@@ -175,8 +175,7 @@ final class DevBoard {
     /** A port's icon on screen. */
     private static Map<String, Object> slot(final BoardCanvas canvas, final CardLayout layout, final int nx,
         final int ny, final boolean output, final int index) {
-        final int lx = CardLayout.railX(output) + CardLayout.ICON_X,
-            ly = layout.rowY(output, index) + CardLayout.ICON_Y;
+        final int lx = CardLayout.iconX(output), ly = layout.rowY(output, index) + CardLayout.ICON_Y;
         final int x0 = canvas.screenX(nx + lx), y0 = canvas.screenY(ny + ly);
         return rect(
             x0,

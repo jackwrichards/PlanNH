@@ -41,10 +41,12 @@ public record PlanSnapshot(Graph graph, String planName, long graphVersion, List
         int amps, @Nullable ItemStack circuit, List<Setting> settings) {}
 
     /**
-     * A machine setting worth showing on the card: the coil, parallels, and any setting changed from its default.
-     * {@code warn} when it stops the recipe (a coil too cold).
+     * A chip in the card's settings strip ({@code ui/card/CardChips}): the coil, parallels, a setting changed from its
+     * default, a power card's setting; {@code reading} for a power card's reading; {@code warn} when it stops the
+     * recipe
+     * (a coil too cold).
      */
-    public record Setting(String label, String value, @Nullable ItemStack icon, boolean warn) {}
+    public record Setting(String label, String value, @Nullable ItemStack icon, boolean warn, boolean reading) {}
 
     /** A drawer: its resource, kind (a source supplies, the rest take) and rate. */
     public record Box(UUID id, float x, float y, float w, float h, String label, @Nullable ItemStack item,

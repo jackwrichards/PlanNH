@@ -24,7 +24,6 @@ import org.lwjgl.util.glu.GLU;
 
 import com.gtnhplanner.data.flowchart.Node;
 import com.gtnhplanner.ui.PlannerSettings;
-import com.gtnhplanner.ui.card.PlanCardView;
 import com.gtnhplanner.ui.card.RecipeCard;
 import com.gtnhplanner.ui.theme.Hyb;
 
@@ -546,7 +545,7 @@ public final class PlanOverlay {
         GL11.glPushMatrix();
         GL11.glTranslatef(Math.round(p.left), Math.round(p.top), 0);
         GL11.glScalef(p.scale, p.scale, 1);
-        PlanCardView.draw(p.card, snap.rateUnit(), ringed);
+        com.gtnhplanner.ui.card.CleanCardView.draw(p.card, snap.rateUnit(), ringed);
         GL11.glPopMatrix();
     }
 
@@ -652,8 +651,8 @@ public final class PlanOverlay {
         p.sx = p.bx = middle[0];
         p.sy = p.by = middle[1];
         p.scale = (float) (SIZE * Math.min(1, FULL_SIZE_WITHIN / Math.max(0.5, p.distance)));
-        p.w = PlanCardView.width() * p.scale;
-        p.h = PlanCardView.height(p.card) * p.scale;
+        p.w = com.gtnhplanner.ui.card.CleanCardView.width() * p.scale;
+        p.h = com.gtnhplanner.ui.card.CleanCardView.height(p.card) * p.scale;
         return p.scale > 0.02f && p.sx > -p.w
             && p.sx < sr.getScaledWidth() + p.w
             && p.sy > -p.h

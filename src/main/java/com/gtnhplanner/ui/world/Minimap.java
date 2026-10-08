@@ -151,7 +151,7 @@ public final class Minimap {
                 ox + c.x() * z,
                 oy + c.y() * z,
                 z,
-                () -> { com.gtnhplanner.ui.card.PlanCardView.draw(c, snap.rateUnit(), c == focused); });
+                () -> { com.gtnhplanner.ui.card.CleanCardView.draw(c, snap.rateUnit(), c == focused); });
         } else {
             drawDrawers(snap.drawers(), ox, oy, z, snap.rateUnit());
             drawCards(snap.cards(), ox, oy, z, focused);

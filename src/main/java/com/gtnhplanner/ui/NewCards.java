@@ -66,8 +66,9 @@ public final class NewCards {
 
     /** Rough card height from its port count, for placement before the card has been drawn. */
     private static int estimatedHeight(final Node node) {
-        final int rows = Math.max(1, Math.max(node.inputs.size(), node.outputs.size()));
-        return CardLayout.RAILS_Y + Math.max(rows * CardLayout.ROW, CardLayout.PICTURE_MIN) + 85;
+        // One more row for the power drawn, and room for a row of settings.
+        final int rows = Math.max(1, Math.max(node.inputs.size() + 1, node.outputs.size()));
+        return CardLayout.RAILS_Y + Math.max(rows * CardLayout.ROW, CardLayout.PICTURE_MIN) + 36;
     }
 
     static boolean overlapsAnything(final Graph graph, final Node node) {

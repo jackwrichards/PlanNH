@@ -1,88 +1,75 @@
 package com.gtnhplanner.ui.card;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.lwjgl.opengl.GL11;
 
+import com.gtnhplanner.ui.PlannerSettings;
 import com.gtnhplanner.ui.theme.Fmt;
 import com.gtnhplanner.ui.theme.Hyb;
 import com.gtnhplanner.ui.world.PlanSnapshot;
 
 /**
- * A trial of a cleaner card, drawn from a {@link PlanSnapshot} card to compare with today's ({@link PlanCardView}):
- * one surface and no boxes inside it. The name large on the left of the header with the amps and tier chips on the
- * right; inputs against the left edge and outputs against the right, where their wires meet the card, each its icon,
- * how much in large type and its name small under it, power being one more of them with a bolt; the machine in the
- * middle with how many in a badge on its corner. In card units, at the origin.
+ * A plan card drawn from a {@link PlanSnapshot} card, for the cards over the world and on the minimap: the board's
+ * clean card ({@link CardLayout}, {@link CardPaint}) with nothing to press. The name large on the left of the header
+ * with the amps and tier chips on the right; inputs against the left edge and outputs against the right; power one more
+ * row after the inputs, the circuit too when set so (else on the picture's corner); the machine in the middle with how
+ * many on its corner; the settings strip along the bottom. In card units, at the origin.
  */
 public final class CleanCardView {
 
     private CleanCardView() {}
 
-    private static final int W = CardLayout.W;
-    /** The header, a port row, the side margin, and the icon. */
-    private static final int HEAD = 32, ROW = 32, EDGE = 8, ICON = 24;
-    /** The header's chips, as the board's, as far from the top as from the right edge. */
-    private static final int CHIP_H = 20, CHIP_W = 48, SINGLE_TIER_W = 42, CHIP_MARGIN = (HEAD - CHIP_H) / 2;
-    /** The middle column: the machine, its count on its corner. */
-    private static final int MID_X = 112, MID_W = W - 2 * MID_X, PICTURE = 88;
-    /** Where a port's words start, beside its icon; and how wide they may be. */
-    private static final int TEXT_GAP = 6, TEXT_W = MID_X - EDGE - ICON - TEXT_GAP - 6;
+    private static final int W = CardLayout.W, ROW = CardLayout.ROW;
+    private static final int CHIP_W = 48, SINGLE_TIER_W = 42;
 
-    private static final int SURFACE = 0xFF23252A, EDGE_LINE = 0xFF34363C, HAIR = 0xFF2C2E34;
+    /** A row of the input side: a flow, the circuit, or the power drawn. */
+    private record Row(PlanSnapshot.Flow flow, boolean circuit) {}
 
-    /**
-     * A side's ports, power being one more: what the machine draws after its inputs, what it makes after its outputs.
-     */
-    private static List<PlanSnapshot.Flow> side(final PlanSnapshot.Card c, final boolean output) {
-        final List<PlanSnapshot.Flow> ports = new java.util.ArrayList<>(output ? c.outputs() : c.inputs());
-        // The recipe's programmed circuit, one more input (kept, not used up), when set so.
-        if (!output && c.circuit() != null && com.gtnhplanner.ui.PlannerSettings.circuitAsInput())
-            ports.add(new PlanSnapshot.Flow("Circuit", c.circuit(), null, false, 0, CIRCUIT));
-        final double eu = output ? c.madeEuPerTick() : c.euPerTick();
-        if (eu <= 0) return ports;
-        for (final PlanSnapshot.Flow p : ports) if (p.power()) return ports;
-        ports.add(new PlanSnapshot.Flow("Power", null, null, true, eu * 20, "power:eu"));
-        return ports;
+    private static List<Row> inputs(final PlanSnapshot.Card c) {
+        final List<Row> rows = new ArrayList<>();
+        for (final PlanSnapshot.Flow f : c.inputs()) rows.add(new Row(f, false));
+        if (c.circuit() != null && PlannerSettings.circuitAsInput()) rows.add(new Row(null, true));
+        boolean power = false;
+        for (final PlanSnapshot.Flow f : c.inputs()) power |= f.power();
+        if (!power && c.euPerTick() > 0)
+            rows.add(new Row(new PlanSnapshot.Flow("Power", null, null, true, c.euPerTick() * 20, "power:eu"), false));
+        return rows;
     }
 
-    /** The circuit's row among the inputs. */
-    private static final String CIRCUIT = "circuit";
-
-    /** The body under the header: as tall as the longer side, or the machine. */
     private static int body(final PlanSnapshot.Card c) {
-        return Math.max(PICTURE, Math.max(side(c, false).size(), side(c, true).size()) * ROW);
+        return Math.max(
+            CardLayout.PICTURE_MIN,
+            Math.max(
+                inputs(c).size(),
+                c.outputs()
+                    .size())
+                * ROW);
+    }
+
+    /** The settings strip's chips, each {x, y, w}. */
+    private static List<int[]> strip(final PlanSnapshot.Card c, final int top) {
+        final List<int[]> at = new ArrayList<>();
+        int x = CardLayout.PAD, y = top + 4;
+        for (final PlanSnapshot.Setting s : c.settings()) {
+            final int w = CardLayout.chipW(s.label(), s.value(), s.icon() != null);
+            if (x > CardLayout.PAD && x + w > W - CardLayout.PAD) {
+                x = CardLayout.PAD;
+                y += CardLayout.CHIP_ROW;
+            }
+            at.add(new int[] { x, y, w });
+            x += w + 4;
+        }
+        return at;
     }
 
     public static int height(final PlanSnapshot.Card c) {
-        final int strip = strip(c).size();
-        return HEAD + 6 + body(c) + 6 + (strip == 0 ? 0 : strip * STRIP_ROW + 4);
-    }
-
-    /** The settings strip: a chip's height, a row's, and the room inside a chip. */
-    private static final int CHIP = 18, STRIP_ROW = 22, CHIP_PAD = 5;
-
-    /** A setting's chip: its width. */
-    private static int chipW(final PlanSnapshot.Setting s) {
-        return CHIP_PAD + (s.icon() != null ? 14 + 3 : 0) + Hyb.width(s.label()) + 4 + Hyb.width(s.value()) + CHIP_PAD;
-    }
-
-    /** The settings, in rows that fit the card. */
-    private static List<List<PlanSnapshot.Setting>> strip(final PlanSnapshot.Card c) {
-        final List<List<PlanSnapshot.Setting>> rows = new java.util.ArrayList<>();
-        List<PlanSnapshot.Setting> row = null;
-        int x = 0;
-        for (final PlanSnapshot.Setting s : c.settings()) {
-            final int w = chipW(s);
-            if (row == null || x + w > W - 2 * EDGE) {
-                row = new java.util.ArrayList<>();
-                rows.add(row);
-                x = 0;
-            }
-            row.add(s);
-            x += w + 4;
-        }
-        return rows;
+        final int stripY = CardLayout.RAILS_Y + body(c) + 6;
+        final List<int[]> chips = strip(c, stripY);
+        final int end = chips.isEmpty() ? CardLayout.RAILS_Y + body(c) + 2
+            : chips.get(chips.size() - 1)[1] + CardLayout.CHIP + 4;
+        return end + 6;
     }
 
     public static int width() {
@@ -94,151 +81,93 @@ public final class CleanCardView {
         final int h = height(c);
         Hyb.dropShadow(0, 0, W, h);
         if (ringed) Hyb.ring(-2, -2, W + 4, h + 4, 2, 0xC0000000 | Hyb.LIT & 0xFFFFFF);
-        Hyb.rect(0, 0, W, h, EDGE_LINE);
-        Hyb.rect(1, 1, W - 2, h - 2, SURFACE);
+        CardPaint.surface(W, h);
         head(c);
-        final int top = HEAD + 6;
-        middle(c, top);
-        ports(side(c, false), false, top, unit);
-        ports(side(c, true), true, top, unit);
-        settings(c, top + body(c) + 6);
+        CardPaint.hair(CardLayout.HEADER);
+        final int top = CardLayout.RAILS_Y;
+        final int[] picture = { CardLayout.PICTURE_X + (CardLayout.PICTURE_W - CardLayout.PICTURE) / 2, top,
+            CardLayout.PICTURE };
+        art(c, picture);
+        if (c.circuit() != null && !PlannerSettings.circuitAsInput()) CardPaint.circuitBadge(c.circuit(), picture, 0);
+        CardPaint.count("×" + Fmt.machines(c.machines()), c.machines() <= 0, c.pinned(), false, picture);
+        final List<Row> ins = inputs(c);
+        for (int i = 0; i < ins.size(); i++) {
+            final int y = top + i * ROW;
+            if (i > 0) CardPaint.rowSeparator(false, y);
+            final Row r = ins.get(i);
+            if (r.circuit()) CardPaint.circuitRow(c.circuit(), y, 0);
+            else flow(r.flow(), false, y, unit);
+        }
+        for (int i = 0; i < c.outputs()
+            .size(); i++) {
+            final int y = top + i * ROW;
+            if (i > 0) CardPaint.rowSeparator(true, y);
+            flow(
+                c.outputs()
+                    .get(i),
+                true,
+                y,
+                unit);
+        }
+        final int stripY = top + body(c) + 6;
+        final List<int[]> chips = strip(c, stripY);
+        if (!chips.isEmpty()) CardPaint.hair(stripY);
+        for (int i = 0; i < chips.size(); i++) {
+            final PlanSnapshot.Setting s = c.settings()
+                .get(i);
+            final int[] at = chips.get(i);
+            CardPaint.chip(at[0], at[1], at[2], s.label(), s.value(), s.icon(), s.warn(), s.reading(), false, 0);
+        }
     }
 
-    /** The name large, left; the amps and tier chips, as the board's a little heavier, right; a hairline under them. */
+    private static void flow(final PlanSnapshot.Flow f, final boolean output, final int y, final Fmt.RateUnit unit) {
+        CardPaint.icon(f.item(), f.fluid(), f.power(), output, y, 0);
+        CardPaint.flowWords(f.perSecond(), f.power(), f.fluid() != null, f.name(), unit, output, y);
+    }
+
+    /** The name large, left; the amps and tier chips, as the board's, right. */
     private static void head(final PlanSnapshot.Card c) {
-        final int y = CHIP_MARGIN;
-        int right = W - CHIP_MARGIN;
+        final int y = CardLayout.HEAD_Y;
+        int right = W - CardLayout.HEAD_Y;
         if (!c.tier()
             .isEmpty()) {
             final Hyb.Tier tier = Hyb.tier(c.tier());
             final int tw = c.amps() > 0 ? CHIP_W : SINGLE_TIER_W;
             right -= tw;
-            RecipeCard.chip(right, y, tw, CHIP_H, tier, tier.name(), tier.underline(), false, true);
+            RecipeCard.chip(right, y, tw, CardLayout.HEAD, tier, tier.name(), tier.underline(), false, true);
             if (c.amps() > 0) {
                 right -= CHIP_W + 2;
-                RecipeCard.chip(right, y, CHIP_W, CHIP_H, tier, c.amps() + "A", false, false, true);
+                RecipeCard.chip(right, y, CHIP_W, CardLayout.HEAD, tier, c.amps() + "A", false, false, true);
             }
             right -= 8;
         }
-        final float big = Hyb.FIGURE;
-        final String name = Hyb.fit(c.name(), (int) ((right - EDGE) / big));
-        // Level with the chips' labels: the game's capitals are seven of its eight rows.
-        Hyb.text(name, EDGE, y + (CHIP_H - 7 * big) / 2f, big, Hyb.INK);
-        Hyb.rect(1, HEAD, W - 2, 1, HAIR);
+        CardPaint.name(c.name(), 8, right, Hyb.INK);
     }
 
-    /** The settings strip: a hairline, then a chip for each setting, label small and value plain. */
-    private static void settings(final PlanSnapshot.Card c, final int y) {
-        final List<List<PlanSnapshot.Setting>> rows = strip(c);
-        if (rows.isEmpty()) return;
-        Hyb.rect(1, y, W - 2, 1, HAIR);
-        for (int r = 0; r < rows.size(); r++) {
-            int x = EDGE;
-            final int cy = y + 4 + r * STRIP_ROW;
-            for (final PlanSnapshot.Setting s : rows.get(r)) {
-                final int w = chipW(s);
-                Hyb.rect(x, cy, w, CHIP, s.warn() ? 0xFF6B2A2A : 0xFF34363C);
-                Hyb.rect(x + 1, cy + 1, w - 2, CHIP - 2, 0xFF2A2C31);
-                int tx = x + CHIP_PAD;
-                if (s.icon() != null) {
-                    Hyb.item(s.icon(), tx, cy + 2, 14, 0);
-                    GL11.glDisable(GL11.GL_LIGHTING);
-                    GL11.glDisable(GL11.GL_DEPTH_TEST);
-                    tx += 14 + 3;
-                }
-                Hyb.text(s.label(), tx, cy + 5, Hyb.MUTED);
-                Hyb.text(s.value(), tx + Hyb.width(s.label()) + 4, cy + 5, s.warn() ? Hyb.RED_INK : Hyb.INK);
-                x += w + 4;
-            }
-        }
-    }
-
-    /**
-     * The machine; its circuit, large, on its bottom left corner (unless shown as an input); how many in white on its
-     * bottom right.
-     */
-    private static void middle(final PlanSnapshot.Card c, final int top) {
-        final int x = MID_X + (MID_W - PICTURE) / 2;
-        art(c, x, top, PICTURE, PICTURE);
-        if (c.circuit() != null && !com.gtnhplanner.ui.PlannerSettings.circuitAsInput()) {
-            com.gtnhplanner.ui.gt.CircuitIcons.draw(c.circuit(), x, top + PICTURE - 24, 24, 0);
-            GL11.glDisable(GL11.GL_LIGHTING);
-            GL11.glDisable(GL11.GL_DEPTH_TEST);
-        }
-        final String count = "×" + Fmt.machines(c.machines());
-        final float s = Hyb.FIGURE, tw = Hyb.width(count) * s, th = 8 * s;
-        Hyb.text(count, x + PICTURE - tw - 2, top + PICTURE - th - 2, s, c.machines() <= 0 ? Hyb.MUTED : Hyb.INK);
-    }
-
-    /** The machine's structure picture fitted in a box, or its item. */
-    private static void art(final PlanSnapshot.Card c, final float x, final float y, final float w, final float h) {
+    /** The machine's structure picture fitted in its box, or its item. */
+    private static void art(final PlanSnapshot.Card c, final int[] box) {
+        final float x = box[0], y = box[1], side = box[2];
         final StructureArt.Art art = c.art();
         if (art != null) {
-            final float scale = Math.min(w / art.width(), h / art.height());
+            final float scale = Math.min(side / art.width(), side / art.height());
             final float pw = art.width() * scale, ph = art.height() * scale;
-            final float px = x + (w - pw) / 2f, py = y + (h - ph) / 2f;
-            final float side = Math.min(pw, ph), pad = StructureArt.SHADOW_PAD * scale;
+            final float px = x + (side - pw) / 2f, py = y + (side - ph) / 2f;
+            final float s = Math.min(pw, ph), pad = StructureArt.SHADOW_PAD * scale;
             Hyb.texture(
                 art.shadow(),
-                px + side * 0.045f - pad,
-                py + side * 0.06f - pad,
+                px + s * 0.045f - pad,
+                py + s * 0.06f - pad,
                 pw + 2 * pad,
                 ph + 2 * pad,
                 0x7A000000);
             Hyb.texture(art.location(), px, py, pw, ph);
         } else if (c.machine() != null) {
-            final float side = Math.min(48, Math.min(w, h));
-            final float ix = x + (w - side) / 2f, iy = y + (h - side) / 2f;
-            Hyb.iconShadow(c.machine(), null, ix, iy, side);
-            Hyb.item(c.machine(), ix, iy, side, 0);
+            final float s = Math.min(48, side);
+            final float ix = x + (side - s) / 2f, iy = y + (side - s) / 2f;
+            Hyb.iconShadow(c.machine(), null, ix, iy, s);
+            Hyb.item(c.machine(), ix, iy, s, 0);
         }
         GL11.glDisable(GL11.GL_LIGHTING);
         GL11.glDisable(GL11.GL_DEPTH_TEST);
-    }
-
-    /**
-     * A side's ports: inputs against the left edge, outputs mirrored against the right, each its icon at the edge, how
-     * much in large type beside it and its name small under that; hairlines between them.
-     */
-    private static void ports(final List<PlanSnapshot.Flow> ports, final boolean output, final int top,
-        final Fmt.RateUnit unit) {
-        for (int i = 0; i < ports.size(); i++) {
-            final PlanSnapshot.Flow p = ports.get(i);
-            final int y = top + i * ROW;
-            if (i > 0) Hyb.rect(output ? MID_X + MID_W + 4 : EDGE, y - 1, MID_X - EDGE - 4, 1, HAIR);
-            final int ix = output ? W - EDGE - ICON : EDGE, iy = y + (ROW - ICON) / 2 - 1;
-            if (p.power()) RecipeCard.euIcon(ix, iy, ICON);
-            else if (CIRCUIT.equals(p.key())) com.gtnhplanner.ui.gt.CircuitIcons.draw(p.item(), ix, iy, ICON, 0);
-            else Hyb.icon(p.item(), p.fluid(), ix, iy, ICON, 0);
-            GL11.glDisable(GL11.GL_LIGHTING);
-            GL11.glDisable(GL11.GL_DEPTH_TEST);
-            words(p, output, output ? ix - TEXT_GAP : ix + ICON + TEXT_GAP, y, unit);
-        }
-    }
-
-    /** How much in large type with its unit small beside it, the name small under it; right-aligned for an output. */
-    private static void words(final PlanSnapshot.Flow p, final boolean output, final float edge, final int y,
-        final Fmt.RateUnit unit) {
-        final boolean circuit = CIRCUIT.equals(p.key());
-        final String number = circuit ? String.valueOf(
-            p.item()
-                .getItemDamage())
-            : p.power() ? Fmt.power(p.perSecond() / 20) : Fmt.compact(p.perSecond() * unit.perSecond);
-        final String suffix = circuit ? "" : p.power() ? " EU/t" : (p.fluid() != null ? " L" : "") + unit.suffix;
-        final int colour = circuit ? Hyb.INK : p.perSecond() <= 0 ? 0xFFA8AFBB : Hyb.INK;
-        final float rateW = Hyb.width(number) * Hyb.FIGURE + 2 + Hyb.width(suffix);
-        final boolean big = rateW <= TEXT_W;
-        final float top = y + (ROW - (big ? 12 : 8) - 2 - 8) / 2f - 1;
-        final float x0 = output ? edge - (big ? rateW : Math.min(TEXT_W, Hyb.width(number + suffix))) : edge;
-        if (big) {
-            Hyb.text(number, x0, top, Hyb.FIGURE, colour);
-            Hyb.text(suffix, x0 + Hyb.width(number) * Hyb.FIGURE + 2, top + 3.5f, Hyb.MUTED);
-        } else Hyb.text(Hyb.fit(number + suffix, TEXT_W), x0, top, colour);
-        // The name on one line: smaller when long, then cut.
-        final String name = p.name() == null ? "" : p.name();
-        final float size = Hyb.width(name) <= TEXT_W ? 1 : 0.75f;
-        final String shown = Hyb.width(name) * size <= TEXT_W ? name : Hyb.fit(name, (int) (TEXT_W / size));
-        final float nw = Hyb.width(shown) * size, ny = top + (big ? 12 : 8) + 2;
-        Hyb.text(shown, output ? edge - nw : edge, ny, size, Hyb.MUTED);
     }
 }

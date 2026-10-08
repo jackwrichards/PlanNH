@@ -6,62 +6,65 @@ import java.util.List;
 import com.gtnhplanner.ui.theme.Hyb;
 
 /**
- * Geometry of a recipe card in GUI pixels, shared by drawing, the child widgets and wire anchors. Factory Flow's card
- * (380 wide) at 320, with its chrome kept at one pixel: see {@code docs/design/ff-card-spec.md}. Every port is a tile
- * of the same height: the icon at one and a half times, the name on one or two lines, the rate under it.
+ * Geometry of a card in GUI pixels, shared by drawing, the child widgets and wire anchors: the clean card
+ * ({@code docs/design/card-redesign.md}). One surface, no boxes inside it: a header band (keys, the machine's name,
+ * the amps and tier chips), inputs against the left edge and outputs against the right where their wires meet the card,
+ * the machine's picture in the middle, and a strip of setting chips along the bottom. A port row is its icon at the
+ * edge, how much in large type and its name small under it. Power drawn, and the circuit when set so, are one more row
+ * after a recipe's inputs.
  */
 public final class CardLayout {
 
     public static final int W = 320;
     /** Where the content starts inside the frame. */
     public static final int PAD = 6;
-    /** The head row: the actions key, the machine's name bar and the amps and tier chips. */
-    public static final int HEAD_Y = 7;
+    /** The header band: its chips (and keys) {@link #HEAD} high, as far from its top as from the card's right edge. */
+    public static final int HEAD_Y = 6;
     public static final int HEAD = 20;
-    /** A port tile; tiles stack with no gap, their borders making the seam. */
-    public static final int ROW = 34;
-    public static final int RAIL_W = 100;
-    /** The port's icon in its tile: 24 px, one and a half times the game's, so its pixels stay whole. */
+    public static final int HEADER = HEAD_Y * 2 + HEAD;
+    /** A port row: its icon 24 px (one and a half times the game's, so its pixels stay whole) at the card's edge. */
+    public static final int ROW = 32;
     public static final int ICON = 24;
     public static final int ICON_X = 4;
     public static final int ICON_Y = (ROW - ICON) / 2;
-    /** Room for the port name and rate, right of the icon. */
-    public static final int TEXT_X = ICON_X + ICON + 4;
-    public static final int TEXT_W = RAIL_W - TEXT_X - 3;
-    /** A setting tile: its caption above a raised well. */
-    public static final int SETTING_ROW = 33;
-    public static final int FOOT = 30;
-    public static final int PICTURE_MIN = 68;
+    /** A side's column, and where a port's words start (from the side's outer edge) and how wide they may be. */
+    public static final int RAIL_W = 104;
+    public static final int TEXT_X = ICON_X + ICON + 6;
+    public static final int TEXT_W = RAIL_W - TEXT_X - 2;
+    /** The machine's picture: square, in the middle column. */
+    public static final int PICTURE = 88;
+    public static final int PICTURE_MIN = PICTURE;
 
-    public static final int RAILS_Y = HEAD_Y + HEAD + 7;
-    public static final int IN_RAIL_X = PAD;
-    public static final int OUT_RAIL_X = W - PAD - RAIL_W;
-    public static final int PICTURE_X = IN_RAIL_X + RAIL_W + 4;
-    public static final int PICTURE_W = OUT_RAIL_X - 4 - PICTURE_X;
+    public static final int RAILS_Y = HEADER + 6;
+    public static final int IN_RAIL_X = 4;
+    public static final int OUT_RAIL_X = W - 4 - RAIL_W;
+    public static final int PICTURE_X = IN_RAIL_X + RAIL_W;
+    public static final int PICTURE_W = OUT_RAIL_X - PICTURE_X;
 
-    public final int railsH;
-    /** The hairline between the rails and the settings and footer. */
-    public final int hairY;
-    public final int settingsY;
-    public final int settingRows;
-    public final int footY;
-    public final int height;
-
-    /** A power card's tiles, two to a row: its settings, then its readings. Empty on a recipe card. */
-    public final List<PowerTiles.Tile> powerTiles;
-    /** A power card's warnings, wrapped to the card, under its tiles. */
-    public final List<String> warningLines;
-    /** A power tile's size, and where the warnings start. */
-    public static final int TILE_W = (W - 2 * PAD - 4) / 2;
-    public final int warningsY;
+    /** The settings strip: a chip's height, a row's, and the room inside a chip. */
+    public static final int CHIP = 18, CHIP_ROW = 22, CHIP_PAD = 5;
 
     /** On a shared machine, the rule row over each recipe's rails, and the gap before every recipe after the first. */
     public static final int SECTION_RULE = 16, SECTION_GAP = 8;
 
+    public final int railsH;
+    /** Where the settings strip starts (its hairline), the chips under it, each {x, y, w}. */
+    public final int stripY;
+    public final List<CardChips.Chip> chips;
+    private final int[][] chipAt;
+    /** A power card's warnings, wrapped to the card, under the strip. */
+    public final List<String> warningLines;
+    public final int warningsY;
+    public final int height;
+    /** The power row (what the machine draws) and the circuit's row among the inputs, card-local y; -1 for none. */
+    public final int powerRowY, circuitRowY;
+    /** Whether the circuit is a row of its own (the setting), so the layout is redone when it changes. */
+    public final boolean circuitAsInput;
+
     /** Each recipe on the card: one, or several on a shared machine. */
     private final int sections;
     private final int[] inRows, outRows, ruleY, railsY;
-    /** Where the rails end: below the last recipe's. */
+    /** Where the rails end: below the last recipe's (and the power row). */
     public final int railsEnd;
 
     public CardLayout(final CardModel model) {
@@ -71,17 +74,20 @@ public final class CardLayout {
     /**
      * A card for its recipes, top first. A shared machine gives each recipe a rule row (its share on the left, its
      * circuit and keys on the right) over its rails, which are as tall as its longer side so its inputs and outputs
-     * face
-     * each other, as Factory Flow draws it.
+     * face each other; its power is one row after them all.
      */
     public CardLayout(final List<CardModel> models) {
         sections = models.size();
         final boolean shared = sections > 1;
+        final CardModel first = models.get(0);
+        circuitAsInput = com.gtnhplanner.ui.PlannerSettings.circuitAsInput();
+        final boolean circuitRow = !shared && !first.isPower() && first.circuit != null && circuitAsInput;
+        final boolean powerRow = !first.isPower() && first.euPerTick > 0;
         inRows = new int[sections];
         outRows = new int[sections];
         ruleY = new int[sections];
         railsY = new int[sections];
-        int y = RAILS_Y;
+        int y = RAILS_Y, circuitY = -1, powerY = -1;
         for (int s = 0; s < sections; s++) {
             final CardModel model = models.get(s);
             inRows[s] = model.inputs.size();
@@ -92,12 +98,36 @@ public final class CardLayout {
                 y += SECTION_RULE;
             }
             railsY[s] = y;
-            y += Math.max(shared ? 1 : 0, Math.max(inRows[s], outRows[s])) * ROW;
+            int extra = 0;
+            if (!shared) {
+                if (circuitRow) circuitY = y + (inRows[s] + extra++) * ROW;
+                if (powerRow) powerY = y + (inRows[s] + extra++) * ROW;
+            }
+            y += Math.max(shared ? 1 : 0, Math.max(inRows[s] + extra, outRows[s])) * ROW;
+        }
+        if (shared && powerRow) {
+            powerY = y + 4;
+            y += 4 + ROW;
         }
         railsEnd = y;
+        circuitRowY = circuitY;
+        powerRowY = powerY;
         railsH = Math.max(railsEnd - RAILS_Y, PICTURE_MIN);
-        final CardModel first = models.get(0);
-        powerTiles = first.isPower() ? PowerTiles.of(first) : List.of();
+        // The strip: chips left to right, a new row when one would pass the edge.
+        chips = CardChips.of(first);
+        chipAt = new int[chips.size()][];
+        stripY = RAILS_Y + railsH + 6;
+        int cx = PAD, cy = stripY + 4;
+        for (int i = 0; i < chips.size(); i++) {
+            final int w = chipW(chips.get(i));
+            if (cx > PAD && cx + w > W - PAD) {
+                cx = PAD;
+                cy += CHIP_ROW;
+            }
+            chipAt[i] = new int[] { cx, cy, w };
+            cx += w + 4;
+        }
+        final int stripEnd = chips.isEmpty() ? RAILS_Y + railsH + 2 : cy + CHIP + 4;
         warningLines = new ArrayList<>();
         if (first.isPower() && first.power.model() != null) {
             for (final String warning : first.power.model()
@@ -106,57 +136,37 @@ public final class CardLayout {
                     Hyb.font()
                         .listFormattedStringToWidth(warning, W - 2 * PAD - 4));
         }
-        settingRows = first.isPower() ? (powerTiles.size() + 1) / 2 : first.usesHeat ? 1 : 0;
-        hairY = RAILS_Y + railsH + 5;
-        settingsY = hairY + 6;
-        warningsY = settingsY + settingRows * (SETTING_ROW + 4);
-        footY = warningsY + (warningLines.isEmpty() ? 0 : warningLines.size() * 9 + 4);
-        height = footY + FOOT + 6;
+        warningsY = stripEnd + 2;
+        height = warningsY + (warningLines.isEmpty() ? 0 : warningLines.size() * 9 + 4) + 4;
     }
 
-    /** Card-local {x, y} of a power tile. */
-    public int[] tileAt(final int index) {
-        return new int[] { PAD + (index % 2) * (TILE_W + 4), settingsY + (index / 2) * (SETTING_ROW + 4) };
+    /** A chip's width: its icon, label and value. */
+    public static int chipW(final CardChips.Chip c) {
+        return chipW(c.label(), c.value(), c.icon() != null);
     }
 
-    /** How small a port's name may go before it is cut, against the rate's line. */
-    private static final float NAME_SMALL = 0.75f;
-    /** How wide the fade is where a cut name ends. */
-    private static final int NAME_FADE = 10;
+    public static int chipW(final String label, final String value, final boolean icon) {
+        return CHIP_PAD + (icon ? 14 + 3 : 0) + Hyb.width(label) + 4 + Hyb.width(value) + CHIP_PAD;
+    }
 
-    /**
-     * A port's words, as everywhere a port is shown (the board's cards, the cards over the world and on the minimap):
-     * how much in large type with its unit small beside it, and the name small under it, on one line, both centred in a
-     * tile {@code h} high. A name too long for the line goes smaller, and if still too long is cut and fades out into
-     * the tile ({@code ground}, the tile's colour). The number drops to the name's size when it would not fit.
-     */
-    public static void portText(final String name, final double perSecond, final boolean power, final boolean fluid,
-        final com.gtnhplanner.ui.theme.Fmt.RateUnit unit, final float x, final float y, final int h, final int ground) {
-        final String number = power ? com.gtnhplanner.ui.theme.Fmt.power(perSecond / 20)
-            : com.gtnhplanner.ui.theme.Fmt.compact(perSecond * unit.perSecond);
-        final String suffix = power ? " EU/t" : (fluid ? " L" : "") + unit.suffix;
-        final int colour = perSecond <= 0 ? 0xFFA8AFBB : Hyb.INK;
-        final boolean big = Hyb.width(number) * Hyb.FIGURE + Hyb.width(suffix) + 2 <= TEXT_W;
-        final float rateH = big ? 8 * Hyb.FIGURE : 8;
-        final String label = name == null ? "" : name;
-        final float size = Hyb.width(label) <= TEXT_W ? 1 : NAME_SMALL;
-        final boolean cut = Hyb.width(label) * size > TEXT_W;
-        final String shown = cut ? Hyb.font()
-            .trimStringToWidth(label, (int) (TEXT_W / size)) : label;
-        final float top = RecipeCard.crisp(y + (h - (rateH + 2 + 8 * size)) / 2f);
-        if (big) {
-            Hyb.text(number, x, top, Hyb.FIGURE, colour);
-            Hyb.text(suffix, x + Hyb.width(number) * Hyb.FIGURE + 2, top + 3.5f, Hyb.MUTED);
-        } else Hyb.text(Hyb.fit(number + suffix, TEXT_W), x, top, colour);
-        final float nameY = top + rateH + 2;
-        Hyb.text(shown, x, nameY, size, Hyb.MUTED);
-        if (!cut) return;
-        // The cut end fades into the tile.
-        final float end = x + Hyb.width(shown) * size;
-        for (int k = 0; k < NAME_FADE; k++) {
-            final int a = (int) (255f * (k + 1) / NAME_FADE);
-            Hyb.rect(end - NAME_FADE + k, nameY - 1, 1, 8 * size + 2, a << 24 | ground & 0xFFFFFF);
+    /** Card-local {x, y, w, h} of a chip in the strip. */
+    public int[] chipRect(final int index) {
+        final int[] at = chipAt[index];
+        return new int[] { at[0], at[1], at[2], CHIP };
+    }
+
+    /** The chip under a card-local point, or -1. */
+    public int chipAt(final float x, final float y) {
+        for (int i = 0; i < chipAt.length; i++) {
+            final int[] at = chipAt[i];
+            if (x >= at[0] && x < at[0] + at[2] && y >= at[1] && y < at[1] + CHIP) return i;
         }
+        return -1;
+    }
+
+    /** The picture's box in the middle column, card-local {x, y, side}. */
+    public int[] picture() {
+        return new int[] { PICTURE_X + (PICTURE_W - PICTURE) / 2, RAILS_Y, PICTURE };
     }
 
     public int sections() {
@@ -181,7 +191,7 @@ public final class CardLayout {
         return Math.max(0, Math.min(section, sections - 1));
     }
 
-    /** Top of a port tile, card-local. */
+    /** Top of a port's row, card-local. */
     public int rowY(final int section, final boolean output, final int index) {
         final int s = clampSection(section), rows = (output ? outRows : inRows)[s];
         return railsY[s] + Math.max(0, Math.min(index, Math.max(0, rows - 1))) * ROW;
@@ -195,7 +205,7 @@ public final class CardLayout {
         return ROW;
     }
 
-    /** Where a wire meets the card: the card edge, level with the middle of the port's tile. */
+    /** Where a wire meets the card: the card edge, level with the middle of the port's row. */
     public int anchorY(final int section, final boolean output, final int index) {
         return rowY(section, output, index) + ROW / 2;
     }
@@ -206,6 +216,16 @@ public final class CardLayout {
 
     public static int railX(final boolean output) {
         return output ? OUT_RAIL_X : IN_RAIL_X;
+    }
+
+    /** Where a port's icon is: at the card's edge, on the left for an input and the right for an output. */
+    public static int iconX(final boolean output) {
+        return output ? OUT_RAIL_X + RAIL_W - ICON_X - ICON : IN_RAIL_X + ICON_X;
+    }
+
+    /** Where a port's words start (an input) or end (an output, right aligned). */
+    public static int textEdge(final boolean output) {
+        return output ? OUT_RAIL_X + RAIL_W - TEXT_X : IN_RAIL_X + TEXT_X;
     }
 
     public static int anchorX(final boolean output) {

@@ -31,11 +31,12 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   slots, solve hookup, notices, totals), `canvas/` (board, wires, port drags, arrange), `card/` (recipe card),
   `drawer/`, `popup/` (menus, number and text boxes; recipes are looked up in NEI itself). Known gaps and next
   steps are at the top of `docs/design/build-prompt.md`.
-- `docs/design/card-redesign.md` is the cleaner card under way (trial `ui/card/CleanCardView`, compared side by side
-  with `call cards`): what is settled, where every control and setting goes, and what is left to design.
+- `docs/design/card-redesign.md` is the clean card now on the board, the minimap and the world (`CardLayout`,
+  `CardPaint`, `CardChips`, `RecipeCard`, `CleanCardView`): what is settled, where every control and setting went,
+  and what is left to design (`call cards` pages through a plan's cards).
 - `docs/design/ff-card-spec.md` is Factory Flow's card measured from its source (sizes, colours, tooltips, the
-  power panel's formulas). Our card is 320 wide to its 380 with chrome kept at 1 px; `ui/card/CardLayout` holds
-  the geometry. Board tooltips are `ui/popup/Tip` panels; a multiblock's power chips show `ui/card/PowerPanel`.
+  power panel's formulas). Our card is 320 wide to its 380 with chrome kept at 1 px; the clean card replaced its
+  look (`docs/design/card-redesign.md`); `ui/card/CardLayout` holds the geometry. Board tooltips are `ui/popup/Tip` panels; a multiblock's power chips show `ui/card/PowerPanel`.
 - `importer/` converts Factory Flow plans (JSON, plan codes, links) to graphs: a pure core plus `importer/game/`,
   the NEI and GregTech side. The "+" plan tab pastes one from the clipboard; `call 'importff?file=<path>'` does it
   from the harness. Fixtures are in `src/test/resources/factory-flow/`.

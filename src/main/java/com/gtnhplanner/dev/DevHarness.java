@@ -409,6 +409,23 @@ public final class DevHarness {
                         return error("GregTech is not loaded (start with PLANNH_GTNH=1)");
                     }
                 });
+            case "/addpower":
+                // Power sources: list=1 lists their ids and names; source=<id> adds one to the open plan at x, y.
+                requireWorld();
+                return onClient(() -> {
+                    if (q.containsKey("list")) {
+                        final List<String> ids = new ArrayList<>();
+                        for (final com.gtnhplanner.power.PowerSource s : com.gtnhplanner.power.PowerRegistry.sources())
+                            ids.add(s.id() + " = " + s.name());
+                        return Map.of("sources", ids);
+                    }
+                    final com.gtnhplanner.ui.BoardSession board = com.gtnhplanner.ui.BoardSession.current();
+                    if (board == null) return error("open the planner first");
+                    final com.gtnhplanner.data.flowchart.Node node = board.addPower(arg(q, "source"), Map.of());
+                    node.x = intArg(q, "x", 0);
+                    node.y = intArg(q, "y", 0);
+                    return Map.of("id", String.valueOf(node.id));
+                });
             case "/cards":
                 // Card designs side by side (today's and the trial), for the plan last open.
                 return onClient(() -> {
