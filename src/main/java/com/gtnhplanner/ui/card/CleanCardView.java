@@ -10,10 +10,10 @@ import com.gtnhplanner.ui.world.PlanSnapshot;
 
 /**
  * A trial of a cleaner card, drawn from a {@link PlanSnapshot} card to compare with today's ({@link PlanCardView}):
- * one surface and no boxes inside it. The name on the left of a plain header with the tier and amps on the right;
- * inputs against the left edge and outputs against the right, where their wires meet the card, each its icon, how much
- * in large type and its name small under it; the machine in the middle with how many under it in large type and the
- * power small below. In card units, at the origin.
+ * one surface and no boxes inside it. The name large on the left of the header with the amps and tier chips on the
+ * right; inputs against the left edge and outputs against the right, where their wires meet the card, each its icon,
+ * how much in large type and its name small under it, power being one more of them with a bolt; the machine in the
+ * middle with how many in a badge on its corner. In card units, at the origin.
  */
 public final class CleanCardView {
 
@@ -21,28 +21,31 @@ public final class CleanCardView {
 
     private static final int W = CardLayout.W;
     /** The header, a port row, the side margin, and the icon. */
-    private static final int HEAD = 28, ROW = 32, EDGE = 8, ICON = 24;
-    /** The middle column: the machine and its count and power. */
-    private static final int MID_X = 112, MID_W = W - 2 * MID_X, PICTURE = 60;
+    private static final int HEAD = 32, ROW = 32, EDGE = 8, ICON = 24;
+    /** The header's chips, as the board's. */
+    private static final int CHIP_H = 20, CHIP_W = 48, SINGLE_TIER_W = 42;
+    /** The middle column: the machine, its count on its corner. */
+    private static final int MID_X = 112, MID_W = W - 2 * MID_X, PICTURE = 72;
     /** Where a port's words start, beside its icon; and how wide they may be. */
     private static final int TEXT_GAP = 6, TEXT_W = MID_X - EDGE - ICON - TEXT_GAP - 6;
 
     private static final int SURFACE = 0xFF23252A, EDGE_LINE = 0xFF34363C, HAIR = 0xFF2C2E34;
 
-    private static int rows(final PlanSnapshot.Card c) {
-        return Math.max(
-            c.inputs()
-                .size(),
-            c.outputs()
-                .size());
+    /**
+     * A side's ports, power being one more: what the machine draws after its inputs, what it makes after its outputs.
+     */
+    private static List<PlanSnapshot.Flow> side(final PlanSnapshot.Card c, final boolean output) {
+        final List<PlanSnapshot.Flow> ports = new java.util.ArrayList<>(output ? c.outputs() : c.inputs());
+        final double eu = output ? c.madeEuPerTick() : c.euPerTick();
+        if (eu <= 0) return ports;
+        for (final PlanSnapshot.Flow p : ports) if (p.power()) return ports;
+        ports.add(new PlanSnapshot.Flow("Power", null, null, true, eu * 20, "power:eu"));
+        return ports;
     }
 
-    /** The middle column's height: the machine, its count and its power. */
-    private static final int MIDDLE = PICTURE + 4 + 12 + 3 + 8;
-
-    /** The body under the header: as tall as the longer side, or the middle column. */
+    /** The body under the header: as tall as the longer side, or the machine. */
     private static int body(final PlanSnapshot.Card c) {
-        return Math.max(MIDDLE, rows(c) * ROW);
+        return Math.max(PICTURE, Math.max(side(c, false).size(), side(c, true).size()) * ROW);
     }
 
     public static int height(final PlanSnapshot.Card c) {
@@ -61,54 +64,47 @@ public final class CleanCardView {
         Hyb.rect(0, 0, W, h, EDGE_LINE);
         Hyb.rect(1, 1, W - 2, h - 2, SURFACE);
         head(c);
-        // The middle and each side centred in the body, so a short side sits level with the machine.
-        final int top = HEAD + 6, body = body(c);
-        middle(c, top + (body - MIDDLE) / 2);
-        ports(
-            c.inputs(),
-            false,
-            top + (body - c.inputs()
-                .size() * ROW) / 2,
-            unit);
-        ports(
-            c.outputs(),
-            true,
-            top + (body - c.outputs()
-                .size() * ROW) / 2,
-            unit);
+        final int top = HEAD + 6;
+        middle(c, top);
+        ports(side(c, false), false, top, unit);
+        ports(side(c, true), true, top, unit);
     }
 
-    /** The name, left; the amps and tier, right; a hairline under them. */
+    /** The name large, left; the amps and tier chips, as the board's but bold, right; a hairline under them. */
     private static void head(final PlanSnapshot.Card c) {
+        final int y = (HEAD - CHIP_H) / 2;
         int right = W - EDGE;
         if (!c.tier()
             .isEmpty()) {
             final Hyb.Tier tier = Hyb.tier(c.tier());
-            final int tw = Math.max(32, Hyb.width(tier.name()) + 14);
+            final int tw = c.amps() > 0 ? CHIP_W : SINGLE_TIER_W;
             right -= tw;
-            RecipeCard.chip(right, 5, tw, 18, tier, tier.name(), tier.underline(), false);
+            RecipeCard.chip(right, y, tw, CHIP_H, tier, BOLD + tier.name(), tier.underline(), false);
             if (c.amps() > 0) {
-                final String amps = c.amps() + "A";
-                right -= Hyb.width(amps) + 6;
-                Hyb.text(amps, right, 10, Hyb.MUTED);
+                right -= CHIP_W + 2;
+                RecipeCard.chip(right, y, CHIP_W, CHIP_H, tier, BOLD + c.amps() + "A", false, false);
             }
-            right -= 6;
+            right -= 8;
         }
-        Hyb.text(Hyb.fit(c.name(), right - EDGE), EDGE, 10, Hyb.INK);
+        final float big = Hyb.FIGURE;
+        final String name = Hyb.fit(c.name(), (int) ((right - EDGE) / big));
+        Hyb.text(name, EDGE, y + (CHIP_H - 8 * big) / 2f, big, Hyb.INK);
         Hyb.rect(1, HEAD, W - 2, 1, HAIR);
     }
 
-    /** The machine, how many in large type under it, and its power small below. */
+    /** The game's bold. */
+    private static final String BOLD = "\u00a7l";
+
+    /** The machine, and how many in a dark badge on its bottom right corner. */
     private static void middle(final PlanSnapshot.Card c, final int top) {
         final int x = MID_X + (MID_W - PICTURE) / 2;
         art(c, x, top, PICTURE, PICTURE);
         final String count = "×" + Fmt.machines(c.machines());
-        final int countColour = c.pinned() ? Hyb.GOLD : c.machines() <= 0 ? Hyb.MUTED : Hyb.INK;
-        final float cy = top + PICTURE + 4;
-        Hyb.text(count, MID_X + (MID_W - Hyb.width(count) * Hyb.FIGURE) / 2f, cy, Hyb.FIGURE, countColour);
-        final boolean makes = c.madeEuPerTick() > 0;
-        final String eu = (makes ? "+" : "") + Fmt.power(makes ? c.madeEuPerTick() : c.euPerTick()) + " EU/t";
-        Hyb.textCentered(eu, W / 2f, cy + 12 + 3, makes ? 0xFFFCD34D : Hyb.MUTED);
+        final int colour = c.pinned() ? Hyb.GOLD : c.machines() <= 0 ? Hyb.MUTED : Hyb.INK;
+        final float s = Hyb.FIGURE, tw = Hyb.width(count) * s, th = 8 * s;
+        final float bx = x + PICTURE - tw - 4, by = top + PICTURE - th - 4;
+        Hyb.rect(bx - 2, by - 2, tw + 4, th + 3, 0xD0101114);
+        Hyb.text(count, bx, by, s, colour);
     }
 
     /** The machine's structure picture fitted in a box, or its item. */
