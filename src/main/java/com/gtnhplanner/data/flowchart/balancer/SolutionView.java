@@ -148,9 +148,18 @@ public final class SolutionView {
             if (supplied.contains(in.port())) continue;
             final SolveInput.PortIn ingredient = portOf(ctx, in);
             if (ingredient.free()) continue;
-            final String match = findProduction(ctx, in, -1);
+            final ModelData.Machine match = findProduction(ctx, in, -1);
             if (match != null) {
-                result.add(new Note(SolverMessage.WIRING_IMPORT, machineNameOf(ctx, in), ingredient.name(), match));
+                // The two cards' ids last, for the board's "Show me".
+                result.add(
+                    new Note(
+                        SolverMessage.WIRING_IMPORT,
+                        machineNameOf(ctx, in),
+                        ingredient.name(),
+                        match.spec.name(),
+                        in.port()
+                            .nodeId(),
+                        match.spec.id()));
             }
         }
         for (int p = 0; p < model.connectedPorts.size(); p++) {
@@ -160,20 +169,29 @@ public final class SolutionView {
             if (supplied.contains(src.port())) continue;
             final SolveInput.PortIn ingredient = portOf(ctx, src);
             if (ingredient.free()) continue;
-            final String match = findProduction(ctx, src, model.portComponent[p]);
+            final ModelData.Machine match = findProduction(ctx, src, model.portComponent[p]);
             if (match != null) {
-                result.add(new Note(SolverMessage.WIRING_UNLINKED, machineNameOf(ctx, src), ingredient.name(), match));
+                result.add(
+                    new Note(
+                        SolverMessage.WIRING_UNLINKED,
+                        machineNameOf(ctx, src),
+                        ingredient.name(),
+                        match.spec.name(),
+                        src.port()
+                            .nodeId(),
+                        match.spec.id()));
             }
         }
         return List.copyOf(result);
     }
 
     /**
-     * A machine name producing the same ingredient as {@code consumer}'s port, or null. Checks
+     * A machine producing the same ingredient as {@code consumer}'s port, or null. Checks
      * terminal outputs and connected output ports; {@code excludeComponent} skips the consumer's
      * own component (-1 checks everything).
      */
-    private String findProduction(final SolveContext ctx, final External consumer, final int excludeComponent) {
+    private ModelData.Machine findProduction(final SolveContext ctx, final External consumer,
+        final int excludeComponent) {
         final ModelData model = ctx.model;
         final int want = portOf(ctx, consumer).resource();
         for (int p = 0; p < model.connectedPorts.size(); p++) {
@@ -182,7 +200,7 @@ public final class SolutionView {
             final ModelData.Machine md = model.machines.get(port.machine());
             if (md.port(port.portIndex(), false)
                 .resource() == want) {
-                return md.spec.name();
+                return md;
             }
         }
         for (int m = 0; m < model.machines.size(); m++) {
@@ -192,7 +210,7 @@ public final class SolutionView {
                 if (model.portLookup.containsKey(ModelData.portKey(m, i, false))) continue; // connected, handled above
                 if (md.port(i, false)
                     .resource() == want) {
-                    return md.spec.name();
+                    return md;
                 }
             }
         }

@@ -1606,6 +1606,11 @@ public final class BoardSession {
         return nothingToSolveFor;
     }
 
+    /**
+     * The lines along the top of the board, as a player wants them: what is wrong in a few words, the thing it is about
+     * named first, and "Show me" to find it. The solver's own sentences are for the log; problems of one kind share a
+     * line.
+     */
     private List<Notice> buildNotices(final Map<UUID, CardModel> cards) {
         final List<Notice> out = new ArrayList<>();
         nothingToSolveFor = false;
@@ -1616,38 +1621,67 @@ public final class BoardSession {
                     if (nothingToSolveFor) out.add(
                         new Notice(
                             Severity.INFO,
-                            "Nothing to solve for: set a rate on a product, or pin a machine count.",
+                            "Give a product a rate, or pin a machine count, to size the plan",
                             List.of()));
                 }
             }
             for (final DrawerReadout.Shortfall s : result.drawers()
                 .shortfalls()) {
                 final DrawerModel d = drawerModels.get(s.drawer());
-                final String label = d == null ? "a product" : d.label;
-                final boolean fluid = d != null && d.isFluid();
+                final String label = d == null ? "A product" : d.label;
                 final List<UUID> focus = new ArrayList<>();
                 focus.add(s.drawer());
                 focus.addAll(s.limitingNodes());
                 focus.addAll(s.limitingDrawers());
-                out.add(
-                    new Notice(
-                        Severity.WARN,
-                        "Can't reach " + label
-                            + ": "
-                            + Fmt.rate(s.reachable(), rateUnit, fluid)
-                            + " of "
-                            + Fmt.rate(s.target(), rateUnit, fluid),
-                        focus));
+                final String reach = d == null ? Fmt.rate(s.reachable(), rateUnit, false)
+                    : d.rate(s.reachable(), rateUnit);
+                final String target = d == null ? Fmt.rate(s.target(), rateUnit, false) : d.rate(s.target(), rateUnit);
+                // Short of a floor reads "only"; past a ceiling (an at-most rule, or exactly from above) says so.
+                final String text = s.reachable() > s.target()
+                    ? label + ": " + reach + ", over its " + target + " limit"
+                    : label + ": only " + reach + " of " + target;
+                out.add(new Notice(Severity.WARN, text, focus));
             }
+            // Made on the board but not wired to where it is used: one line for all of them.
+            final List<String> notWiredIn = new ArrayList<>();
+            final List<UUID> notWiredFocus = new ArrayList<>();
             for (final Note note : result.notes()) {
-                // An empty plan is not an error: the board says how to start one.
-                if (note.severity() == Severity.INFO || note.message() == SolverMessage.DRAWER_UNMET
-                    || note.message() == SolverMessage.DRAWER_LIMITED_BY
-                    || note.message() == SolverMessage.EMPTY_GRAPH) continue;
-                out.add(new Notice(note.severity(), render(note), idsIn(note)));
+                switch (note.message()) {
+                    case WIRING_UNLINKED -> {
+                        final String what = String.valueOf(named(note).args()[1]);
+                        if (!notWiredIn.contains(what)) notWiredIn.add(what);
+                        notWiredFocus.addAll(idsIn(note));
+                    }
+                    case OVERSHOOTS_TARGET -> out.add(overshoot(note, cards));
+                    case DRAWER_NOT_CONNECTED -> out.add(
+                        new Notice(
+                            Severity.WARN,
+                            note.args()[0] + ": has a rate, but nothing reaches it",
+                            idsIn(note)));
+                    case DRAWER_WIRED_IGNORED -> out.add(
+                        new Notice(
+                            Severity.WARN,
+                            note.args()[0] + ": its rate does nothing, as its ports are wired",
+                            idsIn(note)));
+                    case CHOICE_NO_LONGER_FITS, CHOICE_NEEDS_MORE_GATES -> out.add(
+                        new Notice(
+                            Severity.WARN,
+                            "Your saved choice no longer fits; showing the solver's own",
+                            List.of()));
+                    default -> {
+                        if (note.severity() == Severity.ERROR && note.message() != SolverMessage.EMPTY_GRAPH)
+                            out.add(failure(note));
+                    }
+                }
             }
+            if (!notWiredIn.isEmpty()) out.add(
+                new Notice(
+                    Severity.WARN,
+                    notWiredIn.size() == 1 ? notWiredIn.get(0) + " is made here but not wired in"
+                        : "Made here, not wired in: " + String.join(", ", notWiredIn),
+                    notWiredFocus));
         } else if (lastResult != null && lastResult.errorNote() != null) {
-            out.add(new Notice(Severity.ERROR, render(lastResult.errorNote()), List.of()));
+            out.add(failure(lastResult.errorNote()));
         }
         final List<UUID> unwiredCards = new ArrayList<>();
         int unwired = 0;
@@ -1658,9 +1692,70 @@ public final class BoardSession {
             if (here > 0) unwiredCards.add(card.node.id);
             unwired += here;
         }
-        if (unwired > 0) out.add(
-            new Notice(Severity.WARN, "Not wired up: " + unwired + (unwired == 1 ? " port" : " ports"), unwiredCards));
+        if (unwired > 0) out
+            .add(new Notice(Severity.WARN, unwired + (unwired == 1 ? " port" : " ports") + " not wired", unwiredCards));
         return out;
+    }
+
+    /** An output made past its target: "Steel: 12/s, over its 10/s target". */
+    private Notice overshoot(final Note note, final Map<UUID, CardModel> cards) {
+        final Object[] a = note.args();
+        final String what = String.valueOf(a[1]);
+        boolean fluid = false;
+        final CardModel card = a.length > 4 && a[4] instanceof final UUID id ? cards.get(id) : null;
+        if (card != null) for (final CardModel.PortView p : card.outputs) if (p.name()
+            .equals(what)) fluid = p.isFluid();
+        final double made = a[2] instanceof final Number n ? n.doubleValue() : 0;
+        final double target = a[3] instanceof final Number n ? n.doubleValue() : 0;
+        return new Notice(
+            Severity.WARN,
+            what + ": " + Fmt.rate(made, rateUnit, fluid) + ", over its " + Fmt.rate(target, rateUnit, fluid) + " target",
+            idsIn(note));
+    }
+
+    /**
+     * A solve that found no answer, as what the player can do about it. The solver's own account goes to the log, once
+     * per change.
+     */
+    private Notice failure(final Note note) {
+        final String detail = render(note);
+        if (!detail.equals(lastFailureLogged)) {
+            lastFailureLogged = detail;
+            GtnhPlanner.LOG.info("[solve] no answer: {}", detail);
+        }
+        final List<Note> clashing = new ArrayList<>();
+        collect(note, SolverMessage.PIN_DROPPED, clashing);
+        if (!clashing.isEmpty()) {
+            final List<String> names = new ArrayList<>();
+            final List<UUID> ids = new ArrayList<>();
+            for (final Note pin : clashing) {
+                final String name = String.valueOf(named(pin).args()[0]);
+                if (!names.contains(name)) names.add(name);
+                ids.addAll(idsIn(pin));
+            }
+            return new Notice(Severity.ERROR, "These pins can't all hold: " + String.join(", ", names), ids);
+        }
+        if (note.containsMessage(SolverMessage.MACHINES_CANNOT_RUN))
+            return new Notice(Severity.ERROR, "Some machines can't run with these pins and rates", List.of());
+        if (note.containsMessage(SolverMessage.SOLVER_UNSATISFIABLE)
+            || note.containsMessage(SolverMessage.SOLVER_NO_SOLUTION)
+            || note.containsMessage(SolverMessage.SOLVER_BUDGET)
+            || note.containsMessage(SolverMessage.STAGE_FAILED))
+            return new Notice(
+                Severity.ERROR,
+                "No answer fits these rates and pins: loosen a rate or unpin a count",
+                List.of());
+        return new Notice(Severity.ERROR, "The solver hit a problem (details in the log)", List.of());
+    }
+
+    private String lastFailureLogged = "";
+
+    /** Every note of a kind inside a note's arguments, nested notes and lists included. */
+    private static void collect(final Object arg, final SolverMessage kind, final List<Note> into) {
+        if (arg instanceof final Note note) {
+            if (note.message() == kind) into.add(note);
+            for (final Object a : note.args()) collect(a, kind, into);
+        } else if (arg instanceof final List<?> list) for (final Object o : list) collect(o, kind, into);
     }
 
     private static String render(final Note note) {

@@ -117,8 +117,12 @@ public final class BoardScreen extends ModularScreen {
         topBar.child(
             boltKey(
                 "Non-recipe machines\n§7Generators, turbines, boilers, reactors and the rest: machines that run no NEI"
-                    + " recipe\nClick: pick one to put on the board",
-                openPicker).marginLeft(GROUP_GAP));
+                    + " recipe\nClick: pick one to put on the board; click again to close",
+                () -> {
+                    // The key opens the picker and closes it again.
+                    if (picker.isEnabled()) picker.setEnabled(false);
+                    else openPicker.run();
+                }).marginLeft(GROUP_GAP));
         topBar.child(iconKey(Arrow.UNDO, session::canUndo, "Undo\n§7Ctrl+Z", session::undo).marginLeft(GROUP_GAP));
         topBar.child(iconKey(Arrow.REDO, session::canRedo, "Redo\n§7Ctrl+Shift+Z or Ctrl+Y", session::redo));
         topBar.child(

@@ -156,7 +156,8 @@ public final class SolveContext {
                         new Note(
                             row.externalPorts().length > 0 ? SolverMessage.DRAWER_WIRED_IGNORED
                                 : SolverMessage.DRAWER_NOT_CONNECTED,
-                            row.label()));
+                            row.label(),
+                            row.id()));
                 }
                 continue;
             }
@@ -256,7 +257,8 @@ public final class SolveContext {
                         md.port(i, false)
                             .name(),
                         actual,
-                        t.getValue()));
+                        t.getValue(),
+                        md.spec.id()));
             }
         }
     }
@@ -464,8 +466,12 @@ public final class SolveContext {
                 if (saved.size() == pinned.size() - 1) return null; // one pin left: not a conflict
                 saved.put(m, pinnedExtent[m]);
                 pinnedExtent[m] = Double.NaN;
-                dropped
-                    .add(new Note(SolverMessage.PIN_DROPPED, model.machines.get(m).spec.name(), pinKind[m].toNote()));
+                dropped.add(
+                    new Note(
+                        SolverMessage.PIN_DROPPED,
+                        model.machines.get(m).spec.name(),
+                        pinKind[m].toNote(),
+                        model.machines.get(m).spec.id()));
             }
         } finally {
             saved.forEach((m, value) -> pinnedExtent[m] = value);

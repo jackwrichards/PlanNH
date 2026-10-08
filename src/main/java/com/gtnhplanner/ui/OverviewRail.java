@@ -54,7 +54,9 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         RATE,
         PEAK,
         GROUP,
-        MACHINE
+        MACHINE,
+        /** The list's scroll bar: drag the thumb, or click the track to jump. */
+        SCROLLBAR
     }
 
     /** Something clickable or hoverable, in rail coordinates, rebuilt every frame by the draw pass. */
@@ -192,9 +194,15 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         // Folding a section can leave the list scrolled past its end; a thin bar says when there is more.
         final int visible = h - listY, max = Math.max(0, contentH - visible);
         if (scroll > max) scroll = max;
+        scrollMax = max;
         if (max > 0) {
-            final int thumb = Math.max(10, visible * visible / contentH);
-            Hyb.rect(w - 4, listY + (visible - thumb) * scroll / max, 2, thumb, Hyb.MUTED);
+            final int thumb = Math.max(14, visible * visible / contentH);
+            barThumb = thumb;
+            barTrack = visible - thumb;
+            final int top = listY + barTrack * scroll / max;
+            final boolean hot = draggingBar || hover != null && hover.kind() == Kind.SCROLLBAR;
+            if (hot) Hyb.rect(w - BAR_W - 1, listY, BAR_W, visible, 0x40000000);
+            Hyb.rect(w - BAR_W, top, BAR_W - 2, thumb, hot ? Hyb.INK : 0xFF6A6C74);
         }
         // Keep what is on screen of the list; the heading's fold key stays as it is.
         final List<Hit> moved = new ArrayList<>(hits.size());
@@ -206,6 +214,8 @@ final class OverviewRail extends ParentWidget<OverviewRail>
             if (hit.y1() <= listY || hit.y0() >= h) continue;
             moved.add(new Hit(hit.kind(), hit.x0(), Math.max(hit.y0(), listY), hit.x1(), hit.y1(), hit.data()));
         }
+        // The scroll bar sits over the list's right edge, on top of everything there (hits are found first to last).
+        if (max > 0) moved.add(0, new Hit(Kind.SCROLLBAR, w - BAR_W - 2, listY, w, h, null));
         hits.clear();
         hits.addAll(moved);
         lastHits.clear();
@@ -505,10 +515,49 @@ final class OverviewRail extends ParentWidget<OverviewRail>
 
     // region Mouse
 
+    /** The scroll bar's width, and its state as last drawn: the thumb's height, how far it travels, the most scroll. */
+    private static final int BAR_W = 5;
+    private int barThumb, barTrack, scrollMax;
+    /** Dragging the thumb, and where on it it was taken. */
+    private boolean draggingBar;
+    private int barGrab;
+
+    /** Scrolls so the thumb's top is at {@code thumbTop} (rail-local). */
+    private void scrollBarTo(final int thumbTop) {
+        if (barTrack <= 0) return;
+        final int at = Math.max(0, Math.min(barTrack, thumbTop - LIST_Y));
+        scroll = Math.round((float) at * scrollMax / barTrack);
+    }
+
+    @Override
+    public void onMouseDrag(final int mouseButton, final long timeSinceClick) {
+        if (draggingBar) scrollBarTo(localMouseY() - barGrab);
+    }
+
+    @Override
+    public boolean onMouseRelease(final int mouseButton) {
+        if (!draggingBar) return false;
+        draggingBar = false;
+        return true;
+    }
+
+    private int localMouseY() {
+        return getContext().getAbsMouseY() - getArea().y;
+    }
+
     @Override
     public Result onMousePressed(final int mouseButton) {
         final Hit hit = hitAtMouseFromLastFrame();
         if (hit == null) return open ? Result.SUCCESS : Result.IGNORE;
+        if (hit.kind() == Kind.SCROLLBAR) {
+            if (mouseButton != 0) return Result.SUCCESS;
+            // On the thumb it is taken where it was grabbed; on the track the thumb jumps to centre on the mouse.
+            final int y = localMouseY(), top = LIST_Y + (scrollMax <= 0 ? 0 : barTrack * scroll / scrollMax);
+            barGrab = y >= top && y < top + barThumb ? y - top : barThumb / 2;
+            draggingBar = true;
+            scrollBarTo(y - barGrab);
+            return Result.SUCCESS;
+        }
         // Middle-click on a rule or rate clears the drawer back to "rate?", as on the website.
         if (mouseButton == 2 && (hit.kind() == Kind.RULE || hit.kind() == Kind.RATE)) {
             Hyb.click();
@@ -633,6 +682,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         final Fmt.RateUnit unit = session.rateUnit();
         return switch (hit.kind()) {
             case FOLD -> List.of(open ? "Fold the overview" : "Open the overview");
+            case SCROLLBAR -> null;
             case ADD -> List.of(
                 inputs.contains(hit.data()) ? "Add a source for it" : "Add a product for it",
                 hint + "Linked to every port waiting for it");
