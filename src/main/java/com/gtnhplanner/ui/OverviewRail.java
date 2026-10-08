@@ -278,12 +278,15 @@ final class OverviewRail extends ParentWidget<OverviewRail>
                 Hyb.rect(0, y, w - 1, 1, 0x9922D3EE);
                 Hyb.rect(0, y + h - 1, w - 1, 1, 0x9922D3EE);
             }
-            if (line.isFluid()) Hyb.fluid(line.fluid(), 4, y + 1, 16, z);
+            final boolean eu = Resources.isPower(line.key());
+            if (eu) com.gtnhplanner.ui.card.RecipeCard.euIcon(4, y + 1, 16);
+            else if (line.isFluid()) Hyb.fluid(line.fluid(), 4, y + 1, 16, z);
             else Hyb.item(line.item(), 4, y + 1, 16, z);
             // What the plan moves, right-aligned against the controls so the numbers line up down the list.
-            final String number = (line.amount() > 0 ? sign : "") + Fmt.compact(line.amount() * unit.perSecond);
-            // The time unit is the same on every line, so it is said once, in the section's header.
-            final String suffix = line.isFluid() ? " L" : "";
+            final String number = (line.amount() > 0 ? sign : "")
+                + Fmt.compact(eu ? line.amount() / 20 : line.amount() * unit.perSecond);
+            // The time unit is the same on every line, so it is said once, in the section's header; EU is in EU/t.
+            final String suffix = eu ? " EU/t" : line.isFluid() ? " L" : "";
             final int rateW = Hyb.width(number) + Hyb.width(suffix) + 1;
             Hyb.text(Hyb.fit(line.label(), rateRight - rateW - 6 - 23), 23, y + 5, Hyb.INK);
             Hyb.text(number, rateRight - rateW, y + 5, line.amount() > 0 ? ink : Hyb.MUTED);
@@ -361,7 +364,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
             final Fmt.RateUnit unit = session.rateUnit();
             // In the line's own unit, as the number beside it.
             Hyb.text(
-                Hyb.fit(Fmt.compact(target * unit.perSecond), BOX_W - 7),
+                Hyb.fit(Fmt.compact(d.shown(target, unit)), BOX_W - 7),
                 bx + 4,
                 y + 3,
                 d.unmet ? 0xFFF87171 : Hyb.GOLD);
@@ -401,8 +404,25 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         hits.add(new Hit(Kind.PEAK, px, y - SECTION_H + 2, px + TOGGLE_W, y - 2, null));
         if (folded.contains("MACHINES")) return y + GAP;
 
-        Hyb.text("Total", 8, y + 4, Hyb.MUTED);
-        Hyb.textRight(Fmt.power(t.euPerTick()) + " EU/t", w - 6, y + 4, Hyb.INK);
+        if (t.euMade() > 0) {
+            // With generators on the board: what the machines use, what the generators make, and what is left.
+            final double net = t.euMade() - t.euPerTick();
+            Hyb.text("Used", 8, y + 4, Hyb.MUTED);
+            Hyb.textRight(Fmt.power(t.euPerTick()) + " EU/t", w - 6, y + 4, Hyb.INK);
+            y += LINE_H;
+            Hyb.text("Made", 8, y + 4, Hyb.MUTED);
+            Hyb.textRight(Fmt.power(t.euMade()) + " EU/t", w - 6, y + 4, 0xFFFCD34D);
+            y += LINE_H;
+            Hyb.text("Net", 8, y + 4, Hyb.MUTED);
+            Hyb.textRight(
+                (net >= 0 ? "+" : "-") + Fmt.power(Math.abs(net)) + " EU/t",
+                w - 6,
+                y + 4,
+                net >= 0 ? Hyb.PRODUCT_INK : Hyb.RED_INK);
+        } else {
+            Hyb.text("Total", 8, y + 4, Hyb.MUTED);
+            Hyb.textRight(Fmt.power(t.euPerTick()) + " EU/t", w - 6, y + 4, Hyb.INK);
+        }
         y += LINE_H + 2;
         if (groups.isEmpty()) {
             Hyb.text(
@@ -450,6 +470,8 @@ final class OverviewRail extends ParentWidget<OverviewRail>
                     cx += cw + 4;
                 }
                 if (m.tooLow()) Hyb.textRight("TIER!", w - 6, y + 3, Hyb.RED_INK);
+                else if (m.madeEuPerTick() > 0)
+                    Hyb.textRight("+" + Fmt.power(m.madeEuPerTick()) + " EU/t", w - 6, y + 3, 0xFFE0B04A);
                 else Hyb.textRight(Fmt.power(m.euPerTick()) + " EU/t", w - 6, y + 3, Hyb.MUTED);
                 hits.add(new Hit(Kind.MACHINE, 0, y, w - 1, y + LINE_H, m));
                 y += LINE_H;

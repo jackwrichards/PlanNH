@@ -47,6 +47,14 @@ public final class CardLayout {
     public final int footY;
     public final int height;
 
+    /** A power card's tiles, two to a row: its settings, then its readings. Empty on a recipe card. */
+    public final List<PowerTiles.Tile> powerTiles;
+    /** A power card's warnings, wrapped to the card, under its tiles. */
+    public final List<String> warningLines;
+    /** A power tile's size, and where the warnings start. */
+    public static final int TILE_W = (W - 2 * PAD - 4) / 2;
+    public final int warningsY;
+
     /** On a shared machine, the rule row over each recipe's rails, and the gap before every recipe after the first. */
     public static final int SECTION_RULE = 16, SECTION_GAP = 8;
 
@@ -93,11 +101,27 @@ public final class CardLayout {
         }
         railsEnd = y;
         railsH = Math.max(railsEnd - RAILS_Y, PICTURE_MIN);
-        settingRows = models.get(0).usesHeat ? 1 : 0;
+        final CardModel first = models.get(0);
+        powerTiles = first.isPower() ? PowerTiles.of(first) : List.of();
+        warningLines = new ArrayList<>();
+        if (first.isPower() && first.power.model() != null) {
+            for (final String warning : first.power.model()
+                .warnings())
+                warningLines.addAll(
+                    Hyb.font()
+                        .listFormattedStringToWidth(warning, W - 2 * PAD - 4));
+        }
+        settingRows = first.isPower() ? (powerTiles.size() + 1) / 2 : first.usesHeat ? 1 : 0;
         hairY = RAILS_Y + railsH + 5;
         settingsY = hairY + 6;
-        footY = settingsY + settingRows * (SETTING_ROW + 4);
+        warningsY = settingsY + settingRows * (SETTING_ROW + 4);
+        footY = warningsY + (warningLines.isEmpty() ? 0 : warningLines.size() * 9 + 4);
         height = footY + FOOT + 6;
+    }
+
+    /** Card-local {x, y} of a power tile. */
+    public int[] tileAt(final int index) {
+        return new int[] { PAD + (index % 2) * (TILE_W + 4), settingsY + (index / 2) * (SETTING_ROW + 4) };
     }
 
     /** One or two lines per port name; a name longer than two lines keeps "..." at the end of the second. */

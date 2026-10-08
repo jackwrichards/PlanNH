@@ -24,6 +24,7 @@ public final class Resources {
         if (value instanceof final FluidStack fluid && fluid.getFluid() != null) return "fluid:" + fluid.getFluid()
             .getName();
         if (value instanceof final ItemStack stack && stack.getItem() != null) return CardDefaults.itemKey(stack);
+        if (value instanceof com.gtnhplanner.power.Energy) return com.gtnhplanner.power.Energy.KEY;
         return "";
     }
 
@@ -33,6 +34,11 @@ public final class Resources {
         if (fluid != null && fluid.getFluid() != null) return "fluid:" + fluid.getFluid()
             .getName();
         return CardDefaults.itemKey(stack);
+    }
+
+    /** EU: a generator's output, shown in EU/t and drawn as a bolt. */
+    public static boolean isPower(final String key) {
+        return com.gtnhplanner.power.Energy.KEY.equals(key);
     }
 
     public static boolean isFluid(final String key) {
@@ -72,6 +78,7 @@ public final class Resources {
 
     /** The resource's display name, for drawers saved without a label. */
     public static String name(final String key) {
+        if (isPower(key)) return com.gtnhplanner.power.Energy.NAME;
         final FluidStack fluid = fluid(key);
         if (fluid != null) return fluid.getLocalizedName();
         final ItemStack item = item(key);

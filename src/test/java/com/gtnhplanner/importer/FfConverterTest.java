@@ -411,7 +411,8 @@ class FfConverterTest {
         assertEquals(Drawer.Rule.AT_MOST, water.getRule(), "a Build plan's custom rate supplies up to its rate");
         assertEquals(100, water.getRate(), "50/s on each of 2 machines");
         assertEquals(Drawer.Rule.ANY, drawer(g, "item:a:clay:0").getRule(), "Build: no drawer rules");
-        assertTrue(has(r.report(), Kind.DROPPED, "power card"));
+        // The stand-in game builds no generators; the real one rebuilds the card from its source (PowerCardTest).
+        assertTrue(has(r.report(), Kind.UNMATCHED, "generator"));
         assertTrue(has(r.report(), Kind.DROPPED, "switched-off"));
         assertTrue(has(r.report(), Kind.CONVERTED, "source drawer for Water, at most 100/s"));
         assertTrue(has(r.report(), Kind.WIRE, "1 wire to cards that were left out"));

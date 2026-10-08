@@ -25,6 +25,15 @@ public interface NodeMaker {
     @Nullable
     Node make(GameRecipe recipe, @Nullable String machineLabel);
 
+    /**
+     * A power card (a generator) for one of the site's power sources at its settings, at (0, 0); null when the source
+     * is unknown or the maker builds no generators.
+     */
+    @Nullable
+    default Node makePower(final String sourceId, final Map<String, String> settings) {
+        return null;
+    }
+
     /** What a port of a node made here holds. */
     PortInfo describe(Port<?> port);
 

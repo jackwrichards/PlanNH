@@ -22,6 +22,7 @@ import com.gtnhplanner.data.properties.RecipeProperty;
 import com.gtnhplanner.data.properties.ResourceProperty;
 import com.gtnhplanner.data.provider.DefaultProvider;
 import com.gtnhplanner.data.provider.gregtech.GTHooks;
+import com.gtnhplanner.power.Energy;
 
 public final class RecipePropertyAPI {
 
@@ -78,6 +79,23 @@ public final class RecipePropertyAPI {
         .pinInputColor(PlannerColors.PIN_FLUID_IN.getColor())
         .pinOutputColor(PlannerColors.PIN_FLUID_OUT.getColor())
         .arrowColor(PlannerColors.ARROW_FLUID.getColor())
+        .build();
+
+    /**
+     * EU as a resource ({@link Energy}): a generator's output port, per craft (a generator's craft is one second).
+     * Every EU port connects to every other; nothing consumes one, so EU wires end on drawers.
+     */
+    public static final ResourceProperty<Energy> POWER = ResourceProperty.<Energy>builder("power", new Energy(0))
+        .displayFormatter(e -> Energy.NAME)
+        .amountFormatter(perSecond -> GuiHelper.formatRate(perSecond / 20f) + " EU/t")
+        .amountExtractor(e -> (int) Math.min(Integer.MAX_VALUE, Math.round(e.perCraft)))
+        .amountUpdater((e, amount) -> e.perCraft = amount)
+        .connectionChecker((a, b) -> true)
+        .hashCodeExtractor(e -> Energy.KEY.hashCode())
+        .colorProvider(e -> Energy.AMBER)
+        .pinInputColor(0xFF000000 | Energy.AMBER)
+        .pinOutputColor(0xFF000000 | Energy.AMBER)
+        .arrowColor(0xFF000000 | Energy.AMBER)
         .build();
 
     private static boolean itemsMatch(final ItemStack a, final ItemStack b) {

@@ -59,4 +59,26 @@ public final class DrawerModel {
     public boolean isFluid() {
         return fluid != null;
     }
+
+    /** An EU drawer: a generator's output, always shown in EU/t whatever the board's rate unit. */
+    public boolean isPower() {
+        return Resources.isPower(drawer.getResourceKey());
+    }
+
+    /** A rate (per second) as the drawer shows it: EU/t for EU, the board's unit for the rest. */
+    public double shown(final double perSecond, final com.gtnhplanner.ui.theme.Fmt.RateUnit unit) {
+        return isPower() ? perSecond / 20 : perSecond * unit.perSecond;
+    }
+
+    /** The unit after a shown figure: " EU/t", " L/s", "/s" (without the space when {@code tight}). */
+    public String suffix(final com.gtnhplanner.ui.theme.Fmt.RateUnit unit, final boolean tight) {
+        if (isPower()) return tight ? "EU/t" : " EU/t";
+        return (isFluid() ? tight ? "L" : " L" : "") + unit.suffix;
+    }
+
+    /** A rate (per second) with its unit, as the tooltips say it. */
+    public String rate(final double perSecond, final com.gtnhplanner.ui.theme.Fmt.RateUnit unit) {
+        return isPower() ? com.gtnhplanner.ui.theme.Fmt.power(perSecond / 20) + " EU/t"
+            : com.gtnhplanner.ui.theme.Fmt.rate(perSecond, unit, isFluid());
+    }
 }

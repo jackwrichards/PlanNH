@@ -59,7 +59,7 @@ public record SolveInput(BalanceMode mode, @Nullable ChoiceKey choice, List<Mach
     /**
      * One port of a machine.
      *
-     * @param amount     units per craft, before chance.
+     * @param amount     units per craft, before chance (fractional for a generator's exact flows).
      * @param chance     the chance the units appear (1 for a plain port).
      * @param multiplier the node's own consumption / productivity multiplier on this port.
      * @param resource   the ingredient, as a number shared by every port of the same snapshot that
@@ -67,7 +67,7 @@ public record SolveInput(BalanceMode mode, @Nullable ChoiceKey choice, List<Mach
      * @param name       the ingredient's display name, resolved when the snapshot was taken.
      * @param free       whether the pack gives this ingredient away ({@link Config#isFreeIngredient}).
      */
-    public record PortIn(int amount, float chance, float multiplier, int resource, String name, boolean free) {}
+    public record PortIn(double amount, float chance, float multiplier, int resource, String name, boolean free) {}
 
     /**
      * One machine (node) with its effect already computed.
@@ -184,7 +184,7 @@ public record SolveInput(BalanceMode mode, @Nullable ChoiceKey choice, List<Mach
 
     private static Machine machineOf(final Node node, final Ingredients ingredients) {
         final MachineConfig cfg = node.machineConfig;
-        final EffectResult effect = cfg.computeEffect(node.properties);
+        final EffectResult effect = node.isPower() ? null : cfg.computeEffect(node.properties);
         final List<PortIn> inputs = new ArrayList<>(node.inputs.size());
         for (int i = 0; i < node.inputs.size(); i++) {
             inputs.add(ingredients.portOf(node.inputs.get(i), cfg.inputMultiplier(i)));
@@ -201,12 +201,15 @@ public record SolveInput(BalanceMode mode, @Nullable ChoiceKey choice, List<Mach
         for (final Map.Entry<Integer, Double> t : node.targetOutputRates.entrySet()) {
             if (t.getKey() != null && t.getValue() != null) targets.put(t.getKey(), t.getValue());
         }
+        // A non-recipe machine (a generator) runs one craft a second at its exact rates, draws through no overclock,
+        // and its EU is an output port: nothing here for the effect to compute.
+        final boolean power = node.isPower();
         return new Machine(
             node.id,
             node.machineName == null ? "" : node.machineName,
-            effect.durationTicks(),
-            effect.energyPerT(),
-            effect.throughputFactor(),
+            power ? 20 : effect.durationTicks(),
+            power ? 0 : effect.energyPerT(),
+            power ? 1 : effect.throughputFactor(),
             inputs,
             outputs,
             node.isMachineCountFixed(),
@@ -223,7 +226,7 @@ public record SolveInput(BalanceMode mode, @Nullable ChoiceKey choice, List<Mach
         PortIn portOf(final Port<?> port, final float multiplier) {
             final String name = port.getDisplayName();
             return new PortIn(
-                port.getAmount(),
+                port.amount(),
                 port.getChance(),
                 multiplier,
                 resourceOf(port),

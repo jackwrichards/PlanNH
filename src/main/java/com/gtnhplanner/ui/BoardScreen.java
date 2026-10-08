@@ -25,6 +25,7 @@ import com.gtnhplanner.ui.drawer.DrawerCard;
 import com.gtnhplanner.ui.library.LibraryView;
 import com.gtnhplanner.ui.popup.Popup;
 import com.gtnhplanner.ui.popup.Tip;
+import com.gtnhplanner.ui.power.PowerPicker;
 import com.gtnhplanner.ui.theme.Fmt;
 import com.gtnhplanner.ui.theme.Hyb;
 
@@ -42,13 +43,15 @@ public final class BoardScreen extends ModularScreen {
     private final BoardSession session;
     private final BoardCanvas canvas;
     private final LibraryDoor library;
+    private final PowerPicker picker;
 
     private BoardScreen(final ModularPanel panel, final BoardSession session, final BoardCanvas canvas,
-        final LibraryDoor library) {
+        final LibraryDoor library, final PowerPicker picker) {
         super(GtnhPlanner.MODID, panel);
         this.session = session;
         this.canvas = canvas;
         this.library = library;
+        this.picker = picker;
         getContext().setSettings(new UISettings());
         getContext().getUISettings()
             .getRecipeViewerSettings()
@@ -100,6 +103,22 @@ public final class BoardScreen extends ModularScreen {
         topBar.child(
             new PlanTabs(session).expanded()
                 .height(16));
+        // Over the board (and the library): the non-recipe machines, opened from their key.
+        final PickerDoor pickerDoor = new PickerDoor();
+        final PowerPicker picker = new PowerPicker(session, () -> pickerDoor.picker.setEnabled(false));
+        pickerDoor.picker = picker;
+        picker.setEnabled(false);
+        final Runnable openPicker = () -> {
+            library.set(false);
+            picker.opened();
+            picker.setEnabled(true);
+        };
+        session.setPowerPickerOpener(openPicker);
+        topBar.child(
+            boltKey(
+                "Non-recipe machines\n§7Generators, turbines, boilers, reactors and the rest: machines that run no NEI"
+                    + " recipe\nClick: pick one to put on the board",
+                openPicker).marginLeft(GROUP_GAP));
         topBar.child(iconKey(Arrow.UNDO, session::canUndo, "Undo\n§7Ctrl+Z", session::undo).marginLeft(GROUP_GAP));
         topBar.child(iconKey(Arrow.REDO, session::canRedo, "Redo\n§7Ctrl+Shift+Z or Ctrl+Y", session::redo));
         topBar.child(
@@ -177,9 +196,14 @@ public final class BoardScreen extends ModularScreen {
         panel.child(notices);
         final SelectionBar selectionBar = new SelectionBar(session, canvas, notices);
         panel.child(selectionBar);
+        picker.left(0)
+            .right(0)
+            .top(TOP_BAR)
+            .bottom(0);
+        panel.child(picker);
         library.body = body;
         library.board = List.of(rail, canvas, notices, selectionBar);
-        return new BoardScreen(panel, session, canvas, library);
+        return new BoardScreen(panel, session, canvas, library, picker);
     }
 
     /** Swaps the board (the overview, the canvas and the bars over it) for the library, and back. */
@@ -266,6 +290,23 @@ public final class BoardScreen extends ModularScreen {
                 return true;
             });
         KEY_TIPS.put(button, tooltip);
+        return button;
+    }
+
+    /** The picker, reachable from its own close callback (made before it). */
+    private static final class PickerDoor {
+
+        PowerPicker picker;
+    }
+
+    /** The non-recipe machines key: the power wing's amber bolt, then its name. */
+    private static ButtonWidget<?> boltKey(final String tooltip, final Runnable action) {
+        final String label = "Non-recipe";
+        final ButtonWidget<?> button = key(() -> "", () -> true, tooltip, Hyb.width(label) + 22, action);
+        button.overlay((IDrawable) (ctx, x, y, w, h, theme) -> {
+            PowerPicker.bolt(x + 6, y + (h - 11) / 2f, 0xFFFCD34D);
+            Hyb.text(label, x + 16, y + (h - 8) / 2f, Hyb.INK);
+        });
         return button;
     }
 
@@ -378,6 +419,15 @@ public final class BoardScreen extends ModularScreen {
             getContext().removeFocus();
             popup.closeIfOpen();
             return true;
+        }
+        // The non-recipe machines: Esc closes them, even from the search; the board's keys wait meanwhile.
+        if (picker.isEnabled()) {
+            if (keyCode == org.lwjgl.input.Keyboard.KEY_ESCAPE) {
+                getContext().removeFocus();
+                picker.setEnabled(false);
+                return true;
+            }
+            return super.onKeyPressed(typedChar, keyCode);
         }
         // The library: Esc closes its pane, then the library; the board's keys wait until it is closed.
         if (library.open) {

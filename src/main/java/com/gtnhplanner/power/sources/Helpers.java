@@ -38,6 +38,8 @@ public final class Helpers {
     public static String number(final double value) {
         if (Double.isNaN(value)) return "NaN";
         if (Double.isInfinite(value)) return value > 0 ? "∞" : "-∞";
+        // Intl keeps the sign of a negative zero; BigDecimal has none.
+        if (value == 0) return 1 / value < 0 ? "-0" : "0";
         final DecimalFormat format = new DecimalFormat("#,##0.##", DecimalFormatSymbols.getInstance(Locale.US));
         format.setRoundingMode(RoundingMode.HALF_UP);
         return format.format(new BigDecimal(Double.toString(value)));

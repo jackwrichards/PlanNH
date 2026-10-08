@@ -362,6 +362,9 @@ public final class DevHarness {
                         return error("GregTech is not loaded (start with PLANNH_GTNH=1)");
                     }
                 });
+            case "/power":
+                // The power sources against this game: flows that become no port, fluids without icons, machines.
+                return onClient(DevPower::check);
             case "/slots":
                 // Plan slots: list them; add=<name> opens a new one; switch=<i>; delete=<i>.
                 requireWorld();

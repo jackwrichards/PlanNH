@@ -509,7 +509,7 @@ public final class BoardSession {
 
     /** A copied card: its recipe and settings, and where it sat from the copy's top-left. */
     private record ClipNode(codechicken.nei.recipe.Recipe.RecipeId recipe, Map<String, Object> settings,
-        String machineName, boolean fixed, int dx, int dy) {}
+        String machineName, boolean fixed, int dx, int dy, String powerSource, Map<String, String> powerSettings) {}
 
     /** A copied drawer, and the copied cards' ports it was linked to, as {card index in the copy, port}. */
     private record ClipDrawer(Drawer.Kind kind, String key, String label, Drawer.Rule rule, double rate, int dx, int dy,
@@ -554,7 +554,9 @@ public final class BoardSession {
                     n.machineName,
                     n.isMachineCountFixed(),
                     n.x - x0,
-                    n.y - y0));
+                    n.y - y0,
+                    n.powerSource,
+                    new LinkedHashMap<>(n.powerSettings)));
         }
         final List<ClipEdge> edges = new ArrayList<>();
         for (final Edge e : graph.getEdges()) {
@@ -592,6 +594,13 @@ public final class BoardSession {
         if (clip == null) return List.of();
         final List<Node> made = new ArrayList<>();
         for (final ClipNode c : clip.nodes()) {
+            if (c.powerSource() != null) {
+                final Node n = Node
+                    .power(c.powerSource(), c.powerSettings(), snap(worldX + c.dx()), snap(worldY + c.dy()));
+                n.setMachineCountFixed(c.fixed());
+                made.add(n);
+                continue;
+            }
             final RecipeHandlerRef ref = RecipeHandlerRef.of(c.recipe());
             if (ref == null) {
                 made.add(null);
@@ -735,6 +744,17 @@ public final class BoardSession {
 
     /** Opens the library in place of the board: set by the screen, used by the plan tabs' + menu. */
     private Runnable libraryOpener = () -> {};
+
+    private Runnable powerPickerOpener = () -> {};
+
+    public void setPowerPickerOpener(final Runnable opener) {
+        powerPickerOpener = opener;
+    }
+
+    /** Opens the non-recipe machines over the board. */
+    public void openPowerPicker() {
+        powerPickerOpener.run();
+    }
 
     public void setLibraryOpener(final Runnable opener) {
         libraryOpener = opener;
@@ -1158,6 +1178,61 @@ public final class BoardSession {
 
     // region Card edits (each one undoable, saved, re-solved)
 
+    /** Puts a non-recipe machine (a generator) on the board at these settings, centred in view and selected. */
+    public Node addPower(final String sourceId, final Map<String, String> settings) {
+        return add(Node.power(sourceId, settings, 0, 0), true);
+    }
+
+    /**
+     * Sets one of a power card's settings and rebuilds its ports. A wire or drawer on a port follows its resource to
+     * wherever it now is on the card, and goes when the card no longer has it (a fuel switched for another).
+     */
+    public void setPowerSetting(final Node node, final String settingId, final String value) {
+        if (!node.isPower() || value.equals(node.powerSettings.get(settingId))) return;
+        edit(() -> {
+            final List<String> ins = keys(node.inputs), outs = keys(node.outputs);
+            node.powerSettings.put(settingId, value);
+            node.refresh();
+            final List<String> nowIns = keys(node.inputs), nowOuts = keys(node.outputs);
+            for (final Edge e : new ArrayList<>(graph.getEdges())) {
+                if (e.sourceNodeId.equals(node.id)) {
+                    final int at = moved(outs, nowOuts, e.sourceOutputIndex);
+                    if (at < 0) graph.removeEdge(e.id);
+                    else e.sourceOutputIndex = at;
+                }
+                if (e.targetNodeId.equals(node.id)) {
+                    final int at = moved(ins, nowIns, e.targetInputIndex);
+                    if (at < 0) graph.removeEdge(e.id);
+                    else e.targetInputIndex = at;
+                }
+            }
+            for (final Drawer d : graph.getDrawers()) {
+                final boolean input = d.getKind()
+                    .linksInputs();
+                for (final Drawer.Link link : new ArrayList<>(d.getLinks())) {
+                    if (!link.nodeId()
+                        .equals(node.id)) continue;
+                    final int at = input ? moved(ins, nowIns, link.portIndex())
+                        : moved(outs, nowOuts, link.portIndex());
+                    if (at == link.portIndex()) continue;
+                    graph.unlinkDrawer(d.getId(), link);
+                    if (at >= 0) graph.linkDrawer(d.getId(), new Drawer.Link(node.id, at));
+                }
+            }
+        });
+    }
+
+    private static List<String> keys(final List<com.gtnhplanner.data.flowchart.Port<?>> ports) {
+        final List<String> keys = new ArrayList<>(ports.size());
+        for (final com.gtnhplanner.data.flowchart.Port<?> p : ports) keys.add(Resources.key(p));
+        return keys;
+    }
+
+    /** Where the port that was at {@code index} is now, by its resource; -1 when it is gone. */
+    private static int moved(final List<String> was, final List<String> now, final int index) {
+        return index >= 0 && index < was.size() ? now.indexOf(was.get(index)) : -1;
+    }
+
     public void setVoltage(final Node node, final String tier) {
         edit(() -> {
             node.machineConfig.setString("voltage", tier);
@@ -1215,6 +1290,12 @@ public final class BoardSession {
         final List<Node> copies = new ArrayList<>();
         for (final UUID s : sectionsOf(node.id)) {
             final Node from = graph.nodes.get(s);
+            if (from != null && from.isPower()) {
+                final Node copy = Node.power(from.powerSource, from.powerSettings, node.x + 24, node.y + 24);
+                copy.machineConfig.copySettingsFrom(from.machineConfig);
+                copies.add(copy);
+                continue;
+            }
             final RecipeHandlerRef ref = from == null ? null : RecipeHandlerRef.of(from.recipeId);
             if (ref == null) return;
             final Node copy = new Node(ref.handler, ref.recipeIndex, node.x + 24, node.y + 24);
@@ -1325,16 +1406,16 @@ public final class BoardSession {
 
     /** One card in the overview's machine list. */
     public record MachineLine(UUID nodeId, String name, ItemStack stack, double machines, boolean pinned, String tier,
-        int amps, boolean multiblock, boolean gregtech, double euPerTick, boolean tooLow) {}
+        int amps, boolean multiblock, boolean gregtech, double euPerTick, boolean tooLow, double madeEuPerTick) {}
 
     /**
      * The overview, Factory Flow's resources column: per resource what the plan needs from outside (deficit), what it
      * gives out (surplus) and what it makes and uses itself (internal); its power; one line per card to build.
      */
     public record Totals(List<TotalLine> inputs, List<TotalLine> outputs, List<TotalLine> internal, double euPerTick,
-        List<MachineLine> machines) {
+        List<MachineLine> machines, double euMade) {
 
-        static final Totals EMPTY = new Totals(List.of(), List.of(), List.of(), 0, List.of());
+        static final Totals EMPTY = new Totals(List.of(), List.of(), List.of(), 0, List.of(), 0);
     }
 
     private Totals totals = Totals.EMPTY;
@@ -1352,7 +1433,7 @@ public final class BoardSession {
     private Totals buildTotals(final Map<UUID, CardModel> cards) {
         final Map<String, double[]> flow = new LinkedHashMap<>();
         final Map<String, Look> looks = new HashMap<>();
-        double eu = 0;
+        double eu = 0, euMade = 0;
         final List<MachineLine> machines = new ArrayList<>();
         for (final CardModel card : cards.values()) {
             for (final CardModel.PortView p : card.outputs) {
@@ -1365,6 +1446,7 @@ public final class BoardSession {
             }
             final double power = power(card);
             eu += power;
+            euMade += card.madeEuPerTick();
             if (card.machines > 0 || card.pinned) machines.add(
                 new MachineLine(
                     card.node.id,
@@ -1377,7 +1459,8 @@ public final class BoardSession {
                     card.multiblock,
                     card.gregtech,
                     power,
-                    card.tierTooLow()));
+                    card.tierTooLow(),
+                    card.madeEuPerTick()));
         }
         final List<TotalLine> in = new ArrayList<>(), out = new ArrayList<>(), internal = new ArrayList<>();
         for (final Map.Entry<String, double[]> e : flow.entrySet()) {
@@ -1404,7 +1487,7 @@ public final class BoardSession {
             java.util.Comparator.<MachineLine>comparingInt(m -> -CardDefaults.tierIndex(m.tier()))
                 .thenComparing(m -> -m.euPerTick())
                 .thenComparing(MachineLine::name));
-        return new Totals(in, out, internal, eu, machines);
+        return new Totals(in, out, internal, eu, machines, euMade);
     }
 
     private static TotalLine line(final String key, final Look look, final double amount) {

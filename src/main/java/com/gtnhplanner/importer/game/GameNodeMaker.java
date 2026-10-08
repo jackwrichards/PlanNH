@@ -70,7 +70,14 @@ public final class GameNodeMaker implements NodeMaker {
             return new PortInfo("fluid", key, label, List.of(GameIds.fluidId(fluid)));
         if (value instanceof final ItemStack stack && stack.getItem() != null)
             return new PortInfo("item", key, label, GameIds.itemIds(stack));
+        if (value instanceof com.gtnhplanner.power.Energy)
+            return new PortInfo("power", key, label, List.of("eu"));
         return new PortInfo("", key, label, List.of());
+    }
+
+    @Override
+    public Node makePower(final String sourceId, final Map<String, String> settings) {
+        return com.gtnhplanner.power.PowerRegistry.get(sourceId) == null ? null : Node.power(sourceId, settings, 0, 0);
     }
 
     /** Only the settings the node's machine profile has: a crafting card takes its machine count and nothing else. */

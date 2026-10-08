@@ -17,6 +17,11 @@ public class Port<T> {
     private final ResourceProperty<T> type;
     private final T value;
     private float chance;
+    /**
+     * The exact amount per craft when the type's whole number cannot hold it (a generator burns 0.37 L a second);
+     * NaN when unset, and {@link #amount()} reads the type's own.
+     */
+    private double exactAmount = Double.NaN;
 
     public Port(final ResourceProperty<T> type, final T value, final float chance) {
         this.type = type;
@@ -26,6 +31,11 @@ public class Port<T> {
 
     public int getAmount() {
         return type.extractAmount(value);
+    }
+
+    /** Units per craft: the exact amount when one is set, else the type's whole number. */
+    public double amount() {
+        return Double.isNaN(exactAmount) ? getAmount() : exactAmount;
     }
 
     public String getDisplayName() {

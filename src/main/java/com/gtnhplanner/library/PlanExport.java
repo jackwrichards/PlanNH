@@ -17,6 +17,10 @@ import com.gtnhplanner.data.flowchart.Graph;
 import com.gtnhplanner.data.flowchart.Node;
 import com.gtnhplanner.data.flowchart.Port;
 import com.gtnhplanner.data.properties.RecipeProperty;
+import com.gtnhplanner.power.Energy;
+import com.gtnhplanner.power.PowerModel;
+import com.gtnhplanner.power.PowerRegistry;
+import com.gtnhplanner.power.PowerSource;
 
 /**
  * A plan as Factory Flow's project JSON (its {@code factoryProjectSchema}, version 1), for posting to the library:
@@ -28,6 +32,9 @@ public final class PlanExport {
 
     /** One item or fluid as Factory Flow names it: {@code item} or {@code fluid}, its id, and its name. */
     public record Res(String kind, String id, String name) {}
+
+    /** EU, as the site names it: a generator's output and an EU drawer's resource. */
+    public static final Res EU = new Res("power", "eu", "EU");
 
     /** What the export needs from the game. */
     public interface World {
@@ -73,7 +80,7 @@ public final class PlanExport {
             edges.add(edge(e.id.toString(), from.id.toString(), to.id.toString(), r));
         }
         for (final Drawer d : g.getDrawers()) {
-            final Res r = world.resource(d.getResourceKey());
+            final Res r = Energy.KEY.equals(d.getResourceKey()) ? EU : world.resource(d.getResourceKey());
             if (r == null) continue;
             final boolean source = d.getKind()
                 .linksInputs();
@@ -119,6 +126,7 @@ public final class PlanExport {
     }
 
     private static JsonObject recipe(final Node n, final String id, final World world, final Map<Port<?>, Res> res) {
+        if (n.isPower()) return powerRecipe(n, id, world, res);
         final JsonObject r = new JsonObject();
         r.addProperty("id", id);
         final String machine = world.machine(n);
@@ -141,13 +149,67 @@ public final class PlanExport {
         return r;
     }
 
+    /**
+     * A generator, as the site's power cards carry it (buildPowerRecipe): a one-second custom recipe, flows per second
+     * exact, EU first among the outputs, and the source with its readings; the site rebuilds it from the source id and
+     * the node's settings when it loads the plan.
+     */
+    private static JsonObject powerRecipe(final Node n, final String id, final World world,
+        final Map<Port<?>, Res> res) {
+        final JsonObject r = new JsonObject();
+        final PowerSource source = PowerRegistry.get(n.powerSource);
+        final String name = source != null ? source.name() : n.machineName;
+        r.addProperty("id", id);
+        r.addProperty("name", name);
+        r.addProperty("kind", "custom");
+        r.addProperty("category", "power-source");
+        r.addProperty("machineType", name);
+        r.addProperty("minimumTier", "NONE");
+        r.addProperty("durationTicks", 20);
+        r.addProperty("eut", 0);
+        r.add("inputs", ports(n.inputs, false, world, res));
+        r.add("outputs", ports(n.outputs, true, world, res));
+        if (source != null) r.addProperty("notes", source.blurb());
+        final JsonObject from = new JsonObject();
+        from.addProperty("recipeMap", "power-source");
+        r.add("source", from);
+        final JsonObject power = new JsonObject();
+        power.addProperty("sourceId", n.powerSource);
+        final PowerModel model = n.powerModel;
+        power.addProperty("euPerTick", model == null ? 0 : model.euPerTick());
+        final JsonArray stats = new JsonArray();
+        if (model != null) for (final PowerModel.Stat s : model.stats()) {
+            final JsonObject line = new JsonObject();
+            line.addProperty("label", s.label());
+            line.addProperty("value", s.value());
+            stats.add(line);
+        }
+        power.add("stats", stats);
+        if (model != null && !model.warnings()
+            .isEmpty()) {
+            final JsonArray warnings = new JsonArray();
+            for (final String w : model.warnings()) warnings.add(new com.google.gson.JsonPrimitive(w));
+            power.add("warnings", warnings);
+        }
+        r.add("power", power);
+        return r;
+    }
+
     private static JsonArray ports(final List<Port<?>> ports, final boolean outputs, final World world,
         final Map<Port<?>, Res> res) {
         final JsonArray out = new JsonArray();
         for (final Port<?> p : ports) {
-            final Res r = world.port(p);
+            final Res r = p.getValue() instanceof Energy ? EU : world.port(p);
             if (r == null) continue;
             res.put(p, r);
+            if (!Double.isNaN(p.getExactAmount())) {
+                // A generator's exact rate per second (its craft is a second); EU rides as a byproduct, as on the site.
+                final JsonObject o = resource(r);
+                o.addProperty("amount", p.amount());
+                if (r == EU) o.addProperty("byproduct", true);
+                out.add(o);
+                continue;
+            }
             // The site wants an amount above nothing; a port that is not used up (a catalyst) still counts one.
             final int amount = Math.max(1, p.getAmount());
             final JsonObject o = resource(r);
@@ -165,8 +227,15 @@ public final class PlanExport {
         o.addProperty("recipeId", recipeId);
         o.addProperty("machineCount", Math.max(0, world.machines(n)));
         o.addProperty("parallel", 1);
-        o.addProperty("overclockTier", world.tier(n));
+        o.addProperty("overclockTier", n.isPower() ? "LV" : world.tier(n));
         o.addProperty("enabled", true);
+        if (n.isPower()) {
+            // A power card's settings, where the site keeps them.
+            final JsonObject settings = new JsonObject();
+            for (final Map.Entry<String, String> s : n.powerSettings.entrySet())
+                settings.addProperty(s.getKey(), s.getValue());
+            o.add("machineConfigTiers", settings);
+        }
         if (n.isMachineCountFixed()) o.addProperty("solvePin", Math.max(0, world.machines(n)));
         o.add("position", position(n.x, n.y));
         return o;

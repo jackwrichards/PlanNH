@@ -14,6 +14,10 @@ import com.gtnhplanner.data.effect.EffectResult;
 import com.gtnhplanner.data.flowchart.Node;
 import com.gtnhplanner.data.flowchart.Port;
 import com.gtnhplanner.data.flowchart.balancer.Balancer;
+import com.gtnhplanner.power.PowerModel;
+import com.gtnhplanner.power.PowerRegistry;
+import com.gtnhplanner.power.PowerSource;
+import com.gtnhplanner.power.game.PowerPorts;
 
 import codechicken.nei.PositionedStack;
 import codechicken.nei.recipe.IRecipeHandler;
@@ -34,6 +38,11 @@ public final class CardModel {
 
         public boolean isFluid() {
             return fluid != null;
+        }
+
+        /** EU, a generator's output: drawn as a bolt and shown in EU/t. */
+        public boolean isPower() {
+            return com.gtnhplanner.ui.Resources.isPower(key);
         }
 
         /** The stack NEI should see for R/U and tooltips. */
@@ -63,12 +72,27 @@ public final class CardModel {
     public final ItemStack circuit;
     /** The recipe's minimum coil heat (K), 0 when it needs none. */
     public final int recipeHeat;
+    /** A non-recipe machine's source, model and readings; null on a recipe card. */
+    public final PowerView power;
+
+    /**
+     * A power card's source and its model at the card's settings, with the stat lines to show: the model's own, then
+     * the flows that could not be ports. {@code source} is null when the plan names a source this build does not know.
+     */
+    public record PowerView(PowerSource source, PowerModel model, List<PowerModel.Stat> stats) {
+
+        /** EU/t one machine makes; 0 for a parasitic one. */
+        public double madePerMachine() {
+            return model == null ? 0 : Math.max(0, model.euPerTick());
+        }
+    }
 
     private CardModel(final Node node, final String machineName, final List<ItemStack> catalysts,
         final ItemStack machineStack, final boolean gregtech, final String tier, final int amps,
         final boolean multiblock, final int coilHeat, final boolean usesHeat, final int parallels,
         final List<PortView> inputs, final List<PortView> outputs, final int durationTicks, final long euPerTick,
-        final double machines, final boolean pinned, final ItemStack circuit, final int recipeHeat) {
+        final double machines, final boolean pinned, final ItemStack circuit, final int recipeHeat,
+        final PowerView power) {
         this.node = node;
         this.machineName = machineName;
         this.catalysts = catalysts;
@@ -88,6 +112,16 @@ public final class CardModel {
         this.pinned = pinned;
         this.circuit = circuit;
         this.recipeHeat = recipeHeat;
+        this.power = power;
+    }
+
+    public boolean isPower() {
+        return power != null;
+    }
+
+    /** EU/t the solved machines make (average): a generator's output, 0 on a recipe card. */
+    public double madeEuPerTick() {
+        return power == null ? 0 : power.madePerMachine() * machines;
     }
 
     /** Average EU/t for the solved count (the board's power key may show it as amps). */
@@ -110,6 +144,7 @@ public final class CardModel {
     }
 
     public static CardModel of(final Node node, final Balancer.NodeBalance balance, final Wired wired) {
+        if (node.isPower()) return power(node, balance, wired);
         final MachineConfig cfg = node.machineConfig;
         final boolean gregtech = GT_PROFILE.equals(cfg.profileId);
         final EffectResult effect = cfg.computeEffect(node.properties);
@@ -150,7 +185,43 @@ public final class CardModel {
             machines,
             node.isMachineCountFixed(),
             circuit(ref),
-            node.properties.get(com.gtnhplanner.data.provider.GTProvider.COIL_HEAT) instanceof final Number h ? h.intValue() : 0);
+            node.properties.get(com.gtnhplanner.data.provider.GTProvider.COIL_HEAT) instanceof final Number h ? h.intValue() : 0,
+            null);
+    }
+
+    /**
+     * A non-recipe machine: its source's name and machine, one craft a second, and its ports from the model. It draws
+     * power only when the model is parasitic (net EU/t below zero).
+     */
+    private static CardModel power(final Node node, final Balancer.NodeBalance balance, final Wired wired) {
+        final PowerSource source = PowerRegistry.get(node.powerSource);
+        final PowerModel model = node.powerModel;
+        final List<PowerModel.Stat> stats = new ArrayList<>();
+        if (model != null) {
+            stats.addAll(model.stats());
+            stats.addAll(PowerPorts.unported(model));
+        }
+        return new CardModel(
+            node,
+            source != null ? source.name() : node.machineName,
+            Collections.emptyList(),
+            PowerPorts.machineStack(node.powerSource),
+            false,
+            "",
+            1,
+            false,
+            0,
+            false,
+            1,
+            ports(node.inputs, false, balance, wired),
+            ports(node.outputs, true, balance, wired),
+            PowerPorts.DURATION_TICKS,
+            model == null ? 0 : Math.round(Math.max(0, -model.euPerTick())),
+            balance == null ? 0 : balance.operations(),
+            node.isMachineCountFixed(),
+            null,
+            0,
+            new PowerView(source, model, stats));
     }
 
     private static List<PortView> ports(final List<Port<?>> ports, final boolean output,
@@ -167,7 +238,7 @@ public final class CardModel {
                 new PortView(
                     i,
                     output,
-                    fluid ? port.getDisplayStack() : (ItemStack) value,
+                    fluid ? port.getDisplayStack() : value instanceof final ItemStack stack ? stack : null,
                     fluid ? (FluidStack) value : null,
                     port.getDisplayName(),
                     port.getChance(),

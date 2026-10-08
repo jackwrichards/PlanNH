@@ -375,7 +375,7 @@ public final class Balancer {
                 .size(); i++) {
                 final SolveInput.PortIn out = machine.outputs()
                     .get(i);
-                final int stackSize = out.amount();
+                final double stackSize = out.amount();
                 if (stackSize <= 0) continue;
                 final float total = (float) (count * stackSize * out.chance() * out.multiplier() * throughputFactor);
                 if (total <= 0) continue;
@@ -389,7 +389,7 @@ public final class Balancer {
                 .size(); i++) {
                 final SolveInput.PortIn in = machine.inputs()
                     .get(i);
-                final int stackSize = in.amount();
+                final double stackSize = in.amount();
                 if (stackSize <= 0) continue;
                 final float total = (float) (count * stackSize * in.chance() * in.multiplier() * throughputFactor);
                 if (total <= 0) continue;

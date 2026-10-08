@@ -55,7 +55,7 @@ class RecipeMatcherTest {
             List.of(),
             "gt.recipe.chemicalreactor",
             null,
-            false);
+            null);
     }
 
     private static GameStack stack(final String kind, final String id, final double amount) {

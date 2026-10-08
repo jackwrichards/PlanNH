@@ -160,7 +160,7 @@ public final class FfPlanParser {
             handlers,
             meta == null ? null : str(meta, "recipeMapId"),
             source == null ? null : str(source, "rawRecipeId"),
-            obj(r, "power") != null);
+            obj(r, "power") == null ? null : str(obj(r, "power"), "sourceId", ""));
     }
 
     @Nullable

@@ -7,12 +7,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import com.gtnhplanner.api.RecipePropertyAPI;
 import com.gtnhplanner.data.MachineConfig;
 import com.gtnhplanner.data.MachineProfileRegistry;
 import com.gtnhplanner.data.properties.PropertyProvider;
 import com.gtnhplanner.data.properties.RecipeProperty;
 import com.gtnhplanner.data.provider.DefaultProvider;
+import com.gtnhplanner.power.PowerModel;
+import com.gtnhplanner.power.game.PowerPorts;
 
 import codechicken.nei.recipe.IRecipeHandler;
 import codechicken.nei.recipe.Recipe;
@@ -48,6 +52,18 @@ public class Node {
      * extent wins - parallel outputs share one extent, so only the tightest can be exact.
      */
     public final Map<Integer, Double> targetOutputRates = new LinkedHashMap<>();
+
+    /**
+     * A non-recipe machine (a generator): its power source id ({@link com.gtnhplanner.power.PowerRegistry}), null on a
+     * recipe card. Its ports come from the source's model at {@link #powerSettings}, not from NEI.
+     */
+    @Nullable
+    public String powerSource;
+    /** A power card's settings by setting id, as strings (the website's machineConfigTiers). */
+    public final Map<String, String> powerSettings = new LinkedHashMap<>();
+    /** The power card's model at its settings, rebuilt by {@link #refresh()}; null on a recipe card. */
+    @Nullable
+    public transient PowerModel powerModel;
 
     @Getter
     private transient PropertyProvider extractor;
@@ -87,7 +103,25 @@ public class Node {
         machineConfig.seedRouteDefaults();
     }
 
+    /** Whether this is a non-recipe machine (a generator) rather than a recipe from NEI. */
+    public boolean isPower() {
+        return powerSource != null;
+    }
+
+    /** A new power card for a source at the given settings (missing ones read as the source's defaults). */
+    public static Node power(final String sourceId, final Map<String, String> settings, final int x, final int y) {
+        final Node node = new Node(UUID.randomUUID(), x, y);
+        node.powerSource = sourceId;
+        node.powerSettings.putAll(settings);
+        node.refresh();
+        return node;
+    }
+
     public void refresh() {
+        if (powerSource != null) {
+            PowerPorts.build(this);
+            return;
+        }
         if (extractor == null) return;
         final RecipeHandlerRef ref = RecipeHandlerRef.of(recipeId);
         final IRecipeHandler handler = ref.handler;

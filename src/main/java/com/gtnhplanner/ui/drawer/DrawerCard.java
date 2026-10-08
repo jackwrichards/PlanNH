@@ -229,11 +229,12 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         Hyb.text(Hyb.fit(m.label, titleR - titleL), titleL, 6, 0xFFFFFFFF);
 
         // The resource, bare with its shadow, and what the plan moves through it.
-        Hyb.icon(m.item, m.fluid, 7, 23, 24, z);
+        if (m.isPower()) com.gtnhplanner.ui.card.RecipeCard.euIcon(7, 23, 24);
+        else Hyb.icon(m.item, m.fluid, 7, 23, 24, z);
         final Fmt.RateUnit unit = session.rateUnit();
         final String sign = m.rate <= 0 ? "" : m.kind == Drawer.Kind.SOURCE ? "-" : "+";
-        final String number = sign + Fmt.compact(m.rate * unit.perSecond);
-        final String suffix = (m.isFluid() ? " L" : "") + unit.suffix;
+        final String number = sign + Fmt.compact(m.shown(m.rate, unit));
+        final String suffix = m.suffix(unit, false);
         final int color = m.rate <= 0 ? 0xFFA8AFBB : m.kind == Drawer.Kind.SOURCE ? Hyb.SOURCE_INK : Hyb.PRODUCT_INK;
         final int textX = 37, room = W - 6 - textX;
         final boolean big = Hyb.width(number) * Hyb.FIGURE + Hyb.width(suffix) + 2 <= room;
@@ -280,11 +281,12 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
             .getZoom();
         Hyb.roundRect(2, 2, W - 4, H - 4, Math.max(0, r - 2), Hyb.mix(tint, 0x101318, 0.24f));
         final float side = H - 12;
-        Hyb.icon(m.item, m.fluid, 8, 6, side, z);
+        if (m.isPower()) com.gtnhplanner.ui.card.RecipeCard.euIcon(8, 6, side);
+        else Hyb.icon(m.item, m.fluid, 8, 6, side, z);
         final Fmt.RateUnit unit = session.rateUnit();
         final String sign = m.rate <= 0 ? "" : m.kind == Drawer.Kind.SOURCE ? "-" : "+";
         final int color = m.rate <= 0 ? Hyb.MUTED : m.kind == Drawer.Kind.SOURCE ? Hyb.SOURCE_INK : Hyb.PRODUCT_INK;
-        final String rate = sign + Fmt.brief(m.rate * unit.perSecond);
+        final String rate = sign + Fmt.brief(m.shown(m.rate, unit));
         // One screen pixel per font pixel at most; less when the number would not fit the drawer.
         // Two screen pixels per font pixel, or one far out: whole pixels at every wheel step, so it stays sharp.
         float cs = 1 / zoom;
@@ -368,8 +370,8 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
             Hyb.text("§orate?", RATE_X + 5, ROW_Y + 3, color);
             return;
         }
-        final String suffix = (m.isFluid() ? "L" : "") + unit.suffix;
-        final String number = Fmt.compact(target * unit.perSecond);
+        final String suffix = m.suffix(unit, true);
+        final String number = Fmt.compact(m.shown(target, unit));
         final int numberColor = m.unmet ? 0xFFF87171 : Hyb.GOLD;
         Hyb.text(Hyb.fit(number, RATE_W - 10 - Hyb.width(suffix)), RATE_X + 5, ROW_Y + 3, numberColor);
         Hyb.textRight(suffix, RATE_X + RATE_W - 4, ROW_Y + 3, 0xFF8A8E97);
@@ -396,9 +398,8 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
             case RATE -> {
                 final com.gtnhplanner.ui.popup.Tip tip = com.gtnhplanner.ui.popup.Tip
                     .of(m.rule == Drawer.Rule.ANY ? "No rate yet" : "Target rate");
-                if (m.rule != Drawer.Rule.ANY) tip.row(ruleLabel(m.rule), Fmt.rate(m.target, unit, m.isFluid()));
-                if (m.shortfall != null)
-                    tip.row("Reaches", Fmt.rate(m.shortfall.reachable(), unit, m.isFluid()), Hyb.RED_INK);
+                if (m.rule != Drawer.Rule.ANY) tip.row(ruleLabel(m.rule), m.rate(m.target, unit));
+                if (m.shortfall != null) tip.row("Reaches", m.rate(m.shortfall.reachable(), unit), Hyb.RED_INK);
                 yield tip.action(com.gtnhplanner.ui.popup.Tip.Input.LEFT, "Type (2.5k, 1/3)")
                     .action(com.gtnhplanner.ui.popup.Tip.Input.WHEEL, "+1, Ctrl 10, Shift 100")
                     .action(com.gtnhplanner.ui.popup.Tip.Input.MIDDLE, "Clear");
@@ -406,12 +407,12 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
             default -> {
                 final com.gtnhplanner.ui.popup.Tip tip = com.gtnhplanner.ui.popup.Tip.of(m.label)
                     .sub(kindName(m.kind))
-                    .row(m.kind == Drawer.Kind.SOURCE ? "Supplies" : "Takes", Fmt.rate(m.rate, unit, m.isFluid()));
+                    .row(m.kind == Drawer.Kind.SOURCE ? "Supplies" : "Takes", m.rate(m.rate, unit));
                 if (!m.linked) tip.note("Unconnected", com.gtnhplanner.ui.popup.Tip.WARN);
                 if (m.shortfall != null) tip.note(
-                    "Can't reach the target: " + Fmt.rate(m.shortfall.reachable(), unit, m.isFluid())
+                    "Can't reach the target: " + m.rate(m.shortfall.reachable(), unit)
                         + " of "
-                        + Fmt.rate(m.shortfall.target(), unit, m.isFluid()),
+                        + m.rate(m.shortfall.target(), unit),
                     Hyb.RED_INK);
                 yield tip.action(com.gtnhplanner.ui.popup.Tip.Input.DRAG, "Move")
                     .action(com.gtnhplanner.ui.popup.Tip.Input.KEY, "R, U");
@@ -502,10 +503,10 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         final boolean shift = org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_LSHIFT)
             || org.lwjgl.input.Keyboard.isKeyDown(org.lwjgl.input.Keyboard.KEY_RSHIFT);
         final Double wheeled = session.wheeledRate(model.drawer.getId());
-        final double shown = wheeled != null ? wheeled * unit.perSecond
-            : model.rule == Drawer.Rule.ANY ? 0 : model.target * unit.perSecond;
+        final double shown = wheeled != null ? model.shown(wheeled, unit)
+            : model.rule == Drawer.Rule.ANY ? 0 : model.shown(model.target, unit);
         final double next = Math.max(0, Math.round(shown) + step * (shift ? 100 : ctrl ? 10 : 1));
-        session.wheelDrawerRate(model.drawer, next / unit.perSecond);
+        session.wheelDrawerRate(model.drawer, next / model.shown(1, unit));
     }
 
     /** The wheel on a drawer's rule: the next or previous rule. */
@@ -544,16 +545,17 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
     public static void openRate(final ModularPanel panel, final BoardSession session, final DrawerModel model,
         final int screenX, final int screenY) {
         final Fmt.RateUnit unit = session.rateUnit();
-        final double current = model.rule == Drawer.Rule.ANY ? 0 : model.target * unit.perSecond;
+        final double current = model.rule == Drawer.Rule.ANY ? 0 : model.shown(model.target, unit);
+        final double perShown = model.shown(1, unit);
         Popup.open(
             panel,
             NumberPopup.create(
-                "Rate in " + (model.isFluid() ? "L" : "") + unit.suffix + " (empty: no rule)",
+                "Rate in " + model.suffix(unit, true) + " (empty: no rule)",
                 "2.5k, 1/3",
                 current,
                 0,
                 Double.MAX_VALUE,
-                v -> session.setDrawerRate(model.drawer, v / unit.perSecond)),
+                v -> session.setDrawerRate(model.drawer, v / perShown)),
             screenX,
             screenY);
     }

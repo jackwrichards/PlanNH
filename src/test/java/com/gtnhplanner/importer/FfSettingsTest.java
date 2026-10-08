@@ -41,7 +41,7 @@ class FfSettingsTest {
             List.of(handlers),
             "gt.recipe.chemicalreactor",
             null,
-            false);
+            null);
     }
 
     /** A card with FF's defaults; the arguments are what the tests vary. */

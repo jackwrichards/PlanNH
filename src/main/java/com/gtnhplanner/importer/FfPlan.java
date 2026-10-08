@@ -69,12 +69,17 @@ public record FfPlan(String name, boolean solveMode, boolean poolMode, List<FfRe
      * @param kind        FF's recipe kind ("gregtech_machine", "bee_produce", "custom", ...), "" when absent
      * @param category    "gregtech", "crafting", "furnace", "custom-rate", ... ("" when absent)
      * @param recipeMapId GregTech's unlocalized recipe map name ({@code metadata.recipeMapId}), when the plan kept it
-     * @param power       a power card's synthesized recipe (FF's {@code recipe.power})
+     * @param powerSource a power card's source id (FF's {@code recipe.power.sourceId}); null on any other recipe
      */
     public record FfRecipe(String id, String name, String kind, String category, String machineType, String minimumTier,
         int durationTicks, double eut, @Nullable Double specialValue, @Nullable String programmedCircuit,
         List<FfSlot> inputs, List<FfSlot> outputs, List<FfHandler> handlers, @Nullable String recipeMapId,
-        @Nullable String rawRecipeId, boolean power) {
+        @Nullable String rawRecipeId, @Nullable String powerSource) {
+
+        /** A power card's synthesized recipe: a generator, not a recipe to find in game. */
+        public boolean power() {
+            return powerSource != null;
+        }
 
         private static final Pattern ORACLE_ID = Pattern.compile("^oracle:[^:]*:gregtech:([^:]+):");
         private static final Pattern CIRCUIT_SETTING = Pattern.compile("^\\d{1,2}$");

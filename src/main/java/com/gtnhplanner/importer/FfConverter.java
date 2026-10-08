@@ -190,7 +190,7 @@ public final class FfConverter {
                 return;
             }
             if (recipe.power()) {
-                report.add(Kind.DROPPED, recipe.name(), "a power card; GTNH Planner does not plan generators yet");
+                placePower(card, recipe);
                 return;
             }
             final List<FfSection> sections = new ArrayList<>();
@@ -281,6 +281,28 @@ public final class FfConverter {
                     .add(Kind.WIRE, name, "its target rate names " + target.resourceId() + ", which it does not make");
             }
             return node;
+        }
+
+        /**
+         * A power card: the same generator at the same settings, which rebuilds its ports from the source as the site
+         * does on load. Its pin comes over as a pin in a Solve plan, else its count as a starting count.
+         */
+        void placePower(final FfNode card, final FfRecipe recipe) {
+            final Node node = maker.makePower(recipe.powerSource(), card.machineConfigTiers());
+            if (node == null) {
+                report.add(Kind.UNMATCHED, recipe.name(), "a generator GTNH Planner does not know");
+                return;
+            }
+            node.x = px(card.x());
+            node.y = py(card.y());
+            final Double pin = card.solvePin();
+            if (plan.solveMode() && pin != null && pin > 0) {
+                node.machineConfig.setMachineCount((int) Math.ceil(pin - 1e-9));
+                node.setMachineCountFixed(true);
+            } else node.machineConfig.setMachineCount((int) Math.max(1, Math.ceil(card.machineCount() - 1e-9)));
+            graph.addNode(node);
+            placed.computeIfAbsent(card.id(), k -> new HashMap<>())
+                .put(0, new Placed(node, card, recipe, Map.of(), 0, recipe.name()));
         }
 
         void customRate(final FfNode card, final FfRecipe recipe) {

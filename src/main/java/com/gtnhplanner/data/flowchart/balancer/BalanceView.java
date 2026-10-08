@@ -116,7 +116,7 @@ public final class BalanceView {
         for (int i = 0; i < ports.size(); i++) {
             final Port<?> port = ports.get(i);
             if (wired.contains(new PortRef(node.id, i, input))) continue;
-            final double qty = Math.max(0, port.getAmount()) * port.getChance()
+            final double qty = Math.max(0, port.amount()) * port.getChance()
                 * (input ? cfg.inputMultiplier(i) : cfg.outputMultiplier(i))
                 * tf;
             if (qty <= 0) continue;

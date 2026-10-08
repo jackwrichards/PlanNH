@@ -227,6 +227,14 @@ public final class Serializer {
             obj.addProperty("x", node.x);
             obj.addProperty("y", node.y);
             obj.addProperty("machine", node.machineName);
+            if (node.isPower()) {
+                // A non-recipe machine: its source and settings; its ports are rebuilt from them on load.
+                obj.addProperty("power", node.powerSource);
+                final JsonObject settings = new JsonObject();
+                for (final Map.Entry<String, String> s : node.powerSettings.entrySet())
+                    settings.addProperty(s.getKey(), s.getValue());
+                obj.add("powerSettings", settings);
+            }
             // Null-tolerant on both sides: an unresolved recipe must not make the slot
             // unsaveable, and downstream treats a null recipeId as "handler unavailable".
             if (node.recipeId != null) {
@@ -328,7 +336,19 @@ public final class Serializer {
             }
             node.handlerRecipeIndex = obj.has("handlerRecipeIndex") ? obj.get("handlerRecipeIndex")
                 .getAsInt() : 0;
-            node.initExtractor();
+            if (obj.has("power")) {
+                node.powerSource = obj.get("power")
+                    .getAsString();
+                if (obj.has("powerSettings")) {
+                    for (final Map.Entry<String, JsonElement> s : obj.getAsJsonObject("powerSettings")
+                        .entrySet()) {
+                        node.powerSettings.put(
+                            s.getKey(),
+                            s.getValue()
+                                .getAsString());
+                    }
+                }
+            } else node.initExtractor();
             node.refresh();
 
             if (obj.has("machineCount")) {
