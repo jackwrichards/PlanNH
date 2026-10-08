@@ -40,7 +40,8 @@ public final class PlannerSettings {
     public static final int[] MINIMAP_SIZES = { 110, 160, 220, 300 };
     public static final String[] MINIMAP_SIZE_NAMES = { "Small", "Medium", "Large", "Huge" };
     /** The minimap's zoom steps (world units per screen pixel inverted: board pixels drawn per screen pixel). */
-    public static final float[] MINIMAP_ZOOMS = { 0.04f, 0.06f, 0.09f, 0.13f, 0.18f, 0.25f, 0.35f };
+    /** The minimap's zoom steps: past the board's glance zoom (0.45) it draws whole cards, as the board does. */
+    public static final float[] MINIMAP_ZOOMS = { 0.04f, 0.06f, 0.09f, 0.13f, 0.18f, 0.25f, 0.35f, 0.5f, 0.71f, 1f };
     /** How far away linked machines show their AR panels, in blocks. */
     public static final int[] AR_RANGES = { 16, 32, 64, 128 };
 

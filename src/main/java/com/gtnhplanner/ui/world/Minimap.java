@@ -21,10 +21,10 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 
 /**
  * The plan in a corner of the screen while playing: the last one open in the planner, drawn from its
- * {@link PlanSnapshot} as the board draws it zoomed out (cards with their machine and count, drawers with their
- * resource and rate, the wires as the board routed them, and with "Names when zoomed out" the same names placed the
- * same
- * way). Its size, shape, corner and zoom are settings; the arrow keys pan it, and it highlights (and can follow) the
+ * {@link PlanSnapshot} as the board draws it at the map's zoom: zoomed out, cards with their machine and count, drawers
+ * with their resource and rate, and with "Names when zoomed out" the same names placed the same way; past the board's
+ * glance zoom, whole cards and drawers; the wires as the board routed them. Its size, shape, corner and zoom are
+ * settings; the arrow keys pan it, and it highlights (and can follow) the
  * placed card or the plan's wire under the crosshair over the world.
  */
 public final class Minimap {
@@ -140,9 +140,23 @@ public final class Minimap {
         clipBegin(sr, x0, y0, size, circle);
         LABELS.clear();
         drawWires(snap.wires(), ox, oy, z, lit);
-        drawDrawers(snap.drawers(), ox, oy, z, snap.rateUnit());
-        drawCards(snap.cards(), ox, oy, z, focused);
-        if (PlannerSettings.zoomedOutNames()) {
+        if (z > com.gtnhplanner.ui.card.RecipeCard.GLANCE_ZOOM) {
+            // Close in, as the board: whole cards and drawers.
+            for (final PlanSnapshot.Box b : snap.drawers()) whole(
+                ox + b.x() * z,
+                oy + b.y() * z,
+                z,
+                () -> { com.gtnhplanner.ui.card.PlanCardView.drawer(b, snap.rateUnit(), false); });
+            for (final PlanSnapshot.Card c : snap.cards()) whole(
+                ox + c.x() * z,
+                oy + c.y() * z,
+                z,
+                () -> { com.gtnhplanner.ui.card.PlanCardView.draw(c, snap.rateUnit(), c == focused); });
+        } else {
+            drawDrawers(snap.drawers(), ox, oy, z, snap.rateUnit());
+            drawCards(snap.cards(), ox, oy, z, focused);
+        }
+        if (z <= com.gtnhplanner.ui.card.RecipeCard.GLANCE_ZOOM && PlannerSettings.zoomedOutNames()) {
             GL11.glPushMatrix();
             GL11.glTranslatef(ox, oy, 0);
             GL11.glScalef(z, z, 1);
@@ -341,6 +355,16 @@ public final class Minimap {
             Hyb.triangle(ax + vx, ay + vy, bx + vx, by + vy, bx - vx, by - vy, color);
             Hyb.triangle(ax + vx, ay + vy, bx - vx, by - vy, ax - vx, ay - vy, color);
         }
+    }
+
+    /** Draws a whole card or drawer at a place on the map, at the map's zoom, keeping the round map's mask. */
+    private static void whole(final float x, final float y, final float z, final Runnable draw) {
+        GL11.glPushMatrix();
+        GL11.glTranslatef(x, y, 0);
+        GL11.glScalef(z, z, 1);
+        draw.run();
+        GL11.glPopMatrix();
+        keepMask();
     }
 
     /** The names over cards and drawers, placed as the board places them zoomed out. */

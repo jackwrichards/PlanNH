@@ -27,6 +27,8 @@ order they are built.
 - The board publishes a `PlanSnapshot` (cards, drawers, wire paths, view centre, links) whenever it rebuilds its models
   or routes; the minimap draws the latest one. A plan changed while the planner is closed (NEI's plan button) marks the
   map out of date until the planner opens again.
+- Zoomed in past the board's glance zoom (the steps 0.5, 0.71 and 1), it draws whole cards and drawers as the board
+  does (`PlanCardView.draw`, `PlanCardView.drawer`: no keys, menus or rules), without the zoomed-out names.
 - Settings: on/off, size (Small, Medium, Large, Huge), shape (square, circle), corner, zoom, and "Centre on the machine
   you look at".
 - Keys (Minecraft's Controls, category GTNH Planner): toggle the minimap, zoom in and out, pan (arrow keys), re-centre.
