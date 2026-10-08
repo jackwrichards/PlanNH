@@ -625,7 +625,10 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         chip(x, y, w, h, tier, label, underline, hover, false);
     }
 
-    /** A chip; {@code heavy} draws its label a hair heavier (half a pixel wider), short of the game's bold. */
+    /**
+     * A chip; {@code heavy} draws its label a hair heavier (one screen pixel wider, at any zoom), short of the game's
+     * bold.
+     */
     static void chip(final int x, final int y, final int w, final int h, final Hyb.Tier tier, final String label,
         final boolean underline, final boolean hover, final boolean heavy) {
         Hyb.rect(x, y, w, h, tier.border());
@@ -639,8 +642,21 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final float tx = crisp(x + (w - tw) / 2f), ty = crisp(y + (h - 7 * s) / 2f);
         GuiDraw.drawText(label, tx + 1, ty + 1, s, tier.border(), false);
         GuiDraw.drawText(label, tx, ty, s, tier.text(), false);
-        if (heavy) GuiDraw.drawText(label, tx + 0.5f, ty, s, tier.text(), false);
+        if (heavy) GuiDraw.drawText(label, tx + screenPixel(), ty, s, tier.text(), false);
         if (underline) Hyb.rect(tx, ty + 8 * s, tw, 1, tier.text());
+    }
+
+    private static final java.nio.FloatBuffer MATRIX = org.lwjgl.BufferUtils.createFloatBuffer(16);
+
+    /** One screen pixel in the current drawing units: the same weight however the card is zoomed. */
+    private static float screenPixel() {
+        MATRIX.clear();
+        org.lwjgl.opengl.GL11.glGetFloat(org.lwjgl.opengl.GL11.GL_MODELVIEW_MATRIX, MATRIX);
+        final float scale = Math.abs(MATRIX.get(0)) * new net.minecraft.client.gui.ScaledResolution(
+            net.minecraft.client.Minecraft.getMinecraft(),
+            net.minecraft.client.Minecraft.getMinecraft().displayWidth,
+            net.minecraft.client.Minecraft.getMinecraft().displayHeight).getScaleFactor();
+        return scale <= 0 ? 0.5f : 1 / scale;
     }
 
     private static void chevron(final int x, final int y, final int color) {

@@ -147,21 +147,14 @@ public final class CleanCardView {
         }
     }
 
-    /** The machine; its circuit on its bottom left corner, how many in white on its bottom right. */
+    /** The machine; its circuit, large, on its bottom left corner, how many in white on its bottom right. */
     private static void middle(final PlanSnapshot.Card c, final int top) {
         final int x = MID_X + (MID_W - PICTURE) / 2;
         art(c, x, top, PICTURE, PICTURE);
         if (c.circuit() != null) {
-            Hyb.item(c.circuit(), x + 1, top + PICTURE - 17, 16, 0);
+            Hyb.item(c.circuit(), x, top + PICTURE - 24, 24, 0);
             GL11.glDisable(GL11.GL_LIGHTING);
             GL11.glDisable(GL11.GL_DEPTH_TEST);
-            Hyb.text(
-                String.valueOf(
-                    c.circuit()
-                        .getItemDamage()),
-                x + 18,
-                top + PICTURE - 10,
-                Hyb.INK);
         }
         final String count = "×" + Fmt.machines(c.machines());
         final float s = Hyb.FIGURE, tw = Hyb.width(count) * s, th = 8 * s;
