@@ -34,8 +34,9 @@ import cpw.mods.fml.common.gameevent.TickEvent;
 
 /**
  * The plan overlaid on the world: every card of the plan last open in the planner that has been placed on a spot is
- * drawn floating over it as the board draws it, a stem down to the spot, where a ghost of its machine stands; full size
- * within ten blocks and shrinking with distance beyond, nearer cards over farther ones. The plan's wires between placed
+ * drawn floating over it as the board draws it, a stem down to the spot, where a ghost of its machine stands; the same
+ * size within ten blocks and shrinking with distance beyond. Cards move out of each other's way, their stems pointing
+ * back to their spots. The plan's wires between placed
  * cards are
  * drawn flat on the screen as the board draws them, from block to block, with arrowheads moving towards the card fed
  * and a tag naming what goes along and how much. Nothing shows until a card is placed. What the crosshair is on is
@@ -46,11 +47,13 @@ public final class PlanOverlay {
     public static final PlanOverlay INSTANCE = new PlanOverlay();
 
     /**
-     * Cards and wire tags are drawn at {@link #SIZE} of the board's size within this many blocks of the eye (half: a
-     * screen pixel per font pixel at GUI scale 2, small and sharp), and shrink with distance beyond it as objects do.
-     * How far a card floats over its spot, in blocks.
+     * Cards and wire tags are drawn at {@link #SIZE} of the board's size within this many blocks of the eye, and shrink
+     * with distance beyond it as objects do. How far a card floats over its spot, in blocks.
      */
-    private static final float FULL_SIZE_WITHIN = 10f, SIZE = 0.5f, LIFT = 0.35f;
+    private static final float FULL_SIZE_WITHIN = 10f, SIZE = 0.6f, LIFT = 0.35f;
+
+    /** The room kept between cards (and wire tags) on the screen, in GUI pixels. */
+    private static final float CARD_GAP = 3;
 
     /** How far the crosshair reaches to a wire's line, in GUI pixels. */
     private static final float WIRE_REACH = 24;
@@ -61,8 +64,11 @@ public final class PlanOverlay {
         final PlanSnapshot.Card card;
         final int x, y, z;
         double distance;
-        /** The card's foot on the screen, its block's top, its scale, and its size there. */
-        float sx, sy, bx, by, scale, w, h;
+        /**
+         * Where the card's foot would be on the screen, straight over its spot; its spot's top; its scale and size
+         * there; and where it is drawn, its top left, once moved out of the other cards' way.
+         */
+        float sx, sy, bx, by, scale, w, h, left, top;
 
         Placed(final PlanSnapshot.Card card, final int[] at) {
             this.card = card;
@@ -72,7 +78,7 @@ public final class PlanOverlay {
         }
 
         boolean covers(final float px, final float py) {
-            return px >= sx - w / 2 && px < sx + w / 2 && py >= sy - h && py < sy;
+            return px >= left && px < left + w && py >= top && py < top + h;
         }
     }
 
@@ -242,6 +248,7 @@ public final class PlanOverlay {
         // The plan's wires, flat on the screen as the board draws them, and the one the crosshair is on.
         final float cx = sr.getScaledWidth() / 2f, cy = sr.getScaledHeight() / 2f;
         final List<Run> runs = runs(conns(all), sr, mc, snap);
+        layout(shown, runs);
         // What the crosshair is on: a wire's tag, else the nearest card it is over, else a spot (its ghost), else the
         // wire
         // whose line is within reach.
@@ -389,13 +396,81 @@ public final class PlanOverlay {
         return modelview.get(2) * x + modelview.get(6) * y + modelview.get(10) * z + modelview.get(14);
     }
 
-    /** A card over its spot, with its stem down to it. */
+    // region Making room
+
+    /**
+     * Each card's offset from its place straight over its spot, in its own widths (right) and heights (up), kept from
+     * frame to frame: where it is going {x, y} and where it is drawn now {x, y}.
+     */
+    private final Map<UUID, float[]> offsets = new HashMap<>();
+    private long laidOut;
+
+    /**
+     * Moves cards out of each other's way, as map labels are: nearest first, each keeps where it is while that is clear
+     * of the cards already placed and the wires' tags, and otherwise takes the clear place nearest its own (sideways or
+     * up, never below its spot), its stem pointing back. A card that moved goes home again once that is clear, and
+     * moves quickly rather than gliding.
+     */
+    private void layout(final List<Placed> shown, final List<Run> runs) {
+        final long now = System.currentTimeMillis();
+        final float ease = laidOut == 0 ? 1 : (float) (1 - Math.exp(-(now - laidOut) / 50.0));
+        laidOut = now;
+        final List<float[]> taken = new ArrayList<>();
+        for (final Run r : runs) taken.add(new float[] { r.tx, r.ty, r.tw, r.th });
+        for (final Placed p : shown) {
+            final float[] o = offsets.computeIfAbsent(p.card.id(), id -> new float[4]);
+            float bestX = o[0], bestY = o[1];
+            final boolean clear = clear(p, bestX, bestY, taken);
+            final float now0 = cost(p, bestX, bestY);
+            if (!clear || now0 > 0) {
+                // A clear place, nearest home first; where it is now is clear too, only one much nearer home.
+                float best = clear ? now0 * 0.6f : Float.MAX_VALUE;
+                for (float dy = 0; dy <= 2.01f; dy += 0.25f) for (float dx = -1.5f; dx <= 1.51f; dx += 0.125f) {
+                    final float c = cost(p, dx, dy);
+                    if (c < best && clear(p, dx, dy, taken)) {
+                        best = c;
+                        bestX = dx;
+                        bestY = dy;
+                    }
+                }
+            }
+            o[0] = bestX;
+            o[1] = bestY;
+            o[2] += (o[0] - o[2]) * ease;
+            o[3] += (o[1] - o[3]) * ease;
+            p.left = p.sx + o[2] * p.w - p.w / 2;
+            p.top = p.sy - o[3] * p.h - p.h;
+            taken.add(new float[] { p.sx + o[0] * p.w - p.w / 2, p.sy - o[1] * p.h - p.h, p.w, p.h });
+        }
+    }
+
+    /** How far from home an offset takes a card, on the screen; going up costs a little more than going aside. */
+    private static float cost(final Placed p, final float dx, final float dy) {
+        return Math.abs(dx) * p.w + 1.15f * dy * p.h;
+    }
+
+    /** Whether a card at an offset keeps clear of everything placed. */
+    private static boolean clear(final Placed p, final float dx, final float dy, final List<float[]> taken) {
+        final float x = p.sx + dx * p.w - p.w / 2 - CARD_GAP, y = p.sy - dy * p.h - p.h - CARD_GAP;
+        final float w = p.w + 2 * CARD_GAP, h = p.h + 2 * CARD_GAP;
+        for (final float[] t : taken)
+            if (x < t[0] + t[2] && t[0] < x + w && y < t[1] + t[3] && t[1] < y + h) return false;
+        return true;
+    }
+
+    // endregion
+
+    /**
+     * A card where the layout put it, with its stem from its bottom edge down to its spot (a pin when the card moved
+     * aside).
+     */
     private static void card(final Placed p, final PlanSnapshot snap, final boolean ringed) {
         final int stem = ringed ? 0x90000000 | Hyb.LIT & 0xFFFFFF : 0x70A4A8B0;
-        final float sw = 3;
-        Hyb.rect(p.sx - sw / 2f, p.sy, sw, Math.max(1, p.by - p.sy), stem);
+        final float footX = Math.max(p.left + 6, Math.min(p.left + p.w - 6, p.bx)), footY = p.top + p.h;
+        if (p.by - footY > 1 || Math.abs(footX - p.bx) > 1) band(footX, footY, p.bx, p.by, 3, stem);
+        Hyb.rect(p.bx - 2, p.by - 2, 4, 4, stem);
         GL11.glPushMatrix();
-        GL11.glTranslatef(Math.round(p.sx - p.w / 2f), Math.round(p.sy - p.h), 0);
+        GL11.glTranslatef(Math.round(p.left), Math.round(p.top), 0);
         GL11.glScalef(p.scale, p.scale, 1);
         PlanCardView.draw(p.card, snap.rateUnit(), ringed);
         GL11.glPopMatrix();

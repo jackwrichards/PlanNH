@@ -112,6 +112,8 @@ tools/dev/board-check.sh  # GT runs: end-to-end board check (recipe, port drag, 
 - After changing mod code: `tools/dev/mc.sh swap --reopen`. Restart instead (`mc.sh restart`, ~30s) when swap
   exits 2 (new or not-yet-loaded classes), for mixins, resources and startup-only code, and when you add a field
   with an initialiser: widgets already on screen get it as null, and a draw that touches it crashes out of the world.
+  Decide before swapping: swap applies every class it can before it exits 2, so swapping code that uses a new class
+  or an initialised field on an existing object (an event handler's `INSTANCE` too) crashes the user's game at once.
 - The game window opens on the user's desktop at 1920x1080, GUI scale 2, muted (`PLANNH_DEV_SOUND=1.0` for sound,
   `call 'sound?volume=1'` live); keep it that way. Leave it running while the user is iterating on the UI with you;
   stop it when the work is done.
