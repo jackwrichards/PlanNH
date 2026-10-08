@@ -301,6 +301,9 @@ public final class PlanOverlay {
     /** Arrowheads along a wire: how far apart and how fast they move, in blocks and blocks a second. */
     private static final double ARROW_GAP = 0.4, ARROW_SPEED = 0.67;
 
+    /** How far from either end of a wire its arrowheads fade, in blocks. */
+    private static final double ARROW_FADE = 0.35;
+
     /**
      * A wire on the screen this frame: its ends (where it leaves one block and meets the other, cut short at the
      * camera, moved aside into its lane), its arrowheads {x, y, direction x, direction y}, how big its tag is drawn,
@@ -389,15 +392,16 @@ public final class PlanOverlay {
         final float step = run < 1 ? 0 : lane * (lineWidth(scale) + 2 + Math.max(3, 10 * scale)) / run;
         final float ox = -uy * step, oy = ux * step;
         final List<float[]> arrows = new ArrayList<>();
-        final double reach = 0.3 / length;
         for (double at = (clock * ARROW_SPEED) % ARROW_GAP; at < length; at += ARROW_GAP) {
             final double t = at / length;
-            if (t < span[0] + reach || t > span[1] - reach) continue;
+            if (t <= span[0] || t >= span[1]) continue;
+            // All the way along the line, fading in as it leaves one end and out as it reaches the other.
+            final float fade = (float) Math.min(1, Math.min(t - span[0], span[1] - t) * length / ARROW_FADE);
             final float[] p = screen(along(from, to, t), sr, mc),
                 q = screen(along(from, to, t + 0.05 / length), sr, mc);
             if (p == null || q == null) continue;
             final float ax = q[0] - p[0], ay = q[1] - p[1], al = (float) Math.hypot(ax, ay);
-            if (al > 0) arrows.add(new float[] { p[0] + ox, p[1] + oy, ax / al, ay / al });
+            if (al > 0) arrows.add(new float[] { p[0] + ox, p[1] + oy, ax / al, ay / al, fade });
         }
         final PlanSnapshot.Flow f = c.flow;
         final String rate = f == null ? ""
@@ -572,7 +576,7 @@ public final class PlanOverlay {
         final float head = 4.5f * arrow, half = 2.4f * arrow;
         final int tip = Hyb.mix(colour, 0xFFFFFFFF, 0.45f);
         for (final float[] a : r.arrows) {
-            final float px = a[0], py = a[1], ux = a[2], uy = a[3];
+            final float px = a[0], py = a[1], ux = a[2], uy = a[3], fade = a[4];
             final float fx = px + ux * head * 0.6f, fy = py + uy * head * 0.6f;
             final float bx = px - ux * head * 0.4f, by = py - uy * head * 0.4f;
             Hyb.triangle(
@@ -582,19 +586,24 @@ public final class PlanOverlay {
                 by + ux * (half + 1),
                 bx + uy * (half + 1),
                 by - ux * (half + 1),
-                lit ? Hyb.LIT : 0xB0000000);
-            Hyb.triangle(fx, fy, bx - uy * half, by + ux * half, bx + uy * half, by - ux * half, tip);
+                faded(lit ? Hyb.LIT : 0xB0000000, fade));
+            Hyb.triangle(fx, fy, bx - uy * half, by + ux * half, bx + uy * half, by - ux * half, faded(tip, fade));
         }
     }
 
-    /** The size arrowheads are measured in, on the screen, at a scale. */
+    /** The size arrowheads are measured in, on the screen, at a scale: they stop growing early. */
     private static float arrowWidth(final float scale) {
-        return Math.max(1.2f, 3f * scale);
+        return Math.max(1.1f, Math.min(1.5f, 3f * scale));
     }
 
-    /** How thick a wire is drawn on the screen at a scale: twice what its arrowheads are measured in. */
+    /** How thick a wire is drawn on the screen at a scale. */
     private static float lineWidth(final float scale) {
-        return 2 * arrowWidth(scale);
+        return 2 * Math.max(1.2f, 3f * scale);
+    }
+
+    /** A colour at a share of its own opacity. */
+    private static int faded(final int argb, final float share) {
+        return (int) ((argb >>> 24) * share) << 24 | argb & 0xFFFFFF;
     }
 
     /** A straight band {@code w} wide from one point to another. */

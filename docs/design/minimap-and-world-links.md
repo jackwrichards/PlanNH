@@ -81,7 +81,8 @@ Nothing shows until a card of the plan last open is placed.
 - The plan's wires between placed cards are drawn flat on the screen as the board draws them, from where they leave
   one spot to where they meet the other (cut short at the camera): a thick line in the resource's colour on a dark
   edge, with many small arrowheads drifting slowly towards the card fed (set out in the world, two fifths of a block apart at two
-  thirds of a block a second, so their pace holds as you move), faint where nothing flows yet. Several wires between
+  thirds of a block a second, so their pace holds as you move; all the way from end to end, fading in and out over a
+  third of a block at each; they stop growing early as you come close), faint where nothing flows yet. Several wires between
   the same two cards run side by side in lanes (a line, its edges and a clear gap apart), so the two directions of a pair part. At its middle a tag says what
   goes along it: the icon, the rate in large type and the name small under it, on a plain soft dark backing, as big as
   the cards' ports there; on the line when the wire runs alone, beside its own lane, on the side away from the other
