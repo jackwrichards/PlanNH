@@ -853,6 +853,17 @@ public final class BoardSession {
         PlanAPI.save();
     }
 
+    /** Closes every tab but this one, which becomes the open plan; the others stay in My plans. */
+    public void closeOtherSlots(final int index) {
+        final Plan plan = Plan.getInstance();
+        if (index < 0 || index >= plan.getGraphs()
+            .size()) return;
+        if (index != plan.getActiveIndex()) switchSlot(index);
+        for (final int other : plan.openSlots()) if (other != index) plan.closeSlot(other);
+        follow();
+        PlanAPI.save();
+    }
+
     /** Asks before deleting a plan for good: it cannot be undone. */
     public void confirmDelete(final int index, final com.cleanroommc.modularui.screen.ModularPanel panel, final int x,
         final int y) {
