@@ -416,7 +416,8 @@ public final class DevHarness {
                         new CardGallery(
                             Integer.parseInt(q.getOrDefault("from", "0")),
                             Integer.parseInt(q.getOrDefault("count", "3")),
-                            Float.parseFloat(q.getOrDefault("scale", "0.8"))));
+                            Float.parseFloat(q.getOrDefault("scale", "0.8")),
+                            q.getOrDefault("match", "")));
                     return ok();
                 });
             case "/neiinput":

@@ -1065,7 +1065,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     // endregion
 
     /** "Kanthal Coil Block" reads as "Kanthal" in the well, as on the website. */
-    private static String shortCoilName(final String name) {
+    public static String shortCoilName(final String name) {
         for (final String tail : new String[] { " Coil Block", " Coil" }) {
             if (name.endsWith(tail)) return name.substring(0, name.length() - tail.length());
         }

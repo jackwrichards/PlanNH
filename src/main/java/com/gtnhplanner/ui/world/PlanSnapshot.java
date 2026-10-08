@@ -38,7 +38,13 @@ public record PlanSnapshot(Graph graph, String planName, long graphVersion, List
     public record Card(UUID id, List<UUID> nodeIds, float x, float y, float w, float h, String name,
         @Nullable ItemStack machine, @Nullable StructureArt.Art art, int tint, double machines, boolean pinned,
         List<Flow> inputs, List<Flow> outputs, double euPerTick, double madeEuPerTick, List<int[]> links, String tier,
-        int amps) {}
+        int amps, @Nullable ItemStack circuit, List<Setting> settings) {}
+
+    /**
+     * A machine setting worth showing on the card: the coil, parallels, and any setting changed from its default.
+     * {@code warn} when it stops the recipe (a coil too cold).
+     */
+    public record Setting(String label, String value, @Nullable ItemStack icon, boolean warn) {}
 
     /** A drawer: its resource, kind (a source supplies, the rest take) and rate. */
     public record Box(UUID id, float x, float y, float w, float h, String label, @Nullable ItemStack item,

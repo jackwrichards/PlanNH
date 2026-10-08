@@ -49,7 +49,34 @@ public final class CleanCardView {
     }
 
     public static int height(final PlanSnapshot.Card c) {
-        return HEAD + 6 + body(c) + 6;
+        final int strip = strip(c).size();
+        return HEAD + 6 + body(c) + 6 + (strip == 0 ? 0 : strip * STRIP_ROW + 4);
+    }
+
+    /** The settings strip: a chip's height, a row's, and the room inside a chip. */
+    private static final int CHIP = 18, STRIP_ROW = 22, CHIP_PAD = 5;
+
+    /** A setting's chip: its width. */
+    private static int chipW(final PlanSnapshot.Setting s) {
+        return CHIP_PAD + (s.icon() != null ? 14 + 3 : 0) + Hyb.width(s.label()) + 4 + Hyb.width(s.value()) + CHIP_PAD;
+    }
+
+    /** The settings, in rows that fit the card. */
+    private static List<List<PlanSnapshot.Setting>> strip(final PlanSnapshot.Card c) {
+        final List<List<PlanSnapshot.Setting>> rows = new java.util.ArrayList<>();
+        List<PlanSnapshot.Setting> row = null;
+        int x = 0;
+        for (final PlanSnapshot.Setting s : c.settings()) {
+            final int w = chipW(s);
+            if (row == null || x + w > W - 2 * EDGE) {
+                row = new java.util.ArrayList<>();
+                rows.add(row);
+                x = 0;
+            }
+            row.add(s);
+            x += w + 4;
+        }
+        return rows;
     }
 
     public static int width() {
@@ -68,6 +95,7 @@ public final class CleanCardView {
         middle(c, top);
         ports(side(c, false), false, top, unit);
         ports(side(c, true), true, top, unit);
+        settings(c, top + body(c) + 6);
     }
 
     /** The name large, left; the amps and tier chips, as the board's a little heavier, right; a hairline under them. */
@@ -88,14 +116,53 @@ public final class CleanCardView {
         }
         final float big = Hyb.FIGURE;
         final String name = Hyb.fit(c.name(), (int) ((right - EDGE) / big));
-        Hyb.text(name, EDGE, y + (CHIP_H - 8 * big) / 2f, big, Hyb.INK);
+        // Level with the chips' labels: the game's capitals are seven of its eight rows.
+        Hyb.text(name, EDGE, y + (CHIP_H - 7 * big) / 2f, big, Hyb.INK);
         Hyb.rect(1, HEAD, W - 2, 1, HAIR);
     }
 
-    /** The machine, and how many in white on its bottom right corner. */
+    /** The settings strip: a hairline, then a chip for each setting, label small and value plain. */
+    private static void settings(final PlanSnapshot.Card c, final int y) {
+        final List<List<PlanSnapshot.Setting>> rows = strip(c);
+        if (rows.isEmpty()) return;
+        Hyb.rect(1, y, W - 2, 1, HAIR);
+        for (int r = 0; r < rows.size(); r++) {
+            int x = EDGE;
+            final int cy = y + 4 + r * STRIP_ROW;
+            for (final PlanSnapshot.Setting s : rows.get(r)) {
+                final int w = chipW(s);
+                Hyb.rect(x, cy, w, CHIP, s.warn() ? 0xFF6B2A2A : 0xFF34363C);
+                Hyb.rect(x + 1, cy + 1, w - 2, CHIP - 2, 0xFF2A2C31);
+                int tx = x + CHIP_PAD;
+                if (s.icon() != null) {
+                    Hyb.item(s.icon(), tx, cy + 2, 14, 0);
+                    GL11.glDisable(GL11.GL_LIGHTING);
+                    GL11.glDisable(GL11.GL_DEPTH_TEST);
+                    tx += 14 + 3;
+                }
+                Hyb.text(s.label(), tx, cy + 5, Hyb.MUTED);
+                Hyb.text(s.value(), tx + Hyb.width(s.label()) + 4, cy + 5, s.warn() ? Hyb.RED_INK : Hyb.INK);
+                x += w + 4;
+            }
+        }
+    }
+
+    /** The machine; its circuit on its bottom left corner, how many in white on its bottom right. */
     private static void middle(final PlanSnapshot.Card c, final int top) {
         final int x = MID_X + (MID_W - PICTURE) / 2;
         art(c, x, top, PICTURE, PICTURE);
+        if (c.circuit() != null) {
+            Hyb.item(c.circuit(), x + 1, top + PICTURE - 17, 16, 0);
+            GL11.glDisable(GL11.GL_LIGHTING);
+            GL11.glDisable(GL11.GL_DEPTH_TEST);
+            Hyb.text(
+                String.valueOf(
+                    c.circuit()
+                        .getItemDamage()),
+                x + 18,
+                top + PICTURE - 10,
+                Hyb.INK);
+        }
         final String count = "×" + Fmt.machines(c.machines());
         final float s = Hyb.FIGURE, tw = Hyb.width(count) * s, th = 8 * s;
         Hyb.text(count, x + PICTURE - tw - 2, top + PICTURE - th - 2, s, c.machines() <= 0 ? Hyb.MUTED : Hyb.INK);

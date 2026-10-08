@@ -66,7 +66,9 @@ final class SnapshotMaker {
                     made,
                     copyLinks(n.worldLinks),
                     m.gregtech && m.tier != null ? m.tier : "",
-                    m.multiblock ? m.amps : 0));
+                    m.multiblock ? m.amps : 0,
+                    m.isPower() ? null : m.circuit,
+                    m.isPower() ? List.of() : settings(m)));
         }
         final List<PlanSnapshot.Box> boxes = new ArrayList<>();
         for (final Drawer d : graph.getDrawers()) {
@@ -121,6 +123,41 @@ final class SnapshotMaker {
     private static List<int[]> copyLinks(final List<int[]> links) {
         final List<int[]> out = new ArrayList<>(links.size());
         for (final int[] l : links) out.add(l.clone());
+        return out;
+    }
+
+    /** What a card shows of its own, so not again among its settings. */
+    private static final java.util.Set<String> SHOWN = java.util.Set
+        .of("voltage", "amp", "machines", "gt_multiblock", "machine_heat", "parallels");
+
+    /** The coil (heat recipes), parallels when more than one, then every setting changed from its default. */
+    private static List<PlanSnapshot.Setting> settings(final com.gtnhplanner.ui.card.CardModel m) {
+        final List<PlanSnapshot.Setting> out = new ArrayList<>();
+        if (m.usesHeat) {
+            final com.gtnhplanner.ui.gt.GtCoils.Coil coil = m.coilHeat > 0
+                ? com.gtnhplanner.ui.gt.GtCoils.forHeat(m.coilHeat)
+                : null;
+            out.add(
+                new PlanSnapshot.Setting(
+                    "Coil",
+                    coil == null ? "none" : com.gtnhplanner.ui.card.RecipeCard.shortCoilName(coil.name()),
+                    coil == null ? null : coil.stack(),
+                    coil == null || m.recipeHeat > coil.heat()));
+        }
+        if (m.parallels > 1) out.add(new PlanSnapshot.Setting("Parallel", "×" + m.parallels, null, false));
+        final com.gtnhplanner.data.MachineConfig cfg = m.node.machineConfig;
+        if (cfg == null || cfg.getProfile() == null) return out;
+        for (final com.gtnhplanner.data.SettingDef<?> def : cfg.getProfile()
+            .visibleSettings(new com.gtnhplanner.data.RecipeContext(m.node.properties), cfg.settings)) {
+            final Object value = cfg.settings.get(def.key);
+            if (SHOWN.contains(def.key) || value == null || value.equals(def.defaultValue)) continue;
+            out.add(
+                new PlanSnapshot.Setting(
+                    def.label,
+                    value instanceof final Boolean b ? b ? "on" : "off" : String.valueOf(value),
+                    null,
+                    false));
+        }
         return out;
     }
 }

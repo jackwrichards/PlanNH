@@ -15,6 +15,11 @@ of the plan last open in today's style and the trial's, side by side (`dev/CardG
 - Power is one more port with a bolt: after the inputs for what the machine draws, after the outputs for what a
   generator makes. Hovering it says, in a few words, that plans do not wire machine power (e.g. "Not wired in plans").
 - The machine picture in the middle, a little larger, the machine count in plain white on its bottom right corner.
+- The title level with the chips' labels (the game's capitals are seven of its eight rows).
+- The recipe's programmed circuit as a badge, with its number, on the picture's bottom left corner.
+- A settings strip along the bottom: a chip for the coil (heat recipes; red when too cold), parallels when more than
+  one, and every setting changed from its default (`PlanSnapshot.Setting`, from `SnapshotMaker.settings`); a card left
+  at its defaults has no strip.
 - Shadows a fifth lighter everywhere (cards, drawers, icons, structure pictures): done for the whole mod.
 - The same look carries to the zoomed-out (glance) card, the minimap and the cards over the world.
 
