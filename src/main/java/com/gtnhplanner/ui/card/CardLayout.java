@@ -131,6 +131,29 @@ public final class CardLayout {
         return out;
     }
 
+    /**
+     * A port's words, as everywhere a port is shown (the board's cards, the cards over the world and on the minimap):
+     * how much in large type with its unit small beside it, and the name small under it on one or two lines, the two
+     * centred in a tile {@code h} high. The number drops to the name's size when it would not fit.
+     */
+    public static void portText(final List<String> name, final double perSecond, final boolean power,
+        final boolean fluid, final com.gtnhplanner.ui.theme.Fmt.RateUnit unit, final float x, final float y,
+        final int h) {
+        final String number = power ? com.gtnhplanner.ui.theme.Fmt.power(perSecond / 20)
+            : com.gtnhplanner.ui.theme.Fmt.compact(perSecond * unit.perSecond);
+        final String suffix = power ? " EU/t" : (fluid ? " L" : "") + unit.suffix;
+        final int colour = perSecond <= 0 ? 0xFFA8AFBB : Hyb.INK;
+        final boolean big = Hyb.width(number) * Hyb.FIGURE + Hyb.width(suffix) + 2 <= TEXT_W;
+        final float rateH = big ? 8 * Hyb.FIGURE : 8;
+        final float top = RecipeCard.crisp(y + (h - (rateH + 2 + name.size() * 9 - 1)) / 2f);
+        if (big) {
+            Hyb.text(number, x, top, Hyb.FIGURE, colour);
+            Hyb.text(suffix, x + Hyb.width(number) * Hyb.FIGURE + 2, top + 3.5f, Hyb.MUTED);
+        } else Hyb.text(Hyb.fit(number + suffix, TEXT_W), x, top, colour);
+        for (int line = 0; line < name.size(); line++)
+            Hyb.text(name.get(line), x, top + rateH + 2 + line * 9, Hyb.MUTED);
+    }
+
     /** A port name on one or two lines of a port tile; longer keeps "..." at the end of the second. */
     static List<String> nameLines(final String text) {
         final String name = text == null ? "" : text;

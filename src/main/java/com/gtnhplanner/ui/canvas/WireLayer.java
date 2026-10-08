@@ -32,6 +32,9 @@ import com.gtnhplanner.ui.theme.Hyb;
  */
 final class WireLayer {
 
+    /** How much thicker than Factory Flow's the board draws its wires (so they read at a glance). */
+    private static final float WIDTH = 1.35f;
+
     enum Kind {
         /** Card output to card input. */
         EDGE,
@@ -390,7 +393,7 @@ final class WireLayer {
                     kind.get(i)
                         .perSecond())
                     / Math.log1p(max);
-                width.put(kind.get(i), (float) (2 + 5 * (0.62 * rank + 0.38 * share)));
+                width.put(kind.get(i), (float) (WIDTH * (2 + 5 * (0.62 * rank + 0.38 * share))));
             }
         }
         final List<Wire> out = new ArrayList<>(wires.size());
@@ -402,7 +405,7 @@ final class WireLayer {
                 w.drawer(),
                 w.link(),
                 w.color(),
-                width.getOrDefault(w, 1.5f),
+                width.getOrDefault(w, WIDTH * 1.5f),
                 w.perSecond(),
                 w.path(),
                 w.resource()));

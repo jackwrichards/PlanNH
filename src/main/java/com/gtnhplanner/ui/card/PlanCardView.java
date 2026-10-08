@@ -120,7 +120,7 @@ public final class PlanCardView {
         GL11.glDisable(GL11.GL_DEPTH_TEST);
     }
 
-    /** Port tiles as the card's: the icon, the name on one or two lines, the plan's rate under it. */
+    /** Port tiles as the card's: the icon, the plan's rate in large type, the name small under it. */
     private static void rail(final List<PlanSnapshot.Flow> ports, final int x, final Fmt.RateUnit unit) {
         for (int i = 0; i < ports.size(); i++) {
             final PlanSnapshot.Flow p = ports.get(i);
@@ -130,13 +130,15 @@ public final class PlanCardView {
             else Hyb.icon(p.item(), p.fluid(), x + CardLayout.ICON_X, y + CardLayout.ICON_Y, CardLayout.ICON, 0);
             GL11.glDisable(GL11.GL_LIGHTING);
             GL11.glDisable(GL11.GL_DEPTH_TEST);
-            final List<String> name = CardLayout.nameLines(p.name());
-            final float textX = x + CardLayout.TEXT_X;
-            final float top = RecipeCard.crisp(y + (CardLayout.ROW - ((name.size() + 1) * 9 - 1)) / 2f);
-            for (int line = 0; line < name.size(); line++) Hyb.text(name.get(line), textX, top + line * 9, Hyb.INK);
-            final String rate = p.power() ? Fmt.power(p.perSecond() / 20) + " EU/t"
-                : Fmt.rate(p.perSecond(), unit, p.fluid() != null);
-            Hyb.text(Hyb.fit(rate, CardLayout.TEXT_W), textX, top + name.size() * 9, Hyb.MUTED);
+            CardLayout.portText(
+                CardLayout.nameLines(p.name()),
+                p.perSecond(),
+                p.power(),
+                p.fluid() != null,
+                unit,
+                x + CardLayout.TEXT_X,
+                y,
+                CardLayout.ROW);
         }
     }
 

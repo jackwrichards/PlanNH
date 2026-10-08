@@ -644,8 +644,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     }
 
     /**
-     * Each port is a tile of its own, as on the website: the icon bare with its shadow, the name on one or two lines,
-     * the rate under it. A port still to wire is dashed and breathes. The tiles go down first, then what lights them,
+     * Each port is a tile of its own, as on the website: the icon bare with its shadow, the rate in large type, the name
+     * small under it on one or two lines. A port still to wire is dashed and breathes. The tiles go down first, then what lights them,
      * so a glow is never covered by the tile below. On a shared machine a recipe with nothing on one side says so.
      */
     private void drawRail(final int section, final List<CardModel.PortView> ports, final boolean output,
@@ -673,17 +673,15 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 && hoveredSlot.index == p.index()) Hyb.rect(x + 1, y + 1, w - 2, h - 2, 0x14FFFFFF);
             if (p.isPower()) euIcon(x + CardLayout.ICON_X, y + CardLayout.ICON_Y, CardLayout.ICON);
             else Hyb.icon(p.item(), p.fluid(), x + CardLayout.ICON_X, y + CardLayout.ICON_Y, CardLayout.ICON, z);
-            final List<String> name = layout.nameLines(section, output, p.index());
-            final float textX = x + CardLayout.TEXT_X;
-            final float top = crisp(y + (h - ((name.size() + 1) * 9 - 1)) / 2f);
-            for (int line = 0; line < name.size(); line++) Hyb.text(name.get(line), textX, top + line * 9, Hyb.INK);
-            Hyb.text(
-                Hyb.fit(
-                    p.isPower() ? Fmt.power(p.perSecond() / 20) + " EU/t" : Fmt.rate(p.perSecond(), unit, p.isFluid()),
-                    CardLayout.TEXT_W),
-                textX,
-                top + name.size() * 9,
-                Hyb.MUTED);
+            CardLayout.portText(
+                layout.nameLines(section, output, p.index()),
+                p.perSecond(),
+                p.isPower(),
+                p.isFluid(),
+                unit,
+                x + CardLayout.TEXT_X,
+                y,
+                h);
         }
         final BoardCanvas board = canvas();
         final float b = breathe();

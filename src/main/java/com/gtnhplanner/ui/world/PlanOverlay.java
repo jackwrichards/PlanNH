@@ -49,7 +49,7 @@ public final class PlanOverlay {
      * Cards and wire tags are drawn at {@link #SIZE} of the board's size within this many blocks of the eye, and shrink
      * with distance beyond it as objects do.
      */
-    private static final float FULL_SIZE_WITHIN = 10f, SIZE = 0.6f;
+    private static final float FULL_SIZE_WITHIN = 10f, SIZE = 0.55f;
 
     /** The room kept between cards (and wire tags) on the screen, in GUI pixels. */
     private static final float CARD_GAP = 3;

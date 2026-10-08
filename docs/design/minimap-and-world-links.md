@@ -68,7 +68,7 @@ Nothing shows until a card of the plan last open is placed.
 
 - Each placed spot shows a ghost of the card's machine (its own block model, see-through, over the world; not when the
   machine is built there already), and the card sits on the middle of the spot, over its ghost, drawn as the board
-  draws it (`ui/card/PlanCardView`: name bar and tier chips, ports with the plan's rates, the machine's picture, POWER
+  draws it (`ui/card/PlanCardView`: name bar and tier chips, ports with the plan's rates in large type over their names, the machine's picture, POWER
   and MACHINES), with nothing to press. A card is drawn at six tenths of the board's size within ten blocks of you and
   shrinks with distance beyond (always the whole card).
 - Cards move out of each other's way as map labels do (`PlanOverlay.layout`): nearest first, each stays on its spot
