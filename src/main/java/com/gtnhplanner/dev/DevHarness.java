@@ -88,6 +88,12 @@ public final class DevHarness {
         MinecraftForge.EVENT_BUS.register(harness);
         // First in line, so it sees every click NEI is handed on a planner screen.
         codechicken.nei.guihook.GuiContainerManager.inputHandlers.addFirst(DevNeiInput.INSTANCE);
+        FMLCommonHandler.instance()
+            .bus()
+            .register(DevRecorder.INSTANCE);
+        if (cpw.mods.fml.common.Loader.isModLoaded("gregtech")) FMLCommonHandler.instance()
+            .bus()
+            .register(DevWorld.INSTANCE);
         harness.startServer();
     }
 
@@ -373,6 +379,15 @@ public final class DevHarness {
                     return ok();
                 }
                 return DevPerf.stop();
+            case "/record":
+                // Demo videos: record?start=<name>&fps=24&width=1280 writes frames to recordings/<name>/;
+                // record?stop=1.
+                if (q.containsKey("start")) return onClient(
+                    () -> DevRecorder.INSTANCE.start(
+                        q.get("start"),
+                        Integer.parseInt(q.getOrDefault("fps", "24")),
+                        Integer.parseInt(q.getOrDefault("width", "1280"))));
+                return DevRecorder.INSTANCE.stop();
             case "/look":
                 // Turn the player: yaw (0 south, 90 west, 180 north, 270 east) and pitch (down positive).
                 requireWorld();

@@ -75,6 +75,29 @@ public final class MachineStats {
             return s;
         }
 
+        /** Each of the last 60 seconds, oldest first. */
+        public double[] seconds(final long now) {
+            roll(now);
+            final double[] out = new double[60];
+            for (int i = 0; i < 60; i++) {
+                final long s = now - 59 + i;
+                out[i] = s < 0 ? 0 : sec[(int) (s % 60)];
+            }
+            return out;
+        }
+
+        /** Each of the last 60 minutes, oldest first. */
+        public double[] minutes(final long now) {
+            roll(now);
+            final double[] out = new double[60];
+            final long m = now / 60;
+            for (int i = 0; i < 60; i++) {
+                final long k = m - 59 + i;
+                out[i] = k < 0 ? 0 : min[(int) (k % 60)];
+            }
+            return out;
+        }
+
         public double total() {
             return total;
         }
@@ -104,8 +127,11 @@ public final class MachineStats {
 
         /** The world second it was first seen, and last. */
         public long since, last;
-        /** Seconds it was watched, and seconds it ran. */
-        public final Window seen = new Window(), ran = new Window();
+        /**
+         * Seconds it was watched, and seconds it ran; EU/t times seconds while it ran (EU/t on average, per watched
+         * second).
+         */
+        public final Window seen = new Window(), ran = new Window(), energy = new Window();
         public final Map<String, Amount> made = new LinkedHashMap<>(), used = new LinkedHashMap<>();
 
         public List<Amount> made() {
@@ -173,6 +199,7 @@ public final class MachineStats {
             t.seen.add(now, seconds);
             if (st.state() != MachineStatus.State.RUNNING) continue;
             t.ran.add(now, seconds);
+            if (st.euPerTick() > 0) t.energy.add(now, st.euPerTick() * seconds);
             for (final MachineStatus.Flow f : st.outputs()) add(t.made, f, now, seconds);
             for (final MachineStatus.Flow f : st.inputs()) add(t.used, f, now, seconds);
         }

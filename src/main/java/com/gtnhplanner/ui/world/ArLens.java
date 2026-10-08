@@ -75,6 +75,12 @@ public final class ArLens {
         /** Its near panel's place this frame, raised off nearer panels. */
         float px, py;
         int pw, ph;
+        /** Where its panel is drawn, gliding towards {px, py}; the place it chose (steps up or down, to the side). */
+        float dx, dy;
+        boolean placed;
+        int step, side;
+        /** When it first got a panel: the earlier, the firmer its claim to its place. */
+        long order;
 
         Spot(final int x, final int y, final int z) {
             this.x = x;
@@ -84,6 +90,7 @@ public final class ArLens {
     }
 
     private List<Spot> spots = List.of();
+    private long orders;
     private int ticks;
     /** The machine looked at: its panel is ringed and drawn over the rest. */
     @Nullable
@@ -130,7 +137,8 @@ public final class ArLens {
         final int dim = mc.theWorld.provider.dimensionId;
         final Map<Long, Spot> found = new HashMap<>(), before = new HashMap<>();
         for (final Spot s : spots) before.put(key(s.x, s.y, s.z), s);
-        if (GREGTECH) for (final Object o : mc.theWorld.loadedTileEntityList) {
+        final boolean linkedOnly = PlannerSettings.arLinkedOnly();
+        if (GREGTECH && !linkedOnly) for (final Object o : mc.theWorld.loadedTileEntityList) {
             if (!(o instanceof final TileEntity te)) continue;
             final double dx = te.xCoord + 0.5 - px, dy = te.yCoord + 0.5 - py, dz = te.zCoord + 0.5 - pz;
             if (dx * dx + dy * dy + dz * dz > r2 || !GtMachineStatus.isMachine(te)) continue;
@@ -301,8 +309,14 @@ public final class ArLens {
         final List<Spot> near = new ArrayList<>();
         if (looked != null && shown.contains(looked)) near.add(looked);
         for (int i = 0; i < shown.size() && near.size() < NEAR; i++) if (shown.get(i) != looked) near.add(shown.get(i));
+        // Panels placed before keep their claim: placed in the order they came, so a newcomer finds room around them.
+        for (final Spot s : spots) if (!near.contains(s)) s.placed = false;
+        for (final Spot s : near) if (!s.placed) s.order = ++orders;
+        near.sort(java.util.Comparator.comparingLong(s -> s.order));
         final Map<Spot, ArPanel.View> views = new HashMap<>();
         final List<float[]> taken = new ArrayList<>();
+        final int[] map = Minimap.bounds(sr);
+        if (map != null) taken.add(new float[] { map[0], map[1], map[2], map[3] });
         for (final Spot s : near) {
             final ArPanel.View v = view(s, mc);
             views.put(s, v);
@@ -310,16 +324,20 @@ public final class ArLens {
             s.ph = Math.round(ArPanel.height(v) * scale);
             s.px = Math.round(s.sx - s.pw / 2f);
             s.py = Math.round(s.sy - s.ph - 6);
-            for (int tries = 0; tries < 12; tries++) {
-                float[] hit = null;
-                for (final float[] r : taken) if (s.px < r[0] + r[2] + 2 && s.px + s.pw + 2 > r[0]
-                    && s.py < r[1] + r[3] + 2
-                    && s.py + s.ph + 2 > r[1]) hit = r;
-                if (hit == null) break;
-                s.py = hit[1] - s.ph - 3;
-            }
+            place(s, taken, sr.getScaledWidth(), sr.getScaledHeight());
             taken.add(new float[] { s.px, s.py, s.pw, s.ph });
+            // Glide to the place rather than jump; a new panel starts there.
+            if (!s.placed) {
+                s.dx = s.px;
+                s.dy = s.py;
+                s.placed = true;
+            } else {
+                final float k = Math.min(1, dt * 10);
+                s.dx += (s.px - s.dx) * k;
+                s.dy += (s.py - s.dy) * k;
+            }
         }
+        near.sort(java.util.Comparator.comparingDouble(s -> s.distance));
         for (int i = shown.size() - 1; i >= 0; i--) {
             final Spot s = shown.get(i);
             if (near.contains(s)) continue;
@@ -335,7 +353,7 @@ public final class ArLens {
             panel(s, views.get(s), scale, false);
         }
         if (looked != null && views.containsKey(looked)) panel(looked, views.get(looked), scale, true);
-        if (shown.isEmpty()) {
+        if (spots.isEmpty()) {
             final String none = GREGTECH ? "No machines within " + PlannerSettings.arRange() + " blocks"
                 : "No linked machines within " + PlannerSettings.arRange() + " blocks";
             Hyb.rect(sr.getScaledWidth() / 2f - Hyb.width(none) / 2f - 4, 6, Hyb.width(none) + 8, 13, 0xC0141414);
@@ -345,16 +363,51 @@ public final class ArLens {
         GL11.glEnable(GL11.GL_TEXTURE_2D);
     }
 
-    /** A near machine's panel, with a stem down to the machine. */
+    /**
+     * Puts a panel where it covers no nearer one (nor the minimap): over its machine if it can, else the nearest free
+     * place among a few steps up and to either side, on screen. With none free it stays over its machine.
+     */
+    private static void place(final Spot s, final List<float[]> taken, final int screenW, final int screenH) {
+        final float x0 = s.px, y0 = s.py;
+        float bestX = x0, bestY = y0, best = Float.MAX_VALUE;
+        int bestStep = 0, bestSide = 0;
+        // Steps up from over the machine, and down from under it (past the block), to either side.
+        for (int step = -3; step <= 3; step++) for (int side = -3; side <= 3; side++) {
+            final float x = x0 + side * (s.pw + 4);
+            final float y = step >= 0 ? y0 - step * (s.ph + 4) : s.sy + 60 + (-step - 1) * (s.ph + 4);
+            final float up = step >= 0 ? step : 0.6f - step;
+            if (x < 2 || x + s.pw > screenW - 2 || y < 2 || y + s.ph > screenH - 2) continue;
+            float cost = Math.abs(side) * 1.1f + (step >= 0 ? up : up + 0.5f);
+            // The place it had is worth keeping: it moves only when it must.
+            if (s.placed && step == s.step && side == s.side) cost -= 2.5f;
+            if (cost >= best || collides(x, y, s.pw, s.ph, taken)) continue;
+            best = cost;
+            bestX = x;
+            bestY = y;
+            bestStep = step;
+            bestSide = side;
+        }
+        s.px = bestX;
+        s.py = bestY;
+        s.step = bestStep;
+        s.side = bestSide;
+    }
+
+    private static boolean collides(final float x, final float y, final int w, final int h, final List<float[]> taken) {
+        for (final float[] r : taken)
+            if (x < r[0] + r[2] + 3 && x + w + 3 > r[0] && y < r[1] + r[3] + 3 && y + h + 3 > r[1]) return true;
+        return false;
+    }
+
+    /** A near machine's panel, with a stem to the machine: down from over it, or up from under it. */
     private static void panel(final Spot s, final ArPanel.View v, final float scale, final boolean lookedAt) {
-        Hyb.rect(
-            s.sx - 0.5f,
-            s.py + s.ph,
-            1,
-            Math.max(1, s.sy - s.py - s.ph),
-            alphaOf(lookedAt ? 0xE022D3EE : 0xC0000000, s.fade));
+        final int stem = alphaOf(lookedAt ? 0xE022D3EE : 0xB0101114, s.fade);
+        final float px = Math.round(s.dx), py = Math.round(s.dy);
+        final float sx = Math.max(px + 4, Math.min(px + s.pw - 6, s.sx - 1));
+        if (py > s.sy) Hyb.rect(sx, s.sy + 40, 2, Math.max(1, py - s.sy - 40), stem);
+        else Hyb.rect(sx, py + s.ph, 2, Math.max(1, s.sy - py - s.ph), stem);
         GL11.glPushMatrix();
-        GL11.glTranslatef(s.px, s.py, 0);
+        GL11.glTranslatef(px, py, 0);
         GL11.glScalef(scale, scale, 1);
         ArPanel.near(v, s.fade, lookedAt);
         GL11.glPopMatrix();

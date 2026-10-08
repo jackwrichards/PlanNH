@@ -129,6 +129,15 @@ public final class PlannerSettings {
         set("world.highlight", on);
     }
 
+    /** The AR lens shows only the machines linked to a plan card. */
+    public static boolean arLinkedOnly() {
+        return bool("world.arLinkedOnly", false);
+    }
+
+    public static void setArLinkedOnly(final boolean on) {
+        set("world.arLinkedOnly", on);
+    }
+
     public static boolean arLens() {
         return bool("world.ar", false);
     }

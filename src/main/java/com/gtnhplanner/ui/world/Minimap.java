@@ -76,9 +76,11 @@ public final class Minimap {
         draw(mc, event.resolution);
     }
 
-    private void draw(final Minecraft mc, final ScaledResolution sr) {
+    /** Where the map is on the screen, {x, y, w, h} with its frame and title; null when it is off. */
+    @Nullable
+    public static int[] bounds(final ScaledResolution sr) {
+        if (!PlannerSettings.minimap()) return null;
         final int size = PlannerSettings.minimapSize(), margin = 6;
-        final boolean circle = PlannerSettings.minimapCircle();
         final int x0 = switch (PlannerSettings.minimapCorner()) {
             case TOP_LEFT, BOTTOM_LEFT -> margin;
             default -> sr.getScaledWidth() - margin - size;
@@ -87,6 +89,14 @@ public final class Minimap {
             case TOP_LEFT, TOP_RIGHT -> margin;
             default -> sr.getScaledHeight() - margin - size - 40;
         };
+        return new int[] { x0 - 2, y0 - 2, size + 4, size + 4 + (PlannerSettings.minimapCircle() ? 24 : 0) };
+    }
+
+    private void draw(final Minecraft mc, final ScaledResolution sr) {
+        final int size = PlannerSettings.minimapSize();
+        final boolean circle = PlannerSettings.minimapCircle();
+        final int[] at = bounds(sr);
+        final int x0 = at[0] + 2, y0 = at[1] + 2;
         final PlanSnapshot snap = PlanSnapshot.latest();
         GL11.glPushMatrix();
         GL11.glColor4f(1, 1, 1, 1);

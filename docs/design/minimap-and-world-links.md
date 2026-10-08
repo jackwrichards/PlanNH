@@ -60,22 +60,28 @@ The lens shows the machines as they are in the world, not the plan, in the plann
 `ArPanel`). Everything is on the panel all the time; looking at a machine only rings its panel and brings it to the
 front.
 
-- Every machine within range (GregTech's single blocks and multiblock controllers, and any linked block) gets a small
-  dark panel: its name and tier chip; what its recipe takes and makes in tiles either side of a progress arrow, each
-  with its recent rate under it (per minute over the watched part of the last hour); one line for what it is doing
-  (running with the percentage and time left, idle and why, stopped and why) with its power (EU/t now of the most it
-  can take); and a quiet line: its plan card and plan in gold with a gold edge, or "Not linked to a plan (L)", and how
-  busy it has been this last hour. The nearest eight and the one looked at get panels, the rest a tile with a state
-  light. Panels fade in and out, and over the last 8 blocks of the range.
+- Every machine within range (GregTech's single blocks and multiblock controllers, and any linked block; only linked
+  ones when "AR lens: only machines linked to a plan" is on) gets a small dark panel whose size depends on the machine
+  alone, never on its numbers: its name (a small gold star when it is a plan card's machine) and tier chip; what its
+  recipe takes and makes in tiles either side of an arrow that fills with the recipe's progress, each tile's recent
+  rate under it and the time left under the arrow; a line chart of the last minute, a point a second (green: what it
+  made, per minute; amber: the EU/t it drew, against the most it can take) with the rate this minute and the power now
+  over it and why it is stopped across it; and a footer with its state, how much it has made and how busy it has been
+  this last hour. The nearest eight and the one looked at get panels, the rest a tile with a state light. Panels fade
+  in and out and over the last 8 blocks of the range.
+- Panels keep out of each other's way and off the minimap: over the machine when there is room, else the nearest free
+  place a few steps up, down (under the machine) or to the side. A panel keeps the place it has unless it must move,
+  the panels that came first keep their claim, and a panel glides to a new place rather than jumping.
 - What it is doing comes from `ui/world/GtMachineStatus`: in single player the integrated server's copy, read on the
   server's own thread for the machines the client asks about (progress, the recipe from `processingLogic.lastRecipe`
   or `mLastRecipe` by reflection, the cycle's outputs, energy hatches' tier, amps and max input, maintenance, a formed
   structure, shutdown reasons, power). `ui/world/MachineStats` samples every machine within 128 blocks twice a
-  second into per-second and per-minute buckets for this session. On a server only the running light reaches the
+  second into per-second and per-minute buckets (time watched, time running, what it made and used, EU drawn) for this
+  session. On a server only the running light reaches the
   client, so panels show state alone.
 - Connectors run between linked machines whose cards are wired in the plan last open, block centre to block centre: a
-  thin shaded tube in the resource's colour with an arrowhead every three blocks sliding slowly towards the machine it
-  feeds.
+  thin shaded tube in the resource's colour with arrowheads every block and a quarter sliding towards the machine it
+  feeds, and only a faint line where something hides it.
 
 ## Safety
 

@@ -118,6 +118,11 @@ public final class SettingsPanel extends Widget<SettingsPanel> implements Intera
                 s -> PlannerSettings.setArLens(!PlannerSettings.arLens())));
         rows.add(
             new Row(
+                "AR lens: only machines linked to a plan",
+                () -> onOff(PlannerSettings.arLinkedOnly()),
+                s -> PlannerSettings.setArLinkedOnly(!PlannerSettings.arLinkedOnly())));
+        rows.add(
+            new Row(
                 "AR lens range",
                 () -> PlannerSettings.arRange() + " blocks",
                 s -> PlannerSettings

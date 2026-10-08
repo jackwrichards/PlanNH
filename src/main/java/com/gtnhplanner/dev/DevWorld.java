@@ -20,12 +20,44 @@ import gregtech.api.metatileentity.implementations.MTEBasicMachine;
  * (machines made with /setblock have none, and GregTech crashes breaking an ownerless multiblock). Single player
  * only; it reaches into the integrated server's copy from the client thread, which is fine for a test world.
  */
-final class DevWorld {
+public final class DevWorld {
+
+    static final DevWorld INSTANCE = new DevWorld();
 
     private DevWorld() {}
 
+    /** Machines kept running for a demo ({@code keep=1}): their energy topped up and their input refilled. */
+    private record Kept(int dim, int x, int y, int z, ItemStack feed) {}
+
+    private static final java.util.List<Kept> KEPT = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private int ticks;
+
+    @cpw.mods.fml.common.eventhandler.SubscribeEvent
+    public void onServerTick(final cpw.mods.fml.common.gameevent.TickEvent.ServerTickEvent event) {
+        if (event.phase != cpw.mods.fml.common.gameevent.TickEvent.Phase.END || KEPT.isEmpty() || ++ticks % 10 != 0)
+            return;
+        for (final Kept k : KEPT) {
+            final WorldServer ws = DimensionManager.getWorld(k.dim());
+            if (ws == null || !ws.blockExists(k.x(), k.y(), k.z())) continue;
+            if (!(ws.getTileEntity(k.x(), k.y(), k.z()) instanceof final IGregTechTileEntity base)
+                || !(base.getMetaTileEntity() instanceof final MTEBasicMachine machine)) continue;
+            base.increaseStoredEnergyUnits(base.getEUCapacity(), true);
+            if (k.feed() == null) continue;
+            final ItemStack in = machine.getStackInSlot(machine.getInputSlot());
+            if (in == null || in.stackSize < 16) machine.setInventorySlotContents(machine.getInputSlot(), k.feed()
+                .copy());
+            // Outputs are emptied, so it never stops for a full output.
+            for (int i = 0; i < machine.mOutputItems.length; i++)
+                machine.setInventorySlotContents(machine.getOutputSlot() + i, null);
+        }
+    }
+
     static Map<String, Object> machine(final Map<String, String> q) {
         if (q.containsKey("own")) return own();
+        if (q.containsKey("release")) {
+            KEPT.clear();
+            return Map.of("kept", 0);
+        }
         final int x = Integer.parseInt(q.get("x")), y = Integer.parseInt(q.get("y")), z = Integer.parseInt(q.get("z"));
         final WorldServer ws = DimensionManager.getWorld(Integer.parseInt(q.getOrDefault("dim", "0")));
         final Map<String, Object> out = new LinkedHashMap<>();
@@ -36,6 +68,13 @@ final class DevWorld {
             return Map.of("error", "not a GregTech single-block machine: " + te);
         base.increaseStoredEnergyUnits(base.getEUCapacity(), true);
         out.put("eu", base.getStoredEU());
+        // A programmed circuit, for recipes that need one (bending ingots into plates: 1).
+        if (q.containsKey("circuit")) {
+            final Item circuit = (Item) Item.itemRegistry.getObject("gregtech:gt.integrated_circuit");
+            if (circuit != null) machine.setInventorySlotContents(
+                machine.getCircuitSlot(),
+                new ItemStack(circuit, 0, Integer.parseInt(q.get("circuit"))));
+        }
         if (q.containsKey("feed")) {
             final Item item = (Item) Item.itemRegistry.getObject(q.get("feed"));
             if (item == null) return Map.of("error", "no item " + q.get("feed"));
@@ -45,7 +84,10 @@ final class DevWorld {
                 Integer.parseInt(q.getOrDefault("meta", "0")));
             machine.setInventorySlotContents(machine.getInputSlot(), stack);
             out.put("fed", stack.toString());
-        }
+            if ("1".equals(q.get("keep")))
+                KEPT.add(new Kept(Integer.parseInt(q.getOrDefault("dim", "0")), x, y, z, stack.copy()));
+        } else if ("1".equals(q.get("keep")))
+            KEPT.add(new Kept(Integer.parseInt(q.getOrDefault("dim", "0")), x, y, z, null));
         out.put("progress", machine.mProgresstime + "/" + machine.mMaxProgresstime);
         return out;
     }
