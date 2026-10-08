@@ -25,7 +25,7 @@ public final class CleanCardView {
     /** The header's chips, as the board's, as far from the top as from the right edge. */
     private static final int CHIP_H = 20, CHIP_W = 48, SINGLE_TIER_W = 42, CHIP_MARGIN = (HEAD - CHIP_H) / 2;
     /** The middle column: the machine, its count on its corner. */
-    private static final int MID_X = 112, MID_W = W - 2 * MID_X, PICTURE = 72;
+    private static final int MID_X = 112, MID_W = W - 2 * MID_X, PICTURE = 88;
     /** Where a port's words start, beside its icon; and how wide they may be. */
     private static final int TEXT_GAP = 6, TEXT_W = MID_X - EDGE - ICON - TEXT_GAP - 6;
 
@@ -36,12 +36,18 @@ public final class CleanCardView {
      */
     private static List<PlanSnapshot.Flow> side(final PlanSnapshot.Card c, final boolean output) {
         final List<PlanSnapshot.Flow> ports = new java.util.ArrayList<>(output ? c.outputs() : c.inputs());
+        // The recipe's programmed circuit, one more input (kept, not used up), when set so.
+        if (!output && c.circuit() != null && com.gtnhplanner.ui.PlannerSettings.circuitAsInput())
+            ports.add(new PlanSnapshot.Flow("Circuit", c.circuit(), null, false, 0, CIRCUIT));
         final double eu = output ? c.madeEuPerTick() : c.euPerTick();
         if (eu <= 0) return ports;
         for (final PlanSnapshot.Flow p : ports) if (p.power()) return ports;
         ports.add(new PlanSnapshot.Flow("Power", null, null, true, eu * 20, "power:eu"));
         return ports;
     }
+
+    /** The circuit's row among the inputs. */
+    private static final String CIRCUIT = "circuit";
 
     /** The body under the header: as tall as the longer side, or the machine. */
     private static int body(final PlanSnapshot.Card c) {
@@ -147,12 +153,15 @@ public final class CleanCardView {
         }
     }
 
-    /** The machine; its circuit, large, on its bottom left corner, how many in white on its bottom right. */
+    /**
+     * The machine; its circuit, large, on its bottom left corner (unless shown as an input); how many in white on its
+     * bottom right.
+     */
     private static void middle(final PlanSnapshot.Card c, final int top) {
         final int x = MID_X + (MID_W - PICTURE) / 2;
         art(c, x, top, PICTURE, PICTURE);
-        if (c.circuit() != null) {
-            Hyb.item(c.circuit(), x, top + PICTURE - 24, 24, 0);
+        if (c.circuit() != null && !com.gtnhplanner.ui.PlannerSettings.circuitAsInput()) {
+            com.gtnhplanner.ui.gt.CircuitIcons.draw(c.circuit(), x, top + PICTURE - 24, 24, 0);
             GL11.glDisable(GL11.GL_LIGHTING);
             GL11.glDisable(GL11.GL_DEPTH_TEST);
         }
@@ -199,6 +208,7 @@ public final class CleanCardView {
             if (i > 0) Hyb.rect(output ? MID_X + MID_W + 4 : EDGE, y - 1, MID_X - EDGE - 4, 1, HAIR);
             final int ix = output ? W - EDGE - ICON : EDGE, iy = y + (ROW - ICON) / 2 - 1;
             if (p.power()) RecipeCard.euIcon(ix, iy, ICON);
+            else if (CIRCUIT.equals(p.key())) com.gtnhplanner.ui.gt.CircuitIcons.draw(p.item(), ix, iy, ICON, 0);
             else Hyb.icon(p.item(), p.fluid(), ix, iy, ICON, 0);
             GL11.glDisable(GL11.GL_LIGHTING);
             GL11.glDisable(GL11.GL_DEPTH_TEST);
@@ -209,9 +219,13 @@ public final class CleanCardView {
     /** How much in large type with its unit small beside it, the name small under it; right-aligned for an output. */
     private static void words(final PlanSnapshot.Flow p, final boolean output, final float edge, final int y,
         final Fmt.RateUnit unit) {
-        final String number = p.power() ? Fmt.power(p.perSecond() / 20) : Fmt.compact(p.perSecond() * unit.perSecond);
-        final String suffix = p.power() ? " EU/t" : (p.fluid() != null ? " L" : "") + unit.suffix;
-        final int colour = p.perSecond() <= 0 ? 0xFFA8AFBB : Hyb.INK;
+        final boolean circuit = CIRCUIT.equals(p.key());
+        final String number = circuit ? String.valueOf(
+            p.item()
+                .getItemDamage())
+            : p.power() ? Fmt.power(p.perSecond() / 20) : Fmt.compact(p.perSecond() * unit.perSecond);
+        final String suffix = circuit ? "" : p.power() ? " EU/t" : (p.fluid() != null ? " L" : "") + unit.suffix;
+        final int colour = circuit ? Hyb.INK : p.perSecond() <= 0 ? 0xFFA8AFBB : Hyb.INK;
         final float rateW = Hyb.width(number) * Hyb.FIGURE + 2 + Hyb.width(suffix);
         final boolean big = rateW <= TEXT_W;
         final float top = y + (ROW - (big ? 12 : 8) - 2 - 8) / 2f - 1;

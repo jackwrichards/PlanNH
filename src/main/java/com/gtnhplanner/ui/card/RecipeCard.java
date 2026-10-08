@@ -639,24 +639,46 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         Hyb.rect(x + w - 2, y + 1, 1, h - 2, 0x73000000);
         final float s = 1.5f;
         final float tw = (Hyb.width(label) - 1) * s;
-        final float tx = crisp(x + (w - tw) / 2f), ty = crisp(y + (h - 7 * s) / 2f);
+        float tx = crisp(x + (w - tw) / 2f), ty = crisp(y + (h - 7 * s) / 2f), pixel = 0.5f;
+        if (heavy) {
+            // On the screen's own pixels, so every chip's letters round alike at any zoom, one pixel heavier.
+            final float[] g = screenGrid();
+            tx = snap(tx, g[0], g[1], g[4]);
+            ty = snap(ty, g[2], g[3], g[4]);
+            pixel = 1 / (g[0] * g[4]);
+        }
         GuiDraw.drawText(label, tx + 1, ty + 1, s, tier.border(), false);
         GuiDraw.drawText(label, tx, ty, s, tier.text(), false);
-        if (heavy) GuiDraw.drawText(label, tx + screenPixel(), ty, s, tier.text(), false);
+        if (heavy) {
+            // Moved by the drawing, not the text's position, which the text drawing rounds to whole GUI pixels.
+            org.lwjgl.opengl.GL11.glPushMatrix();
+            org.lwjgl.opengl.GL11.glTranslatef(pixel, 0, 0);
+            GuiDraw.drawText(label, tx, ty, s, tier.text(), false);
+            org.lwjgl.opengl.GL11.glPopMatrix();
+        }
         if (underline) Hyb.rect(tx, ty + 8 * s, tw, 1, tier.text());
     }
 
     private static final java.nio.FloatBuffer MATRIX = org.lwjgl.BufferUtils.createFloatBuffer(16);
 
-    /** One screen pixel in the current drawing units: the same weight however the card is zoomed. */
-    private static float screenPixel() {
+    /**
+     * The current drawing against the screen's pixels: {x scale, x offset, y scale, y offset} in GUI units, then screen
+     * pixels per GUI unit.
+     */
+    private static float[] screenGrid() {
         MATRIX.clear();
         org.lwjgl.opengl.GL11.glGetFloat(org.lwjgl.opengl.GL11.GL_MODELVIEW_MATRIX, MATRIX);
-        final float scale = Math.abs(MATRIX.get(0)) * new net.minecraft.client.gui.ScaledResolution(
+        final int gui = new net.minecraft.client.gui.ScaledResolution(
             net.minecraft.client.Minecraft.getMinecraft(),
             net.minecraft.client.Minecraft.getMinecraft().displayWidth,
             net.minecraft.client.Minecraft.getMinecraft().displayHeight).getScaleFactor();
-        return scale <= 0 ? 0.5f : 1 / scale;
+        final float sx = Math.abs(MATRIX.get(0)), sy = Math.abs(MATRIX.get(5));
+        return new float[] { sx > 0 ? sx : 1, MATRIX.get(12), sy > 0 ? sy : 1, MATRIX.get(13), gui };
+    }
+
+    /** A drawing coordinate moved onto the nearest screen pixel. */
+    private static float snap(final float v, final float scale, final float offset, final float perUnit) {
+        return (Math.round((v * scale + offset) * perUnit) / perUnit - offset) / scale;
     }
 
     private static void chevron(final int x, final int y, final int color) {
@@ -778,7 +800,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         Hyb.rect(tx + 7 + Hyb.width(pct), y + 3, 1, h - 6, Hyb.TILE_EDGE);
         Hyb.text(word, tx + 10 + Hyb.width(pct), y + 4, wordColor);
         // The recipe's circuit, then its keys.
-        if (m.circuit != null) Hyb.icon(m.circuit, null, CardLayout.OUT_RAIL_X, y, 16, z);
+        if (m.circuit != null) com.gtnhplanner.ui.gt.CircuitIcons.draw(m.circuit, CardLayout.OUT_RAIL_X, y, 16, z);
         final int ky = y + 2;
         sectionKey(KEY_UP_X, ky, 0, s > 0, hotKey == 0);
         sectionKey(KEY_DOWN_X, ky, 1, s < models.size() - 1, hotKey == 1);
@@ -1161,10 +1183,10 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
     private void drawCircuit(final CardModel m, final int y, final float z, final Part hover) {
         if (m.circuit != null) {
-            // The pack draws each circuit's number on its icon, so the icon alone, as large as the tile allows.
+            // The circuit's icon shows its number (made clearer, CircuitIcons), so the icon alone, as large as fits.
             Hyb.tile(CIRCUIT_X, y, CIRCUIT_W, CardLayout.FOOT);
             if (hover == Part.CIRCUIT) Hyb.rect(CIRCUIT_X + 1, y + 1, CIRCUIT_W - 2, CardLayout.FOOT - 2, 0x10FFFFFF);
-            Hyb.icon(m.circuit, null, CIRCUIT_X + 3, y + 3, 24, z);
+            com.gtnhplanner.ui.gt.CircuitIcons.draw(m.circuit, CIRCUIT_X + 3, y + 3, 24, z);
         } else {
             // No circuit: a sunken socket with a faint chip in it.
             Hyb.well(CIRCUIT_X, y, CIRCUIT_W, CardLayout.FOOT, Hyb.TILE_EDGE, Hyb.SHADOW, 0xFF2A2C31);

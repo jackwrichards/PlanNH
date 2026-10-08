@@ -65,6 +65,11 @@ public final class SettingsPanel extends Widget<SettingsPanel> implements Intera
                 "Names when zoomed out",
                 () -> onOff(PlannerSettings.zoomedOutNames()),
                 s -> PlannerSettings.setZoomedOutNames(!PlannerSettings.zoomedOutNames())));
+        rows.add(
+            new Row(
+                "Circuit as an input",
+                () -> onOff(PlannerSettings.circuitAsInput()),
+                s -> PlannerSettings.setCircuitAsInput(!PlannerSettings.circuitAsInput())));
         rows.add(Row.heading("MINIMAP (WHILE PLAYING)"));
         rows.add(
             new Row(
