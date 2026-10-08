@@ -248,7 +248,7 @@ public final class PlanOverlay {
         // The plan's wires, flat on the screen as the board draws them, and the one the crosshair is on.
         final float cx = sr.getScaledWidth() / 2f, cy = sr.getScaledHeight() / 2f;
         final List<Run> runs = runs(conns(all), sr, mc, snap);
-        layout(shown, runs);
+        layout(shown, runs, sr);
         // What the crosshair is on: a wire's tag, else the nearest card it is over, else a spot (its ghost), else the
         // wire
         // whose line is within reach.
@@ -297,28 +297,33 @@ public final class PlanOverlay {
     /** Height of a wire's tag, unscaled: a port tile as the card's. */
     private static final int TAG_H = CardLayout.ROW;
 
+    /** Arrowheads along a wire: how far apart and how fast they move, in blocks and blocks a second. */
+    private static final double ARROW_GAP = 1, ARROW_SPEED = 2;
+
     /**
      * A wire on the screen this frame: its ends (where it leaves one block and meets the other, cut short at the
-     * camera), how big its tag is drawn, and the tag's text and box.
+     * camera, moved aside into its lane), its arrowheads {x, y, direction x, direction y}, how big its tag is drawn,
+     * and the tag's text and box.
      */
     private static final class Run {
 
         final Conn conn;
         final float ax, ay, bx, by, scale;
-        final String name, rate, route;
+        final List<float[]> arrows;
+        final String name, rate;
         float tx, ty, tw, th;
 
-        Run(final Conn conn, final float[] a, final float[] b, final float scale, final String name,
-            final String rate) {
+        Run(final Conn conn, final float[] a, final float[] b, final List<float[]> arrows, final float scale,
+            final String name, final String rate) {
             this.conn = conn;
             this.ax = a[0];
             this.ay = a[1];
             this.bx = b[0];
             this.by = b[1];
+            this.arrows = arrows;
             this.scale = scale;
             this.name = name;
             this.rate = rate;
-            this.route = conn.from.card.name() + "  →  " + conn.to.card.name();
         }
 
         boolean covers(final float x, final float y) {
@@ -326,50 +331,33 @@ public final class PlanOverlay {
         }
     }
 
-    /** Each wire's run on the screen, its tag placed at its middle (stacked where two cards share several wires). */
+    /**
+     * Each wire's run on the screen, its tag placed at its middle. Several wires between the same two cards run side by
+     * side in lanes, and their tags stack.
+     */
     private List<Run> runs(final List<Conn> conns, final ScaledResolution sr, final Minecraft mc,
         final PlanSnapshot snap) {
         final List<Run> out = new ArrayList<>();
-        final Map<String, List<Run>> between = new HashMap<>();
+        final Map<String, List<Conn>> pairs = new java.util.LinkedHashMap<>();
         for (final Conn c : conns) {
-            // From where the wire leaves the one block to where it meets the other.
-            final double dx = c.to.x - c.from.x, dy = c.to.y - c.from.y, dz = c.to.z - c.from.z;
-            final double edge = 0.5 / Math.max(Math.abs(dx), Math.max(Math.abs(dy), Math.abs(dz)));
-            if (edge >= 0.5) continue;
-            final double[] a = { c.from.x + 0.5 + dx * edge, c.from.y + 0.5 + dy * edge, c.from.z + 0.5 + dz * edge };
-            final double[] b = { c.to.x + 0.5 - dx * edge, c.to.y + 0.5 - dy * edge, c.to.z + 0.5 - dz * edge };
-            if (!inFront(a, b)) continue;
-            final float[] sa = screen(a[0], a[1], a[2], sr, mc), sb = screen(b[0], b[1], b[2], sr, mc);
-            final double mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, mz = (a[2] + b[2]) / 2;
-            final float[] mid = screen(mx, my, mz, sr, mc);
-            if (sa == null || sb == null || mid == null) continue;
-            // Sized as the cards are: full size near, shrinking with distance.
-            final double far = Math
-                .sqrt((mx - camX) * (mx - camX) + (my - camY) * (my - camY) + (mz - camZ) * (mz - camZ));
-            final float scale = (float) (SIZE * Math.min(1, FULL_SIZE_WITHIN / far));
-            final PlanSnapshot.Flow f = c.flow;
-            final String rate = f == null ? ""
-                : f.power() ? com.gtnhplanner.ui.theme.Fmt.power(f.perSecond() / 20) + " EU/t"
-                    : com.gtnhplanner.ui.theme.Fmt.rate(f.perSecond(), snap.rateUnit(), f.fluid() != null);
-            final Run r = new Run(c, sa, sb, scale, Hyb.fit(c.what(), 140), rate);
-            r.tw = (CardLayout.TEXT_X + Math.max(Hyb.width(r.name), Hyb.width(rate)) + 6) * scale;
-            r.th = TAG_H * scale;
-            r.tx = mid[0] - r.tw / 2;
-            r.ty = mid[1] - r.th / 2;
-            final UUID lo = c.from.card.id()
-                .compareTo(c.to.card.id()) < 0 ? c.from.card.id() : c.to.card.id();
-            final UUID hi = lo == c.from.card.id() ? c.to.card.id() : c.from.card.id();
-            between.computeIfAbsent(lo + "/" + hi, key -> new ArrayList<>())
-                .add(r);
-            out.add(r);
+            final UUID a = c.from.card.id(), b = c.to.card.id();
+            pairs.computeIfAbsent(a.compareTo(b) < 0 ? a + "/" + b : b + "/" + a, key -> new ArrayList<>())
+                .add(c);
         }
-        // Several wires between the same two cards share a middle: their tags stack, centred on it.
-        for (final List<Run> group : between.values()) {
-            if (group.size() < 2) continue;
+        final double clock = System.currentTimeMillis() / 1000.0;
+        for (final List<Conn> pair : pairs.values()) {
+            final List<Run> stack = new ArrayList<>();
+            for (int i = 0; i < pair.size(); i++) {
+                final Run r = run(pair.get(i), i - (pair.size() - 1) / 2f, clock, sr, mc, snap);
+                if (r == null) continue;
+                stack.add(r);
+                out.add(r);
+            }
+            if (stack.size() < 2) continue;
             float total = 0;
-            for (final Run r : group) total += r.th + 2;
-            float y = group.get(0).ty + group.get(0).th / 2 - total / 2;
-            for (final Run r : group) {
+            for (final Run r : stack) total += r.th + 2;
+            float y = stack.get(0).ty + stack.get(0).th / 2 - total / 2;
+            for (final Run r : stack) {
                 r.ty = y;
                 y += r.th + 2;
             }
@@ -377,17 +365,89 @@ public final class PlanOverlay {
         return out;
     }
 
-    /** Cuts a segment short where it passes behind the camera; false when all of it is behind. */
-    private boolean inFront(final double[] a, final double[] b) {
-        final float near = 0.1f;
-        final float za = eyeZ(a), zb = eyeZ(b);
-        if (za > -near && zb > -near) return false;
-        if (za > -near || zb > -near) {
-            final double t = (-near - za) / (zb - za);
-            final double[] cut = { a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t };
-            System.arraycopy(cut, 0, za > -near ? a : b, 0, 3);
+    /**
+     * One wire on the screen, {@code lane} lanes aside (on the same side whichever way it runs, so a pair's two
+     * directions part), or null when none of it is in front of the camera. Its arrowheads are set out along it in the
+     * world, so they keep their pace and spacing however you move.
+     */
+    @Nullable
+    private Run run(final Conn c, final float lane, final double clock, final ScaledResolution sr, final Minecraft mc,
+        final PlanSnapshot snap) {
+        final double[] from = { c.from.x + 0.5, c.from.y + 0.5, c.from.z + 0.5 },
+            to = { c.to.x + 0.5, c.to.y + 0.5, c.to.z + 0.5 };
+        final double dx = to[0] - from[0], dy = to[1] - from[1], dz = to[2] - from[2];
+        final double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        // Shown from where it leaves the one block to where it meets the other, cut short at the camera.
+        final double edge = 0.5 / Math.max(Math.abs(dx), Math.max(Math.abs(dy), Math.abs(dz)));
+        if (edge >= 0.5) return null;
+        final double[] span = inFront(from, to, edge, 1 - edge);
+        if (span == null) return null;
+        final float[] sa = screen(along(from, to, span[0]), sr, mc), sb = screen(along(from, to, span[1]), sr, mc);
+        final double[] middle = along(from, to, (span[0] + span[1]) / 2);
+        final float[] mid = screen(middle, sr, mc);
+        if (sa == null || sb == null || mid == null) return null;
+        // Sized as the cards are: full size near, shrinking with distance.
+        final double far = Math.sqrt(
+            (middle[0] - camX) * (middle[0] - camX) + (middle[1] - camY) * (middle[1] - camY)
+                + (middle[2] - camZ) * (middle[2] - camZ));
+        final float scale = (float) (SIZE * Math.min(1, FULL_SIZE_WITHIN / far));
+        // The lane: a step across the wire on the screen, measured the same way for both directions of a pair.
+        final boolean forward = c.from.card.id()
+            .compareTo(c.to.card.id()) < 0;
+        final float ux = forward ? sb[0] - sa[0] : sa[0] - sb[0], uy = forward ? sb[1] - sa[1] : sa[1] - sb[1];
+        final float run = (float) Math.hypot(ux, uy);
+        final float step = run < 1 ? 0 : lane * Math.max(4, 12 * scale) / run;
+        final float ox = -uy * step, oy = ux * step;
+        final List<float[]> arrows = new ArrayList<>();
+        final double reach = 0.3 / length;
+        for (double at = (clock * ARROW_SPEED) % ARROW_GAP; at < length; at += ARROW_GAP) {
+            final double t = at / length;
+            if (t < span[0] + reach || t > span[1] - reach) continue;
+            final float[] p = screen(along(from, to, t), sr, mc),
+                q = screen(along(from, to, t + 0.05 / length), sr, mc);
+            if (p == null || q == null) continue;
+            final float ax = q[0] - p[0], ay = q[1] - p[1], al = (float) Math.hypot(ax, ay);
+            if (al > 0) arrows.add(new float[] { p[0] + ox, p[1] + oy, ax / al, ay / al });
         }
-        return true;
+        final PlanSnapshot.Flow f = c.flow;
+        final String rate = f == null ? ""
+            : f.power() ? com.gtnhplanner.ui.theme.Fmt.power(f.perSecond() / 20) + " EU/t"
+                : com.gtnhplanner.ui.theme.Fmt.rate(f.perSecond(), snap.rateUnit(), f.fluid() != null);
+        final Run r = new Run(
+            c,
+            new float[] { sa[0] + ox, sa[1] + oy },
+            new float[] { sb[0] + ox, sb[1] + oy },
+            arrows,
+            scale,
+            Hyb.fit(c.what(), 140),
+            rate);
+        r.tw = (CardLayout.TEXT_X + Math.max(Hyb.width(r.name), Hyb.width(rate)) + 6) * scale;
+        r.th = TAG_H * scale;
+        r.tx = mid[0] + ox - r.tw / 2;
+        r.ty = mid[1] + oy - r.th / 2;
+        return r;
+    }
+
+    private static double[] along(final double[] a, final double[] b, final double t) {
+        return new double[] { a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t };
+    }
+
+    /**
+     * The part of a segment's stretch from {@code t0} to {@code t1} (fractions of it) in front of the camera, or null
+     * when none is.
+     */
+    @Nullable
+    private double[] inFront(final double[] a, final double[] b, final double t0, final double t1) {
+        final float near = 0.1f;
+        final double za = eyeZ(a), zb = eyeZ(b);
+        double lo = t0, hi = t1;
+        final double slope = zb - za;
+        if (slope == 0) return za < -near ? new double[] { lo, hi } : null;
+        // Where the segment crosses the camera's near side; in front is the part going away from the camera.
+        final double cross = (-near - za) / slope;
+        if (slope > 0) hi = Math.min(hi, cross);
+        else lo = Math.max(lo, cross);
+        return lo < hi ? new double[] { lo, hi } : null;
     }
 
     /** How far in front of the camera a point is, negative in front (the camera looks down its -z). */
@@ -407,16 +467,20 @@ public final class PlanOverlay {
 
     /**
      * Moves cards out of each other's way, as map labels are: nearest first, each keeps where it is while that is clear
-     * of the cards already placed and the wires' tags, and otherwise takes the clear place nearest its own (sideways or
+     * of the cards already placed, the wires' tags and the minimap, and otherwise takes the clear place nearest its own
+     * (sideways or
      * up, never below its spot), its stem pointing back. A card that moved goes home again once that is clear, and
      * moves quickly rather than gliding.
      */
-    private void layout(final List<Placed> shown, final List<Run> runs) {
+    private void layout(final List<Placed> shown, final List<Run> runs, final ScaledResolution sr) {
         final long now = System.currentTimeMillis();
         final float ease = laidOut == 0 ? 1 : (float) (1 - Math.exp(-(now - laidOut) / 50.0));
         laidOut = now;
         final List<float[]> taken = new ArrayList<>();
         for (final Run r : runs) taken.add(new float[] { r.tx, r.ty, r.tw, r.th });
+        // The minimap is drawn over the cards: they keep out from under it.
+        final int[] map = Minimap.bounds(sr);
+        if (map != null) taken.add(new float[] { map[0], map[1], map[2], map[3] });
         for (final Placed p : shown) {
             final float[] o = offsets.computeIfAbsent(p.card.id(), id -> new float[4]);
             float bestX = o[0], bestY = o[1];
@@ -490,23 +554,18 @@ public final class PlanOverlay {
      * card it feeds; faint where nothing flows yet; brighter and thicker when the crosshair is on it.
      */
     private static void wire(final Run r, final boolean lit) {
-        final float dx = r.bx - r.ax, dy = r.by - r.ay;
-        final float len = (float) Math.hypot(dx, dy);
-        if (len < 4) return;
-        final float ux = dx / len, uy = dy / len;
+        if (Math.hypot(r.bx - r.ax, r.by - r.ay) < 4) return;
         final int base = 0xFF000000 | r.conn.line.color() & 0xFFFFFF;
         final int colour = lit ? Hyb.mix(base, Hyb.LIT, 0.35f) : base;
         final boolean flowing = r.conn.line.flowing();
         final float w = lit ? Math.max(2f, 4.5f * r.scale) : Math.max(1.2f, 3f * r.scale);
         band(r.ax, r.ay, r.bx, r.by, w + 2, flowing || lit ? 0xB0000000 : 0x70000000);
         band(r.ax, r.ay, r.bx, r.by, w, flowing || lit ? colour : colour & 0x00FFFFFF | 0x99000000);
-        // Arrowheads every so often, moving at a steady pace.
-        final float gap = 40 + 30 * r.scale, head = 4.5f * w, half = 2.4f * w;
-        final float offset = (System.currentTimeMillis() % 600L) / 600f * gap;
+        // The arrowheads, set out along the wire in the world.
+        final float head = 4.5f * w, half = 2.4f * w;
         final int tip = Hyb.mix(colour, 0xFFFFFFFF, 0.45f);
-        for (float at = offset; at < len; at += gap) {
-            if (at < head || at > len - head) continue;
-            final float px = r.ax + ux * at, py = r.ay + uy * at;
+        for (final float[] a : r.arrows) {
+            final float px = a[0], py = a[1], ux = a[2], uy = a[3];
             final float fx = px + ux * head * 0.6f, fy = py + uy * head * 0.6f;
             final float bx = px - ux * head * 0.4f, by = py - uy * head * 0.4f;
             Hyb.triangle(
@@ -532,8 +591,7 @@ public final class PlanOverlay {
 
     /**
      * What a wire carries, at its middle, as a port tile of the card (and as big as the cards' are there): the item or
-     * fluid, its name over its rate. The wire the crosshair is on is highlighted and also names the cards it runs
-     * between.
+     * fluid, its name over its rate. The wire the crosshair is on is highlighted.
      */
     private static void tag(final Run r, final boolean lit) {
         GL11.glPushMatrix();
@@ -553,13 +611,6 @@ public final class PlanOverlay {
         Hyb.text(r.name, CardLayout.TEXT_X, top, Hyb.INK);
         Hyb.text(r.rate, CardLayout.TEXT_X, top + 9, Hyb.MUTED);
         GL11.glPopMatrix();
-        // The two cards, at the screen's own scale so they read however far the wire is.
-        if (lit) {
-            final int rw = Hyb.width(r.route) + 8;
-            final float rx = Math.round(r.tx + (r.tw - rw) / 2f), ry = Math.round(r.ty + r.th + 4);
-            Hyb.rect(rx, ry, rw, 11, 0xE0101114);
-            Hyb.text(r.route, rx + 4, ry + 2, Hyb.MUTED);
-        }
     }
 
     // endregion
@@ -585,6 +636,11 @@ public final class PlanOverlay {
             && p.sx < sr.getScaledWidth() + p.w
             && p.sy > -20
             && p.sy < sr.getScaledHeight() + p.h;
+    }
+
+    @Nullable
+    private float[] screen(final double[] p, final ScaledResolution sr, final Minecraft mc) {
+        return screen(p[0], p[1], p[2], sr, mc);
     }
 
     @Nullable

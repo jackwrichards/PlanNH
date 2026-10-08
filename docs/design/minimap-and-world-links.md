@@ -8,11 +8,13 @@ order they are built.
 - A gear key on the top bar, beside "?", opens the settings (`ui/popup/SettingsPanel`), stored in
   `config/gtnhplanner-settings.properties` (`ui/PlannerSettings`). A row is a setting's name and its value; click for
   the next value, right-click for the one before.
-- **Names when zoomed out**: past the glance zoom, every card's machine name and every drawer's resource name, at a GUI
-  pixel per font pixel whatever the zoom. They are placed like map labels (`ui/canvas/ZoomedOutLabels`): drawn over
-  everything in one pass, a card's above (or below) it, a source drawer's to its left, a product's to its right, each
-  where it overlaps no other name and no card, and left out where there is no such place; cards first, then drawers by
-  rate. Zooming in makes room for the rest.
+- **Names when zoomed out**: past the glance zoom, every card's machine name and every drawer's resource name, small (a
+  screen pixel per font pixel, two at large GUI scales) whatever the zoom, and no wider than what they name (a card's
+  width, twice a drawer's; cut short with "..."). They are placed like map labels (`ui/canvas/ZoomedOutLabels`): drawn
+  over everything in one pass, a card's above (or below) it, a source drawer's to its left, a product's to its right,
+  each where it keeps clear of the other names (with room between two side by side) and of every card and drawer, and
+  left out where there is no such place; cards first, then drawers by rate. Zooming in makes room for the rest. The
+  minimap places them the same way.
 
 ## 2. The minimap
 
@@ -76,11 +78,13 @@ Nothing shows until a card of the plan last open is placed.
   highlighted, drawn over the others, its spot outlined, and the minimap highlights it and glides to it.
 - The plan's wires between placed cards are drawn flat on the screen as the board draws them, from where they leave
   one spot to where they meet the other (cut short at the camera): a line in the resource's colour on a dark edge,
-  with arrowheads sliding towards the card fed, faint where nothing flows yet. At its middle a tag, one of the card's port
+  with arrowheads sliding towards the card fed (set out in the world, a block apart at two blocks a second,
+  so their pace holds as you move), faint where nothing flows yet. Several wires between the same two cards run side by
+  side in lanes, so the two directions of a pair part. At its middle a tag, one of the card's port
   tiles (icon, name, rate) as big as the cards' ports are there, says what goes along it; tags of several wires between
   the same two cards stack.
 - The wire the crosshair is on (its tag, or its line within 24 GUI pixels, when no card is under the crosshair) is
-  highlighted, its tag names the two cards, and the minimap
+  highlighted, and the minimap
   highlights the same wire and (with "Centre on the machine you look at") glides to it.
 
 The earlier AR lens (every machine's live state, read from GregTech, with stats and charts) is shelved on the branch
