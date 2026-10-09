@@ -162,8 +162,8 @@ public final class CleanCardView {
                 0x7A000000);
             Hyb.texture(art.location(), px, py, pw, ph);
         } else if (c.machine() != null) {
-            final float s = Math.min(48, side);
-            final float ix = x + (side - s) / 2f, iy = y + (side - s) / 2f;
+            final float s = Math.min(CardLayout.ITEM, side);
+            final float ix = x + (side - s) / 2f, iy = y + Math.min((side - s) / 2f, 4);
             Hyb.iconShadow(c.machine(), null, ix, iy, s);
             Hyb.item(c.machine(), ix, iy, s, 0);
         }

@@ -309,7 +309,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             case POWER -> layout.powerRowY >= 0
                 ? new int[] { CardLayout.IN_RAIL_X, layout.powerRowY, CardLayout.RAIL_W, CardLayout.ROW }
                 : null;
-            case MACHINES -> CardPaint.countRect(countText(), layout.picture());
+            case MACHINES -> CardPaint.countRect(countText(), pinned() || pendingCount > 0, layout.picture());
             case CIRCUIT -> model.circuit == null || shared() || model.isPower() ? null
                 : layout.circuitRowY >= 0
                     ? new int[] { CardLayout.IN_RAIL_X, layout.circuitRowY, CardLayout.RAIL_W, CardLayout.ROW }
@@ -892,7 +892,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
      */
     private void drawPicture(final CardModel m, final float z, final Part hover) {
         final int[] box = layout.picture();
-        drawMachineArt(m, box[0], box[1], box[2], box[2], 48, z, true);
+        drawMachineArt(m, box[0], box[1], box[2], box[2], CardLayout.ITEM, z, true);
         if (m.circuit != null && !shared() && !m.isPower() && layout.circuitRowY < 0)
             CardPaint.circuitBadge(m.circuit, box, z);
         CardPaint.count(
@@ -971,7 +971,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         if (structure != null) structure.draw(x, y, w, h);
         else if (machineStack != null) {
             final float side = Math.min(itemSize, Math.min(w, h));
-            final float ix = x + (w - side) / 2f, iy = y + (h - side) / 2f;
+            // Near the top when there is room to spare, so the count in the corner keeps clear of it.
+            final float ix = x + (w - side) / 2f, iy = y + Math.min((h - side) / 2f, 4);
             if (shadow) Hyb.iconShadow(machineStack, null, ix, iy, side);
             Hyb.item(machineStack, ix, iy, side, z);
         }

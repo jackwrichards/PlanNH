@@ -34,6 +34,11 @@ public final class CardLayout {
     public static final int TEXT_W = RAIL_W - TEXT_X - 2;
     /** The machine's picture: square, in the middle column. */
     public static final int PICTURE = 88;
+    /**
+     * A single block's item in the picture: four times the game's 16, so its pixels stay whole, near the top of the
+     * picture so the machine count under it stays clear.
+     */
+    public static final int ITEM = 64;
     public static final int PICTURE_MIN = PICTURE;
 
     public static final int RAILS_Y = HEADER + 6;

@@ -134,30 +134,35 @@ public final class CardPaint {
         GL11.glDisable(GL11.GL_DEPTH_TEST);
     }
 
-    /** Card-local {x, y, w, h} of the machine count on the picture's bottom right corner (with room for the pin). */
-    public static int[] countRect(final String count, final int[] picture) {
-        final int w = Math.round(Hyb.width(count) * Hyb.FIGURE) + 12, h = 14;
+    /** Under a pinned count, centred, in grey. */
+    private static final String PINNED = "(pinned)";
+
+    /**
+     * Card-local {x, y, w, h} of the machine count on the picture's bottom right corner, with "(pinned)" under it when
+     * the count is pinned.
+     */
+    public static int[] countRect(final String count, final boolean pinned, final int[] picture) {
+        final int cw = Math.round(Hyb.width(count) * Hyb.FIGURE);
+        final int w = Math.max(cw, pinned ? Hyb.width(PINNED) : 0) + 4, h = pinned ? 23 : 14;
         return new int[] { picture[0] + picture[2] - w, picture[1] + picture[2] - h, w, h };
     }
 
     /**
-     * How many machines, in white on the picture's bottom right corner; a small pin before it when the count is pinned,
-     * a dotted line under it when the mouse is on it.
+     * How many machines, in white on the picture's bottom right corner; when the count is pinned, "(pinned)" centred
+     * under it in grey; a dotted line under the count when the mouse is on it.
      */
     public static void count(final String count, final boolean none, final boolean pinned, final boolean hover,
         final int[] picture) {
         final float s = Hyb.FIGURE, tw = Hyb.width(count) * s;
-        final float x = picture[0] + picture[2] - tw - 2, y = picture[1] + picture[2] - 8 * s - 2;
+        final int lw = Hyb.width(PINNED);
+        final float block = pinned ? Math.max(tw, lw) : tw;
+        final float right = picture[0] + picture[2] - 2;
+        final float cx = right - block / 2f;
+        final float y = picture[1] + picture[2] - 8 * s - 2 - (pinned ? 9 : 0);
+        final float x = cx - tw / 2f;
         Hyb.text(count, x, y, s, none ? Hyb.MUTED : Hyb.INK);
-        if (pinned) {
-            // A map pin's head and point, small.
-            final float px = x - 8, py = y + 1;
-            Hyb.rect(px + 1, py, 3, 1, Hyb.INK);
-            Hyb.rect(px, py + 1, 5, 3, Hyb.INK);
-            Hyb.rect(px + 1, py + 4, 3, 1, Hyb.INK);
-            Hyb.rect(px + 2, py + 5, 1, 4, Hyb.INK);
-        }
-        if (hover) for (int dx = 0; dx < tw; dx += 3) Hyb.rect(x + dx, y + 8 * s + 1, 1, 1, Hyb.MUTED);
+        if (pinned) Hyb.text(PINNED, cx - lw / 2f, y + 8 * s + 1, Hyb.MUTED);
+        if (hover) for (int dx = 0; dx < tw; dx += 3) Hyb.rect(x + dx, y + 8 * s, 1, 1, Hyb.MUTED);
     }
 
     /**
