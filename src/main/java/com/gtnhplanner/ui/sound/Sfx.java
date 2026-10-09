@@ -63,9 +63,7 @@ public enum Sfx {
     WIRE_POWER_CUT("wire.power_cut"),
     // A voltage tier stepped, pitched up its ladder
     TIER("dial.tier"),
-    // The planner itself, notes, the world
-    SCREEN_OPEN("screen.open"),
-    SCREEN_CLOSE("screen.close"),
+    // Notes, the world
     NOTE_STICK("note.stick"),
     NOTE_CRUMPLE("note.crumple"),
     WORLD_PLACE("world.place"),
@@ -90,11 +88,9 @@ public enum Sfx {
     private static final int DUCK_FLOOR = 3;
     /** How near a click and a sound that says more must be to be one action. */
     private static final long SAME_ACTION_MS = 80;
-    /** Sounds this soon after the planner opens wait for its sound to land first. */
-    private static final long AFTER_OPEN_MS = 150;
 
     private static final Random RANDOM = new Random();
-    private static long quietUntil, lastSpecificAt = -1, lastClickAt = -1, openedAt = -1;
+    private static long quietUntil, lastSpecificAt = -1, lastClickAt = -1;
     private static UiSound lastClick;
     /** The last plays, newest first, for the dev harness (the dev game is muted). */
     private static final Deque<String> RECENT = new ArrayDeque<>();
@@ -152,11 +148,8 @@ public enum Sfx {
         final float loud = (float) Math.pow(10, (RANDOM.nextFloat() * 2 - 1) * LOUDNESS_DB / 20);
         final ResourceLocation take = deal();
         final UiSound sound = new UiSound(take, Math.min(1f, BASE * gain * volume * duck * loud), p);
-        final Minecraft mc = Minecraft.getMinecraft();
-        if (this == SCREEN_OPEN) openedAt = now;
-        if (this != SCREEN_OPEN && openedAt >= 0 && now - openedAt < AFTER_OPEN_MS) mc.getSoundHandler()
-            .playDelayedSound(sound, 3);
-        else mc.getSoundHandler()
+        Minecraft.getMinecraft()
+            .getSoundHandler()
             .playSound(sound);
         if (this == CLICK) {
             lastClick = sound;

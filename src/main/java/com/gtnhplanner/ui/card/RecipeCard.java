@@ -409,7 +409,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         boolean unwired = false;
         for (final CardModel each : models) unwired |= anyUnwired(each);
         if (unwired) drawUnwiredRing();
-        if (session.isSelected(nodeId)) Hyb.ring(-2, -2, w + 4, h + 4, 2, Hyb.SELECTION);
+        if (session.showsSelected(nodeId)) Hyb.ring(-2, -2, w + 4, h + 4, 2, Hyb.SELECTION);
         CardPaint.surface(w, h);
         if (anyTierTooLow() || coilTooCold()) {
             // Can't run: the tier is below the recipe's (the power row says TIER!) or the coil is too cold (the gear
@@ -492,7 +492,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         Hyb.rect(0, 0, w, h, CardPaint.EDGE);
         Hyb.rect(rim, rim, w - 2 * rim, h - 2 * rim, CardPaint.SURFACE);
         if (m.tierTooLow()) Hyb.ring(-rim, -rim, w + 2 * rim, h + 2 * rim, rim, Hyb.RED_INK);
-        if (session.isSelected(nodeId)) Hyb.ring(-3 * rim, -3 * rim, w + 6 * rim, h + 6 * rim, 2 * rim, Hyb.SELECTION);
+        if (session.showsSelected(nodeId))
+            Hyb.ring(-3 * rim, -3 * rim, w + 6 * rim, h + 6 * rim, 2 * rim, Hyb.SELECTION);
         // The machine, big and centred: the whole structure where there is a picture of it.
         // As large as the card allows either way: a tall card (a shared machine) is no wider for it.
         final float side = Math.min(w, h) - 2 * rim - 12;

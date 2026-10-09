@@ -84,6 +84,12 @@ public final class Hyb {
     private Hyb() {}
 
     /** Minecraft's button click, for every control that acts on a click (ModularUI's own buttons already make it). */
+    /** A background colour as solid as the player's Board background setting makes it (cards and text stay solid). */
+    public static int seeThrough(final int argb) {
+        final float a = com.gtnhplanner.ui.PlannerSettings.backgroundAlpha();
+        return a >= 1f ? argb : Math.round((argb >>> 24) * a) << 24 | argb & 0xFFFFFF;
+    }
+
     /** The planner's click: what anything pressed sounds of, unless the action has a sound of its own. */
     public static void click() {
         com.gtnhplanner.ui.sound.Sfx.CLICK.play();

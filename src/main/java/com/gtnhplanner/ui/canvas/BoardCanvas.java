@@ -211,7 +211,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         stepGlide();
         session.setHoverKey(hoveredResource());
         final Area a = getArea();
-        Hyb.rect(0, 0, a.width, a.height, Hyb.CANVAS);
+        Hyb.rect(0, 0, a.width, a.height, Hyb.seeThrough(Hyb.CANVAS));
         if (cards.isEmpty() && drawers.isEmpty() && notes.isEmpty()) {
             // An empty board says how to start.
             Hyb.textCentered("Nothing here yet.", a.width / 2f, a.height / 2f - 14, Hyb.MUTED);
@@ -231,8 +231,9 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         if (step >= 6) {
             final float ox = mod(graph().getPanX(), step), oy = mod(graph().getPanY(), step);
             final float dot = zoom >= 1 ? 2 : 1;
+            final int dotColor = Hyb.seeThrough(Hyb.CANVAS_DOT);
             for (float x = ox; x < a.width; x += step) {
-                for (float y = oy; y < a.height; y += step) Hyb.rect(x, y, dot, dot, Hyb.CANVAS_DOT);
+                for (float y = oy; y < a.height; y += step) Hyb.rect(x, y, dot, dot, dotColor);
             }
         }
     }

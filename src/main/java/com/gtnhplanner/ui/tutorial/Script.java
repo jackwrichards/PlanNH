@@ -586,16 +586,11 @@ final class Script {
             .note(
                 Targets.boardPart("library:all"),
                 "The *Library* is where people upload plans. You can browse them here.");
+    }
 
-        beat(out).click(Targets.topKey("library"))
-            .until(
-                () -> Targets.board() != null && !Targets.board()
-                    .libraryOpen(),
-                2000)
-            .rest()
-            .note(
-                Targets.topKey("feedback"),
-                "Report bugs and share ideas in GTNH Planner's thread on the *GT New Horizons Discord*.");
+    private static boolean libraryOpen() {
+        return Targets.board() != null && Targets.board()
+            .libraryOpen();
     }
 
     private static boolean publicLoaded() {
@@ -620,7 +615,9 @@ final class Script {
                 + PlannerKeys.minimapKey("right")
                 + " move it";
         final String in = PlannerKeys.minimapKey("in"), outKey = PlannerKeys.minimapKey("out");
-        beat(out).opens(Targets.topKey("settings"))
+        beat(out).when(Script::libraryOpen, Steps.click(Targets.topKey("library")))
+            .until(() -> !libraryOpen(), 2000)
+            .opens(Targets.topKey("settings"))
             .clickUntil(Targets.popupRow("Show the minimap"), () -> "On".equals(Targets.setting("Show the minimap")), 2)
             .clickUntil(Targets.popupRow("Size"), () -> "Large".equals(Targets.setting("Size")), 4)
             .clickUntil(Targets.popupRow("Shape"), () -> "Square".equals(Targets.setting("Shape")), 2)
@@ -653,7 +650,13 @@ final class Script {
             .pause(200)
             .run(Minimap.INSTANCE::recentre);
 
-        beat(out).note(null, "That's everything.");
+        // Back on the board, at the Discord key.
+        beat(out).run(com.gtnhplanner.ui.Planner::open)
+            .until(() -> Targets.board() != null, 3000)
+            .rest()
+            .note(
+                Targets.topKey("feedback"),
+                "That's everything! Issues, feedback or ideas go in GTNH Planner's thread on the *GT New Horizons Discord*. Join the server first, then this button takes you there.");
     }
 
     // endregion

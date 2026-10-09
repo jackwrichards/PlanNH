@@ -423,13 +423,6 @@ function switchKey(label, on) {
   return s;
 }
 bar.append(switchKey("Minimap", true), switchKey("Overlay", false));
-const planner = h("button", "", "Close planner"); planner.type = "button";
-planner.addEventListener("click", (e) => {
-  const closing = planner.textContent === "Close planner";
-  play(closing ? "screen.close" : "screen.open", { x: ex(e) });
-  planner.textContent = closing ? "Open planner" : "Close planner";
-});
-bar.append(planner);
 board.append(bar);
 
 // The menu
@@ -674,7 +667,6 @@ const SECTIONS = [
   ["board", "Board", "Cards on a table."],
   ["wire", "Wires", "The drag is the same for all; what latches in sounds of what it carries."],
   ["dial", "Tiers", "One voice, pitched up the voltage ladder: try the ladder buttons."],
-  ["screen", "Planner", "Opening and closing the board."],
   ["note", "Notes", "Paper."],
   ["world", "World", "Machines placed on blocks while playing."],
 ];

@@ -75,10 +75,12 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 - Sticky notes (`ui/note/NoteCard`, a `Note` in `graph.notes`): right-click empty board to add one; drag to move,
   drag the folded corner or an edge to resize, double-click to write, right-click for colour, text size and delete;
   hovering shows keys (delete top left, text size top right) at a fixed size on screen whenever they fit on the note.
+  A selection outline shows only when several things are selected. The gear's Board background makes the board, its
+  dots and the overview see-through (`Hyb.seeThrough`); cards and text stay solid.
   They are Factory Flow's text annotations (`kind: "text"`, its colour tags and font sizes), so they come in with an
   imported plan and go out with a posted one; they take no part in the solve, the wiring or Arrange.
-- The tour (`ui/tutorial/`, `docs/design/tutorial.md`): the "?" key's Take the tour, or the board's first-run offer.
-  Twenty-five steps: each acts something out on the real UI, then a note (`Callout`) beside what it did says what it
+- The tour (`ui/tutorial/`, `docs/design/tutorial.md`): the "?" key's Take the tour, or the first-run offer (`TourOffer`:
+  a note over the dimmed board the first time the planner opens, asked once). Twenty-four steps: each acts something out on the real UI, then a note (`Callout`) beside what it did says what it
   is (gold words between asterisks in `Script`) and waits for next; no autoplay, no chapters. It drives the UI with
   a cursor of its own (`Pointer`, through mixins on the mouse position screens and NEI read and on Shift;
   `VirtualInput` delivers presses, drags and keys to the open screen), in plans of its own (`Plan.enterSandbox`,

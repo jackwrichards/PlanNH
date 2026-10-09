@@ -1,7 +1,8 @@
 # Sound
 
 Every action in the planner makes a sound, but most actions share one: a key press is the click, a page or tab is the
-page turn. What gets its own voice is what changes the plan, and what is themed is what a resource does: a wire or a
+page turn (the planner opening and closing has no sound of its own: the key that opens it clicks). What gets its own
+voice is what changes the plan, and what is themed is what a resource does: a wire or a
 drawer sounds of what it carries (an item snaps in, a fluid blubs, power hums on).
 
 The feel is clicky but smooth: rounded knocks that die away without ringing, soft edges, low short tones. The first set
@@ -68,8 +69,6 @@ Off, Quiet, Normal, Loud), under the game's master volume. So the balance lives 
   is one sound, not a crescendo; within 30 ms it is the same event twice (keys arrive twice) and is dropped.
 - **Nothing while the tour hurries** (`Tutorial.hurried()`), so catching up to a step is silent; played at its own
   pace, the tour's actions sound as the player's would.
-- **After the planner opens**, sounds wait 3 ticks so the open lands first (the plan button opening the board on a new
-  card: unfold, then the card lands).
 
 ## What plays where
 
@@ -96,7 +95,6 @@ Off, Quiet, Normal, Loud), under the game's master volume. So the balance lives 
 | `wire.item` / `wire.fluid` / `wire.power` | a wire or drawer link made, or a drawer made for a port, by what it carries |
 | `wire.cut` / `wire.fluid_cut` / `wire.power_cut` | a wire or drawer link cut, as what it carried (unlatch, drain, hum off) |
 | `dial.tier` | a voltage tier stepped, pitched up the ladder ULV to MAX |
-| `screen.open` / `screen.close` | the planner opening and closing (a visit to NEI's pages is a page turn instead) |
 | `note.stick` / `note.crumple` | a sticky note added; a note deleted, or a plan deleted |
 | `world.place` / `world.remove` | a machine placed on a spot in the world; taken off it |
 

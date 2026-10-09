@@ -44,6 +44,9 @@ public final class PlannerSettings {
     public static final float[] MINIMAP_ZOOMS = { 0.04f, 0.06f, 0.09f, 0.13f, 0.18f, 0.25f, 0.35f, 0.5f, 0.71f, 1f };
     /** How far away linked machines show their AR panels, in blocks. */
     public static final int[] AR_RANGES = { 16, 32, 64, 128 };
+    /** How solid the board's and the overview's backgrounds are: see-through shows the game behind the planner. */
+    public static final String[] BACKGROUND_NAMES = { "Solid", "Mostly solid", "Half", "See-through" };
+    public static final float[] BACKGROUND_ALPHAS = { 1f, 0.85f, 0.6f, 0.35f };
     /** The planner's sounds against the vanilla click's loudness (Normal matches it). */
     public static final String[] SOUND_NAMES = { "Off", "Quiet", "Normal", "Loud" };
     public static final float[] SOUND_GAINS = { 0f, 0.5f, 1f, 1.7f };
@@ -179,6 +182,22 @@ public final class PlannerSettings {
 
     public static int arRange() {
         return AR_RANGES[arRangeIndex()];
+    }
+
+    // endregion
+
+    // region Background
+
+    public static int backgroundIndex() {
+        return clamp(integer("board.background", 0), BACKGROUND_ALPHAS.length);
+    }
+
+    public static void setBackgroundIndex(final int i) {
+        set("board.background", clamp(i, BACKGROUND_ALPHAS.length));
+    }
+
+    public static float backgroundAlpha() {
+        return BACKGROUND_ALPHAS[backgroundIndex()];
     }
 
     // endregion

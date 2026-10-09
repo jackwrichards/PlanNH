@@ -7,18 +7,17 @@ import com.cleanroommc.modularui.widget.Widget;
 import com.gtnhplanner.ui.theme.Hyb;
 
 /**
- * The first time the planner opens, a small offer at the bottom of the board: take the tour, or not. Either answer
- * puts it away for good; the tour stays under the "?" key.
+ * The first time the planner opens, the tour is offered in a note over the dimmed board, in the tour's own look: take
+ * it, or not now. Either answer puts it away for good; the tour stays under the "?" key. Until then the board waits
+ * under it.
  */
 final class TourOffer extends Widget<TourOffer> implements Interactable {
 
-    static final int W = 286, H = 24;
-    private static final String TEXT = "New here? The tour shows the planner in 8 minutes.";
+    private static final String[] LINES = { "New to GTNH Planner?", "A quick tour shows you around",
+        "in about three minutes." };
     private static final String TAKE = "Take the tour", SKIP = "Not now";
-
-    TourOffer() {
-        size(W, H);
-    }
+    /** The tour's note: its fill and gold. */
+    private static final int FILL = 0xFF222327, GOLD = 0xFFFFD257, PAD = 9, LINE = 11, KEY_H = 15;
 
     private static boolean wanted() {
         return !PlannerSettings.tourOffered() && !com.gtnhplanner.ui.tutorial.Tutorial.active();
@@ -36,50 +35,85 @@ final class TourOffer extends Widget<TourOffer> implements Interactable {
         return true;
     }
 
-    private int takeX() {
-        return W - 6 - Hyb.width(SKIP) - 14 - 4 - Hyb.width(TAKE) - 14;
+    // region Geometry: the note centred in the widget, the board under it
+
+    private int noteW() {
+        int w = Hyb.width(TAKE) + Hyb.width(SKIP) + 28 + 6;
+        for (final String l : LINES) w = Math.max(w, Hyb.width(l));
+        return w + 2 * PAD;
     }
 
-    private int skipX() {
-        return W - 6 - Hyb.width(SKIP) - 14;
+    private int noteH() {
+        return PAD + LINES.length * LINE + 6 + KEY_H + PAD;
     }
+
+    private int noteX() {
+        return (getArea().width - noteW()) / 2;
+    }
+
+    private int noteY() {
+        return (getArea().height - noteH()) / 2;
+    }
+
+    /** {x, y, w, h} of a key, local. */
+    private int[] key(final boolean take) {
+        final int skipW = Hyb.width(SKIP) + 14, takeW = Hyb.width(TAKE) + 14;
+        final int y = noteY() + noteH() - PAD - KEY_H, right = noteX() + noteW() - PAD;
+        return take ? new int[] { right - skipW - 6 - takeW, y, takeW, KEY_H }
+            : new int[] { right - skipW, y, skipW, KEY_H };
+    }
+
+    // endregion
 
     @Override
     public void draw(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
         final int mx = getContext().getAbsMouseX() - getArea().x, my = getContext().getAbsMouseY() - getArea().y;
-        Hyb.rect(3, 4, W, H, 0x66000000);
-        Hyb.rect(-1, -1, W + 2, H + 2, 0xFF0B0C0E);
-        Hyb.rect(0, 0, W, H, 0xF52A2C31);
-        Hyb.rect(0, 0, 3, H, Hyb.GOLD);
-        Hyb.text(Hyb.fit(TEXT, takeX() - 14), 9, 8, Hyb.INK);
-        key(TAKE, takeX(), mx, my, true);
-        key(SKIP, skipX(), mx, my, false);
+        Hyb.rect(0, 0, getArea().width, getArea().height, 0x8C000000);
+        final int x = noteX(), y = noteY(), w = noteW(), h = noteH();
+        Hyb.rect(x + 3, y + 4, w, h, 0x66000000);
+        Hyb.rect(x, y, w, h, GOLD);
+        Hyb.rect(x + 1, y + 1, w - 2, h - 2, FILL);
+        for (int i = 0; i < LINES.length; i++)
+            Hyb.text(LINES[i], x + PAD, y + PAD + i * LINE, 1f, i == 0 ? GOLD : Hyb.INK, false);
+        drawKey(TAKE, key(true), mx, my, true);
+        drawKey(SKIP, key(false), mx, my, false);
     }
 
-    private static void key(final String label, final int x, final int mx, final int my, final boolean main) {
-        final int w = Hyb.width(label) + 14, y = 5, h = 14;
-        final boolean hot = isIn(mx, my, x, y, w, h);
-        Hyb.rect(x, y, w, h, main ? Hyb.GOLD : Hyb.KEY_EDGE);
-        Hyb.rect(x + 1, y + 1, w - 2, h - 2, main ? hot ? 0xFF5C4F25 : 0xFF4A4127 : hot ? 0xFF4E5058 : 0xFF34363C);
-        Hyb.text(label, x + 7, y + 3, main ? Hyb.GOLD : Hyb.INK);
+    private static void drawKey(final String label, final int[] r, final int mx, final int my, final boolean main) {
+        final boolean hot = in(mx, my, r);
+        Hyb.rect(r[0], r[1], r[2], r[3], main ? GOLD : Hyb.KEY_EDGE);
+        Hyb.rect(
+            r[0] + 1,
+            r[1] + 1,
+            r[2] - 2,
+            r[3] - 2,
+            main ? hot ? 0xFF5C4F25 : 0xFF4A4127 : hot ? 0xFF4E5058 : 0xFF34363C);
+        Hyb.text(label, r[0] + 7, r[1] + 4, main ? GOLD : Hyb.INK);
     }
 
-    private static boolean isIn(final int mx, final int my, final int x, final int y, final int w, final int h) {
-        return mx >= x && my >= y && mx < x + w && my < y + h;
+    private static boolean in(final int mx, final int my, final int[] r) {
+        return mx >= r[0] && my >= r[1] && mx < r[0] + r[2] && my < r[1] + r[3];
+    }
+
+    /** The take and skip keys, screen rects, for the dev harness. */
+    int[] keyRect(final boolean take) {
+        final int[] r = key(take);
+        return new int[] { getArea().x + r[0], getArea().y + r[1], r[2], r[3] };
     }
 
     @Override
     public Result onMousePressed(final int mouseButton) {
         if (mouseButton != 0) return Result.SUCCESS;
         final int mx = getContext().getAbsMouseX() - getArea().x, my = getContext().getAbsMouseY() - getArea().y;
-        if (isIn(mx, my, takeX(), 5, Hyb.width(TAKE) + 14, 14)) {
+        if (in(mx, my, key(true))) {
             Hyb.click();
             PlannerSettings.setTourOffered(true);
             com.gtnhplanner.ui.tutorial.Tutorial.start();
-        } else if (isIn(mx, my, skipX(), 5, Hyb.width(SKIP) + 14, 14)) {
+        } else if (in(mx, my, key(false))) {
             Hyb.click();
             PlannerSettings.setTourOffered(true);
         }
+        // The board waits under it: a press anywhere else is taken, not passed on.
         return Result.SUCCESS;
     }
 }

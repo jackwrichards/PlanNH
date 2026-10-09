@@ -70,6 +70,16 @@ public final class SettingsPanel extends Widget<SettingsPanel> implements Intera
                 "Circuit as an input",
                 () -> onOff(PlannerSettings.circuitAsInput()),
                 s -> PlannerSettings.setCircuitAsInput(!PlannerSettings.circuitAsInput())));
+        rows.add(
+            new Row(
+                "Board background",
+                () -> PlannerSettings.BACKGROUND_NAMES[PlannerSettings.backgroundIndex()],
+                s -> PlannerSettings.setBackgroundIndex(
+                    Math.max(
+                        0,
+                        Math.min(
+                            PlannerSettings.BACKGROUND_NAMES.length - 1,
+                            PlannerSettings.backgroundIndex() + s)))));
         rows.add(Row.heading("SOUND"));
         rows.add(
             new Row(

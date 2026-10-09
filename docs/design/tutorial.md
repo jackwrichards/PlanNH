@@ -7,7 +7,7 @@ says what it is. Placing machines in the world is not in it (that will be a vide
 ## How it looks and feels
 
 - **Steps, not a show.** Each step acts something out at a brisk pace (the cursor clicks, drags, types), then stops on
-  a note and waits. Nothing moves on until the player says so. Twenty-five steps, about a minute and a half of action
+  a note and waits. Nothing moves on until the player says so. Twenty-four steps, about a minute and a half of action
   in all; the rest is the player's reading.
 - **The note** (`Callout`): a small dark box with a gold edge beside the thing it is about, a tip pointing at it, and
   the thing framed in gold. Its words are short and plain; the words that matter most are gold (written between
@@ -101,9 +101,8 @@ says what it is. Placing machines in the world is not in it (that will be a vide
 20. A sticky note: added, written on, moved, resized, coloured, its text bigger.
 21. The + menu: a new plan.
 22. The Library's public setups, searched.
-23. The Discord key.
-24. The minimap set up large, square, top right; over the world, moved and zoomed with its keys.
-25. That's everything.
+23. The minimap set up large, square, top right; over the world, moved and zoomed with its keys.
+24. Back on the board at the Discord key: that's everything, and where issues, feedback and ideas go.
 
 ## Open
 

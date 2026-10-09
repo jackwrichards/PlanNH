@@ -253,16 +253,20 @@ public final class BoardScreen extends ModularScreen {
         final SelectionBar selectionBar = new SelectionBar(session, canvas, notices);
         panel.child(selectionBar);
         parts.put("selection", selectionBar);
-        // The first time the planner opens: the tour, offered once along the bottom of the board.
-        panel.child(
-            new TourOffer()
-                .left(() -> rail.currentWidth() + 10, com.cleanroommc.modularui.widget.sizer.Unit.Measure.PIXEL)
-                .bottom(10));
+        // The first time the planner opens: the tour, offered once in a note over the dimmed board.
+        final TourOffer offer = new TourOffer();
+        offer.left(0)
+            .right(0)
+            .top(TOP_BAR)
+            .bottom(0);
+        parts.put("tourOffer", offer);
         picker.left(0)
             .right(0)
             .top(TOP_BAR)
             .bottom(0);
         panel.child(picker);
+        // Over everything, so the board waits under it.
+        panel.child(offer);
         library.body = body;
         library.board = List.of(rail, canvas, notices, selectionBar);
         parts.put("picker", picker);
@@ -288,6 +292,10 @@ public final class BoardScreen extends ModularScreen {
      */
     public int[] partRect(final String id) {
         if (id.startsWith("rail:")) return ((OverviewRail) parts.get("rail")).rowRect(id.substring(5));
+        if (id.startsWith("tourOffer:")) {
+            final TourOffer o = (TourOffer) parts.get("tourOffer");
+            return o.isEnabled() ? o.keyRect("tourOffer:take".equals(id)) : null;
+        }
         if (id.startsWith("tab:")) return ((PlanTabs) parts.get("tabs")).tabRect(id.substring(4));
         if (id.startsWith("picker:")) {
             final PowerPicker p = (PowerPicker) parts.get("picker");

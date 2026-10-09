@@ -221,7 +221,7 @@ public final class BoardSession {
      * wires to.
      */
     public Node addRecipe(final IRecipeHandler handler, final int recipeIndex) {
-        return add(MachineChoices.newNode(handler, recipeIndex, null), false);
+        return add(MachineChoices.newNode(handler, recipeIndex, null), false, true);
     }
 
     /**
@@ -229,14 +229,19 @@ public final class BoardSession {
      * view and selected: the board was just opened on it from NEI.
      */
     public Node addAndFocus(final Node node) {
-        return add(node, true);
+        return add(node, true, true);
     }
 
-    private Node add(final Node node, final boolean focus) {
+    /**
+     * Puts a card on the board. Only a card from NEI ({@code fromNei}: its + or the plan button) takes what was armed
+     * there: the port it was looked up from (it lands beside it, wired to it alone) or the card it joins. Anything else
+     * (a non-recipe machine, a custom rate card) never wires itself.
+     */
+    private Node add(final Node node, final boolean focus, final boolean fromNei) {
         focusAdded = focus;
-        final NodeLookupContext origin = pendingLookup;
+        final NodeLookupContext origin = fromNei ? pendingLookup : null;
         pendingLookup = null;
-        final UUID joinTo = addSectionTo;
+        final UUID joinTo = fromNei ? addSectionTo : null;
         addSectionTo = null;
         justAdded = joinTo != null && graph.nodes.containsKey(joinTo) ? joinTo : node.id;
         final boolean[] joined = { false };
@@ -848,6 +853,14 @@ public final class BoardSession {
         return selection.contains(id);
     }
 
+    /**
+     * Whether a card, drawer or note draws its selection outline: only when it is one of several selected, where the
+     * outline says what a move or a delete takes. One thing alone is just the thing clicked.
+     */
+    public boolean showsSelected(final UUID id) {
+        return selection.size() > 1 && selection.contains(id);
+    }
+
     public Set<UUID> selection() {
         return java.util.Collections.unmodifiableSet(selection);
     }
@@ -1402,7 +1415,7 @@ public final class BoardSession {
 
     /** Puts a non-recipe machine (a generator) on the board at these settings, centred in view and selected. */
     public Node addPower(final String sourceId, final Map<String, String> settings) {
-        return add(Node.power(sourceId, settings, 0, 0), true);
+        return add(Node.power(sourceId, settings, 0, 0), true, false);
     }
 
     /**
@@ -1419,7 +1432,7 @@ public final class BoardSession {
         // Its dial is its rate: one of it, pinned, until the player unpins it to let the plan scale it.
         node.machineConfig.setMachineCount(1);
         node.setMachineCountFixed(true);
-        return add(node, true);
+        return add(node, true, false);
     }
 
     /**

@@ -10,8 +10,9 @@ import codechicken.nei.recipe.GuiRecipe;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 
 /**
- * The planner's screens coming and going: it unfolds when it opens and folds when it closes, and NEI's recipe pages
- * opened from it (a port clicked, R or U on the board, a page turned there) turn like pages, going and coming back.
+ * NEI's recipe pages opened from the planner (a port clicked, R or U on the board, a page turned there) turn like
+ * pages, going and coming back. The planner itself opens and closes without a sound of its own: the key that opens it
+ * already clicks.
  */
 public final class ScreenSounds {
 
@@ -26,8 +27,6 @@ public final class ScreenSounds {
         final boolean fromBoard = Planner.isPlanner(from), toBoard = Planner.isPlanner(to);
         final boolean fromPage = pageOverBoard(from), toPage = pageOverBoard(to);
         if ((fromBoard || fromPage) && (toBoard || toPage)) Sfx.PAGE.play();
-        else if (toBoard) Sfx.SCREEN_OPEN.play();
-        else if (fromBoard || fromPage) Sfx.SCREEN_CLOSE.play();
     }
 
     private static boolean pageOverBoard(final GuiScreen gui) {

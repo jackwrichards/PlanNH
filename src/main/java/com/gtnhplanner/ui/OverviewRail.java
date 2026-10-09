@@ -149,8 +149,9 @@ final class OverviewRail extends ParentWidget<OverviewRail>
     private void drawRail(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
         hits.clear();
         final int w = getArea().width, h = getArea().height;
-        Hyb.rect(0, 0, w, h, 0xFF202226);
-        Hyb.rect(w - 1, 0, 1, h, Hyb.RING);
+        Hyb.rect(0, 0, w, h, Hyb.seeThrough(0xFF202226));
+        // Its edge on the board: a dark line, a border rather than a seam.
+        Hyb.rect(w - 1, 0, 1, h, 0xFF0C0D10);
         if (!open) {
             drawFolded(h);
             session.setRailHoverKey(null);
@@ -161,7 +162,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
             hover != null && hover.kind() == Kind.RESOURCE ? ((BoardSession.TotalLine) hover.data()).key() : null);
 
         // Heading: the title and the fold key.
-        Hyb.rect(0, 0, w - 1, HEAD_H, 0xFF2A2D33);
+        Hyb.rect(0, 0, w - 1, HEAD_H, Hyb.seeThrough(0xFF2A2D33));
         Hyb.text("OVERVIEW", 6, 5, Hyb.MUTED);
         final int fx = w - 4 - 14;
         Hyb.bevel(
@@ -286,7 +287,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         final boolean isFolded = folded.contains(title);
         if (hover != null && hover.kind() == Kind.SECTION && title.equals(hover.data()))
             Hyb.rect(0, y, w - 1, SECTION_H, 0xFF30333A);
-        else Hyb.rect(0, y, w - 1, SECTION_H, 0xFF2A2D33);
+        else Hyb.rect(0, y, w - 1, SECTION_H, Hyb.seeThrough(0xFF2A2D33));
         // A small triangle: pointing right when folded, down when open.
         if (isFolded) Hyb.triangle(6, y + 4, 6, y + 12, 10, y + 8, ink);
         else Hyb.triangle(4, y + 6, 12, y + 6, 8, y + 10, ink);

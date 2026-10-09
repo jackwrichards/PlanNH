@@ -528,27 +528,6 @@ export const SOUNDS = {
     },
   },
 
-  "screen.open": {
-    level: 1, variants: 1, when: "The planner opening.",
-    options: {
-      "Panel slides in": (s) => {
-        s.swish({ from: 300, to: 1200, dur: 0.16, peak: 0.18, q: 0.8 });
-        s.tock({ freq: 260, drop: 1.3, decay: 0.02, peak: 0.3, delay: 0.12 });
-        click(s, { freq: 1100, peak: 0.3, body: 0, delay: 0.14 });
-      },
-    },
-  },
-  "screen.close": {
-    level: 0.9, variants: 1, when: "The planner closing.",
-    options: {
-      "Panel slides out": (s) => {
-        click(s, { freq: 950, peak: 0.3, body: 0 });
-        s.swish({ from: 1200, to: 300, dur: 0.14, peak: 0.16, q: 0.8, delay: 0.01 });
-        s.tock({ freq: 220, drop: 1.3, decay: 0.02, peak: 0.25, delay: 0.1 });
-      },
-    },
-  },
-
   "note.stick": {
     level: 0.9, variants: 2, when: "A sticky note added.",
     options: {
@@ -597,7 +576,7 @@ const GESTURE_OF = {
   "board.merge": "merge", "board.sweep": "sweep", "board.undo": "fall", "board.redo": "rise", "board.pin": "pin",
   "board.unpin": "unpin", "board.adjust": "adjust", "board.running": "running",
   "wire.grab": "small", "wire.snap": "snap", "wire.item": "latch", "wire.cut": "unlatch",
-  "dial.tier": "tap", "screen.open": "open", "screen.close": "close",
+  "dial.tier": "tap",
   "note.stick": "drop", "note.crumple": "remove", "world.place": "heavy", "world.remove": "heavyUp",
 };
 for (const [name, gesture] of Object.entries(GESTURE_OF)) {
@@ -637,8 +616,6 @@ const PICKS = {
   "wire.power": "Low thrum",
   "wire.fluid_cut": "Low plop down",
   "wire.power_cut": "Thrum down",
-  "screen.open": "Low click",
-  "screen.close": "Low click",
   "world.place": "Thock",
   "world.remove": "Thock",
 };

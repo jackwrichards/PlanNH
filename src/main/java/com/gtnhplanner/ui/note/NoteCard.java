@@ -45,8 +45,8 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
 
     /** The folded corner, at most; it shrinks on a small note. */
     private static final int FOLD = 14;
-    /** How deep the edges that resize reach in. */
-    private static final int EDGE = 5;
+    /** How deep the edges that resize reach in, in screen pixels (kept however far out the board is). */
+    private static final int EDGE = 10;
     /**
      * The keys (delete in the glued strip's left end, text size in its right end): their side, the gap between the
      * two on the right and their inset from the edge, at the board's own scale. Zoomed out they keep that size on
@@ -143,9 +143,10 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
     public Part partAt(final float x, final float y) {
         if (editing) return Part.BODY;
         final int w = w(), h = h(), f = fold();
-        // The folded corner and the right and bottom edges resize.
-        if (x >= w - f && y >= h - f && x - (w - f) + (y - (h - f)) >= f - 3) return Part.RESIZE;
-        if (x >= w - EDGE || y >= h - EDGE) return Part.RESIZE;
+        // The folded corner (and a margin round it) and a wide band along the right and bottom edges resize.
+        final float edge = EDGE * keyUnit(), corner = f + edge;
+        if (x >= w - corner && y >= h - corner) return Part.RESIZE;
+        if (x >= w - edge || y >= h - edge) return Part.RESIZE;
         if (keysShown()) for (final Part key : KEYS) {
             final float[] r = keyRect(key);
             if (x >= r[0] && y >= r[1] && x < r[0] + r[2] && y < r[1] + r[3]) return key;
@@ -251,7 +252,7 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
             final float g = i * 1.5f;
             Hyb.rect(2 - g + lift, 3 - g + lift * 1.3f, w + 2 * g - f / 2f, h + 2 * g - f / 2f, 0x16000000);
         }
-        if (session.isSelected(noteId) || editing) Hyb.ring(
+        if (session.showsSelected(noteId) || editing) Hyb.ring(
             0,
             0,
             w,
@@ -474,10 +475,11 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
         final float x = localX(), y = localY();
         if (partAt(x, y) == Part.RESIZE) {
             resizing = true;
-            final int f = fold();
-            final boolean corner = x >= w() - f && y >= h() - f;
-            resizeW = corner || x >= w() - EDGE;
-            resizeH = corner || y >= h() - EDGE;
+            // As partAt decides: the corner and its margin take both ways, an edge's band its own way.
+            final float edge = EDGE * keyUnit(), reach = fold() + edge;
+            final boolean corner = x >= w() - reach && y >= h() - reach;
+            resizeW = corner || x >= w() - edge;
+            resizeH = corner || y >= h() - edge;
             startW = liveW = n.getWidth();
             startH = liveH = n.getHeight();
             startMouseX = getContext().getAbsMouseX();
