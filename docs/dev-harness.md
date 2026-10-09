@@ -61,6 +61,7 @@ is a thin curl wrapper. Every request waits until the game has processed it, so 
 | `/cards?from&count&scale&match` | card designs side by side for the plan last open: today's card and the trial (`ui/card/CleanCardView`), on the board's canvas (`dev/CardGallery`); `match` keeps cards whose machine's name has it; Esc closes it |
 | `/view?zoom&panX&panY` | set the board view (defaults 1, 0, 0) so tests start from a known place |
 | `/slots[?add=name \| switch=i \| delete=i]` | the plan slots (`slots`, `active`); `add` opens a new one, so a check can work without touching the owner's plans |
+| `/exportff?file=path` | writes the open plan as the website's project JSON, as posting it would send (a relative path is from the repo root); returns the file |
 | `/importff?file=path \| text=...` | imports a Factory Flow plan (JSON, plan code or link; a relative path is from the repo root) as a new slot and makes it active; returns `name`, `summary` and the `report` lines |
 | `/gtmachines?q&all=1&art=1` | GregTech multiblocks (all=1: every machine) by meta and in-game name; art=1 adds the bundled picture each resolves to |
 | `/recipeinfo?output&handler&input` | what NEI and GTNH Planner see in a recipe (ingredient, result and other stacks with registry names, catalysts, the ports a card would get), read-only |

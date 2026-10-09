@@ -43,8 +43,8 @@ import com.gtnhplanner.importer.RecipeIndex.Lookup;
  * each
  * taker.</li>
  * <li>Drawers keep the role their wires give them (FF's storage roles); their rate rules come over only from Solve
- * and Pool plans, the only plans where FF enforces them. Custom rate cards become drawers, hatch-supplied fluids
- * source drawers.</li>
+ * and Pool plans, the only plans where FF enforces them. Custom rate cards come in as custom rate cards (as drawers
+ * where the game cannot build one), hatch-supplied fluids as source drawers.</li>
  * <li>Pool plans ignore saved wires in FF, so every maker of a resource is wired to every user of it.</li>
  * <li>Positions keep FF's layout, scaled to GTNH Planner's cards; an Arrange afterwards tidies it.</li>
  * <li>Text notes become the board's notes, placed and sized at the same scale, with their colour and text size.</li>
@@ -78,6 +78,9 @@ public final class FfConverter {
     /** A custom rate card, waiting to become a drawer. */
     private record CustomRate(FfNode card, FfSlot slot, boolean supply) {}
 
+    /** A custom rate card's dial: which way it runs, its rate a second, and its pinned count (null: none). */
+    private record Dial(boolean supply, double perSecond, @Nullable Double pinned) {}
+
     /** A drawer to be: what it is, and the ports it takes. */
     private static final class PendingDrawer {
 
@@ -91,6 +94,9 @@ public final class FfConverter {
         final String converted;
         final List<Drawer.Link> links = new ArrayList<>();
         final List<PortInfo> infos = new ArrayList<>();
+        /** A custom rate card's dial, when this drawer to be is one: it comes in as the card itself where it can. */
+        @Nullable
+        Dial dial;
 
         PendingDrawer(final Drawer.Kind kind, final String subject, @Nullable final String label, final int x,
             final int y, final Target target, @Nullable final String converted) {
@@ -654,6 +660,7 @@ public final class FfConverter {
                         .displayName()
                     + ", "
                     + rule);
+            d.dial = new Dial(c.supply(), perSecond, count == null || count <= 0 ? null : count);
             pending.put(id, d);
             return d;
         }
@@ -724,6 +731,7 @@ public final class FfConverter {
                     continue;
                 }
                 final PortInfo first = d.infos.getFirst();
+                if (d.dial != null && makeCustomRate(d, first)) continue;
                 final Drawer drawer = new Drawer(d.kind, first.key());
                 drawer.setLabel(d.label != null && !d.label.isEmpty() ? d.label : first.label());
                 drawer.setX(d.x);
@@ -741,6 +749,37 @@ public final class FfConverter {
                 }
                 if (d.converted != null) report.add(Kind.CONVERTED, d.subject, d.converted);
             }
+        }
+
+        /**
+         * A custom rate card as one: holding the resource of the ports it was wired to, at its dial, wired to them as
+         * the drawer would have been linked. False when the maker builds none (it then comes in as a drawer).
+         */
+        boolean makeCustomRate(final PendingDrawer d, final PortInfo held) {
+            final Dial dial = d.dial;
+            final boolean eu = com.gtnhplanner.power.Energy.KEY.equals(held.key());
+            final Map<String, String> settings = new LinkedHashMap<>();
+            settings.put(
+                com.gtnhplanner.power.CustomRate.MODE,
+                dial.supply() ? com.gtnhplanner.power.CustomRate.SUPPLY : com.gtnhplanner.power.CustomRate.REQUEST);
+            // The dial is EU/t on a card holding EU, a second's worth of anything else.
+            settings.put(
+                com.gtnhplanner.power.CustomRate.RATE,
+                String.valueOf(eu ? dial.perSecond() / 20 : dial.perSecond()));
+            settings.put(com.gtnhplanner.power.CustomRate.RESOURCE, held.key());
+            final Node node = maker.makeCustomRate(settings);
+            if (node == null) return false;
+            node.x = d.x;
+            node.y = d.y;
+            if (dial.pinned() != null) {
+                node.machineConfig.setMachineCount((int) Math.max(1, Math.round(dial.pinned())));
+                node.setMachineCountFixed(true);
+            }
+            graph.addNode(node);
+            for (final Drawer.Link link : d.links) graph.addEdge(
+                dial.supply() ? new Edge(UUID.randomUUID(), node.id, link.nodeId(), 0, link.portIndex())
+                    : new Edge(UUID.randomUUID(), link.nodeId(), node.id, link.portIndex(), 0));
+            return true;
         }
 
         void reportUnusedStorages() {

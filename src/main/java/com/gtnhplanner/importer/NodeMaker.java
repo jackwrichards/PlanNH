@@ -34,6 +34,15 @@ public interface NodeMaker {
         return null;
     }
 
+    /**
+     * A custom rate card at its settings ({@link com.gtnhplanner.power.CustomRate}: mode, rate, the resource's key), at
+     * (0, 0); null when the maker builds none (then the card comes in as a drawer) or the game lacks the resource.
+     */
+    @Nullable
+    default Node makeCustomRate(final Map<String, String> settings) {
+        return null;
+    }
+
     /** What a port of a node made here holds. */
     PortInfo describe(Port<?> port);
 

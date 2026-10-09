@@ -93,6 +93,36 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             for (int i = 0; i < m.inputs.size(); i++) child(new PortSlot(this, s, false, i));
             for (int i = 0; i < m.outputs.size(); i++) child(new PortSlot(this, s, true, i));
         }
+        if (emptyCustomRate()) {
+            child(new SocketSlot(this, false));
+            child(new SocketSlot(this, true));
+        }
+    }
+
+    /** A custom rate card holding nothing yet: it shows its two sockets instead of ports. */
+    public boolean emptyCustomRate() {
+        return model != null && com.gtnhplanner.power.CustomRate.is(model.node)
+            && model.inputs.isEmpty()
+            && model.outputs.isEmpty();
+    }
+
+    /**
+     * The port on one side at a card-local height, {section, index}: the row under it, else the side's only port when
+     * it has just one; null for none.
+     */
+    public int[] portAt(final boolean output, final float y) {
+        int count = 0, onlySection = -1, only = -1;
+        for (int s = 0; s < models.size(); s++) {
+            final List<CardModel.PortView> ports = output ? models.get(s).outputs : models.get(s).inputs;
+            for (int i = 0; i < ports.size(); i++) {
+                count++;
+                onlySection = s;
+                only = i;
+                final int top = layout.rowY(s, output, i);
+                if (y >= top && y < top + CardLayout.ROW) return new int[] { s, i };
+            }
+        }
+        return count == 1 ? new int[] { onlySection, only } : null;
     }
 
     public CardModel model() {
@@ -404,8 +434,38 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             CardPaint.circuitRow(m.circuit, layout.circuitRowY, z);
         }
         if (layout.powerRowY >= 0) drawPowerRow(m, hover == Part.POWER);
+        if (emptyCustomRate()) drawSockets();
         drawStrip(m, z, hover);
     }
+
+    /**
+     * An empty custom rate card's two sockets, dashed: "Drain any" (takes an output) on the left, "Supply any" (feeds
+     * an
+     * input) on the right. They light gold while a wire is in hand that the card would take.
+     */
+    private void drawSockets() {
+        final boolean inHand = canvas() != null && canvas().draggingFor(nodeId);
+        for (final boolean supply : new boolean[] { false, true }) {
+            final int[] r = SocketSlot.rect(supply);
+            final boolean hot = isHovering() && localX() >= r[0]
+                && localX() < r[0] + r[2]
+                && localY() >= r[1]
+                && localY() < r[1] + r[3];
+            Hyb.rect(r[0], r[1], r[2], r[3], inHand ? 0x30FFD257 : hot ? 0x26FFFFFF : 0x14FFFFFF);
+            Hyb.dashed(r[0], r[1], r[2], r[3], inHand || hot ? Hyb.GOLD : 0xFF6A6D78);
+            final String label = supply ? "SUPPLY ANY" : "DRAIN ANY";
+            Hyb.text(
+                label,
+                r[0] + (r[2] - Hyb.width(label)) / 2f,
+                r[1] + (r[3] - 8) / 2f,
+                inHand ? Hyb.GOLD : Hyb.MUTED);
+            final String hint = supply ? "feeds an input" : "takes an output";
+            Hyb.text(hint, r[0] + (r[2] - Hyb.width(hint)) / 2f, r[1] + r[3] + 6, 0xFF6A6D78);
+        }
+    }
+
+    /** The custom rate card's own colour: the website paints it blue. */
+    static final int CUSTOM_RATE_INK = 0xFFAEBCEB;
 
     /**
      * At this zoom and below the card shows the glance view instead: the first wheel step out from half size, past
@@ -436,7 +496,15 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         // The machine, big and centred: the whole structure where there is a picture of it.
         // As large as the card allows either way: a tall card (a shared machine) is no wider for it.
         final float side = Math.min(w, h) - 2 * rim - 12;
-        drawMachineArt(m, (w - side) / 2f, (h - side) / 2f, side, side, side, z, true);
+        if (com.gtnhplanner.power.CustomRate.is(m.node)) {
+            // The custom rate card's dial, as big as its picture would be.
+            final float scale = side / 9f;
+            org.lwjgl.opengl.GL11.glPushMatrix();
+            org.lwjgl.opengl.GL11.glTranslatef((w - 9 * scale) / 2f, (h - 8 * scale) / 2f, 0);
+            org.lwjgl.opengl.GL11.glScalef(scale, scale, 1);
+            com.gtnhplanner.ui.power.PowerPicker.gauge(0, 0, CUSTOM_RATE_INK);
+            org.lwjgl.opengl.GL11.glPopMatrix();
+        } else drawMachineArt(m, (w - side) / 2f, (h - side) / 2f, side, side, side, z, true);
         // How many, in white in the corner, at whole screen pixels per font pixel so it stays sharp.
         final String count = "×" + Fmt.machines(machinesTotal());
         // Two screen pixels per font pixel, or one far out: whole pixels at every wheel step, so it stays sharp.
@@ -569,8 +637,11 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         // has no other machine to pick: its name alone, in the power wing's amber.
         final boolean menu = !m.isPower();
         if (hover == Part.MACHINE && menu) Hyb.rect(BAR_X - 4, y, barRight() - BAR_X + 4, CHIP_H, 0x14FFFFFF);
-        final float end = CardPaint
-            .name(m.machineName, BAR_X, barRight() - (menu ? 12 : 0), m.isPower() ? 0xFFFEF3C7 : Hyb.INK);
+        final float end = CardPaint.name(
+            m.machineName,
+            BAR_X,
+            barRight() - (menu ? 12 : 0),
+            com.gtnhplanner.power.CustomRate.is(m.node) ? CUSTOM_RATE_INK : m.isPower() ? 0xFFFEF3C7 : Hyb.INK);
         if (menu) chevron(Math.round(end + 5), y + 9, hover == Part.MACHINE ? Hyb.INK : Hyb.MUTED);
     }
 
@@ -853,7 +924,14 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
      */
     private void drawPicture(final CardModel m, final float z, final Part hover) {
         final int[] box = layout.picture();
-        drawMachineArt(m, box[0], box[1], box[2], box[2], CardLayout.ITEM, z, true);
+        if (com.gtnhplanner.power.CustomRate.is(m.node)) {
+            // A dial for the card that is one: the picker key's gauge, four times over.
+            org.lwjgl.opengl.GL11.glPushMatrix();
+            org.lwjgl.opengl.GL11.glTranslatef(box[0] + (box[2] - 36) / 2f, box[1] + 14, 0);
+            org.lwjgl.opengl.GL11.glScalef(4, 4, 1);
+            com.gtnhplanner.ui.power.PowerPicker.gauge(0, 0, CUSTOM_RATE_INK);
+            org.lwjgl.opengl.GL11.glPopMatrix();
+        } else drawMachineArt(m, box[0], box[1], box[2], box[2], CardLayout.ITEM, z, true);
         if (m.circuit != null && !shared() && !m.isPower() && layout.circuitRowY < 0)
             CardPaint.circuitBadge(m.circuit, box, z);
         CardPaint.count(
@@ -1285,6 +1363,23 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     }
 
     /** A generator's tooltips: what it is, its tier, a setting or reading, what it makes, how many. */
+    /** The custom rate card's name: what it does with what it holds (the website's title hover). */
+    private Tip customRateTip() {
+        final com.gtnhplanner.data.flowchart.Node n = model.node;
+        final String key = com.gtnhplanner.power.CustomRate.resource(n);
+        final Tip tip = Tip.of("Custom Rate");
+        if (key == null) return tip.muted("Wire any port to this and it adopts that resource.");
+        final String name = com.gtnhplanner.ui.Resources.name(key);
+        final String rate = com.gtnhplanner.power.sources.Helpers.formatAmount(com.gtnhplanner.power.CustomRate.rate(n))
+            + " "
+            + com.gtnhplanner.power.CustomRate.unit(key);
+        return (com.gtnhplanner.power.CustomRate.supply(n) ? tip.sub("Supplies " + name)
+            .muted("Makes " + name + " at the dialed rate for anything that asks.")
+            : tip.sub("Requests " + name)
+                .muted("Constantly drains " + name + " at the dialed rate.")).row("Dialed rate", rate)
+                    .row(pinned() ? "Pinned" : "Calculated", "×" + Fmt.machines(machinesTotal()));
+    }
+
     private Tip powerTip(final Part part) {
         final CardModel m = model;
         final com.gtnhplanner.power.PowerSource source = m.power.source();
@@ -1295,6 +1390,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             case ACTIONS -> Tip.of("Card actions")
                 .action(Tip.Input.LEFT, "Clone, delete");
             case MACHINE -> {
+                if (com.gtnhplanner.power.CustomRate.is(m.node)) yield customRateTip();
                 final Tip tip = Tip.of(m.machineName)
                     .sub(
                         "Non-recipe machine"

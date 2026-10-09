@@ -80,6 +80,12 @@ public final class GameNodeMaker implements NodeMaker {
         return com.gtnhplanner.power.PowerRegistry.get(sourceId) == null ? null : Node.power(sourceId, settings, 0, 0);
     }
 
+    @Override
+    public Node makeCustomRate(final Map<String, String> settings) {
+        final Node node = Node.power(com.gtnhplanner.power.CustomRate.ID, settings, 0, 0);
+        return node.inputs.isEmpty() && node.outputs.isEmpty() ? null : node;
+    }
+
     /** Only the settings the node's machine profile has: a crafting card takes its machine count and nothing else. */
     @Override
     public void applySettings(final Node node, final Map<String, Object> settings) {

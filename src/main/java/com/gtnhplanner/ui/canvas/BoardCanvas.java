@@ -489,8 +489,16 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     // region Wiring by dragging a port
 
-    /** A wire being dragged out of a port. */
-    private record PortDrag(UUID nodeId, boolean output, int port, int startX, int startY) {}
+    /**
+     * A wire being dragged out of a port; {@code port} -1 for one of an empty custom rate card's sockets (the supply
+     * socket as an output, the drain as an input), which carries no resource until it lands on a port.
+     */
+    private record PortDrag(UUID nodeId, boolean output, int port, int startX, int startY) {
+
+        boolean socket() {
+            return port < 0;
+        }
+    }
 
     private PortDrag portDrag;
 
@@ -502,7 +510,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     /** The resource a wire being dragged carries, or null when no port is being dragged. */
     public String dragResource() {
-        if (portDrag == null) return null;
+        if (portDrag == null || portDrag.socket()) return null;
         final CardModel m = portModel(portDrag.nodeId());
         if (m == null) return null;
         final List<CardModel.PortView> ports = portDrag.output() ? m.outputs : m.inputs;
@@ -512,6 +520,11 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     /** Whether a port on this card, on that side, would take the wire being dragged. */
     public boolean acceptsDrag(final UUID nodeId, final boolean output, final String key) {
+        // A custom rate card's socket takes any resource from a port on the other side, of any other card.
+        if (portDrag != null && portDrag.socket()) return key != null && !key.isEmpty()
+            && !nodeId.equals(portDrag.nodeId())
+            && output != portDrag.output()
+            && !com.gtnhplanner.power.CustomRate.is(session.graph().nodes.get(nodeId));
         final String dragging = dragResource();
         return dragging != null && !dragging.isEmpty()
             && !nodeId.equals(portDrag.nodeId())
@@ -521,6 +534,8 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     /** Whether a drawer would take the wire being dragged: same resource, on the matching side. */
     public boolean drawerAcceptsDrag(final Drawer drawer) {
+        if (portDrag != null && portDrag.socket()) return drawer.getKind()
+            .linksInputs() != portDrag.output();
         final String dragging = dragResource();
         return dragging != null && dragging.equals(drawer.getResourceKey())
             && drawer.getKind()
@@ -582,6 +597,53 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         portDrag = new PortDrag(nodeId, output, port, getContext().getAbsMouseX(), getContext().getAbsMouseY());
     }
 
+    /** Called by an empty custom rate card's socket when a drag starts on it: its supply socket, or its drain. */
+    public void beginSocketDrag(final UUID nodeId, final boolean supply) {
+        portDrag = new PortDrag(nodeId, supply, -1, getContext().getAbsMouseX(), getContext().getAbsMouseY());
+    }
+
+    /** Whether a wire is in hand that a custom rate card would take: one dragged from a port of another card. */
+    public boolean draggingFor(final UUID customRateCard) {
+        return portDrag != null && !portDrag.socket()
+            && !portDrag.nodeId()
+                .equals(customRateCard);
+    }
+
+    /**
+     * A socket's wire let go: on another card's port (an input for the supply socket, an output for the drain) the card
+     * takes that port's resource and is wired to it; on a drawer on the matching side, the drawer's. On a card without
+     * a
+     * port under the mouse, its only port on that side, if it has just one.
+     */
+    private void endSocketDrag(final PortDrag drag, final float wx, final float wy) {
+        final Node custom = session.graph().nodes.get(drag.nodeId());
+        if (custom == null) return;
+        final boolean supply = drag.output();
+        for (final RecipeCard card : cards.values()) {
+            if (card.model() == null || card.nodeId.equals(drag.nodeId())
+                || !inside(card.model().node.x, card.model().node.y, CardLayout.W, card.layout().height, wx, wy))
+                continue;
+            if (com.gtnhplanner.power.CustomRate.is(card.model().node)) return;
+            final int[] hit = card.portAt(!supply, wy - card.model().node.y);
+            if (hit == null) return;
+            final CardModel m = card.modelOf(hit[0]);
+            final List<CardModel.PortView> ports = supply ? m.inputs : m.outputs;
+            final String key = ports.get(hit[1])
+                .key();
+            if (key == null || key.isEmpty()) return;
+            session.holdAndWire(custom, key, supply, card.sectionId(hit[0]), hit[1]);
+            return;
+        }
+        for (final DrawerCard drawer : drawers.values()) {
+            if (drawer.model() == null) continue;
+            final Drawer d = drawer.model().drawer;
+            if (!inside(d.getX(), d.getY(), DrawerCard.W, DrawerCard.H, wx, wy)) continue;
+            if (d.getKind()
+                .linksInputs() != supply) session.holdAndLink(custom, d);
+            return;
+        }
+    }
+
     /**
      * Ends a port drag where the mouse is: on another card it wires the matching port, on a drawer it links, on empty
      * board it makes a drawer. A drag that never left the port does nothing.
@@ -592,12 +654,16 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         if (drag == null) return;
         final int mx = getContext().getAbsMouseX(), my = getContext().getAbsMouseY();
         if (Math.abs(mx - drag.startX()) + Math.abs(my - drag.startY()) < 4) {
-            // A (left) click, not a drag: NEI's recipes for the port's resource.
-            lookUpPort(drag, false);
+            // A (left) click, not a drag: NEI's recipes for the port's resource (a socket has none).
+            if (!drag.socket()) lookUpPort(drag, false);
             return;
         }
         if (!successful) return;
         final float wx = worldX(mx), wy = worldY(my);
+        if (drag.socket()) {
+            endSocketDrag(drag, wx, wy);
+            return;
+        }
         for (final RecipeCard card : cards.values()) {
             if (card.model() == null
                 || !inside(card.model().node.x, card.model().node.y, CardLayout.W, card.layout().height, wx, wy))
@@ -661,7 +727,8 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         if (card == null || card.model() == null) return;
         final Node n = card.model().node;
         final int sx = n.x + CardLayout.anchorX(portDrag.output());
-        final int sy = n.y + card.anchorY(portDrag.nodeId(), portDrag.output(), portDrag.port());
+        final int sy = n.y + (portDrag.socket() ? com.gtnhplanner.ui.card.SocketSlot.anchorY()
+            : card.anchorY(portDrag.nodeId(), portDrag.output(), portDrag.port()));
         final int mx = Math.round(worldX(getContext().getAbsMouseX()));
         final int my = Math.round(worldY(getContext().getAbsMouseY()));
         // The bend stays on the port's own side, so the wire in hand never cuts back across its card.
@@ -670,7 +737,9 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             ? List.of(new int[] { sx, sy }, new int[] { bend, sy }, new int[] { bend, my }, new int[] { mx, my })
             : List.of(new int[] { mx, my }, new int[] { bend, my }, new int[] { bend, sy }, new int[] { sx, sy });
         final java.util.List<com.gtnhplanner.data.flowchart.Port<?>> ports = portDrag.output() ? n.outputs : n.inputs;
-        final int color = portDrag.port() < ports.size() ? WireLayer.colorOf(ports.get(portDrag.port())) : 0xFFE8E9EE;
+        final int color = portDrag.port() >= 0 && portDrag.port() < ports.size()
+            ? WireLayer.colorOf(ports.get(portDrag.port()))
+            : 0xFFE8E9EE;
         WireLayer.drawWire(path, color, 3, true);
     }
 

@@ -70,6 +70,8 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
 
     private enum Kind {
         CLOSE,
+        /** The custom rate card's key, beside the title (the website's "Custom" spawn key). */
+        CUSTOM,
         GROUP,
         TIER,
         TILE,
@@ -188,7 +190,7 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
         right = closeKey(right, y + 4, hover) - 8;
         right = key(right, y + 4, tierFilter == null ? "All tiers" : tierFilter, Kind.TIER, hover) - 4;
         right = key(right, y + 4, groupFilter == null ? "All types" : groupFilter.title, Kind.GROUP, hover) - 8;
-        final int left = x + 20 + Hyb.width("NON-RECIPE MACHINES") + 12;
+        final int left = customKey(x + 20 + Hyb.width("NON-RECIPE MACHINES") + 12, y + 4, hover) + 12;
         final int fieldW = Math.max(60, Math.min(220, right - left));
         searchField.pos(right - fieldW, y + 5)
             .size(fieldW, 14);
@@ -389,6 +391,26 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
         return x;
     }
 
+    /** The custom rate card's key, from its left edge; returns its right edge. */
+    private int customKey(final int left, final int y, final Hit hover) {
+        final String label = "Custom rate";
+        final int kw = 5 + 9 + 4 + Hyb.width(label) + 6;
+        final boolean hot = hover != null && hover.kind() == Kind.CUSTOM;
+        Hyb.bevel(left, y, kw, 16, hot ? Hyb.KEY_HOVER : Hyb.KEY, Hyb.KEY_HI, Hyb.KEY_LO, 0, 1);
+        gauge(left + 5, y + 4, hot ? Hyb.GOLD : Hyb.INK);
+        Hyb.text(label, left + 18, y + 4, Hyb.INK);
+        hits.add(new Hit(Kind.CUSTOM, left, y, left + kw, y + 16, null));
+        return left + kw;
+    }
+
+    /** A pixel gauge, 9 x 8: a dial's arc with its needle up and right, the website's Gauge. */
+    public static void gauge(final float x, final float y, final int color) {
+        final int[][] runs = { { 2, 0, 5 }, { 1, 1, 1 }, { 7, 1, 1 }, { 0, 2, 1 }, { 6, 2, 1 }, { 8, 2, 1 },
+            { 0, 3, 1 }, { 5, 3, 1 }, { 8, 3, 1 }, { 0, 4, 1 }, { 4, 4, 1 }, { 8, 4, 1 }, { 0, 5, 1 }, { 3, 5, 2 },
+            { 8, 5, 1 }, { 1, 6, 1 }, { 7, 6, 1 } };
+        for (final int[] r : runs) Hyb.rect(x + r[0], y + r[1], r[2], 1, color);
+    }
+
     private int closeKey(final int right, final int y, final Hit hover) {
         final int x = right - 16;
         final boolean hot = hover != null && hover.kind() == Kind.CLOSE;
@@ -498,6 +520,11 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
                 Hyb.click();
                 close.run();
             }
+            case CUSTOM -> {
+                Hyb.click();
+                close.run();
+                session.addCustomRate();
+            }
             case TILE -> {
                 Hyb.click();
                 final PowerSearch.Hit picked = (PowerSearch.Hit) hit.data();
@@ -604,6 +631,10 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
             case GROUP -> Tip.of("Filter by type");
             case TIER -> Tip.of("Filter by unlock tier");
             case CLOSE -> Tip.of("Close (Esc)");
+            case CUSTOM -> Tip.of("Custom rate")
+                .muted(
+                    "Supplies or drains any resource at a rate you set. Wire any port to it and it takes that resource.")
+                .action(Tip.Input.LEFT, "Add to the plan");
             default -> null;
         };
     }

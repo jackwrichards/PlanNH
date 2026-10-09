@@ -46,6 +46,8 @@ public final class PowerRegistry {
 
     @Nullable
     public static PowerSource get(final String sourceId) {
+        // The custom rate card is placed from its own key, never from the catalog.
+        if (CustomRate.ID.equals(sourceId)) return CustomRate.SOURCE;
         sources();
         return byId.get(sourceId);
     }

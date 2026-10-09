@@ -133,22 +133,27 @@ public final class SettingControls {
     private static List<Control> power(final CardModel m) {
         final List<Control> out = new ArrayList<>();
         final PowerSource source = m.power.source();
+        // The custom rate card shows its dial on itself: both its settings are pinned until unpinned.
+        final boolean custom = com.gtnhplanner.power.CustomRate.is(m.node);
         for (final PowerTiles.Tile t : PowerTiles.of(m)) {
             if (t.isSetting()) {
                 final PowerSetting s = t.setting();
+                final String caption = custom && s == com.gtnhplanner.power.CustomRate.RATE_SETTING ? s.label() + " ("
+                    + com.gtnhplanner.power.CustomRate.unit(com.gtnhplanner.power.CustomRate.resource(m.node))
+                    + ")" : PowerTiles.caption(s);
                 final Type type = s instanceof PowerSetting.Toggle ? Type.TOGGLE
                     : s instanceof PowerSetting.Number ? Type.NUMBER : Type.CHOICE;
                 out.add(
                     new Control(
                         "power:" + s.id(),
                         "SETTINGS",
-                        PowerTiles.caption(s),
+                        caption,
                         PowerTiles.shown(s, m.node.powerSettings),
                         null,
                         false,
                         source != null && PowerTiles.enabled(source, s, m.node.powerSettings),
                         type,
-                        false));
+                        custom));
             } else out.add(
                 new Control(
                     "reading:" + t.stat()

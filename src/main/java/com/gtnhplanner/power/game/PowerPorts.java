@@ -35,6 +35,10 @@ public final class PowerPorts {
 
     /** Rebuilds a power node's model and ports from its source and settings. */
     public static void build(final Node node) {
+        if (com.gtnhplanner.power.CustomRate.is(node)) {
+            com.gtnhplanner.power.CustomRate.build(node);
+            return;
+        }
         node.inputs.clear();
         node.outputs.clear();
         node.properties.clear();

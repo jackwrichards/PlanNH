@@ -57,6 +57,13 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   (`Energy`, key `power:eu`) that only drawers take, shown in EU/t; the overview shows power used, made and net.
   Power cards post to and import from the website as its power cards. `call power` checks every flow against the
   game (unmapped names, items or fluids this pack lacks).
+- The custom rate card (the picker's Custom rate key beside its title; `power/CustomRate`, the website's
+  custom-rate.ts) is a power card with source `custom-rate`, outside the catalog: a dial (Supply or Request, a rate a
+  second, EU/t for EU) and one port. Empty, it shows two sockets; a port dropped on it, or a socket dragged to a port,
+  makes it take that resource (`BoardSession.holdAndWire`), and every edit lets a card with nothing wired go of it
+  (`releaseCustomRates`). Pinned at one when placed, so the dial is the rate. The overview counts it as the plan's
+  edge (what it supplies is an input), never a machine. It posts and imports as the website's own custom rate card.
+  The website's crop farm (its Farm key) is not ported: it needs CropsNH (GTNH 2.9), which the dev pack lacks.
 - NEI's recipe pages carry a plan button above + and the star (`nei/PlanButton`, `nei/PlanMenu`, added through NEI's
   `UpdateRecipeButtonsEvent`): it asks which plan (most recently open first, `Plan.byRecency`) and which machine
   (`ui/card/MachineChoices`: GT single blocks are one choice at the recipe's tier), then opens the board on that plan
@@ -107,7 +114,7 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 
 - Gradle provisions the JDKs (25 for the build, JetBrains Runtime 25 for `runClient25`). Keep the checkout at a
   short path: deep Windows paths break the clone and the Minecraft dev setup (MAX_PATH).
-- `./gradlew test`: 436 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
+- `./gradlew test`: 442 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
   many over gtnh-flow YAML charts in `src/test/resources/gtnh-flow/`. About 40s, no Minecraft. `addon.gradle`
   opts `test` out of the configuration cache; without that a clean build reports `:test NO-SOURCE` and silently
   runs nothing, so if you ever see NO-SOURCE, check the count in `build/test-results/test/*.xml`.

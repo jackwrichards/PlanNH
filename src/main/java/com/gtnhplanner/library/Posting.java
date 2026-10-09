@@ -56,6 +56,11 @@ public final class Posting {
         });
     }
 
+    /** A plan as the site's project JSON, as {@link #post} sends it (the dev harness writes it to a file). */
+    public static JsonObject write(final Graph g, final String title, final Function<UUID, Double> machines) {
+        return PlanExport.project(g, title, new GameWorld(machines));
+    }
+
     /**
      * Posts a plan; {@code done} gets its link. {@code machines} is how many machines the board runs each card at.
      */

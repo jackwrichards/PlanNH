@@ -520,6 +520,41 @@ public final class DevHarness {
             case "/clearplan":
                 requireWorld();
                 return onClient(DevRecipes::clearPlan);
+            case "/exportff":
+                // Writes the open plan as the site's project JSON, as posting it would send: file=<path> (from the repo
+                // root when relative).
+                requireWorld(); {
+                java.io.File f = new java.io.File(arg(q, "file"));
+                if (!f.isAbsolute()) f = new java.io.File(new java.io.File(mc.mcDataDir, "../.."), arg(q, "file"));
+                final java.io.File out = f;
+                return onClient(() -> {
+                    final com.gtnhplanner.ui.BoardScreen board = DevBoard.screen();
+                    if (board == null) return error("the planner is not open");
+                    final com.gtnhplanner.ui.BoardSession session = board.session();
+                    final com.google.gson.JsonObject plan = com.gtnhplanner.library.Posting.write(
+                        session.graph(),
+                        session.graph()
+                            .getName(),
+                        id -> {
+                            final com.gtnhplanner.ui.card.CardModel m = session.model(id);
+                            return m == null ? null : m.machines;
+                        });
+                    out.getParentFile()
+                        .mkdirs();
+                    try {
+                        java.nio.file.Files.writeString(
+                            out.toPath(),
+                            new com.google.gson.GsonBuilder().setPrettyPrinting()
+                                .create()
+                                .toJson(plan));
+                    } catch (final java.io.IOException e) {
+                        return error(String.valueOf(e.getMessage()));
+                    }
+                    final Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("file", out.getAbsolutePath());
+                    return m;
+                });
+            }
             case "/importff":
                 // Imports a Factory Flow plan as a new slot: file=<path> (absolute, or from the repo root) or text=.
                 requireWorld(); {

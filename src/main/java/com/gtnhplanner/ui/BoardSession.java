@@ -152,11 +152,15 @@ public final class BoardSession {
 
     /**
      * One undoable edit: records the before state, runs the change, marks the plan changed and saves. The next tick
-     * re-solves and rebuilds the cards.
+     * re-solves and rebuilds the cards. Every custom rate card the change left with nothing wired lets go of its
+     * resource, in the same step.
      */
     @SuppressWarnings("deprecation")
     public void edit(final Runnable change) {
-        PlanAPI.recordEdit(graph, change);
+        PlanAPI.recordEdit(graph, () -> {
+            change.run();
+            releaseCustomRates();
+        });
         graph.touch();
         PlanAPI.save();
     }
@@ -274,6 +278,8 @@ public final class BoardSession {
      * first output there that fits. False when nothing on that card matches.
      */
     public boolean dropPortOnCard(final UUID fromNode, final boolean output, final int port, final UUID toNode) {
+        final Node to = graph.nodes.get(toNode);
+        if (com.gtnhplanner.power.CustomRate.is(to)) return dropPortOnCustomRate(fromNode, output, port, to);
         // A shared machine's recipes in turn: the first with a matching port takes the wire, as on the website.
         for (final UUID section : sectionsOf(toNode)) {
             if (!section.equals(fromNode) && dropPortOnRecipe(fromNode, output, port, section)) return true;
@@ -297,6 +303,96 @@ public final class BoardSession {
             connect(dst.id, out, src.id, port);
             return true;
         }
+        return false;
+    }
+
+    /**
+     * A port dropped on a custom rate card: the card takes the port's resource and is wired to it, supplying an input
+     * or
+     * draining an output.
+     */
+    private boolean dropPortOnCustomRate(final UUID fromNode, final boolean output, final int port, final Node card) {
+        final Node src = graph.nodes.get(fromNode);
+        if (src == null || src == card || com.gtnhplanner.power.CustomRate.is(src)) return false;
+        final List<Port<?>> ports = output ? src.outputs : src.inputs;
+        if (port < 0 || port >= ports.size()) return false;
+        final String key = Resources.key(ports.get(port));
+        if (key.isEmpty()) return false;
+        holdAndWire(card, key, !output, src.id, port);
+        return true;
+    }
+
+    /**
+     * Sets a custom rate card to a resource on a side and wires it to a port of another card ({@code supply}: the card
+     * feeds that input; else it drains that output). A different resource or side first drops the card's old wires.
+     * One undo step.
+     */
+    public void holdAndWire(final Node card, final String key, final boolean supply, final UUID other,
+        final int otherPort) {
+        edit(() -> {
+            if (!key.equals(com.gtnhplanner.power.CustomRate.resource(card))
+                || supply != com.gtnhplanner.power.CustomRate.supply(card)) {
+                unwire(card.id);
+                com.gtnhplanner.power.CustomRate.hold(card, key, supply);
+                card.refresh();
+            }
+            // A resource this game lacks makes no port: nothing to wire.
+            if (card.inputs.isEmpty() && card.outputs.isEmpty()) return;
+            final UUID from = supply ? card.id : other, to = supply ? other : card.id;
+            final int out = supply ? 0 : otherPort, in = supply ? otherPort : 0;
+            for (final Edge e : graph.getEdges()) if (e.sourceNodeId.equals(from) && e.sourceOutputIndex == out
+                && e.targetNodeId.equals(to)
+                && e.targetInputIndex == in) return;
+            graph.addEdge(new Edge(UUID.randomUUID(), from, to, out, in));
+        });
+    }
+
+    /**
+     * Sets a custom rate card to a drawer's resource, on the side the drawer links (a source drawer's resource is
+     * drained, a product drawer is supplied), and links them. One undo step.
+     */
+    public void holdAndLink(final Node card, final Drawer drawer) {
+        final boolean supply = !drawer.getKind()
+            .linksInputs();
+        final String key = drawer.getResourceKey();
+        if (key == null || key.isEmpty()) return;
+        edit(() -> {
+            if (!key.equals(com.gtnhplanner.power.CustomRate.resource(card))
+                || supply != com.gtnhplanner.power.CustomRate.supply(card)) {
+                unwire(card.id);
+                com.gtnhplanner.power.CustomRate.hold(card, key, supply);
+                card.refresh();
+            }
+            if (card.inputs.isEmpty() && card.outputs.isEmpty()) return;
+            graph.linkDrawer(drawer.getId(), new Drawer.Link(card.id, 0));
+        });
+    }
+
+    /** Every wire and drawer link on a card, gone. */
+    private void unwire(final UUID nodeId) {
+        for (final Edge e : new ArrayList<>(graph.getEdges()))
+            if (e.sourceNodeId.equals(nodeId) || e.targetNodeId.equals(nodeId)) graph.removeEdge(e.id);
+        for (final Drawer d : graph.getDrawers()) d.removeLinksTo(nodeId);
+    }
+
+    /**
+     * Custom rate cards holding a resource with nothing wired to them let go of it (the website's releaseCustomRates).
+     */
+    private void releaseCustomRates() {
+        for (final Node n : graph.nodes.values()) {
+            if (!com.gtnhplanner.power.CustomRate.is(n) || com.gtnhplanner.power.CustomRate.resource(n) == null
+                || wired(n.id)) continue;
+            com.gtnhplanner.power.CustomRate.release(n);
+            n.refresh();
+        }
+    }
+
+    /** Whether anything is wired to a card: a wire either way, or a drawer. */
+    private boolean wired(final UUID nodeId) {
+        for (final Edge e : graph.getEdges())
+            if (e.sourceNodeId.equals(nodeId) || e.targetNodeId.equals(nodeId)) return true;
+        for (final Drawer d : graph.getDrawers()) for (final Drawer.Link link : d.getLinks()) if (link.nodeId()
+            .equals(nodeId)) return true;
         return false;
     }
 
@@ -1237,6 +1333,23 @@ public final class BoardSession {
     }
 
     /**
+     * Puts an empty custom rate card on the board, centred in view and selected: at the dial last set on one, holding
+     * nothing until something is wired to it.
+     */
+    public Node addCustomRate() {
+        final String id = com.gtnhplanner.power.CustomRate.ID;
+        final Node node = Node.power(
+            id,
+            com.gtnhplanner.power.CustomRate.fresh(com.gtnhplanner.ui.card.SettingMemory.powerSettings(id, Map.of())),
+            0,
+            0);
+        // Its dial is its rate: one of it, pinned, until the player unpins it to let the plan scale it.
+        node.machineConfig.setMachineCount(1);
+        node.setMachineCountFixed(true);
+        return add(node, true);
+    }
+
+    /**
      * Sets one of a power card's settings and rebuilds its ports. A wire or drawer on a port follows its resource to
      * wherever it now is on the card, and goes when the card no longer has it (a fuel switched for another).
      */
@@ -1503,6 +1616,9 @@ public final class BoardSession {
         double eu = 0, euMade = 0;
         final List<MachineLine> machines = new ArrayList<>();
         for (final CardModel card : cards.values()) {
+            // A custom rate card is the plan's edge, as a drawer is: what it supplies comes in from outside (an input)
+            // and what it drains leaves (an output). It is no machine to build.
+            if (com.gtnhplanner.power.CustomRate.is(card.node)) continue;
             for (final CardModel.PortView p : card.outputs) {
                 flow.computeIfAbsent(p.key(), k -> new double[2])[0] += p.perSecond();
                 looks.putIfAbsent(p.key(), new Look(p.name(), p.item(), p.fluid()));

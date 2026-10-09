@@ -19,6 +19,7 @@ import com.gtnhplanner.data.flowchart.Node;
 import com.gtnhplanner.data.flowchart.Note;
 import com.gtnhplanner.data.flowchart.Port;
 import com.gtnhplanner.data.properties.RecipeProperty;
+import com.gtnhplanner.power.CustomRate;
 import com.gtnhplanner.power.Energy;
 import com.gtnhplanner.power.PowerModel;
 import com.gtnhplanner.power.PowerRegistry;
@@ -156,6 +157,7 @@ public final class PlanExport {
     }
 
     private static JsonObject recipe(final Node n, final String id, final World world, final Map<Port<?>, Res> res) {
+        if (CustomRate.is(n)) return customRateRecipe(n, id, world, res);
         if (n.isPower()) return powerRecipe(n, id, world, res);
         final JsonObject r = new JsonObject();
         r.addProperty("id", id);
@@ -225,6 +227,40 @@ public final class PlanExport {
         return r;
     }
 
+    /**
+     * A custom rate card, as the site's own (custom-rate.ts): a one-second recipe of its one slot, the amount its rate
+     * a second, named after what it holds; the dial rides on the node. The site wants an amount above nothing, so a
+     * dial at zero posts the least it takes.
+     */
+    private static JsonObject customRateRecipe(final Node n, final String id, final World world,
+        final Map<Port<?>, Res> res) {
+        final JsonObject r = new JsonObject();
+        final JsonArray inputs = ports(n.inputs, false, world, res), outputs = ports(n.outputs, true, world, res);
+        for (final JsonArray side : List.of(inputs, outputs)) for (final com.google.gson.JsonElement e : side) {
+            final JsonObject slot = e.getAsJsonObject();
+            slot.remove("byproduct");
+            if (!(slot.get("amount")
+                .getAsDouble() > 0)) slot.addProperty("amount", 0.001);
+        }
+        final com.google.gson.JsonElement held = outputs.size() > 0 ? outputs.get(0)
+            : inputs.size() > 0 ? inputs.get(0) : null;
+        r.addProperty("id", id);
+        r.addProperty("name", held == null ? "Custom Rate" : "Custom Rate: " + slotName(held.getAsJsonObject()));
+        r.addProperty("kind", "custom");
+        r.addProperty("category", "custom-rate");
+        r.addProperty("machineType", "Custom Rate");
+        r.addProperty("minimumTier", "NONE");
+        r.addProperty("durationTicks", 20);
+        r.addProperty("eut", 0);
+        r.add("inputs", inputs);
+        r.add("outputs", outputs);
+        r.addProperty("notes", "Wire any port to this and it adopts that resource.");
+        final JsonObject from = new JsonObject();
+        from.addProperty("recipeMap", "custom-rate");
+        r.add("source", from);
+        return r;
+    }
+
     private static JsonArray ports(final List<Port<?>> ports, final boolean outputs, final World world,
         final Map<Port<?>, Res> res) {
         final JsonArray out = new JsonArray();
@@ -257,9 +293,15 @@ public final class PlanExport {
         o.addProperty("recipeId", recipeId);
         o.addProperty("machineCount", Math.max(0, world.machines(n)));
         o.addProperty("parallel", 1);
-        o.addProperty("overclockTier", n.isPower() ? "LV" : world.tier(n));
+        o.addProperty("overclockTier", CustomRate.is(n) ? "NONE" : n.isPower() ? "LV" : world.tier(n));
         o.addProperty("enabled", true);
-        if (n.isPower()) {
+        if (CustomRate.is(n)) {
+            // The dial, where the site keeps it: a second's worth, and which way it runs.
+            final JsonObject dial = new JsonObject();
+            dial.addProperty("perSecond", CustomRate.perSecond(n));
+            dial.addProperty("mode", CustomRate.supply(n) ? CustomRate.SUPPLY : CustomRate.REQUEST);
+            o.add("customRate", dial);
+        } else if (n.isPower()) {
             // A power card's settings, where the site keeps them.
             final JsonObject settings = new JsonObject();
             for (final Map.Entry<String, String> s : n.powerSettings.entrySet())
@@ -335,6 +377,11 @@ public final class PlanExport {
         o.addProperty("resourceKind", r.kind());
         o.addProperty("resourceId", r.id());
         return o;
+    }
+
+    /** A slot's name as the site shows it: its display name, else its id. */
+    private static String slotName(final JsonObject slot) {
+        return (slot.has("displayName") ? slot.get("displayName") : slot.get("id")).getAsString();
     }
 
     private static JsonObject resource(final Res r) {

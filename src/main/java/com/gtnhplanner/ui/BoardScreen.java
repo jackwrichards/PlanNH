@@ -773,6 +773,13 @@ public final class BoardScreen extends ModularScreen {
                 .muted("The selected recipes run on one machine and share its settings.");
         } else if (hovered instanceof final PortSlot slot) {
             tip = portTip(slot);
+        } else if (hovered instanceof final com.gtnhplanner.ui.card.SocketSlot socket) {
+            tip = socket.supply ? Tip.of("Supply any")
+                .muted("Supply side: wire a machine input (or a drawer) here, and this card supplies it at the rate you set.")
+                .action(Tip.Input.LEFT, "Drag to a machine's input")
+                : Tip.of("Drain any")
+                    .muted("Request side: wire a machine output (or a drawer) here, and this card drains it at the rate you set.")
+                    .action(Tip.Input.LEFT, "Drag to a machine's output");
         } else if (hovered instanceof final IWidget w && KEY_TIPS.containsKey(w)) {
             // The keys wait a moment, so passing over the bar does not flash tips.
             if (System.currentTimeMillis() - tipSince < 350) return;
