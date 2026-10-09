@@ -205,6 +205,167 @@ export class Sound {
     }
   }
 
+  // region The wider palette: materials that are not clicks at all
+
+  /** A soft mallet on a wooden bar (marimba-like): a fundamental, a quiet fourth-ish partial, a felt touch. */
+  mallet({ freq, dur = 0.14, peak, delay = 0, bright = 0.5 }) {
+    const f0 = freq * this.drift;
+    const parts = [[1, 1, dur], [3.93, 0.22 * bright, dur * 0.3], [9.79, 0.05 * bright, dur * 0.12]];
+    const n = Math.ceil(dur * 5 * SR);
+    const out = new Float32Array(n);
+    const rise = 0.0025;
+    for (const [mul, amp, decay] of parts) {
+      if (f0 * mul > 9000) continue;
+      const ph = this.rng() * 6.28;
+      for (let i = 0; i < n; i++) {
+        const t = i / SR;
+        out[i] += amp * Math.sin(ph + 2 * Math.PI * f0 * mul * t) * Math.exp(-t / decay);
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      const t = i / SR;
+      out[i] *= peak * (t < rise ? Math.sin((Math.PI / 2) * (t / rise)) : 1);
+    }
+    this.add(delay, out);
+  }
+
+  /** A plucked string (Karplus-Strong): warm, never harsh; {@code dur} is how long it rings. */
+  pluck({ freq, dur = 0.3, peak, delay = 0, bright = 0.4 }) {
+    const f0 = freq * this.drift;
+    const period = Math.max(2, Math.round(SR / f0));
+    const line = new Float32Array(period);
+    // A soft excitation: noise smoothed so the pluck starts round.
+    let lp = 0;
+    for (let i = 0; i < period; i++) {
+      lp += (this.rng() * 2 - 1 - lp) * (0.15 + bright * 0.6);
+      line[i] = lp;
+    }
+    const n = Math.ceil(dur * SR);
+    const rho = Math.pow(10, -3 / (dur * f0));
+    const out = new Float32Array(n);
+    let prev = 0;
+    for (let i = 0; i < n; i++) {
+      const k = i % period;
+      const x = line[k];
+      out[i] = x;
+      const next = rho * (0.5 * (x + prev));
+      prev = x;
+      line[k] = next;
+    }
+    const rise = 0.002 * SR;
+    for (let i = 0; i < n; i++) {
+      const tail = i > n * 0.8 ? (n - i) / (n * 0.2) : 1;
+      out[i] *= peak * 2.2 * Math.min(1, i / rise) * tail;
+    }
+    biquad(out, "lowpass", Math.min(2400, f0 * 5), 0.5);
+    this.add(delay, out);
+  }
+
+  /** A rubber pop: a low sine that starts high and drops into place in a few milliseconds. */
+  pop({ freq, dur = 0.05, peak, delay = 0 }) {
+    const f0 = freq * this.drift;
+    const n = Math.ceil(dur * 5 * SR);
+    const out = new Float32Array(n);
+    let p = 0;
+    for (let i = 0; i < n; i++) {
+      const t = i / SR;
+      p += (2 * Math.PI * f0 * (1 + 1.5 * Math.exp(-t / 0.004))) / SR;
+      const env = (t < 0.0015 ? t / 0.0015 : 1) * Math.exp(-t / (dur * 0.5));
+      out[i] = Math.sin(p) * env * peak;
+    }
+    this.add(delay, out);
+  }
+
+  /** A wood block, low: a soft tap ringing two resonances of a hollow piece of wood. */
+  woodblock({ freq, dur = 0.05, peak, delay = 0 }) {
+    const f0 = freq * this.drift;
+    const n = Math.ceil(dur * 4 * SR);
+    const tap = () => {
+      const x = new Float32Array(n);
+      for (let i = 0; i < Math.round(0.0015 * SR); i++) x[i] = (this.rng() * 2 - 1) * (1 - i / (0.0015 * SR));
+      return x;
+    };
+    const a = biquad(tap(), "bandpass", f0, Math.max(4, f0 * dur * 1.2));
+    const b = biquad(tap(), "bandpass", f0 * 2.4, Math.max(4, f0 * dur * 0.8));
+    const out = new Float32Array(n);
+    for (let i = 0; i < n; i++) out[i] = (a[i] + 0.25 * b[i]) * peak * 9;
+    biquad(out, "lowpass", 3000, 0.6);
+    this.add(delay, out);
+  }
+
+  /** A soft synth note: a sine with a breath of third harmonic, a gentle rise and a little upward lean. */
+  boop({ freq, dur = 0.12, peak, delay = 0, attack = 0.008 }) {
+    const f0 = freq * this.drift;
+    const n = Math.ceil(dur * 1.3 * SR);
+    const out = new Float32Array(n);
+    let p = 0;
+    for (let i = 0; i < n; i++) {
+      const t = i / SR;
+      p += (2 * Math.PI * f0 * (1 + 0.03 * Math.min(1, t / dur))) / SR;
+      const env = t < attack ? Math.sin((Math.PI / 2) * (t / attack)) : Math.exp(-(t - attack) / (dur * 0.4));
+      out[i] = (Math.sin(p) + 0.08 * Math.sin(3 * p)) * env * peak;
+    }
+    this.add(delay, out);
+  }
+
+  /** A muted retro square: odd harmonics only, cut off low, swelled so it does not bite. */
+  square({ freq, dur = 0.08, peak, delay = 0, cutoff = 2000 }) {
+    const f0 = freq * this.drift;
+    const n = Math.ceil(dur * 1.2 * SR);
+    const out = new Float32Array(n);
+    const top = Math.max(1, Math.floor(cutoff / f0));
+    for (let i = 0; i < n; i++) {
+      const t = i / SR;
+      let x = 0;
+      for (let k = 1; k <= top; k += 2) x += Math.sin(2 * Math.PI * f0 * k * t) / k;
+      const env = (t < 0.003 ? t / 0.003 : 1) * Math.exp(-t / (dur * 0.45));
+      out[i] = x * 0.75 * env * peak;
+    }
+    this.add(delay, out);
+  }
+
+  /** Warm FM keys: a sine bent by another at the same pitch, the bend fading fast, so it plinks warm, never glassy. */
+  fm({ freq, dur = 0.18, peak, delay = 0, index = 1.4 }) {
+    const f0 = freq * this.drift;
+    const n = Math.ceil(dur * 1.5 * SR);
+    const out = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const t = i / SR;
+      const ix = index * Math.exp(-t / 0.035);
+      const env = (t < 0.003 ? t / 0.003 : 1) * Math.exp(-t / (dur * 0.45));
+      out[i] = Math.sin(2 * Math.PI * f0 * t + ix * Math.sin(2 * Math.PI * f0 * t)) * env * peak;
+    }
+    this.add(delay, out);
+  }
+
+  /** A hollow box: a soft knock ringing the two hollow resonances of a cardboard or wooden box. */
+  box({ freq, dur = 0.05, peak, delay = 0 }) {
+    const f0 = freq * this.drift;
+    const n = Math.ceil(dur * 4 * SR);
+    const src = new Float32Array(n);
+    for (let i = 0; i < Math.round(0.003 * SR); i++) src[i] = (this.rng() * 2 - 1) * (1 - i / (0.003 * SR));
+    const a = biquad(src.slice(), "bandpass", f0, 6);
+    const b = biquad(src.slice(), "bandpass", f0 * 2.3, 5);
+    const out = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const t = i / SR;
+      out[i] = (a[i] + 0.5 * b[i]) * peak * 5 * Math.exp(-t / dur);
+    }
+    biquad(out, "lowpass", 2400, 0.6);
+    this.add(delay, out);
+  }
+
+  /** A keyboard thock: a low rounded knock with dulled noise on it. */
+  thock({ freq, dur = 0.014, peak, delay = 0 }) {
+    this.tock({ freq, drop: 1.25, decay: dur, peak, delay, rise: 0.0012 });
+    const n = Math.ceil(0.012 * SR);
+    const nz = biquad(this.noise(n), "lowpass", 1300, 0.7);
+    for (let i = 0; i < n; i++) nz[i] *= peak * 0.5 * Math.exp(-(i / SR) / 0.0025) * Math.min(1, i / (0.0008 * SR));
+    this.add(delay, nz);
+  }
+
+  // endregion
+
   /** The click, soft and plastic: a tock with a snap on it and a little weight under it. */
   softClick({ freq = 1050, peak = 0.55, delay = 0, body = 0.25, edge = 2400 }) {
     this.snap({ freq: edge, dur: 0.003, peak: peak * 0.6, delay });
@@ -310,13 +471,17 @@ export class Sound {
   }
 }
 
-/** The loudest 30 ms of a sound, RMS: how loud a short sound is heard, near enough. */
+/**
+ * The loudest 30 ms of a sound, RMS, heard through a gentle low cut (the ear hears little below 200 Hz): how loud a
+ * short sound is heard, near enough, so a low thud and a bright tick come out matched.
+ */
 export function punch(samples) {
+  const heard = biquad(Float32Array.from(samples), "highpass", 200, 0.6);
   const win = Math.round(0.03 * SR);
   let best = 0, sum = 0;
-  for (let i = 0; i < samples.length; i++) {
-    sum += samples[i] * samples[i];
-    if (i >= win) sum -= samples[i - win] * samples[i - win];
+  for (let i = 0; i < heard.length; i++) {
+    sum += heard[i] * heard[i];
+    if (i >= win) sum -= heard[i - win] * heard[i - win];
     best = Math.max(best, sum);
   }
   return Math.sqrt(best / win);

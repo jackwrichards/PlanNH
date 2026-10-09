@@ -93,19 +93,50 @@ svg.wires path.wire { pointer-events: stroke; cursor: pointer; }
 .fam { display: grid; gap: 8px; }
 .fam-head { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
 .fam-head p { margin: 0; color: var(--mute); font-size: 14px; }
-.row { display: grid; grid-template-columns: minmax(0, 1fr) 130px auto; gap: 12px; align-items: center; padding: 9px 12px; background: var(--panel); border: 1px solid var(--line); }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); }
+.row .side { display: grid; gap: 8px; justify-items: end; }
+.try { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
+.try .hint { font: 400 11.5px var(--mono); color: var(--mute); width: 100%; text-align: right; }
+.wheel { font: 500 13px var(--mono); padding: 6px 12px; border: 1px dashed #5a6070; background: #2f333d; cursor: ns-resize; user-select: none; }
+.wheel.tier { color: var(--gold); }
+.wheel.pinned { background: var(--gold); color: #1a1408; border-style: solid; border-color: var(--gold); }
+.mini { position: relative; width: 236px; height: 46px; background: #15161b; border: 1px solid var(--line); touch-action: none; user-select: none; }
+.mini .dot { position: absolute; left: 10px; top: 16px; width: 13px; height: 13px; border: 2px solid currentColor; background: #15161b; cursor: crosshair; }
+.mini .slot { position: absolute; right: 8px; top: 7px; width: 96px; padding: 4px 6px; background: #20232a; border: 1px solid #3a3e4a; border-left: 3px solid currentColor; font-size: 11.5px; color: var(--ink); }
+.mini .slot.hot { outline: 2px solid var(--accent); }
+.mini .slot.bad { outline: 2px solid var(--deny); }
+.mini svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.mini svg path { pointer-events: stroke; cursor: pointer; }
+.mini.item { color: var(--item); } .mini.fluid { color: var(--fluid); } .mini.power { color: var(--power); }
+.blocks { display: grid; grid-template-columns: repeat(4, 22px); gap: 3px; }
+.blocks button { width: 22px; height: 22px; padding: 0; min-width: 0; background: #23262e; border: 1px solid #343843; }
+.blocks button.on { background: #6b7280; border-color: #9aa1ae; }
+.minicard { width: 64px; height: 30px; background: var(--card); border: 1px solid #3a3e4a; cursor: grab; touch-action: none; position: relative; }
+.dragzone { position: relative; width: 236px; height: 46px; background: #15161b; border: 1px solid var(--line); }
+.minitabs { display: flex; gap: 2px; }
+.minitabs button.on { background: #3a3e4a; color: var(--ink); border-color: #5a6070; }
+.mininote { width: 70px; min-height: 30px; background: #ead37a; color: #2a2510; font-size: 10.5px; padding: 12px 4px 3px; position: relative; }
+.mininote button { position: absolute; top: 1px; left: 1px; font-size: 9px; padding: 0 3px; background: #3a3a40cc; color: #f2f3f7; border: 0; }
+.row .picks .label { font: 500 10.5px var(--mono); color: var(--mute); text-transform: uppercase; letter-spacing: 0.06em; align-self: center; margin-right: 2px; }
+.row .picks .label:not(:first-child) { margin-left: 8px; }
+.setwide { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); }
+.setwide p { margin: 0; color: var(--mute); font-size: 13.5px; flex: 1; min-width: 240px; }
+.setwide select { font: 500 13px var(--mono); background: #2a2d36; color: var(--ink); border: 1px solid #3d414d; padding: 5px 8px; }
 .row .id { font: 500 14px var(--mono); }
 .row .when { color: var(--mute); font-size: 13px; margin: 2px 0 0; }
 .row .picks { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .row .picks button { font-size: 11.5px; padding: 2px 8px; }
 .row .picks button.first { color: var(--mute); }
 .row .keys { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.row canvas { width: 300px; height: 28px; }
 canvas { width: 130px; height: 32px; display: block; color: var(--accent); }
 .picked { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); }
 .picked p { margin: 0; color: var(--mute); font-size: 13.5px; flex: 1; min-width: 240px; }
-@media (max-width: 640px) {
-  .row { grid-template-columns: minmax(0, 1fr) auto; }
-  .row canvas { display: none; }
+@media (max-width: 760px) {
+  .row { grid-template-columns: minmax(0, 1fr); }
+  .row .side { justify-items: start; }
+  .try { justify-content: flex-start; } .try .hint { text-align: left; }
+  .row canvas { width: 100%; }
   h1 { font-size: 30px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -114,7 +145,7 @@ canvas { width: 130px; height: 32px; display: block; color: var(--accent); }
 <div class="wrap">
   <header>
     <h1>GTNH Planner <span>Sound Lab</span></h1>
-    <p class="lead">Every sound is made live in your browser from the same recipes the game's files are rendered from. Use the board to hear them in place, switch the variation techniques on and off on the right, and pick between versions further down. When you like a set, copy your picks at the bottom and paste them to me.</p>
+    <p class="lead">Every sound is made live in your browser from the same recipes the game's files are rendered from. Use the board to hear them in place, switch the variation techniques on and off on the right, and pick between versions further down: each sound has its own hand-made versions and the same gesture in a dozen materials. Every row has the control it really belongs to: scroll the chips, flip the switches, drag the wires. When you like a set, copy your picks at the bottom and paste them to me.</p>
   </header>
 
   <div class="top">
@@ -148,17 +179,22 @@ const REF = 0.2;
 const prefs = (() => { try { return JSON.parse(localStorage.getItem("gtnhp-sound-lab") || "{}"); } catch { return {}; } })();
 const state = Object.assign({
   picks: {}, mode: "fixed", order: "shuffle", pitch: 3, musical: false, volume: 1.5, bright: 0, timing: 0,
-  duck: true, streak: false, stereo: false, master: 0.7,
+  duck: true, streak: false, stereo: false, master: 0.7, tone: 6000, attack: 0,
 }, prefs);
 function save() { try { localStorage.setItem("gtnhp-sound-lab", JSON.stringify(state)); } catch {} }
 
-let ctx, master;
+let ctx, master, toneFilter;
 function audio() {
   if (!ctx) {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     master = ctx.createGain();
     master.gain.value = state.master;
     master.connect(ctx.destination);
+    toneFilter = ctx.createBiquadFilter();
+    toneFilter.type = "lowpass";
+    toneFilter.Q.value = 0.6;
+    toneFilter.frequency.value = state.tone >= 12000 ? 20000 : state.tone;
+    toneFilter.connect(master);
   }
   if (ctx.state !== "running") ctx.resume().catch(() => {});
   return ctx;
@@ -189,7 +225,8 @@ function gainOf(name, cur) {
   if (!gains.has(key)) {
     const b = renderOne(name, cur, hash(name), 0);
     let peak = 0; for (const x of b) peak = Math.max(peak, Math.abs(x));
-    gains.set(key, Math.min((cur.level * REF) / Math.max(1e-6, punch(b)), 0.95 / Math.max(1e-6, peak)));
+    const heard = punch(b);
+    gains.set(key, heard < 1e-5 ? 0 : Math.min((cur.level * REF) / heard, 0.95 / Math.max(1e-6, peak)));
   }
   return gains.get(key);
 }
@@ -275,14 +312,19 @@ function play(name, { pitch = 1, x } = {}) {
     node.connect(f); node = f;
   }
   const g = c.createGain();
-  g.gain.value = Math.pow(10, ((Math.random() * 2 - 1) * state.volume) / 20) * Math.pow(0.6, duck);
+  const level = Math.pow(10, ((Math.random() * 2 - 1) * state.volume) / 20) * Math.pow(0.6, duck);
+  if (state.attack > 0) {
+    // Soft attack: the first milliseconds faded in, so nothing hits at full force.
+    g.gain.setValueAtTime(0, c.currentTime);
+    g.gain.linearRampToValueAtTime(level, c.currentTime + state.attack / 1000);
+  } else g.gain.value = level;
   node.connect(g); node = g;
   if (state.stereo && c.createStereoPanner && x !== undefined) {
     const pan = c.createStereoPanner();
     pan.pan.value = Math.max(-0.8, Math.min(0.8, (x / window.innerWidth) * 2 - 1)) * 0.6;
     node.connect(pan); node = pan;
   }
-  node.connect(master);
+  node.connect(toneFilter);
   src.start();
 }
 
@@ -297,6 +339,8 @@ function tierPitch(i) { return 0.62 * Math.pow(1.085, i); }
 
 const VARY = [
   ["master", "range", "Volume", 0, 1, 0.01, (v) => Math.round(v * 100) + "%", "Only this page's loudness."],
+  ["tone", "range", "Tone", 1500, 12000, 100, (v) => (v >= 12000 ? "open" : (v / 1000).toFixed(1) + " kHz"), "Everything through one lowpass: lower is darker and gentler. It would be baked into the game's files."],
+  ["attack", "range", "Soft attack", 0, 8, 0.5, (v) => v + " ms", "Fades the first milliseconds in, so nothing hits the ear at full force."],
   ["mode", "select", "Variants", [["fixed", "As the game ships them"], ["fresh", "New every play"]], "Games ship a few takes of each sound; made live, every play can be a new one."],
   ["order", "select", "Order", [["shuffle", "Shuffled, no repeats"], ["random", "At random"], ["cycle", "In turn"]], "A shuffled bag never plays the same take twice in a row, which pure random does."],
   ["pitch", "range", "Pitch spread", 0, 10, 0.5, (v) => "±" + v + "%", "A few percent up or down each play: the cheapest cure for a sound that repeats."],
@@ -328,6 +372,7 @@ function buildVary() {
       input.addEventListener("input", () => {
         state[key] = Number(input.value); out.textContent = fmt(state[key]); save();
         if (key === "master" && master) master.gain.value = state.master;
+        if (key === "tone" && toneFilter) toneFilter.frequency.value = state.tone >= 12000 ? 20000 : state.tone;
         if (key === "timing") cache.clear();
       });
       lab.append(out);
@@ -624,7 +669,7 @@ function addNote() {
 
 // region The library
 
-const FAMILIES = [
+const SECTIONS = [
   ["ui", "Keys", "Most presses use the click; switches, menus and refusals have their own."],
   ["board", "Board", "Cards on a table."],
   ["wire", "Wires", "The drag is the same for all; what latches in sounds of what it carries."],
@@ -652,14 +697,31 @@ function drawWave(canvas, data) {
 const rowsByName = {};
 function refreshPicked() {
   const changed = Object.entries(state.picks).filter(([n, p]) => p && SOUNDS[n] && p !== Object.keys(SOUNDS[n].options)[0]);
-  document.getElementById("picked-text").textContent = changed.length
+  const shape = ` Tone ${state.tone >= 12000 ? "open" : (state.tone / 1000).toFixed(1) + " kHz"}, soft attack ${state.attack} ms.`;
+  document.getElementById("picked-text").textContent = (changed.length
     ? "Your picks: " + changed.map(([n, p]) => `${n} = ${p}`).join("; ") + ". Everything else: its first option."
-    : "Your picks: all first options.";
+    : "Your picks: all first options.") + shape;
+}
+const syncRows = [];
+function setWhole(family) {
+  for (const name of Object.keys(SOUNDS)) {
+    if (family && SOUNDS[name].options[family]) state.picks[name] = family;
+    else if (!family || !SOUNDS[name].options[family]) delete state.picks[name];
+  }
+  save(); cache.clear(); syncRows.forEach((f) => f()); refreshPicked();
 }
 function buildLibrary() {
   const lib = document.getElementById("library");
   lib.append(Object.assign(document.createElement("h2"), { textContent: "Every sound" }));
-  for (const [fam, title, blurb] of FAMILIES) {
+  const wide = h("div", "setwide");
+  const sel = h("select"); sel.id = "whole";
+  sel.append(Object.assign(document.createElement("option"), { value: "", textContent: "Each sound's own first version" }));
+  for (const fam of Object.keys(FAMILIES)) sel.append(Object.assign(document.createElement("option"), { value: fam, textContent: fam }));
+  sel.addEventListener("change", () => setWhole(sel.value));
+  const lab = h("label"); lab.htmlFor = "whole"; lab.textContent = "Whole set in one material";
+  wide.append(lab, sel, h("p", "", "Sets every sound that has it to one material at once, to hear the set as a whole on the board above. The themed fluid and power wires keep their own. Then change single sounds below."));
+  lib.append(wide);
+  for (const [fam, title, blurb] of SECTIONS) {
     const names = Object.keys(SOUNDS).filter((n) => n.startsWith(fam + "."));
     if (!names.length) continue;
     const sec = h("section", "fam");
@@ -670,10 +732,15 @@ function buildLibrary() {
       const left = h("div");
       left.append(h("div", "id", name), h("p", "when", def.when));
       const picks = h("div", "picks");
-      const labels = [...Object.keys(def.options), ...(FIRST_SET[name] ? [FIRST] : [])];
+      const own = Object.keys(def.options).filter((l) => !FAMILIES[l] && l !== "None");
+      const fams = Object.keys(def.options).filter((l) => FAMILIES[l]);
+      const labels = [...own, ...fams, ...(def.options.None ? ["None"] : []), ...(FIRST_SET[name] ? [FIRST] : [])];
       const canvas = h("canvas");
       const redraw = () => { const cur = current(name); canvas.style.color = cur.label === FIRST ? "var(--mute)" : "var(--accent)"; drawWave(canvas, renderOne(name, cur, hash(name), 0)); };
       for (const l of labels) {
+        if (l === own[0]) picks.append(h("span", "label", "Made for it"));
+        if (l === fams[0]) picks.append(h("span", "label", "Materials"));
+        if (l === "None" || l === FIRST) picks.append(h("span", "label", l === FIRST ? "Before" : ""));
         const b = h("button", l === FIRST ? "first" : "", l); b.type = "button";
         const sync = () => b.classList.toggle("on", current(name).label === l);
         b.addEventListener("click", (e) => {
@@ -682,8 +749,10 @@ function buildLibrary() {
           redraw(); refreshPicked(); play(name, { x: ex(e) });
         });
         b.addEventListener("sync", sync); sync();
+        syncRows.push(sync);
         picks.append(b);
       }
+      syncRows.push(redraw);
       if (labels.length > 1) left.append(picks);
       const keysEl = h("div", "keys");
       const once = h("button", "", "Play"); once.type = "button";
@@ -691,13 +760,9 @@ function buildLibrary() {
       const burst = h("button", "", "×8"); burst.type = "button"; burst.title = "Eight in a row, 90 ms apart";
       burst.addEventListener("click", (e) => { const x = ex(e); for (let i = 0; i < 8; i++) setTimeout(() => play(name, { x }), i * 90); });
       keysEl.append(once, burst);
-      if (name === "ui.tick") {
-        const dn = h("button", "", "down"), up = h("button", "", "up");
-        dn.addEventListener("click", (e) => play(name, { pitch: 0.9, x: ex(e) }));
-        up.addEventListener("click", (e) => play(name, { pitch: 1.12, x: ex(e) }));
-        keysEl.prepend(dn, up);
-      }
-      row.append(left, canvas, keysEl);
+      const side = h("div", "side");
+      side.append(canvas, tryFor(name), keysEl);
+      row.append(left, side);
       if (name === "dial.tier") {
         const ladder = h("div", "picks"); ladder.style.gridColumn = "1 / -1";
         TIERS.forEach((t, i) => { const b = h("button", "", t); b.type = "button"; b.addEventListener("click", (e) => play(name, { pitch: tierPitch(i), x: ex(e) })); ladder.append(b); });
@@ -710,6 +775,229 @@ function buildLibrary() {
     lib.append(sec);
   }
 }
+
+// region Each sound's own control: what it really is in the planner
+
+/** A chip under the mouse that steps on the wheel (and on clicks, right-click down), as the card's chips do. */
+function wheelChip(text, cls, onStep) {
+  const c = h("span", "wheel " + (cls || ""), text);
+  c.tabIndex = 0;
+  c.addEventListener("wheel", (e) => { e.preventDefault(); onStep(e.deltaY < 0 ? 1 : -1, c, e.clientX); }, { passive: false });
+  c.addEventListener("click", (e) => onStep(1, c, e.clientX));
+  c.addEventListener("contextmenu", (e) => { e.preventDefault(); onStep(-1, c, e.clientX); });
+  c.addEventListener("keydown", (e) => { if (e.key === "ArrowUp" || e.key === "ArrowRight") { e.preventDefault(); onStep(1, c); } if (e.key === "ArrowDown" || e.key === "ArrowLeft") { e.preventDefault(); onStep(-1, c); } });
+  return c;
+}
+function btn(text, f) { const b = h("button", "", text); b.type = "button"; b.addEventListener("click", (e) => f(e, b)); return b; }
+function hint(text) { return h("span", "hint", text); }
+function aSwitch(label, on, onFlip) {
+  const s = h("button", "switch" + (on ? " on" : "")); s.type = "button"; s.append(label, h("i"));
+  s.addEventListener("click", (e) => { s.classList.toggle("on"); onFlip(s.classList.contains("on"), e.clientX); });
+  return s;
+}
+
+/** A port dot and a drawer: drag the wire across (it snaps over the drawer, latches in on it), click it to cut. */
+function miniWire(kind, label, { wrong } = {}) {
+  const box = h("div", "mini " + kind);
+  const dot = h("i", "dot");
+  const slot = h("div", "slot", wrong ? wrong.label : label);
+  if (wrong) slot.style.color = `var(--${wrong.kind})`;
+  const sv = document.createElementNS(NS, "svg");
+  const path = document.createElementNS(NS, "path");
+  path.setAttribute("fill", "none"); path.setAttribute("stroke", COLORS[kind]); path.setAttribute("stroke-width", "3");
+  sv.append(path);
+  box.append(sv, dot, slot);
+  let wired = false, d = null;
+  const local = (e) => { const r = box.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const inSlot = (e) => { const r = slot.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; };
+  const line = (to) => path.setAttribute("d", to ? `M18,23 C60,23 ${to.x - 40},${to.y} ${to.x},${to.y}` : "");
+  dot.addEventListener("pointerdown", (e) => { d = { x0: e.clientX, y0: e.clientY, heard: false, over: false }; box.setPointerCapture(e.pointerId); e.preventDefault(); });
+  box.addEventListener("pointermove", (e) => {
+    if (!d) return;
+    if (!d.heard && Math.abs(e.clientX - d.x0) + Math.abs(e.clientY - d.y0) >= 4) { d.heard = true; play("wire.grab", { x: e.clientX }); }
+    if (!d.heard) return;
+    line(local(e));
+    const over = inSlot(e);
+    slot.classList.toggle(wrong ? "bad" : "hot", over);
+    if (over && !d.over && !wrong) play("wire.snap", { x: e.clientX });
+    d.over = over;
+  });
+  box.addEventListener("pointerup", (e) => {
+    const d0 = d; d = null;
+    if (!d0) return;
+    slot.classList.remove("hot", "bad");
+    if (!d0.heard) { line(wired ? { x: 132, y: 23 } : null); return; }
+    if (inSlot(e) && !wrong) { wired = true; line({ x: 132, y: 23 }); connect(kind, e.clientX); return; }
+    line(wired ? { x: 132, y: 23 } : null);
+    play("ui.deny", { x: e.clientX });
+  });
+  path.addEventListener("click", (e) => { if (!wired) return; wired = false; line(null); cut(kind, e.clientX); });
+  return box;
+}
+
+/** A card to pick up and set down. */
+function miniCard() {
+  const zone = h("div", "dragzone");
+  const card = h("div", "minicard");
+  card.style.position = "absolute"; card.style.left = "10px"; card.style.top = "7px";
+  zone.append(card);
+  let d = null;
+  card.addEventListener("pointerdown", (e) => { d = { x0: e.clientX, left: card.offsetLeft, moved: false }; card.setPointerCapture(e.pointerId); e.preventDefault(); });
+  card.addEventListener("pointermove", (e) => {
+    if (!d) return;
+    const dx = Math.round((e.clientX - d.x0) / 10) * 10;
+    if (!d.moved && dx) { d.moved = true; card.style.boxShadow = "3px 6px 0 #08090b"; play("board.lift", { x: e.clientX }); }
+    card.style.left = Math.max(4, Math.min(166, d.left + dx)) + "px";
+  });
+  card.addEventListener("pointerup", (e) => { if (d && d.moved) play("board.drop", { x: e.clientX }); card.style.boxShadow = ""; d = null; });
+  return zone;
+}
+
+function tryFor(name) {
+  const t = h("div", "try");
+  const x = (e) => (e ? e.clientX : undefined);
+  switch (name) {
+    case "ui.click":
+      t.append(btn("Fit", (e) => play(name, { x: x(e) })), btn("Library", (e) => play(name, { x: x(e) })), btn("?", (e) => play(name, { x: x(e) })), hint("keys on the top bar"));
+      break;
+    case "ui.toggle_on": case "ui.toggle_off":
+      t.append(aSwitch("Minimap", name === "ui.toggle_off", (on, cx) => play(on ? "ui.toggle_on" : "ui.toggle_off", { x: cx })), hint("flip it both ways"));
+      break;
+    case "ui.open": case "ui.close": {
+      const wrapM = h("div"); wrapM.style.position = "relative";
+      let open = null;
+      const key = btn("Menu ▾", (e) => {
+        if (open) { open.remove(); open = null; return play("ui.close", { x: x(e) }); }
+        open = h("div", "popup"); open.style.right = "0"; open.style.top = "30px";
+        for (const r of ["Clone", "Add another recipe", "Delete"]) open.append(btn(r, (ev) => { ev.stopPropagation(); open.remove(); open = null; play("ui.click", { x: x(ev) }); }));
+        wrapM.append(open); play("ui.open", { x: x(e) });
+      });
+      document.addEventListener("click", (e) => { if (open && !wrapM.contains(e.target)) { open.remove(); open = null; play("ui.close", { x: e.clientX }); } });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape" && open) { open.remove(); open = null; play("ui.close"); } });
+      wrapM.append(key);
+      t.append(wrapM, hint("click off it or Esc to dismiss"));
+      break;
+    }
+    case "ui.deny":
+      t.append(miniWire("fluid", "Water", { wrong: { kind: "item", label: "Iron Dust" } }), hint("drop the fluid on the item drawer"));
+      break;
+    case "ui.tick": {
+      let amps = 2, rate = 100;
+      t.append(
+        wheelChip(amps + "A", "", (d, c, cx) => { amps = Math.max(1, amps + d); c.textContent = amps + "A"; play(name, { pitch: d > 0 ? 1.12 : 0.9, x: cx }); }),
+        wheelChip(rate + " /s", "", (d, c, cx) => { rate = Math.max(0, rate + d * 10); c.textContent = rate + " /s"; play(name, { pitch: d > 0 ? 1.12 : 0.9, x: cx }); }),
+        hint("hover and scroll (or click / right-click)"));
+      break;
+    }
+    case "ui.page": {
+      const tabs = h("div", "minitabs");
+      ["Plan 1", "Ethylene", "Platline"].forEach((n, i) => {
+        const b = btn(n, (e) => { for (const o of tabs.children) o.classList.remove("on"); b.classList.add("on"); play(name, { x: x(e) }); });
+        if (i === 0) b.classList.add("on");
+        tabs.append(b);
+      });
+      tabs.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const list = [...tabs.children], i = list.findIndex((b) => b.classList.contains("on"));
+        const j = Math.max(0, Math.min(list.length - 1, i + (e.deltaY > 0 ? 1 : -1)));
+        if (j !== i) { list[i].classList.remove("on"); list[j].classList.add("on"); play(name, { x: e.clientX }); }
+      }, { passive: false });
+      t.append(tabs, hint("plan tabs: click, or scroll over them"));
+      break;
+    }
+    case "board.place": case "board.remove": {
+      const zone = h("div", "dragzone"); zone.style.display = "flex"; zone.style.gap = "4px"; zone.style.padding = "7px";
+      t.append(btn("Add card", (e) => { if (zone.children.length < 3) { zone.append(h("div", "minicard")); play("board.place", { x: x(e) }); } }),
+        btn("Delete", (e) => { if (zone.lastChild) { zone.lastChild.remove(); play("board.remove", { x: x(e) }); } else play("ui.deny", { x: x(e) }); }), zone);
+      break;
+    }
+    case "board.lift": case "board.drop":
+      t.append(miniCard(), hint("drag the card"));
+      break;
+    case "board.clone": t.append(btn("Clone", (e) => play(name, { x: x(e) })), hint("card menu: Clone")); break;
+    case "board.merge": t.append(btn("Combine into one machine", (e) => play(name, { x: x(e) }))); break;
+    case "board.sweep": t.append(btn("Arrange", (e) => play(name, { x: x(e) })), btn("Paste plan", (e) => play(name, { x: x(e) }))); break;
+    case "board.undo": case "board.redo": {
+      const u = btn("Undo", (e) => play("board.undo", { x: x(e) })), rd = btn("Redo", (e) => play("board.redo", { x: x(e) }));
+      t.append(u, rd, hint("or Ctrl+Z / Ctrl+Y here"));
+      t.tabIndex = 0;
+      t.addEventListener("keydown", (e) => {
+        if (e.ctrlKey && e.key.toLowerCase() === "z") { e.preventDefault(); play("board.undo"); }
+        if (e.ctrlKey && e.key.toLowerCase() === "y") { e.preventDefault(); play("board.redo"); }
+      });
+      break;
+    }
+    case "board.pin": case "board.unpin": {
+      let count = 4, pinned = name === "board.unpin";
+      const chip = wheelChip("×" + count, pinned ? "pinned" : "", (d, c, cx) => {
+        if (d === 1 && !c._wheel) { pinned = !pinned; c.classList.toggle("pinned", pinned); play(pinned ? "board.pin" : "board.unpin", { x: cx }); }
+        c._wheel = false;
+      });
+      chip.addEventListener("wheel", (e) => {
+        e.stopImmediatePropagation(); e.preventDefault();
+        count = Math.max(1, count + (e.deltaY < 0 ? 1 : -1)); chip.textContent = "×" + count;
+        play("ui.tick", { pitch: e.deltaY < 0 ? 1.12 : 0.9, x: e.clientX });
+        clearTimeout(chip._commit);
+        chip._commit = setTimeout(() => { if (!pinned) { pinned = true; chip.classList.add("pinned"); } play("board.pin"); }, 500);
+      }, { passive: false, capture: true });
+      t.append(chip, hint("click to pin and unpin; scroll a count to pin it"));
+      break;
+    }
+    case "board.adjust": {
+      const coils = ["Cupronickel", "Kanthal", "Nichrome", "TPV", "HSS-G"];
+      let i = 0;
+      t.append(wheelChip("Coil: " + coils[0], "", (d, c, cx) => { i = (i + d + coils.length) % coils.length; c.textContent = "Coil: " + coils[i]; play(name, { x: cx }); }), hint("scroll a setting chip"));
+      break;
+    }
+    case "board.running": {
+      let on = false;
+      t.append(btn("Wire the last input", (e, b) => { on = !on; b.textContent = on ? "Cut it again" : "Wire the last input"; if (on) setTimeout(() => play(name, { x: x(e) }), 120); else cut("item", x(e)); }));
+      break;
+    }
+    case "wire.grab": case "wire.snap": case "wire.item": case "wire.cut":
+      t.append(miniWire("item", "Iron Dust"), hint("drag to the drawer; click the wire to cut"));
+      break;
+    case "wire.fluid": case "wire.fluid_cut":
+      t.append(miniWire("fluid", "Water"), hint("drag to the drawer; click the wire to cut"));
+      break;
+    case "wire.power": case "wire.power_cut":
+      t.append(miniWire("power", "EU"), hint("drag to the drawer; click the wire to cut"));
+      break;
+    case "dial.tier": {
+      let tierI = 3;
+      t.append(wheelChip(TIERS[tierI], "tier", (d, c, cx) => {
+        const next = Math.max(0, Math.min(TIERS.length - 1, tierI + d));
+        if (next === tierI) return;
+        tierI = next; c.textContent = TIERS[tierI]; play(name, { pitch: tierPitch(tierI), x: cx });
+      }), hint("hover and scroll up the ladder"));
+      break;
+    }
+    case "screen.open": case "screen.close": {
+      let open = true;
+      t.append(btn("Close planner", (e, b) => { open = !open; b.textContent = open ? "Close planner" : "Open planner"; play(open ? "screen.open" : "screen.close", { x: x(e) }); }));
+      break;
+    }
+    case "note.stick": case "note.crumple": {
+      const zone = h("div"); zone.style.display = "flex"; zone.style.gap = "4px";
+      t.append(btn("Add note", (e) => {
+        if (zone.children.length >= 2) return play("ui.deny", { x: x(e) });
+        const n = h("div", "mininote", "benzene →");
+        n.append(btn("✕", (ev) => { n.remove(); play("note.crumple", { x: x(ev) }); }));
+        zone.append(n); play("note.stick", { x: x(e) });
+      }), zone);
+      break;
+    }
+    case "world.place": case "world.remove": {
+      const grid = h("div", "blocks");
+      for (let i = 0; i < 8; i++) grid.append(btn("", (e, b) => { b.classList.toggle("on"); play(b.classList.contains("on") ? "world.place" : "world.remove", { x: x(e) }); }));
+      t.append(grid, hint("click a spot to place, again to take off"));
+      break;
+    }
+  }
+  return t;
+}
+
+// endregion
 
 document.getElementById("copy").addEventListener("click", () => {
   const text = document.getElementById("picked-text").textContent + ` Variation: ${state.mode}, ${state.order}, pitch ±${state.pitch}%${state.musical ? " musical" : ""}, loudness ±${state.volume} dB, brightness ±${state.bright}%, timing ±${state.timing} ms${state.duck ? ", ducking" : ""}${state.streak ? ", streaks" : ""}${state.stereo ? ", stereo" : ""}.`;

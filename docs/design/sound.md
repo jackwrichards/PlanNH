@@ -36,6 +36,13 @@ memoryless tanh clip. The set's own:
 - **hum**: a smooth buzz of a few harmonics (power, the tier dial).
 - **paper grains**: short noise grains, each its own pitch (sticky notes).
 
+The palette (`FAMILIES` and `GESTURES` in `sounds.mjs`) widens the choice: twelve materials (low click, felt mallet,
+wood block, rubber pop, plucked string, soft synth, retro square, warm keys, hollow box, thock, bubble, air), all
+pitched low, each able to play every gesture a sound is (a tap, two steps up, set down, rise, fall, a latch...). Every
+sound offers its gesture in every material beside its own hand-made versions; the themed fluid and power wires have
+eight or more of their own instead. The loudness measure listens through a gentle low cut, so a low thud and a bright
+tick come out matched.
+
 Each sound has one to four variants (a seed apiece) and the game picks one; the game also drifts the pitch a few cents.
 
 ## Loudness

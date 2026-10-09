@@ -10,6 +10,68 @@
 
 const click = (s, o = {}) => s.softClick(o);
 
+// region The palette: families of material, each able to play every gesture
+
+/**
+ * A family is one material and its register: `base` is the pitch its plain tap sits at (all low: nothing here is
+ * meant to poke), `note` plays one hit of it, {f: Hz, at: seconds, peak, len: times its own length}.
+ */
+export const FAMILIES = {
+  "Low click": { base: 520, note: (s, o) => s.softClick({ freq: o.f, peak: 0.5 * o.peak, body: 0.2 * o.peak, edge: 1300, delay: o.at }) },
+  "Felt mallet": { base: 440, note: (s, o) => s.mallet({ freq: o.f, dur: 0.12 * o.len, peak: 0.6 * o.peak, delay: o.at }) },
+  "Wood block": { base: 560, note: (s, o) => s.woodblock({ freq: o.f, dur: 0.045 * o.len, peak: 0.6 * o.peak, delay: o.at }) },
+  "Rubber pop": { base: 300, note: (s, o) => s.pop({ freq: o.f, dur: 0.05 * o.len, peak: 0.7 * o.peak, delay: o.at }) },
+  "Plucked string": { base: 294, note: (s, o) => s.pluck({ freq: o.f, dur: 0.25 * o.len, peak: 0.6 * o.peak, delay: o.at }) },
+  "Soft synth": { base: 392, note: (s, o) => s.boop({ freq: o.f, dur: 0.11 * o.len, peak: 0.6 * o.peak, delay: o.at }) },
+  "Retro square": { base: 330, note: (s, o) => s.square({ freq: o.f, dur: 0.07 * o.len, peak: 0.45 * o.peak, delay: o.at, cutoff: 1800 }) },
+  "Warm keys": { base: 349, note: (s, o) => s.fm({ freq: o.f, dur: 0.16 * o.len, peak: 0.55 * o.peak, delay: o.at }) },
+  "Hollow box": { base: 300, note: (s, o) => s.box({ freq: o.f, dur: 0.045 * o.len, peak: 0.6 * o.peak, delay: o.at }) },
+  "Thock": { base: 240, note: (s, o) => s.thock({ freq: o.f, dur: 0.014 * o.len, peak: 0.7 * o.peak, delay: o.at }) },
+  "Bubble": { base: 280, note: (s, o) => s.blob({ from: o.f * 0.85, to: o.f * 1.3, dur: 0.06 * o.len, peak: 0.55 * o.peak, delay: o.at }) },
+  "Air": { base: 560, note: (s, o) => s.swish({ from: o.f * 0.7, to: o.f * 1.2, dur: 0.05 * o.len + 0.02, peak: 0.2 * o.peak, q: 1.1, delay: o.at }) },
+};
+
+/** Gestures: what a sound does, as hits of a family, each [pitch times its base, at seconds, peak, length]. */
+export const GESTURES = {
+  tap: [[1, 0, 1, 1]],
+  adjust: [[0.9, 0, 0.8, 0.8]],
+  tick: [[1.35, 0, 0.55, 0.5]],
+  small: [[1.2, 0, 0.45, 0.6]],
+  snap: [[1.5, 0, 0.4, 0.4]],
+  up2: [[1, 0, 0.85, 0.8], [1.335, 0.05, 0.8, 0.9]],
+  down2: [[1.335, 0, 0.85, 0.8], [1, 0.05, 0.8, 0.9]],
+  rise: [[0.85, 0, 0.6, 0.7], [1.27, 0.06, 0.7, 1]],
+  fall: [[1.27, 0, 0.6, 0.7], [0.85, 0.06, 0.65, 1]],
+  deny: [[0.6, 0, 0.9, 0.8], [0.57, 0.085, 0.8, 0.9]],
+  page: [[1.1, 0, 0.5, 0.7], [1.3, 0.03, 0.3, 0.6]],
+  set: [[0.5, 0, 1, 1.3]],
+  drop: [[0.6, 0, 0.8, 1]],
+  lift: [[1.2, 0, 0.4, 0.6]],
+  remove: [[1, 0, 0.8, 0.8], [0.7, 0.06, 0.8, 1.1]],
+  double: [[0.55, 0, 0.9, 1], [0.62, 0.075, 0.9, 1]],
+  merge: [[0.75, 0, 0.6, 0.7], [0.84, 0.05, 0.6, 0.7], [1, 0.11, 0.9, 1.2], [0.5, 0.11, 0.7, 1.2]],
+  sweep: [[1.5, 0, 0.5, 0.8], [1.25, 0.06, 0.55, 0.8], [1, 0.12, 0.6, 0.9], [0.5, 0.2, 0.8, 1.3]],
+  pin: [[1, 0, 0.7, 0.6], [0.5, 0.01, 0.8, 1.2]],
+  unpin: [[0.5, 0, 0.5, 0.8], [1, 0.03, 0.6, 0.6]],
+  running: [[1, 0, 0.6, 1], [1.26, 0.07, 0.6, 1], [1.5, 0.14, 0.7, 1.5]],
+  open: [[0.85, 0, 0.55, 0.8], [1.27, 0.06, 0.65, 1], [0.42, 0.13, 0.7, 1.2]],
+  close: [[1.27, 0, 0.55, 0.8], [0.85, 0.06, 0.6, 1], [0.42, 0.12, 0.6, 1.2]],
+  latch: [[1, 0, 0.7, 0.8], [0.75, 0.028, 0.9, 1.1]],
+  unlatch: [[0.75, 0, 0.6, 0.8], [0.55, 0.03, 0.8, 1.1]],
+  heavy: [[0.4, 0, 1, 1.5], [0.8, 0.005, 0.4, 0.6]],
+  heavyUp: [[0.5, 0, 0.7, 1], [0.8, 0.05, 0.6, 0.8]],
+};
+
+/** A gesture played in a family. */
+export function inFamily(family, gesture) {
+  const F = FAMILIES[family];
+  return (s) => {
+    for (const [mul, at, peak, len] of GESTURES[gesture]) F.note(s, { f: F.base * mul, at, peak, len });
+  };
+}
+
+// endregion
+
 export const SOUNDS = {
   "ui.click": {
     level: 1, variants: 4,
@@ -272,6 +334,36 @@ export const SOUNDS = {
         s.snap({ freq: 1200, dur: 0.005, peak: 0.3 });
         s.tock({ freq: 360, drop: 1.3, decay: 0.012, peak: 0.3, delay: 0.07 });
       },
+      "Felt latch": (s) => {
+        s.mallet({ freq: 330, dur: 0.1, peak: 0.5 });
+        s.mallet({ freq: 247, dur: 0.14, peak: 0.6, delay: 0.03 });
+      },
+      "Wood peg": (s) => {
+        s.woodblock({ freq: 520, peak: 0.55 });
+        s.woodblock({ freq: 390, peak: 0.6, delay: 0.035 });
+      },
+      "Cardboard": (s) => {
+        s.box({ freq: 280, peak: 0.6 });
+        s.box({ freq: 220, peak: 0.45, delay: 0.04 });
+      },
+      "Clunk": (s) => {
+        s.thock({ freq: 200, peak: 0.7 });
+        s.box({ freq: 160, peak: 0.4, delay: 0.01 });
+      },
+      "Cog": (s) => {
+        s.thock({ freq: 420, peak: 0.5 });
+        s.thock({ freq: 400, peak: 0.45, delay: 0.022 });
+        s.thock({ freq: 380, peak: 0.55, delay: 0.044 });
+      },
+      "Pluck": (s) => s.pluck({ freq: 220, dur: 0.2, peak: 0.55 }),
+      "Retro pickup": (s) => {
+        s.square({ freq: 330, dur: 0.05, peak: 0.4, cutoff: 1600 });
+        s.square({ freq: 440, dur: 0.07, peak: 0.4, cutoff: 1600, delay: 0.05 });
+      },
+      "Rubber pop": (s) => {
+        s.pop({ freq: 260, peak: 0.7 });
+        s.pop({ freq: 200, peak: 0.5, delay: 0.035 });
+      },
     },
   },
   "wire.fluid": {
@@ -286,6 +378,36 @@ export const SOUNDS = {
         s.tock({ freq: 600, decay: 0.006, peak: 0.35 });
         s.swish({ from: 1200, to: 800, dur: 0.14, peak: 0.14, q: 0.8 });
         s.blob({ from: 220, to: 300, dur: 0.1, peak: 0.25, delay: 0.02 });
+      },
+      "Low plop": (s) => {
+        s.pop({ freq: 180, dur: 0.07, peak: 0.7 });
+        s.blob({ from: 220, to: 300, dur: 0.08, peak: 0.35, delay: 0.01 });
+      },
+      "Pour": (s) => {
+        s.swish({ from: 300, to: 700, dur: 0.16, peak: 0.14, q: 0.6 });
+        s.blob({ from: 200, to: 260, dur: 0.12, peak: 0.3 });
+      },
+      "Gurgle": (s) => {
+        s.blob({ from: 200, to: 300, dur: 0.05, peak: 0.4 });
+        s.blob({ from: 240, to: 340, dur: 0.05, peak: 0.35, delay: 0.045 });
+        s.blob({ from: 210, to: 320, dur: 0.06, peak: 0.35, delay: 0.09 });
+      },
+      "Soft bloop": (s) => {
+        s.boop({ freq: 300, dur: 0.1, peak: 0.5 });
+        s.boop({ freq: 400, dur: 0.08, peak: 0.35, delay: 0.05 });
+      },
+      "Tank slosh": (s) => {
+        s.swish({ from: 250, to: 500, dur: 0.2, peak: 0.16, q: 0.5 });
+        s.swish({ from: 500, to: 300, dur: 0.15, peak: 0.1, q: 0.5, delay: 0.1 });
+        s.thock({ freq: 160, peak: 0.3, delay: 0.02 });
+      },
+      "Drip": (s) => {
+        s.blob({ from: 400, to: 650, dur: 0.03, peak: 0.4 });
+        s.blob({ from: 280, to: 360, dur: 0.06, peak: 0.22, delay: 0.04 });
+      },
+      "Felt bubble": (s) => {
+        s.mallet({ freq: 300, dur: 0.1, peak: 0.4 });
+        s.blob({ from: 240, to: 380, dur: 0.07, peak: 0.4 });
       },
     },
   },
@@ -302,6 +424,36 @@ export const SOUNDS = {
         s.snap({ freq: 2900, q: 3, dur: 0.006, peak: 0.15, delay: 0.03 });
         s.tone({ freq: 330, to: 440, dur: 0.09, peak: 0.18, delay: 0.01 });
         s.hum({ freq: 120, dur: 0.09, peak: 0.12, cutoff: 1200 });
+      },
+      "Low thrum": (s) => {
+        s.hum({ freq: 55, to: 80, dur: 0.25, peak: 0.35, cutoff: 600, attack: 0.03 });
+        s.thock({ freq: 200, peak: 0.3 });
+      },
+      "Relay clunk": (s) => {
+        s.thock({ freq: 260, peak: 0.55 });
+        s.thock({ freq: 220, peak: 0.5, delay: 0.03 });
+        s.hum({ freq: 90, dur: 0.08, peak: 0.15, cutoff: 900, delay: 0.03 });
+      },
+      "Capacitor": (s) => {
+        s.tone({ freq: 180, to: 360, dur: 0.18, peak: 0.25, attack: 0.02 });
+        s.hum({ freq: 100, dur: 0.12, peak: 0.12, cutoff: 800 });
+      },
+      "Transformer": (s) => {
+        s.softClick({ freq: 500, peak: 0.3, edge: 1200, body: 0.15 });
+        s.hum({ freq: 60, dur: 0.3, peak: 0.3, cutoff: 700, attack: 0.06 });
+      },
+      "Retro power-up": (s) => {
+        s.square({ freq: 220, dur: 0.05, peak: 0.35, cutoff: 1500 });
+        s.square({ freq: 277, dur: 0.05, peak: 0.35, cutoff: 1500, delay: 0.05 });
+        s.square({ freq: 330, dur: 0.08, peak: 0.35, cutoff: 1500, delay: 0.1 });
+      },
+      "Warm zap": (s) => {
+        s.fm({ freq: 260, dur: 0.14, peak: 0.45, index: 3 });
+        s.hum({ freq: 110, dur: 0.07, peak: 0.12, cutoff: 900 });
+      },
+      "Static": (s) => {
+        for (const at of [0, 0.017, 0.031, 0.052, 0.07]) s.snap({ freq: 900 + s.rng() * 500, q: 2, dur: 0.004, peak: 0.2, delay: at });
+        s.hum({ freq: 100, dur: 0.1, peak: 0.12, cutoff: 800 });
       },
     },
   },
@@ -322,6 +474,23 @@ export const SOUNDS = {
         s.blob({ from: 480, to: 260, dur: 0.08, peak: 0.4 });
         s.swish({ from: 900, to: 400, dur: 0.09, peak: 0.1, q: 0.7 });
       },
+      "Low plop down": (s) => {
+        s.pop({ freq: 220, dur: 0.05, peak: 0.55 });
+        s.blob({ from: 300, to: 200, dur: 0.08, peak: 0.35, delay: 0.02 });
+      },
+      "Pour out": (s) => {
+        s.swish({ from: 700, to: 300, dur: 0.15, peak: 0.13, q: 0.6 });
+        s.blob({ from: 260, to: 200, dur: 0.1, peak: 0.3 });
+      },
+      "Gurgle down": (s) => {
+        s.blob({ from: 320, to: 240, dur: 0.05, peak: 0.4 });
+        s.blob({ from: 280, to: 210, dur: 0.05, peak: 0.35, delay: 0.045 });
+        s.blob({ from: 240, to: 180, dur: 0.06, peak: 0.35, delay: 0.09 });
+      },
+      "Soft bloop down": (s) => {
+        s.boop({ freq: 400, dur: 0.08, peak: 0.4 });
+        s.boop({ freq: 300, dur: 0.1, peak: 0.45, delay: 0.05 });
+      },
     },
   },
   "wire.power_cut": {
@@ -330,6 +499,21 @@ export const SOUNDS = {
       "Hum off": (s) => {
         click(s, { freq: 900, peak: 0.3, body: 0 });
         s.hum({ freq: 110, to: 70, dur: 0.12, peak: 0.24, cutoff: 1400, attack: 0.003 });
+      },
+      "Thrum down": (s) => s.hum({ freq: 80, to: 45, dur: 0.22, peak: 0.35, cutoff: 600, attack: 0.005 }),
+      "Relay release": (s) => {
+        s.thock({ freq: 220, peak: 0.5 });
+        s.thock({ freq: 260, peak: 0.4, delay: 0.03 });
+        s.hum({ freq: 90, to: 60, dur: 0.08, peak: 0.12, cutoff: 800 });
+      },
+      "Discharge": (s) => {
+        s.fm({ freq: 300, dur: 0.1, peak: 0.35, index: 2 });
+        s.tone({ freq: 300, to: 180, dur: 0.12, peak: 0.25 });
+      },
+      "Retro power-down": (s) => {
+        s.square({ freq: 330, dur: 0.05, peak: 0.35, cutoff: 1500 });
+        s.square({ freq: 277, dur: 0.05, peak: 0.35, cutoff: 1500, delay: 0.05 });
+        s.square({ freq: 220, dur: 0.08, peak: 0.35, cutoff: 1500, delay: 0.1 });
       },
     },
   },
@@ -404,6 +588,24 @@ export const SOUNDS = {
     },
   },
 };
+
+/** Which gesture each sound is, for its options in every family of the palette. */
+const GESTURE_OF = {
+  "ui.click": "tap", "ui.toggle_on": "up2", "ui.toggle_off": "down2", "ui.open": "rise", "ui.close": "fall",
+  "ui.deny": "deny", "ui.tick": "tick", "ui.page": "page",
+  "board.place": "set", "board.remove": "remove", "board.lift": "lift", "board.drop": "drop", "board.clone": "double",
+  "board.merge": "merge", "board.sweep": "sweep", "board.undo": "fall", "board.redo": "rise", "board.pin": "pin",
+  "board.unpin": "unpin", "board.adjust": "adjust", "board.running": "running",
+  "wire.grab": "small", "wire.snap": "snap", "wire.item": "latch", "wire.cut": "unlatch",
+  "dial.tier": "tap", "screen.open": "open", "screen.close": "close",
+  "note.stick": "drop", "note.crumple": "remove", "world.place": "heavy", "world.remove": "heavyUp",
+};
+for (const [name, gesture] of Object.entries(GESTURE_OF)) {
+  for (const family of Object.keys(FAMILIES)) SOUNDS[name].options[family] ??= inFamily(family, gesture);
+}
+for (const name of ["ui.click", "ui.tick", "ui.page", "ui.close", "board.lift", "board.adjust", "board.running", "wire.grab", "wire.snap"]) {
+  SOUNDS[name].options["None"] = () => {};
+}
 
 /** The first set, as it shipped on 2026-10-09 (the glassy one), kept to compare in the lab: name: [variants, level, make]. */
 export const FIRST_SET = {
