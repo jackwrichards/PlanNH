@@ -17,6 +17,8 @@ public final class CardPaint {
 
     /** The card's one surface, its edge, and the hairlines that part the header and the strip. */
     public static final int SURFACE = 0xFF23252A, EDGE = 0xFF34363C, HAIR = 0xFF2C2E34;
+    /** The outline of what would take the wire in hand (the website's green), and of the one it would go to now. */
+    public static final int ACCEPT_FAINT = 0xB34ADE80, ACCEPT = 0xFF4ADE80;
     /** The machine's name: as large as fits, down to plain. */
     private static final float[] NAME_SIZES = { 1.5f, 1.25f, 1f };
     /** How small a port's name may go before it is cut, and how wide the fade is where it is cut. */

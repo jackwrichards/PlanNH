@@ -379,7 +379,7 @@ public final class BoardScreen extends ModularScreen {
             { "Drag a port", "Drop on a card to wire it, or on empty board to add a drawer" },
             { "Right-click a wire", "Add a drawer on it, or delete it" }, { "Middle-click a rate", "Clear the rate" },
             { "Right-click empty board", "Add a sticky note" },
-            { "Double-click a sticky note", "Write on it (Esc or a click elsewhere when done)" },
+            { "Click a sticky note", "Write on it (Esc or a click elsewhere when done); drag it anywhere to move it" },
             { "Click a card or drawer", "Select it (Shift-click adds to the selection)" },
             { "Drag the board", "Pan (Shift-drag selects a box)" }, { "Drag a selected card", "Move the selection" },
             { "Ctrl+A", "Select everything" }, { "Delete", "Delete the selection (Esc deselects)" },

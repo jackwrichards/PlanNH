@@ -410,6 +410,12 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         for (final CardModel each : models) unwired |= anyUnwired(each);
         if (unwired) drawUnwiredRing();
         if (session.showsSelected(nodeId)) Hyb.ring(-2, -2, w + 4, h + 4, 2, Hyb.SELECTION);
+        // While a wire is in hand, a card that would take it is outlined green; brighter where it would go now.
+        final BoardCanvas board = canvas();
+        if (board != null && board.cardAcceptsDrag(nodeId)) {
+            final boolean there = nodeId.equals(board.dragSnappedTo());
+            Hyb.ring(0, 0, w, h, there ? 2 : 1, there ? CardPaint.ACCEPT : CardPaint.ACCEPT_FAINT);
+        }
         CardPaint.surface(w, h);
         if (anyTierTooLow() || coilTooCold()) {
             // Can't run: the tier is below the recipe's (the power row says TIER!) or the coil is too cold (the gear
@@ -820,13 +826,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 final int ix = CardLayout.iconX(output) - 2, iy = y + CardLayout.ICON_Y - 2, side = CardLayout.ICON + 4;
                 Hyb.dashed(ix, iy, side, side, alpha(0xFFFFFF, 0.3f + 0.55f * b), 3, 3);
             }
-            if (p.key()
-                .equals(session.hoverKey())) glow(x, y, w, h);
-            // While a wire is dragged out of another card, the ports that would take it light up.
-            if (board != null && board.acceptsDrag(sectionId(section), output, p.key())) {
-                Hyb.rect(x + 1, y + 1, w - 2, h - 2, 0x2053EAFD);
-                Hyb.ring(x, y, w, h, 1, 0xFF53EAFD);
-            }
+            if (session.lit()
+                .port(sectionId(section), output, p.index(), p.key())) glow(x, y, w, h);
         }
     }
 
@@ -1494,6 +1495,13 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
     // region Controls
 
+    /**
+     * The part a left press went down on, and where (card-local): let go without moving, it is a click on that part;
+     * moved, it carries the card, whatever part it was on.
+     */
+    private Part pressed;
+    private float pressedX, pressedY;
+
     @Override
     public Result onMousePressed(final int mouseButton) {
         if (model == null) return Result.IGNORE;
@@ -1501,7 +1509,20 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             if (mouseButton == 0) chooseForLink();
             return Result.ACCEPT;
         }
-        final Part part = partAt(localX(), localY());
+        if (mouseButton == 0) {
+            pressed = partAt(localX(), localY());
+            pressedX = localX();
+            pressedY = localY();
+            return Result.ACCEPT;
+        }
+        return act(partAt(localX(), localY()), mouseButton, localX(), localY());
+    }
+
+    /**
+     * What a click on a part does: a left one when it is let go without moving, the others when they go down. At
+     * {@code x, y} on the card.
+     */
+    private Result act(final Part part, final int mouseButton, final float x, final float y) {
         final Node node = model.node;
         switch (part) {
             case ACTIONS -> {
@@ -1518,7 +1539,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 else if (mouseButton == 1 && placed()) com.gtnhplanner.ui.world.WorldLinks.clear(session.graph(), node);
             }
             case SECTION -> {
-                final int[] key = sectionKeyAt(localX(), localY());
+                final int[] key = sectionKeyAt(x, y);
                 if (mouseButton == 0 && key != null) {
                     final UUID section = sectionId(key[0]);
                     if (key[1] == 2) session.removeSection(section);
@@ -1526,7 +1547,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 }
             }
             case MACHINE -> {
-                if (model.isPower()) return mouseButton == 0 ? Result.ACCEPT : Result.IGNORE;
+                if (model.isPower()) return act(Part.BODY, mouseButton, x, y);
                 if (mouseButton == 0) openMachines();
             }
             case TIER -> {
@@ -1534,8 +1555,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 else stepTier(mouseButton == 1 ? -1 : 1);
             }
             case CHIP -> {
-                final int i = layout.chipAt(localX(), localY());
-                if (i < 0 || mouseButton > 1) return Result.ACCEPT;
+                final int i = layout.chipAt(x, y);
+                if (i < 0 || mouseButton > 1) return act(Part.BODY, mouseButton, x, y);
                 final int[] r = layout.chipRect(i);
                 pressSetting(layout.chips.get(i), mouseButton, screenX(r[0]), screenY(r[1] + CardLayout.CHIP + 2));
             }
@@ -1550,7 +1571,10 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 if (mouseButton == 0) openPin();
             }
             default -> {
-                return mouseButton == 0 ? Result.ACCEPT : Result.IGNORE;
+                // The body: a click selects it (Shift adds); the right button is the board's.
+                if (mouseButton != 0) return Result.IGNORE;
+                if (canvas() != null) canvas().clickSelect(nodeId);
+                return Result.SUCCESS;
             }
         }
         Hyb.click();
@@ -1906,8 +1930,9 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
     @Override
     public boolean onDragStart(final int button) {
-        if (button != 0 || model == null || partAt(localX(), localY()) != Part.BODY || canvas() == null) return false;
-        // The board moves it, with the rest of the selection when it is selected.
+        if (button != 0 || model == null || canvas() == null) return false;
+        // Pressed anywhere, it may be moved: the board moves it once the mouse goes, with the rest of the selection
+        // when it is selected. Let go first, it is a click on what was pressed.
         canvas().beginMove(nodeId);
         return true;
     }
@@ -1919,7 +1944,10 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
     @Override
     public void onDragEnd(final boolean successful) {
-        if (canvas() != null) canvas().endMove(successful);
+        final Part part = pressed;
+        pressed = null;
+        if (canvas() == null || !canvas().endMove(successful) || part == null || model == null) return;
+        act(part, 0, pressedX, pressedY);
     }
 
     @Override

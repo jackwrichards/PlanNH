@@ -141,7 +141,6 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
     }
 
     public Part partAt(final float x, final float y) {
-        if (editing) return Part.BODY;
         final int w = w(), h = h(), f = fold();
         // The folded corner (and a margin round it) and a wide band along the right and bottom edges resize.
         final float edge = EDGE * keyUnit(), corner = f + edge;
@@ -199,9 +198,9 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
         return x < 0 || y < 0 || x >= w() || y >= h() ? null : partAt(x, y);
     }
 
-    /** The keys show while the mouse is on the note, at any zoom, when they fit on it. */
+    /** The keys show while the mouse is on the note or it is being written on, at any zoom, when they fit on it. */
     private boolean keysShown() {
-        return isHovering() && !editing && keysFit();
+        return (isHovering() || editing) && keysFit();
     }
 
     // endregion
@@ -252,7 +251,7 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
             final float g = i * 1.5f;
             Hyb.rect(2 - g + lift, 3 - g + lift * 1.3f, w + 2 * g - f / 2f, h + 2 * g - f / 2f, 0x16000000);
         }
-        if (session.showsSelected(noteId) || editing) Hyb.ring(
+        if (session.showsSelected(noteId)) Hyb.ring(
             0,
             0,
             w,
@@ -269,7 +268,7 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
         Hyb.rect(0, 0, w, BAND, NoteColors.band(tag));
         Hyb.rect(0, h - 1, w - f, 1, NoteColors.edge(tag));
         Hyb.rect(w - 1, 0, 1, h - f, NoteColors.edge(tag));
-        if (isHovering() && !editing) {
+        if (isHovering()) {
             // The grip: three short strokes on the fold, along its edge.
             final int grip = Hyb.mix(ink, NoteColors.fold(tag), 0.4f);
             for (int a = 4; a < f; a += 3)
@@ -366,47 +365,56 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
 
     // region Mouse
 
-    private long lastPress;
+    /** The part a left press went down on: let go without moving, a click on it; moved, the note is carried. */
+    private Part pressed;
 
     @Override
     public Result onMousePressed(final int mouseButton) {
         final Note n = note();
         if (n == null) return Result.IGNORE;
-        if (editing) {
-            if (mouseButton == 0) placeCaret(GuiScreen.isShiftKeyDown());
-            return Result.SUCCESS;
-        }
         if (mouseButton == 1) {
             openMenu();
             return Result.SUCCESS;
         }
         if (mouseButton != 0) return Result.IGNORE;
-        switch (partAt(localX(), localY())) {
+        pressed = partAt(localX(), localY());
+        // ModularUI takes the focus away from a press that may become a drag; written on, the note keeps writing
+        // through it and takes the focus back when the press ends.
+        holdFocus = editing;
+        return Result.ACCEPT;
+    }
+
+    /** A press on the note while it is written on: losing the focus to it does not end the writing. */
+    private boolean holdFocus;
+
+    /** Back to writing after a press while written on: the keys go to the note again. */
+    private void regainFocus() {
+        final boolean held = holdFocus;
+        holdFocus = false;
+        if (held && editing) getContext().focus(this);
+    }
+
+    /**
+     * A click (a press let go without moving): a key does what it is for; anywhere else writes on the note, the caret
+     * where it was clicked.
+     */
+    private void click(final Part part) {
+        switch (part) {
             case DELETE -> {
                 Hyb.click();
                 session.deleteNote(noteId);
-                return Result.SUCCESS;
             }
-            case SMALLER -> {
-                stepFont(-1);
-                return Result.SUCCESS;
-            }
-            case BIGGER -> {
-                stepFont(1);
-                return Result.SUCCESS;
-            }
-            case RESIZE -> {
-                return Result.ACCEPT;
-            }
+            case SMALLER -> stepFont(-1);
+            case BIGGER -> stepFont(1);
             default -> {
-                final long now = System.currentTimeMillis();
-                if (now - lastPress < 400) {
-                    lastPress = 0;
-                    startEditing();
-                    return Result.SUCCESS;
+                // Shift adds it to the selection, as it does a card.
+                if (!editing && GuiScreen.isShiftKeyDown()) {
+                    if (canvas() != null) canvas().clickSelect(noteId);
+                    return;
                 }
-                lastPress = now;
-                return Result.ACCEPT;
+                final boolean extend = editing && GuiScreen.isShiftKeyDown();
+                if (!editing) startEditing();
+                placeCaret(extend);
             }
         }
     }
@@ -471,7 +479,7 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
     @Override
     public boolean onDragStart(final int button) {
         final Note n = note();
-        if (button != 0 || n == null || editing || canvas() == null) return false;
+        if (button != 0 || n == null || canvas() == null) return false;
         final float x = localX(), y = localY();
         if (partAt(x, y) == Part.RESIZE) {
             resizing = true;
@@ -488,7 +496,7 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
                 .beginEdit(session.graph());
             return true;
         }
-        if (partAt(x, y) != Part.BODY) return false;
+        // Pressed anywhere else (a key too, even while written on), it may be moved; let go first, it is a click.
         canvas().beginMove(noteId);
         return true;
     }
@@ -523,9 +531,18 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
                 com.gtnhplanner.api.PlanAPI.save();
             }
             resizeUndo = null;
+            pressed = null;
+            regainFocus();
+            // A press on the edge that never went anywhere is a click on the note.
+            if (Math.max(
+                Math.abs(getContext().getAbsMouseX() - startMouseX),
+                Math.abs(getContext().getAbsMouseY() - startMouseY)) < 3 && n != null) click(Part.BODY);
             return;
         }
-        if (canvas() != null) canvas().endMove(successful);
+        final Part part = pressed;
+        pressed = null;
+        regainFocus();
+        if (canvas() != null && canvas().endMove(successful) && part != null && note() != null) click(part);
     }
 
     @Override
@@ -573,7 +590,6 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
         editW = n.getWidth();
         editH = n.getHeight();
         editing = true;
-        session.select(noteId, false);
         getContext().focus(this);
     }
 
@@ -612,7 +628,7 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
 
     @Override
     public void onRemoveFocus(final ModularGuiContext context) {
-        stopEditing();
+        if (!holdFocus) stopEditing();
     }
 
     private boolean hasSelection() {

@@ -10,6 +10,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import net.minecraft.item.ItemStack;
 
 import com.gtnhplanner.GtnhPlanner;
@@ -125,22 +127,28 @@ public final class BoardSession {
         return structure;
     }
 
-    private String hoverKey;
-
-    /** The resource under the mouse (a port, drawer or wire), so everything carrying it can glow; null for none. */
-    public String hoverKey() {
-        return railHoverKey != null ? railHoverKey : hoverKey;
-    }
-
+    private HoverScope hover = HoverScope.NONE;
     private String railHoverKey;
+    private HoverScope railHover = HoverScope.NONE;
+
+    /**
+     * What glows for what the mouse is on: on the board, a port, drawer or wire and what it is wired to; in the
+     * overview, a resource everywhere it flows (that wins while set).
+     */
+    public HoverScope lit() {
+        return railHoverKey != null ? railHover : hover;
+    }
 
     /** The resource under the mouse in the overview rail; it wins over the board's while set. */
     public void setRailHoverKey(final String key) {
-        railHoverKey = key == null || key.isEmpty() ? null : key;
+        final String next = key == null || key.isEmpty() ? null : key;
+        if (java.util.Objects.equals(next, railHoverKey)) return;
+        railHoverKey = next;
+        railHover = HoverScope.resource(next);
     }
 
-    public void setHoverKey(final String key) {
-        hoverKey = key == null || key.isEmpty() ? null : key;
+    public void setHover(final HoverScope scope) {
+        hover = scope == null ? HoverScope.NONE : scope;
     }
 
     public Fmt.RateUnit rateUnit() {
@@ -445,10 +453,52 @@ public final class BoardSession {
      * A port dragged onto empty board: a new drawer there, linked to it. An input makes a source (it sits to the left
      * of the drop point), an output a product (to the right).
      */
-    public void dropPortOnBoard(final UUID fromNode, final boolean output, final int port, final int worldX,
+       /** A port on a recipe: its node, which side, and its index there. */
+    public record PortRef(UUID node, boolean output, int index) {}
+
+    /**
+     * The port a port dropped on a card would be wired to, as {@link #dropPortOnCard} picks it: the first recipe on the
+     * card with a port that takes it. Null when none does, and for a custom rate card (its own socket takes it).
+     */
+    @Nullable
+    public PortRef dropTarget(final UUID fromNode, final boolean output, final int port, final UUID toNode) {
+        final Node to = graph.nodes.get(toNode), src = graph.nodes.get(fromNode);
+        if (to == null || src == null || com.gtnhplanner.power.CustomRate.is(to)) return null;
+        for (final UUID section : sectionsOf(toNode)) {
+            final Node dst = graph.nodes.get(section);
+            if (dst == null || dst == src) continue;
+            if (output) {
+                final int in = graph.findCompatibleInput(src, port, dst);
+                if (in >= 0) return new PortRef(section, false, in);
+                continue;
+            }
+            if (port < 0 || port >= src.inputs.size()) return null;
+            final Port<?> want = src.inputs.get(port);
+            for (int out = 0; out < dst.outputs.size(); out++) if (dst.outputs.get(out)
+                .canConnect(want)) return new PortRef(section, true, out);
+        }
+        return null;
+    }
+
+    /** Whether a port already has a drawer on it: one per port, as on the website. */
+    public boolean portHasDrawer(final UUID node, final boolean output, final int port) {
+        for (final Drawer d : graph.getDrawers()) {
+            if (d.getKind()
+                .linksInputs() == output) continue;
+            for (final Drawer.Link l : d.getLinks()) if (l.nodeId()
+                .equals(node) && l.portIndex() == port) return true;
+        }
+        return false;
+    }
+
+    /**
+     * A port dropped on empty board: a drawer there for it, wired to it (a product for an output, a source for an
+     * input). Refused, false, when the port has a drawer already.
+     */
+    public boolean dropPortOnBoard(final UUID fromNode, final boolean output, final int port, final int worldX,
         final int worldY) {
         final Node node = graph.nodes.get(fromNode);
-        if (node == null) return;
+        if (node == null || portHasDrawer(fromNode, output, port)) return false;
         final Port<?> p = (output ? node.outputs : node.inputs).get(port);
         final Drawer drawer = new Drawer(output ? Drawer.Kind.PRODUCT : Drawer.Kind.SOURCE, Resources.key(p));
         drawer.setLabel(p.getDisplayName());
@@ -462,6 +512,7 @@ public final class BoardSession {
             graph.linkDrawer(drawer.getId(), new Drawer.Link(node.id, port));
         });
         Sfx.connect(drawer.getResourceKey());
+        return true;
     }
 
     /**

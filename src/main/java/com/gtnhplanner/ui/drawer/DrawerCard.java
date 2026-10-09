@@ -187,8 +187,8 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         final BoardCanvas board = canvas();
         final Drawer.Kind kind = m.kind;
         final boolean accepts = board != null && board.drawerAcceptsDrag(m.drawer);
-        final boolean lit = m.drawer.getResourceKey()
-            .equals(session.hoverKey());
+        final boolean lit = session.lit()
+            .drawer(m.drawer);
 
         // Its shadow, its selection and its glow, all in its shape.
         Hyb.beginBatch();
@@ -196,8 +196,20 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         if (session.showsSelected(drawerId)) DrawerPaint.shape(kind, 0, 0, W, H, 2, Hyb.SELECTION, 1);
         if (lit)
             for (int i = 3; i >= 1; i--) DrawerPaint.shape(kind, 0, 0, W, H, i, 0x16000000 | Hyb.LIT & 0xFFFFFF, 1);
-        final int edge = accepts ? 0xFF53EAFD
-            : lit ? Hyb.mix(DrawerPaint.edge(kind), Hyb.LIT, 0.6f) : DrawerPaint.edge(kind);
+        // While a wire is in hand, a drawer that would take it is outlined green; brighter where it would go now.
+        if (accepts) {
+            final boolean there = drawerId.equals(board.dragSnappedTo());
+            DrawerPaint.shape(
+                kind,
+                0,
+                0,
+                W,
+                H,
+                there ? 2 : 1,
+                there ? com.gtnhplanner.ui.card.CardPaint.ACCEPT : com.gtnhplanner.ui.card.CardPaint.ACCEPT_FAINT,
+                1);
+        }
+        final int edge = lit ? Hyb.mix(DrawerPaint.edge(kind), Hyb.LIT, 0.6f) : DrawerPaint.edge(kind);
         if (session.graph()
             .getZoom() <= com.gtnhplanner.ui.card.RecipeCard.GLANCE_ZOOM) {
             Hyb.endBatch();
@@ -431,11 +443,23 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
 
     // region Controls
 
+    /** The part a left press went down on: let go without moving, a click on it; moved, the drawer is carried. */
+    private Part pressed;
+
     @Override
     public Result onMousePressed(final int mouseButton) {
         if (model == null) return Result.IGNORE;
+        if (mouseButton == 0) {
+            pressed = partAt(localX(), localY());
+            return Result.ACCEPT;
+        }
+        return act(partAt(localX(), localY()), mouseButton);
+    }
+
+    /** What a click on a part does: a left one when it is let go without moving, the others when they go down. */
+    private Result act(final Part part, final int mouseButton) {
         final Drawer drawer = model.drawer;
-        switch (partAt(localX(), localY())) {
+        switch (part) {
             case DELETE -> {
                 if (mouseButton == 0) session.deleteDrawer(drawer);
             }
@@ -450,7 +474,10 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
                 if (mouseButton == 0) openRate();
             }
             default -> {
-                return mouseButton == 0 ? Result.ACCEPT : Result.IGNORE;
+                // The body: a click selects it (Shift adds); the right button is the board's.
+                if (mouseButton != 0) return Result.IGNORE;
+                if (canvas() != null) canvas().clickSelect(drawerId);
+                return Result.SUCCESS;
             }
         }
         Hyb.click();
@@ -553,8 +580,9 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
 
     @Override
     public boolean onDragStart(final int button) {
-        if (button != 0 || model == null || partAt(localX(), localY()) != Part.BODY || canvas() == null) return false;
-        // The board moves it, with the rest of the selection when it is selected.
+        if (button != 0 || model == null || canvas() == null) return false;
+        // Pressed anywhere, it may be moved, with the rest of the selection when it is selected; let go first, it is a
+        // click on what was pressed.
         canvas().beginMove(drawerId);
         return true;
     }
@@ -566,7 +594,10 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
 
     @Override
     public void onDragEnd(final boolean successful) {
-        if (canvas() != null) canvas().endMove(successful);
+        final Part part = pressed;
+        pressed = null;
+        if (canvas() == null || !canvas().endMove(successful) || part == null || model == null) return;
+        act(part, 0);
     }
 
     @Override

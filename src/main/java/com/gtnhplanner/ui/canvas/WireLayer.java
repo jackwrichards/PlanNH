@@ -455,10 +455,8 @@ final class WireLayer {
 
     // region Drawing
 
-    /**
-     * Draws every wire; those carrying {@code glow} (the resource under the mouse) get a faint highlight halo first.
-     */
-    void draw(final List<Wire> wires, @Nullable final String glow) {
+    /** Draws every wire; those {@code lit} (what the mouse is on, or wired to it) get a faint highlight halo first. */
+    void draw(final List<Wire> wires, final com.gtnhplanner.ui.HoverScope lit) {
         // Thickest first, so thinner wires lie on top and do the hopping, as in Factory Flow: a thin line survives
         // being drawn over a fat pipe, and a small bump on it reads at once where a fat pipe rearing up is a blob.
         // The sort is stable, so equal widths keep the route order.
@@ -466,13 +464,14 @@ final class WireLayer {
         order.sort((a, b) -> Float.compare(b.width(), a.width()));
         final Map<Wire, WireHops.Hopped> hopped = hops(wires, order);
         Hyb.beginBatch();
-        if (glow != null && !glow.isEmpty()) {
+        if (!lit.isEmpty()) {
             // A slow breath (1.6 s) on the halo, as Factory Flow's glow does.
             final double phase = (System.currentTimeMillis() % 1600) / 1600.0 * 2 * Math.PI;
             final int alpha = (int) (0x48 + 0x20 * Math.sin(phase));
             final int halo = alpha << 24 | Hyb.LIT & 0xFFFFFF;
             for (final Wire w : wires) {
-                if (glow.equals(w.resource())) drawHopped(hopped.get(w), w.width() + 5, halo, 0, 0);
+                if (lit.wire(w.edge(), w.drawer(), w.link(), w.resource()))
+                    drawHopped(hopped.get(w), w.width() + 5, halo, 0, 0);
             }
         }
         Hyb.endBatch();

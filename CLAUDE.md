@@ -72,11 +72,19 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   `call 'nei?item=<key>&planner=0&tab=<name>'` opens a recipe page from the inventory.
 - Plans work as on the website: a tab is an open plan (`Graph.open`); closing one keeps it, in the Library's My
   plans, where every plan is listed, most recently open first (`Plan.byRecency`, `lastOpen`). Deleting asks first.
-- Sticky notes (`ui/note/NoteCard`, a `Note` in `graph.notes`): right-click empty board to add one; drag to move,
-  drag the folded corner or an edge to resize, double-click to write, right-click for colour, text size and delete;
-  hovering shows keys (delete top left, text size top right) at a fixed size on screen whenever they fit on the note.
-  A selection outline shows only when several things are selected. Dragged cards and drawers stop against the others
-  (`BoardCanvas.clearAt`; past one far enough, they jump through), notes pass over. While the plan has nothing set,
+- Sticky notes (`ui/note/NoteCard`, a `Note` in `graph.notes`): right-click empty board to add one; drag anywhere
+  to move (even while writing), drag the folded corner or an edge to resize, click to write, right-click for colour,
+  text size and delete; hovering or writing shows keys (delete top left, text size top right) at a fixed size on
+  screen whenever they fit on the note. A selection outline shows only when several things are selected.
+- On the board a left press on anything (a card's keys and chips too, a drawer's, a note's) is a click when let go
+  within 3 GUI pixels (`BoardCanvas.DRAG_SLOP`) and acts then; moved further, it carries the thing. Carried things
+  glide (about 120 ms) between 10 px grid spots and never land on another card or drawer: each frame they go to the
+  clear spot nearest the mouse (`BoardCanvas.nearestClear`, the website's ring search), so they hug what is in the way
+  and come out its far side past its middle; notes pass over. Hovering a port, drawer or wire lights only it, its
+  wires and what they reach (`ui/HoverScope`, the website's flow scope); an overview row lights its resource
+  everywhere. A wire in hand outlines green every card and drawer that would take it, snaps onto the port it would
+  be wired to, and is green where letting go wires or makes a drawer, red where it does nothing (a port has one
+  drawer at most: "Drawer already exists"). While the plan has nothing set,
   every unpinned count says "(set count)" and every empty drawer "Set rate", pulsing gold together (`CardPaint.prompt`);
   the count keeps its place, a line kept under it. Scrolling a pinned count below one unpins it. The gear's See-through slider (0 to 100%) fades
   the board, its dots and the overview (`Hyb.seeThrough`) down to nothing; cards and text stay solid. The gear opens

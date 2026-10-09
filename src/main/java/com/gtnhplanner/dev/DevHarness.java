@@ -286,6 +286,8 @@ public final class DevHarness {
                 return click(q);
             case "/drag":
                 return drag(q);
+            case "/release":
+                return input(List.of(() -> SyntheticInput.button(intArg(q, "button", 0), false)));
             case "/scroll":
                 return scroll(q);
             case "/key":
@@ -938,8 +940,11 @@ public final class DevHarness {
             final int sx = x1 + (x2 - x1) * i / steps, sy = y1 + (y2 - y1) * i / steps;
             actions.add(() -> moveTo(sx, sy));
         }
-        actions.add(() -> SyntheticInput.button(button, false));
-        for (final int m : mods) actions.add(() -> SyntheticInput.key(m, 0, false));
+        // hold=1 keeps the button down at the end (a screenshot mid-drag), until /release.
+        if (!"1".equals(q.get("hold"))) {
+            actions.add(() -> SyntheticInput.button(button, false));
+            for (final int m : mods) actions.add(() -> SyntheticInput.key(m, 0, false));
+        }
         return input(actions);
     }
 
