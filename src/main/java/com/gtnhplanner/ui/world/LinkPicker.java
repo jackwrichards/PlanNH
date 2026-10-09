@@ -81,6 +81,8 @@ public final class LinkPicker {
 
     private static void begin(final Graph graph, final UUID nodeId, final String name,
         @Nullable final ItemStack machine, final StructureGhosts.Needs needs) {
+        // Placing is done looking at the plan over the world: it comes on, if it was off.
+        if (!com.gtnhplanner.ui.PlannerSettings.arLens()) com.gtnhplanner.ui.PlannerSettings.setArLens(true);
         INSTANCE.graph = graph;
         INSTANCE.nodeId = nodeId;
         INSTANCE.name = name == null ? "" : name;

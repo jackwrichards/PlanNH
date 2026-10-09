@@ -414,7 +414,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         final Double wheeled = session.wheeledRate(d.drawer.getId());
         final double target = wheeled != null ? wheeled : d.target;
         final boolean empty = wheeled != null ? wheeled <= 0 : d.rule == Drawer.Rule.ANY || d.target <= 0;
-        if (empty) Hyb.text("§orate?", bx + 4, y + 3, 0xFF6F737C);
+        if (empty) Hyb.text("Set rate", bx + 4, y + 3, 0xFF6F737C);
         else {
             final Fmt.RateUnit unit = session.rateUnit();
             // In the line's own unit, as the number beside it.
@@ -588,7 +588,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
             scrollBarTo(y - barGrab);
             return Result.SUCCESS;
         }
-        // Middle-click on a rule or rate clears the drawer back to "rate?", as on the website.
+        // Middle-click on a rule or rate clears the drawer back to "Set rate", as on the website.
         if (mouseButton == 2 && (hit.kind() == Kind.RULE || hit.kind() == Kind.RATE)) {
             Hyb.click();
             session.setDrawerRate(((DrawerModel) hit.data()).drawer, 0);

@@ -327,7 +327,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             case POWER -> layout.powerRowY >= 0
                 ? new int[] { CardLayout.IN_RAIL_X, layout.powerRowY, CardLayout.RAIL_W, CardLayout.ROW }
                 : null;
-            case MACHINES -> CardPaint.countRect(countText(), pinned() || pendingCount > 0, layout.picture());
+            case MACHINES -> CardPaint.countRect(countText(), layout.picture());
             case CIRCUIT -> model.circuit == null || shared() || model.isPower() ? null
                 : layout.circuitRowY >= 0
                     ? new int[] { CardLayout.IN_RAIL_X, layout.circuitRowY, CardLayout.RAIL_W, CardLayout.ROW }
@@ -935,10 +935,14 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         } else drawMachineArt(m, box[0], box[1], box[2], box[2], CardLayout.ITEM, z, true);
         if (m.circuit != null && !shared() && !m.isPower() && layout.circuitRowY < 0)
             CardPaint.circuitBadge(m.circuit, box, z);
+        // Under the count: pinned, or (while the plan has nothing set to solve for) the prompt to set it.
+        final boolean pinnedNow = pendingCount > 0 || pinned() && !pendingUnpin;
+        final String under = pinnedNow ? CardPaint.PINNED : session.nothingToSolveFor() ? CardPaint.SET_COUNT : null;
         CardPaint.count(
             countText(),
             machinesTotal() <= 0 && pendingCount <= 0,
-            pinned() || pendingCount > 0,
+            under,
+            pinnedNow ? Hyb.MUTED : CardPaint.prompt(),
             hover == Part.MACHINES,
             box);
     }
@@ -1559,6 +1563,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
      * none.
      */
     private long pendingCount;
+    /** The wheel took a pinned count below one: it unpins when the wheel goes still. */
+    private boolean pendingUnpin;
     private int pendingAmps;
     private long wheelAt;
     private static final long WHEEL_COMMIT_MS = 500;
@@ -1575,12 +1581,15 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             if (model != committedOver && !session.solving()) {
                 committedOver = null;
                 pendingCount = 0;
+                pendingUnpin = false;
                 pendingAmps = 0;
             }
             return;
         }
-        if (pendingCount <= 0 && pendingAmps <= 0 || System.currentTimeMillis() - wheelAt < WHEEL_COMMIT_MS) return;
+        if (pendingCount <= 0 && pendingAmps <= 0 && !pendingUnpin
+            || System.currentTimeMillis() - wheelAt < WHEEL_COMMIT_MS) return;
         if (pendingCount > 0) session.pin(model.node, pendingCount);
+        else if (pendingUnpin) session.pin(model.node, 0);
         if (pendingAmps > 0) session.setSetting(model.node, "amp", pendingAmps);
         committedOver = model;
     }
@@ -1609,7 +1618,15 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             case MACHINE -> stepMachine(step);
             case MACHINES -> {
                 com.gtnhplanner.ui.sound.Sfx.TICK.play(step > 0 ? 1.12f : 0.9f);
-                pendingCount = Math.max(1, (pendingCount > 0 ? pendingCount : Math.round(machinesTotal())) + step);
+                // Down from one unpins, as a drawer's rate wheeled to nothing clears it.
+                final long from = pendingUnpin ? 0 : pendingCount > 0 ? pendingCount : Math.round(machinesTotal());
+                if (from + step <= 0) {
+                    pendingUnpin = pinned() || pendingCount > 0;
+                    pendingCount = 0;
+                } else {
+                    pendingUnpin = false;
+                    pendingCount = Math.max(1, from + step);
+                }
                 wheelAt = System.currentTimeMillis();
                 committedOver = null;
             }

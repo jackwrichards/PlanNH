@@ -135,34 +135,43 @@ public final class CardPaint {
     }
 
     /** Under a pinned count, centred, in grey. */
-    private static final String PINNED = "(pinned)";
+    public static final String PINNED = "(pinned)";
+    /** Under a count the plan waits for (nothing set anywhere): what to do, pulsing gold with the drawers' Set rate. */
+    public static final String SET_COUNT = "(set count)";
 
     /**
-     * Card-local {x, y, w, h} of the machine count on the picture's bottom right corner, with "(pinned)" under it when
-     * the count is pinned.
+     * Card-local {x, y, w, h} of the machine count on the picture's bottom right corner and the line kept under it (for
+     * "(pinned)" or "(set count)"), whatever it says: the count never moves.
      */
-    public static int[] countRect(final String count, final boolean pinned, final int[] picture) {
+    public static int[] countRect(final String count, final int[] picture) {
         final int cw = Math.round(Hyb.width(count) * Hyb.FIGURE);
-        final int w = Math.max(cw, pinned ? Hyb.width(PINNED) : 0) + 4, h = pinned ? 23 : 14;
+        final int w = Math.max(cw, Hyb.width(SET_COUNT)) + 4, h = 23;
         return new int[] { picture[0] + picture[2] - w, picture[1] + picture[2] - h, w, h };
     }
 
     /**
-     * How many machines, in white on the picture's bottom right corner; when the count is pinned, "(pinned)" centred
-     * under it in grey; a dotted line under the count when the mouse is on it.
+     * How many machines, in white on the picture's bottom right corner, and under it, centred, {@code under}
+     * ("(pinned)"
+     * in grey, "(set count)" pulsing gold, or nothing) in {@code underColor}; a dotted line under the count when the
+     * mouse
+     * is on it. The count sits in the same place whatever is under it.
      */
-    public static void count(final String count, final boolean none, final boolean pinned, final boolean hover,
-        final int[] picture) {
+    public static void count(final String count, final boolean none, @Nullable final String under, final int underColor,
+        final boolean hover, final int[] picture) {
         final float s = Hyb.FIGURE, tw = Hyb.width(count) * s;
-        final int lw = Hyb.width(PINNED);
-        final float block = pinned ? Math.max(tw, lw) : tw;
+        final float block = Math.max(tw, Hyb.width(SET_COUNT));
         final float right = picture[0] + picture[2] - 2;
         final float cx = right - block / 2f;
-        final float y = picture[1] + picture[2] - 8 * s - 2 - (pinned ? 9 : 0);
+        final float y = picture[1] + picture[2] - 8 * s - 2 - 9;
         final float x = cx - tw / 2f;
         Hyb.text(count, x, y, s, none ? Hyb.MUTED : Hyb.INK);
-        if (pinned) Hyb.text(PINNED, cx - lw / 2f, y + 8 * s + 1, Hyb.MUTED);
+        if (under != null && !under.isEmpty()) Hyb.text(under, cx - Hyb.width(under) / 2f, y + 8 * s + 1, underColor);
         if (hover) for (int dx = 0; dx < tw; dx += 3) Hyb.rect(x + dx, y + 8 * s, 1, 1, Hyb.MUTED);
+    }
+
+    /** Gold on the beat the drawers' Set rate pulses on, grey off it: the next thing to do, while nothing is set. */
+    public static int prompt() {
+        return (System.currentTimeMillis() / 500) % 2 == 0 ? Hyb.GOLD : 0xFF6F737C;
     }
 
     /**

@@ -89,7 +89,13 @@ public final class CleanCardView {
             CardLayout.PICTURE };
         art(c, picture);
         if (c.circuit() != null && !PlannerSettings.circuitAsInput()) CardPaint.circuitBadge(c.circuit(), picture, 0);
-        CardPaint.count("×" + Fmt.machines(c.machines()), c.machines() <= 0, c.pinned(), false, picture);
+        CardPaint.count(
+            "×" + Fmt.machines(c.machines()),
+            c.machines() <= 0,
+            c.pinned() ? CardPaint.PINNED : null,
+            Hyb.MUTED,
+            false,
+            picture);
         final List<Row> ins = inputs(c);
         for (int i = 0; i < ins.size(); i++) {
             final int y = top + i * ROW;

@@ -33,7 +33,7 @@ public record BenchBoard(String name, List<Item> items, List<Link> links) {
     public record Link(UUID id, UUID from, int fromPort, UUID to, int toPort, String resource) {}
 
     /** The game's card and drawer sizes (see CardLayout and DrawerCard). */
-    public static final int CARD_W = 320, DRAWER_W = 136, DRAWER_H = 68, RAILS_Y = 38, ROW = 32, PICTURE = 88;
+    public static final int CARD_W = 320, DRAWER_W = 116, DRAWER_H = 68, RAILS_Y = 38, ROW = 32, PICTURE = 88;
 
     /** A card's height as CardLayout works it out, with no pinned settings: its rails (power a row) and the strip. */
     public static int cardHeight(final int rows) {

@@ -33,7 +33,7 @@ import com.gtnhplanner.ui.theme.Hyb;
 public final class DrawerCard extends Widget<DrawerCard> implements Interactable, IDraggable,
     com.cleanroommc.modularui.integration.recipeviewer.RecipeViewerIngredientProvider {
 
-    public static final int W = 136;
+    public static final int W = 116;
     public static final int H = 68;
     /** Where wires meet a drawer: its left edge for kinds that take outputs, its right edge for sources. */
     public static final int ANCHOR_Y = 35;
@@ -381,8 +381,7 @@ public final class DrawerCard extends Widget<DrawerCard> implements Interactable
         if (empty) {
             // Gold and pulsing while the plan has nothing to solve for, so the empty box reads as the next thing to do.
             final boolean idle = session.nothingToSolveFor();
-            final int color = idle && (System.currentTimeMillis() / 500) % 2 == 0 ? Hyb.GOLD : 0xFF6F737C;
-            Hyb.text("§orate?", RATE_X + 5, ROW_Y + 3, color);
+            Hyb.text("Set rate", RATE_X + 5, ROW_Y + 3, idle ? com.gtnhplanner.ui.card.CardPaint.prompt() : 0xFF6F737C);
             return;
         }
         final String suffix = m.suffix(unit, true);

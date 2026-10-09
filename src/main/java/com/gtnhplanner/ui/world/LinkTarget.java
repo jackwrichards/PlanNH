@@ -105,6 +105,8 @@ public final class LinkTarget {
             WorldLinks.unlink(graph, card, b.dim(), b.x(), b.y(), b.z());
             WorldView.say("Removed " + WorldView.cardName(card) + " from the world");
         } else {
+            // A card placed: the plan over the world comes on, to show it there.
+            if (!PlannerSettings.arLens()) PlannerSettings.setArLens(true);
             final net.minecraft.entity.EntityLivingBase eye = Minecraft.getMinecraft().renderViewEntity;
             // On an empty spot a multiblock stands on it, its controller up where the structure puts it.
             final PlanSnapshot snap = PlanSnapshot.latest();

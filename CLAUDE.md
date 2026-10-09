@@ -75,7 +75,10 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 - Sticky notes (`ui/note/NoteCard`, a `Note` in `graph.notes`): right-click empty board to add one; drag to move,
   drag the folded corner or an edge to resize, double-click to write, right-click for colour, text size and delete;
   hovering shows keys (delete top left, text size top right) at a fixed size on screen whenever they fit on the note.
-  A selection outline shows only when several things are selected. The gear's Board background makes the board, its
+  A selection outline shows only when several things are selected. Dragged cards and drawers stop against the others
+  (`BoardCanvas.clearAt`; past one far enough, they jump through), notes pass over. While the plan has nothing set,
+  every unpinned count says "(set count)" and every empty drawer "Set rate", pulsing gold together (`CardPaint.prompt`);
+  the count keeps its place, a line kept under it. Scrolling a pinned count below one unpins it. The gear's Board background makes the board, its
   dots and the overview see-through (`Hyb.seeThrough`); cards and text stay solid.
   They are Factory Flow's text annotations (`kind: "text"`, its colour tags and font sizes), so they come in with an
   imported plan and go out with a posted one; they take no part in the solve, the wiring or Arrange.

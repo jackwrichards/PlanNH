@@ -384,6 +384,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         moveMouseX = getContext().getAbsMouseX();
         moveMouseY = getContext().getAbsMouseY();
         moveDX = moveDY = 0;
+        carried = obstacles = null;
         moveUndo = com.gtnhplanner.api.PlanAPI.undoHistory()
             .beginEdit(graph());
     }
@@ -427,13 +428,61 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         if (moveStart == null) return;
         final float zoom = graph().getZoom();
         final boolean wasMoving = moveDX != 0 || moveDY != 0;
-        moveDX = BoardSession.snap((getContext().getAbsMouseX() - moveMouseX) / zoom);
-        moveDY = BoardSession.snap((getContext().getAbsMouseY() - moveMouseY) / zoom);
+        final int wantX = BoardSession.snap((getContext().getAbsMouseX() - moveMouseX) / zoom);
+        final int wantY = BoardSession.snap((getContext().getAbsMouseY() - moveMouseY) / zoom);
+        // Cards and drawers stop against each other, as on the website: where the mouse is if that is clear, else as
+        // far
+        // along one way as is, else where they are; once the mouse is far enough past, they jump through to it.
+        if (clearAt(wantX, wantY)) {
+            moveDX = wantX;
+            moveDY = wantY;
+        } else if (clearAt(wantX, moveDY)) moveDX = wantX;
+        else if (clearAt(moveDX, wantY)) moveDY = wantY;
         if (!wasMoving && (moveDX != 0 || moveDY != 0)) Sfx.LIFT.play();
         final java.util.Map<UUID, int[]> at = new HashMap<>();
         for (final java.util.Map.Entry<UUID, int[]> e : moveStart.entrySet())
             at.put(e.getKey(), new int[] { e.getValue()[0] + moveDX, e.getValue()[1] + moveDY });
         place(at);
+    }
+
+    /**
+     * What the move carries ({x, y, w, h} at its start) and what it must not land on: the cards and drawers it does not
+     * carry. Notes take no part (they lie under the cards). Something already under a carried thing when the move
+     * began is let be, so things stacked before can be pulled apart.
+     */
+    private List<int[]> carried, obstacles;
+
+    private void takeStock() {
+        carried = new ArrayList<>();
+        obstacles = new ArrayList<>();
+        for (final RecipeCard card : cards.values()) {
+            if (card.model() == null || card.layout() == null) continue;
+            final int[] start = moveStart.get(card.nodeId);
+            final Node n = card.model().node;
+            if (start != null) carried.add(new int[] { start[0], start[1], CardLayout.W, card.layout().height });
+            else obstacles.add(new int[] { n.x, n.y, CardLayout.W, card.layout().height });
+        }
+        for (final DrawerCard drawer : drawers.values()) {
+            if (drawer.model() == null) continue;
+            final Drawer d = drawer.model().drawer;
+            final int[] start = moveStart.get(drawer.drawerId);
+            if (start != null) carried.add(new int[] { start[0], start[1], DrawerCard.W, DrawerCard.H });
+            else obstacles.add(new int[] { d.getX(), d.getY(), DrawerCard.W, DrawerCard.H });
+        }
+        obstacles.removeIf(
+            o -> carried.stream()
+                .anyMatch(c -> overlaps(c, 0, 0, o)));
+    }
+
+    /** Whether the carried things, moved by {@code dx, dy} from their start, touch nothing they must not. */
+    private boolean clearAt(final int dx, final int dy) {
+        if (carried == null) takeStock();
+        for (final int[] c : carried) for (final int[] o : obstacles) if (overlaps(c, dx, dy, o)) return false;
+        return true;
+    }
+
+    private static boolean overlaps(final int[] c, final int dx, final int dy, final int[] o) {
+        return c[0] + dx < o[0] + o[2] && o[0] < c[0] + dx + c[2] && c[1] + dy < o[1] + o[3] && o[1] < c[1] + dy + c[3];
     }
 
     /** Ends a move: one undoable step; a press that never moved is a click, which selects (Shift adds). */
