@@ -38,6 +38,8 @@ world draws them (`dev/CardGallery`, arrow keys).
   Factory Flow's project format has no place for them.
 - Shadows a fifth lighter everywhere (cards, drawers, icons, structure pictures): done for the whole mod.
 - The same look carries to the zoomed-out (glance) card, the minimap and the cards over the world.
+- Zoomed out, hovering a card shows the clean card itself at full size beside the pointer (`RecipeCard.drawReveal`,
+  drawn by `CleanCardView` from the board's snapshot), in place of Factory Flow's reveal panel.
 
 ## Where everything goes
 
