@@ -1,0 +1,729 @@
+<title>GTNH Planner Sound Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the planner's board, dark slate. A working mock board up top, the variation switches beside it, then every sound. */
+:root {
+  --ground: #121317;
+  --panel: #1b1d23;
+  --panel-hi: #23262e;
+  --card: #262932;
+  --line: #2f323c;
+  --ink: #e7e9ef;
+  --mute: #9196a6;
+  --accent: #46d3e6;
+  --gold: #e6b450;
+  --deny: #e0705a;
+  --item: #c3c9d4;
+  --fluid: #4fa8ea;
+  --power: #f1b734;
+  --display: "Pixelify Sans", "Courier New", monospace;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--ground); color: var(--ink); font: 15px/1.5 var(--body); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; padding-block: 26px 64px; display: grid; gap: 30px; }
+h1 { font: 700 38px/1 var(--display); letter-spacing: 0.02em; margin: 0; }
+h1 span { color: var(--accent); }
+h2 { font: 500 22px/1.1 var(--display); margin: 0; letter-spacing: 0.03em; }
+h3 { font: 500 16px/1.2 var(--display); margin: 0; letter-spacing: 0.04em; color: var(--mute); text-transform: uppercase; }
+.lead { color: var(--mute); max-width: 70ch; margin: 8px 0 0; }
+code { font-family: var(--mono); font-size: 0.92em; }
+button { font: 500 13px var(--mono); color: var(--ink); background: #2a2d36; border: 1px solid #3d414d; border-bottom-color: #1a1c22; padding: 5px 10px; cursor: pointer; }
+button:hover { background: #343844; }
+button:active, button.on { background: var(--accent); color: #0d1418; border-color: var(--accent); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.top { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+@media (max-width: 960px) { .top { grid-template-columns: minmax(0, 1fr); } }
+
+/* The mock board */
+.board-scroll { overflow-x: auto; border: 1px solid var(--line); background: var(--panel); }
+.board { position: relative; width: 740px; height: 470px; background-color: #15161b; background-image: radial-gradient(#2a2c34 1px, transparent 1px); background-size: 16px 16px; user-select: none; touch-action: none; }
+.bar { position: absolute; left: 0; right: 0; top: 0; height: 38px; display: flex; gap: 6px; align-items: center; padding: 0 8px; background: #1d1f25; border-bottom: 1px solid var(--line); }
+.bar .gap { flex: 1; }
+.switch { display: flex; align-items: center; gap: 6px; font: 500 12px var(--mono); color: var(--mute); }
+.switch i { width: 28px; height: 14px; border: 1px solid #3d414d; background: #2a2d36; position: relative; display: inline-block; }
+.switch i::after { content: ""; position: absolute; top: 1px; left: 1px; width: 10px; height: 10px; background: var(--mute); transition: left 0.12s; }
+.switch.on i::after { left: 15px; background: var(--accent); }
+svg.wires { position: absolute; inset: 0; pointer-events: none; }
+svg.wires path.wire { pointer-events: stroke; cursor: pointer; }
+.card { position: absolute; width: 250px; background: var(--card); border: 1px solid #3a3e4a; box-shadow: 0 4px 0 #0b0c0f; }
+.card.lifted { box-shadow: 4px 9px 0 #08090b; }
+.card .head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #2d313b; cursor: grab; font: 500 13px var(--body); }
+.card .head .name { flex: 1; }
+.chips { display: flex; gap: 6px; padding: 6px 8px; border-bottom: 1px solid #343843; }
+.chip { font: 500 12px var(--mono); padding: 2px 7px; border: 1px solid #454a57; background: #2f333d; cursor: pointer; }
+.chip.tier { color: var(--gold); }
+.chip.pinned { background: var(--gold); color: #1a1408; border-color: var(--gold); }
+.ports { display: grid; grid-template-columns: 1fr 1fr; padding: 6px 0; }
+.port { display: flex; align-items: center; gap: 7px; padding: 4px 8px; font-size: 12.5px; cursor: crosshair; }
+.port.out { flex-direction: row-reverse; text-align: right; }
+.port .dot { width: 11px; height: 11px; border: 2px solid currentColor; background: #15161b; }
+.port.item { color: var(--item); } .port.fluid { color: var(--fluid); } .port.power { color: var(--power); }
+.port span { color: var(--ink); }
+.drawer { position: absolute; width: 132px; padding: 6px 8px; background: #20232a; border: 1px solid #3a3e4a; border-left: 3px solid currentColor; font-size: 12.5px; }
+.drawer small { display: block; color: var(--mute); font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: 0.06em; }
+.drawer.item { color: var(--item); } .drawer.fluid { color: var(--fluid); } .drawer.power { color: var(--power); }
+.drawer b { color: var(--ink); font-weight: 500; }
+.drawer.hot { outline: 2px solid var(--accent); }
+.drawer.bad { outline: 2px solid var(--deny); }
+.popup { position: absolute; background: #262932; border: 1px solid #454a57; box-shadow: 0 6px 0 #0b0c0f; display: grid; min-width: 170px; z-index: 5; }
+.popup button { text-align: left; border: 0; background: transparent; padding: 7px 10px; font: 400 13px var(--body); }
+.popup button:hover { background: #343844; }
+.note { position: absolute; width: 130px; min-height: 74px; background: #ead37a; color: #2a2510; padding: 18px 8px 8px; font-size: 12px; box-shadow: 2px 3px 0 #0b0c0f; }
+.note .x { position: absolute; top: 2px; left: 3px; padding: 0 5px; font-size: 11px; background: #3a3a40cc; color: #f2f3f7; border: 0; }
+.status { position: absolute; left: 8px; bottom: 6px; font: 500 12px var(--mono); color: var(--mute); }
+.status b { color: var(--accent); font-weight: 500; }
+.board-help { color: var(--mute); font-size: 13px; margin: 8px 2px 0; }
+
+/* Variation */
+.vary { display: grid; gap: 12px; padding: 14px; background: var(--panel); border: 1px solid var(--line); }
+.vary .opt { display: grid; gap: 3px; }
+.vary label { display: flex; justify-content: space-between; gap: 10px; align-items: center; font-size: 13.5px; }
+.vary label output { font: 500 12px var(--mono); color: var(--accent); min-width: 48px; text-align: right; }
+.vary p { margin: 0; color: var(--mute); font-size: 12.5px; }
+.vary input[type=range] { width: 100%; accent-color: var(--accent); }
+.vary select { font: 500 12.5px var(--mono); background: #2a2d36; color: var(--ink); border: 1px solid #3d414d; padding: 3px 6px; }
+.vary input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+
+/* Library */
+.fam { display: grid; gap: 8px; }
+.fam-head { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+.fam-head p { margin: 0; color: var(--mute); font-size: 14px; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) 130px auto; gap: 12px; align-items: center; padding: 9px 12px; background: var(--panel); border: 1px solid var(--line); }
+.row .id { font: 500 14px var(--mono); }
+.row .when { color: var(--mute); font-size: 13px; margin: 2px 0 0; }
+.row .picks { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.row .picks button { font-size: 11.5px; padding: 2px 8px; }
+.row .picks button.first { color: var(--mute); }
+.row .keys { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+canvas { width: 130px; height: 32px; display: block; color: var(--accent); }
+.picked { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); }
+.picked p { margin: 0; color: var(--mute); font-size: 13.5px; flex: 1; min-width: 240px; }
+@media (max-width: 640px) {
+  .row { grid-template-columns: minmax(0, 1fr) auto; }
+  .row canvas { display: none; }
+  h1 { font-size: 30px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>GTNH Planner <span>Sound Lab</span></h1>
+    <p class="lead">Every sound is made live in your browser from the same recipes the game's files are rendered from. Use the board to hear them in place, switch the variation techniques on and off on the right, and pick between versions further down. When you like a set, copy your picks at the bottom and paste them to me.</p>
+  </header>
+
+  <div class="top">
+    <section>
+      <div class="board-scroll"><div class="board" id="board"></div></div>
+      <p class="board-help">Drag from a port to a drawer of the same resource on the matching side (inputs left, outputs right), or onto empty board for a new drawer. Click a wire to cut it. Drag the card by its title. Scroll or click the tier and amps chips (right-click steps down). Pin the machine count, then wire all three inputs to hear the plan start running.</p>
+    </section>
+    <aside class="vary" id="vary" aria-label="Variation"></aside>
+  </div>
+
+  <section style="display:grid;gap:22px" id="library"></section>
+
+  <div class="picked">
+    <p id="picked-text">Your picks: all first options.</p>
+    <button type="button" id="copy">Copy my picks</button>
+  </div>
+</div>
+
+<script>
+/*ENGINE*/
+/*SOUNDS*/
+</script>
+<script>
+// region Playing
+
+const FIRST = "First set";
+const TIERS = ["ULV", "LV", "MV", "HV", "EV", "IV", "LuV", "ZPM", "UV", "UHV", "UEV", "UIV", "UMV", "UXV", "MAX"];
+const PENTA = [0, 2, 4, 7, 9];
+const REF = 0.2;
+
+const prefs = (() => { try { return JSON.parse(localStorage.getItem("gtnhp-sound-lab") || "{}"); } catch { return {}; } })();
+const state = Object.assign({
+  picks: {}, mode: "fixed", order: "shuffle", pitch: 3, musical: false, volume: 1.5, bright: 0, timing: 0,
+  duck: true, streak: false, stereo: false, master: 0.7,
+}, prefs);
+function save() { try { localStorage.setItem("gtnhp-sound-lab", JSON.stringify(state)); } catch {} }
+
+let ctx, master;
+function audio() {
+  if (!ctx) {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    master = ctx.createGain();
+    master.gain.value = state.master;
+    master.connect(ctx.destination);
+  }
+  if (ctx.state !== "running") ctx.resume().catch(() => {});
+  return ctx;
+}
+
+/** What a sound renders with now: the picked option, the first set's, or its first. */
+function current(name) {
+  const def = SOUNDS[name];
+  const pick = state.picks[name];
+  if (pick === FIRST && FIRST_SET[name]) return { label: FIRST, make: FIRST_SET[name][2], level: FIRST_SET[name][1], variants: FIRST_SET[name][0] };
+  const label = pick && def.options[pick] ? pick : Object.keys(def.options)[0];
+  return { label, make: def.options[label], level: def.level, variants: def.variants };
+}
+
+const gains = new Map(), cache = new Map();
+function renderOne(name, cur, seed, timing) {
+  const s = new Sound(seed);
+  if (timing > 0) {
+    // Layer timing: every layer this sound adds lands a little early or late.
+    const add = s.add.bind(s);
+    s.add = (at, samples) => add(Math.max(0, at + (s.rng() - 0.5) * 2 * timing / 1000), samples);
+  }
+  cur.make(s);
+  return s.finish();
+}
+function gainOf(name, cur) {
+  const key = name + "|" + cur.label;
+  if (!gains.has(key)) {
+    const b = renderOne(name, cur, hash(name), 0);
+    let peak = 0; for (const x of b) peak = Math.max(peak, Math.abs(x));
+    gains.set(key, Math.min((cur.level * REF) / Math.max(1e-6, punch(b)), 0.95 / Math.max(1e-6, peak)));
+  }
+  return gains.get(key);
+}
+function bufferOf(name, cur, seed, fixed) {
+  const key = name + "|" + cur.label + "|" + seed + "|" + state.timing;
+  if (fixed && cache.has(key)) return cache.get(key);
+  const data = renderOne(name, cur, seed, state.timing);
+  const g = gainOf(name, cur);
+  const c = audio();
+  const buf = c.createBuffer(1, data.length, SR);
+  const ch = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) ch[i] = data[i] * g;
+  if (fixed) cache.set(key, buf);
+  return buf;
+}
+
+const bags = new Map(), lastPick = new Map(), cursor = new Map();
+/** Which variant plays: at random, a shuffled bag that never repeats back to back, or in turn. */
+function variantOf(name, n) {
+  if (n <= 1) return 0;
+  if (state.order === "random") return Math.floor(Math.random() * n);
+  if (state.order === "cycle") { const i = ((cursor.get(name) ?? -1) + 1) % n; cursor.set(name, i); return i; }
+  let bag = bags.get(name);
+  if (!bag || !bag.length) {
+    bag = [...Array(n).keys()];
+    for (let i = n - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
+    if (bag[bag.length - 1] === lastPick.get(name)) bag.reverse();
+    bags.set(name, bag);
+  }
+  const v = bag.pop();
+  lastPick.set(name, v);
+  return v;
+}
+
+function snapToScale(p) {
+  const semis = 12 * Math.log2(p);
+  const oct = Math.floor(semis / 12), within = semis - oct * 12;
+  let best = 0, gap = 99;
+  for (const d of [...PENTA, 12]) if (Math.abs(d - within) < gap) { gap = Math.abs(d - within); best = d; }
+  return Math.pow(2, (oct * 12 + best) / 12);
+}
+
+const lastAt = new Map(), streaks = new Map(), ducks = new Map();
+/**
+ * Plays a sound as the game would with the switches as set: a variant, its pitch (the caller's, then jitter or a
+ * scale step, then the streak), its loudness (jitter, ducking), brightness and place in the stereo field.
+ */
+function play(name, { pitch = 1, x } = {}) {
+  if (!SOUNDS[name]) return;
+  const c = audio();
+  const cur = current(name);
+  const now = performance.now();
+  const since = now - (lastAt.get(name) ?? -1e9);
+  lastAt.set(name, now);
+  // Ducking: the same sound again within 120 ms plays quieter, up to three steps.
+  const duck = state.duck && since < 120 ? Math.min(3, (ducks.get(name) ?? 0) + 1) : 0;
+  ducks.set(name, duck);
+  // Streak: repeats within 400 ms climb the scale, five steps at most.
+  const streak = state.streak && since < 400 ? Math.min(5, (streaks.get(name) ?? 0) + 1) : 0;
+  streaks.set(name, streak);
+
+  const fixed = state.mode === "fixed";
+  const seed = fixed ? hash(name) + variantOf(name, cur.variants) * 7919 : (Math.random() * 2 ** 32) >>> 0;
+  const buf = bufferOf(name, cur, seed, fixed);
+
+  let p = pitch;
+  if (state.musical) {
+    const steps = [-2, 0, 0, 0, 2];
+    p *= Math.pow(2, steps[Math.floor(Math.random() * steps.length)] / 12 * (state.pitch > 0 ? 1 : 0));
+    p = snapToScale(p);
+  } else p *= 1 + (Math.random() * 2 - 1) * state.pitch / 100;
+  if (streak) p *= Math.pow(2, (PENTA[streak % 5] + 12 * Math.floor(streak / 5)) / 12);
+
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  src.playbackRate.value = Math.max(0.5, Math.min(2, p));
+  let node = src;
+  if (state.bright > 0) {
+    const f = c.createBiquadFilter();
+    f.type = "lowpass";
+    f.frequency.value = Math.min(18000, 5000 * Math.pow(2, (Math.random() * 2 - 1) * state.bright / 50));
+    f.Q.value = 0.5;
+    node.connect(f); node = f;
+  }
+  const g = c.createGain();
+  g.gain.value = Math.pow(10, ((Math.random() * 2 - 1) * state.volume) / 20) * Math.pow(0.6, duck);
+  node.connect(g); node = g;
+  if (state.stereo && c.createStereoPanner && x !== undefined) {
+    const pan = c.createStereoPanner();
+    pan.pan.value = Math.max(-0.8, Math.min(0.8, (x / window.innerWidth) * 2 - 1)) * 0.6;
+    node.connect(pan); node = pan;
+  }
+  node.connect(master);
+  src.start();
+}
+
+/** A wire's or drawer link's sound by what it carries. */
+function connect(kind, x) { play(kind === "power" ? "wire.power" : kind === "fluid" ? "wire.fluid" : "wire.item", { x }); }
+function cut(kind, x) { play(kind === "power" ? "wire.power_cut" : kind === "fluid" ? "wire.fluid_cut" : "wire.cut", { x }); }
+function tierPitch(i) { return 0.62 * Math.pow(1.085, i); }
+
+// endregion
+
+// region Variation switches
+
+const VARY = [
+  ["master", "range", "Volume", 0, 1, 0.01, (v) => Math.round(v * 100) + "%", "Only this page's loudness."],
+  ["mode", "select", "Variants", [["fixed", "As the game ships them"], ["fresh", "New every play"]], "Games ship a few takes of each sound; made live, every play can be a new one."],
+  ["order", "select", "Order", [["shuffle", "Shuffled, no repeats"], ["random", "At random"], ["cycle", "In turn"]], "A shuffled bag never plays the same take twice in a row, which pure random does."],
+  ["pitch", "range", "Pitch spread", 0, 10, 0.5, (v) => "±" + v + "%", "A few percent up or down each play: the cheapest cure for a sound that repeats."],
+  ["musical", "check", "Musical pitch", "Spread and streaks land on a pentatonic scale instead of anywhere, so repeats stay in tune."],
+  ["volume", "range", "Loudness spread", 0, 4, 0.25, (v) => "±" + v + " dB", "A little louder or quieter each play, like a hand never pressing the same way twice."],
+  ["bright", "range", "Brightness spread", 0, 40, 1, (v) => "±" + v + "%", "The top end opens and closes a touch each play."],
+  ["timing", "range", "Layer timing", 0, 10, 0.5, (v) => "±" + v + " ms", "Each layer of a sound lands a little early or late, so the parts never line up the same."],
+  ["duck", "check", "Duck fast repeats", "The same sound again within 120 ms plays quieter, so a wheel spun is one sound, not a crescendo (the game does this)."],
+  ["streak", "check", "Streak climb", "Repeats within 400 ms step up a scale, the way coin pickups climb in platformers."],
+  ["stereo", "check", "Stereo by position", "Sounds sit left or right where they happen on screen."],
+];
+
+function buildVary() {
+  const box = document.getElementById("vary");
+  box.append(Object.assign(document.createElement("h3"), { textContent: "Variation" }));
+  for (const [key, type, label, ...rest] of VARY) {
+    const opt = document.createElement("div");
+    opt.className = "opt";
+    const id = "v-" + key;
+    const lab = document.createElement("label");
+    lab.htmlFor = id;
+    lab.append(label);
+    let input;
+    if (type === "range") {
+      const [min, max, step, fmt] = rest;
+      input = Object.assign(document.createElement("input"), { type: "range", id, min, max, step, value: state[key] });
+      const out = document.createElement("output");
+      out.textContent = fmt(state[key]);
+      input.addEventListener("input", () => {
+        state[key] = Number(input.value); out.textContent = fmt(state[key]); save();
+        if (key === "master" && master) master.gain.value = state.master;
+        if (key === "timing") cache.clear();
+      });
+      lab.append(out);
+      opt.append(lab, input);
+    } else if (type === "select") {
+      input = Object.assign(document.createElement("select"), { id });
+      for (const [v, t] of rest[0]) input.append(Object.assign(document.createElement("option"), { value: v, textContent: t, selected: state[key] === v }));
+      input.addEventListener("change", () => { state[key] = input.value; save(); });
+      lab.append(input);
+      opt.append(lab);
+    } else {
+      input = Object.assign(document.createElement("input"), { type: "checkbox", id, checked: !!state[key] });
+      input.addEventListener("change", () => { state[key] = input.checked; save(); });
+      lab.append(input);
+      opt.append(lab);
+    }
+    const why = rest[rest.length - 1];
+    if (typeof why === "string") opt.append(Object.assign(document.createElement("p"), { textContent: why }));
+    box.append(opt);
+  }
+}
+
+// endregion
+
+// region The mock board
+
+const board = document.getElementById("board");
+const NS = "http://www.w3.org/2000/svg";
+const svg = document.createElementNS(NS, "svg");
+svg.setAttribute("class", "wires");
+svg.setAttribute("width", "740"); svg.setAttribute("height", "470");
+board.append(svg);
+
+function h(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+const ex = (e) => e.clientX ?? 0;
+
+// Top bar
+const bar = h("div", "bar");
+const keys = [["Undo", () => play("board.undo")], ["Redo", () => play("board.redo")], ["Arrange", () => play("board.sweep")], ["Fit", () => play("ui.click")]];
+for (const [t, f] of keys) { const b = h("button", "", t); b.type = "button"; b.addEventListener("click", (e) => f(e)); bar.append(b); }
+const menuKey = h("button", "", "Menu ▾"); menuKey.type = "button"; bar.append(menuKey);
+bar.append(h("span", "gap"));
+function switchKey(label, on) {
+  const s = h("button", "switch" + (on ? " on" : ""));
+  s.type = "button";
+  s.append(label, h("i"));
+  s.addEventListener("click", (e) => { s.classList.toggle("on"); play(s.classList.contains("on") ? "ui.toggle_on" : "ui.toggle_off", { x: ex(e) }); });
+  return s;
+}
+bar.append(switchKey("Minimap", true), switchKey("Overlay", false));
+const planner = h("button", "", "Close planner"); planner.type = "button";
+planner.addEventListener("click", (e) => {
+  const closing = planner.textContent === "Close planner";
+  play(closing ? "screen.close" : "screen.open", { x: ex(e) });
+  planner.textContent = closing ? "Open planner" : "Close planner";
+});
+bar.append(planner);
+board.append(bar);
+
+// The menu
+let popup = null;
+function closePopup(sound) { if (!popup) return; popup.remove(); popup = null; if (sound) play("ui.close"); }
+menuKey.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (popup) return closePopup(true);
+  popup = h("div", "popup");
+  popup.style.left = (menuKey.offsetLeft) + "px"; popup.style.top = "38px";
+  const rows = [
+    ["Add a card", () => { play("board.place"); }],
+    ["Add a sticky note", () => addNote()],
+    ["Next tab", () => play("ui.page")],
+    ["Place in the world", () => play("world.place")],
+    ["Take it off", () => play("world.remove")],
+    ["Something refused", () => play("ui.deny")],
+  ];
+  for (const [t, f] of rows) { const b = h("button", "", t); b.type = "button"; b.addEventListener("click", (ev) => { ev.stopPropagation(); closePopup(false); f(); }); popup.append(b); }
+  board.append(popup);
+  play("ui.open", { x: ex(e) });
+});
+document.addEventListener("click", (e) => { if (popup && !popup.contains(e.target) && e.target !== menuKey) closePopup(true); });
+
+// The card
+const card = h("div", "card");
+let cardX = 300, cardY = 120;
+function placeCard() { card.style.left = cardX + "px"; card.style.top = cardY + "px"; drawWires(); }
+const head = h("div", "head");
+head.append(h("span", "name", "Electrolyzer"));
+const cloneKey = h("button", "", "⧉"); cloneKey.type = "button"; cloneKey.title = "Clone";
+const mergeKey = h("button", "", "⇉"); mergeKey.type = "button"; mergeKey.title = "Merge";
+const delKey = h("button", "", "✕"); delKey.type = "button"; delKey.title = "Delete";
+cloneKey.addEventListener("click", (e) => play("board.clone", { x: ex(e) }));
+mergeKey.addEventListener("click", (e) => play("board.merge", { x: ex(e) }));
+delKey.addEventListener("click", (e) => play("board.remove", { x: ex(e) }));
+head.append(cloneKey, mergeKey, delKey);
+const chips = h("div", "chips");
+let tier = 3, amps = 2, count = 4, pinned = false;
+const tierChip = h("span", "chip tier", TIERS[tier]);
+const ampsChip = h("span", "chip", amps + "A");
+const countChip = h("span", "chip", "×" + count);
+function stepTier(d, x) {
+  const next = Math.max(0, Math.min(TIERS.length - 1, tier + d));
+  if (next === tier) return;
+  tier = next; tierChip.textContent = TIERS[tier];
+  play("dial.tier", { pitch: tierPitch(tier), x });
+}
+tierChip.addEventListener("click", (e) => stepTier(1, ex(e)));
+tierChip.addEventListener("contextmenu", (e) => { e.preventDefault(); stepTier(-1, ex(e)); });
+tierChip.addEventListener("wheel", (e) => { e.preventDefault(); stepTier(e.deltaY < 0 ? 1 : -1, ex(e)); }, { passive: false });
+function stepAmps(d, x) {
+  amps = Math.max(1, amps + d); ampsChip.textContent = amps + "A";
+  play("ui.tick", { pitch: d > 0 ? 1.12 : 0.9, x });
+}
+ampsChip.addEventListener("click", (e) => stepAmps(1, ex(e)));
+ampsChip.addEventListener("contextmenu", (e) => { e.preventDefault(); stepAmps(-1, ex(e)); });
+ampsChip.addEventListener("wheel", (e) => { e.preventDefault(); stepAmps(e.deltaY < 0 ? 1 : -1, ex(e)); }, { passive: false });
+countChip.addEventListener("click", (e) => {
+  pinned = !pinned; countChip.classList.toggle("pinned", pinned);
+  play(pinned ? "board.pin" : "board.unpin", { x: ex(e) });
+  checkRunning();
+});
+chips.append(tierChip, ampsChip, countChip);
+const ports = h("div", "ports");
+const ins = h("div"), outs = h("div");
+const PORTS = [
+  { id: "in-dust", side: "in", kind: "item", name: "Iron Dust" },
+  { id: "in-water", side: "in", kind: "fluid", name: "Water" },
+  { id: "in-eu", side: "in", kind: "power", name: "EU" },
+  { id: "out-ingot", side: "out", kind: "item", name: "Iron Ingot" },
+  { id: "out-h", side: "out", kind: "fluid", name: "Hydrogen" },
+];
+const portEls = {};
+for (const p of PORTS) {
+  const el = h("div", "port " + p.side + " " + p.kind);
+  el.append(h("i", "dot"), h("span", "", p.name));
+  el.dataset.port = p.id;
+  (p.side === "in" ? ins : outs).append(el);
+  portEls[p.id] = el;
+}
+ports.append(ins, outs);
+card.append(head, chips, ports);
+board.append(card);
+
+// Drawers
+const drawers = [
+  { id: "d-dust", side: "in", kind: "item", name: "Iron Dust", x: 24, y: 70 },
+  { id: "d-water", side: "in", kind: "fluid", name: "Water", x: 24, y: 160 },
+  { id: "d-eu", side: "in", kind: "power", name: "EU", x: 24, y: 250 },
+  { id: "d-ingot", side: "out", kind: "item", name: "Iron Ingot", x: 588, y: 90 },
+  { id: "d-h", side: "out", kind: "fluid", name: "Hydrogen", x: 588, y: 180 },
+  { id: "d-o", side: "out", kind: "fluid", name: "Oxygen", x: 588, y: 270 },
+];
+const drawerEls = {};
+function addDrawerEl(d) {
+  const el = h("div", "drawer " + d.kind);
+  el.style.left = d.x + "px"; el.style.top = d.y + "px";
+  el.append(h("small", "", d.side === "in" ? "source" : "product"), h("b", "", d.name));
+  board.append(el);
+  drawerEls[d.id] = el;
+  return el;
+}
+drawers.forEach(addDrawerEl);
+
+const wires = []; // { port, drawer, kind }
+function anchor(el, side) {
+  const r = el.getBoundingClientRect(), b = board.getBoundingClientRect();
+  return { x: (side === "right" ? r.right : r.left) - b.left, y: r.top + r.height / 2 - b.top };
+}
+function curve(a, b) {
+  const dx = Math.max(40, Math.abs(b.x - a.x) / 2);
+  const s = a.x <= b.x ? 1 : -1;
+  return `M${a.x},${a.y} C${a.x + dx * s},${a.y} ${b.x - dx * s},${b.y} ${b.x},${b.y}`;
+}
+const COLORS = { item: "var(--item)", fluid: "var(--fluid)", power: "var(--power)" };
+function drawWires() {
+  for (const p of [...svg.querySelectorAll("path.wire")]) p.remove();
+  for (const w of wires) {
+    const port = PORTS.find((p) => p.id === w.port);
+    const pe = portEls[w.port], de = drawerEls[w.drawer];
+    const a = port.side === "in" ? anchor(pe.querySelector(".dot"), "left") : anchor(pe.querySelector(".dot"), "right");
+    const b = port.side === "in" ? anchor(de, "right") : anchor(de, "left");
+    const path = document.createElementNS(NS, "path");
+    path.setAttribute("class", "wire");
+    path.setAttribute("d", curve(port.side === "in" ? b : a, port.side === "in" ? a : b));
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", COLORS[w.kind]);
+    path.setAttribute("stroke-width", "3");
+    path.addEventListener("click", (e) => {
+      wires.splice(wires.indexOf(w), 1);
+      drawWires(); cut(w.kind, ex(e)); running = running && allInputs();
+    });
+    svg.append(path);
+  }
+}
+
+// Dragging a wire out of a port
+let drag = null;
+const temp = document.createElementNS(NS, "path");
+temp.setAttribute("fill", "none"); temp.setAttribute("stroke-width", "3"); temp.setAttribute("stroke-dasharray", "6 4");
+svg.append(temp);
+function drawerAt(x, y) {
+  for (const d of drawers) {
+    const el = drawerEls[d.id], r = el.getBoundingClientRect();
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return d;
+  }
+  return null;
+}
+function takes(d, port) { return d.kind === port.kind && d.name === port.name && d.side === port.side; }
+board.addEventListener("pointerdown", (e) => {
+  const pe = e.target.closest(".port");
+  if (pe) {
+    const port = PORTS.find((p) => p.id === pe.dataset.port);
+    drag = { port, x0: e.clientX, y0: e.clientY, heard: false, over: null };
+    board.setPointerCapture(e.pointerId);
+    e.preventDefault();
+    return;
+  }
+  if (e.target.closest(".head") && !e.target.closest("button")) {
+    drag = { card: true, x0: e.clientX, y0: e.clientY, cx: cardX, cy: cardY, moved: false };
+    board.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  }
+});
+board.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  if (drag.card) {
+    const dx = Math.round((e.clientX - drag.x0) / 10) * 10, dy = Math.round((e.clientY - drag.y0) / 10) * 10;
+    if (!drag.moved && (dx || dy)) { drag.moved = true; card.classList.add("lifted"); play("board.lift", { x: e.clientX }); }
+    cardX = Math.max(160, Math.min(320, drag.cx + dx)); cardY = Math.max(44, Math.min(300, drag.cy + dy));
+    placeCard();
+    return;
+  }
+  const port = drag.port;
+  if (!drag.heard && Math.abs(e.clientX - drag.x0) + Math.abs(e.clientY - drag.y0) >= 4) { drag.heard = true; play("wire.grab", { x: e.clientX }); }
+  if (!drag.heard) return;
+  const pe = portEls[port.id].querySelector(".dot");
+  const a = anchor(pe, port.side === "in" ? "left" : "right");
+  const b = board.getBoundingClientRect();
+  const m = { x: e.clientX - b.left, y: e.clientY - b.top };
+  temp.setAttribute("d", curve(port.side === "in" ? m : a, port.side === "in" ? a : m));
+  temp.setAttribute("stroke", COLORS[port.kind]);
+  const d = drawerAt(e.clientX, e.clientY);
+  for (const el of Object.values(drawerEls)) el.classList.remove("hot", "bad");
+  if (d) drawerEls[d.id].classList.add(takes(d, port) ? "hot" : "bad");
+  const ok = d && takes(d, port) ? d.id : null;
+  if (ok && ok !== drag.over) play("wire.snap", { x: e.clientX });
+  drag.over = ok;
+});
+board.addEventListener("pointerup", (e) => {
+  if (!drag) return;
+  const d0 = drag; drag = null;
+  if (d0.card) { card.classList.remove("lifted"); if (d0.moved) play("board.drop", { x: e.clientX }); return; }
+  temp.setAttribute("d", "");
+  for (const el of Object.values(drawerEls)) el.classList.remove("hot", "bad");
+  if (!d0.heard) { play("ui.page", { x: e.clientX }); return; } // a click on a port: NEI's recipes
+  const port = d0.port, d = drawerAt(e.clientX, e.clientY);
+  if (d) {
+    if (!takes(d, port)) return play("ui.deny", { x: e.clientX });
+    const at = wires.findIndex((w) => w.port === port.id && w.drawer === d.id);
+    if (at >= 0) { wires.splice(at, 1); drawWires(); return cut(port.kind, e.clientX); }
+    wires.push({ port: port.id, drawer: d.id, kind: port.kind }); drawWires(); connect(port.kind, e.clientX);
+    return checkRunning();
+  }
+  const r = board.getBoundingClientRect();
+  const x = e.clientX - r.left, y = e.clientY - r.top;
+  if (y < 44 || (x > cardX - 10 && x < cardX + 260 && y > cardY - 10 && y < cardY + 200)) return play("ui.deny", { x: e.clientX });
+  const nd = { id: "d" + Math.random().toString(36).slice(2), side: port.side, kind: port.kind, name: port.name, x: Math.round(x - 66), y: Math.round(y - 20) };
+  drawers.push(nd); addDrawerEl(nd);
+  wires.push({ port: port.id, drawer: nd.id, kind: port.kind }); drawWires(); connect(port.kind, e.clientX);
+  checkRunning();
+});
+
+let running = false;
+const status = h("div", "status");
+board.append(status);
+function allInputs() { return ["in-dust", "in-water", "in-eu"].every((id) => wires.some((w) => w.port === id)); }
+function checkRunning() {
+  const now = pinned && allInputs();
+  if (now && !running) setTimeout(() => play("board.running"), 120);
+  running = now;
+  status.innerHTML = running ? "Plan: <b>running</b>" : "Plan: not running (pin the count and wire the three inputs)";
+}
+
+function addNote() {
+  const n = h("div", "note", "Distill the tar, send the benzene to the turbines.");
+  n.style.left = (120 + Math.random() * 360) + "px"; n.style.top = (330 + Math.random() * 60) + "px";
+  const x = h("button", "x", "✕"); x.type = "button"; x.title = "Delete note";
+  x.addEventListener("click", (e) => { e.stopPropagation(); n.remove(); play("note.crumple", { x: ex(e) }); });
+  n.append(x);
+  board.append(n);
+  play("note.stick");
+}
+
+// endregion
+
+// region The library
+
+const FAMILIES = [
+  ["ui", "Keys", "Most presses use the click; switches, menus and refusals have their own."],
+  ["board", "Board", "Cards on a table."],
+  ["wire", "Wires", "The drag is the same for all; what latches in sounds of what it carries."],
+  ["dial", "Tiers", "One voice, pitched up the voltage ladder: try the ladder buttons."],
+  ["screen", "Planner", "Opening and closing the board."],
+  ["note", "Notes", "Paper."],
+  ["world", "World", "Machines placed on blocks while playing."],
+];
+
+function drawWave(canvas, data) {
+  const dpr = window.devicePixelRatio || 1, w = canvas.clientWidth || 130, hh = canvas.clientHeight || 32;
+  canvas.width = w * dpr; canvas.height = hh * dpr;
+  const g = canvas.getContext("2d"); g.scale(dpr, dpr); g.clearRect(0, 0, w, hh);
+  g.fillStyle = getComputedStyle(canvas).color;
+  let peak = 0; for (const x of data) peak = Math.max(peak, Math.abs(x));
+  const span = 0.45 * SR;
+  for (let x = 0; x < w; x++) {
+    const a = Math.floor((x / w) * span), b = Math.floor(((x + 1) / w) * span);
+    let p = 0; for (let k = a; k < b && k < data.length; k++) p = Math.max(p, Math.abs(data[k]));
+    const bar = Math.max(1, (p / Math.max(1e-6, peak)) * hh * 0.9);
+    g.fillRect(x, (hh - bar) / 2, 1, bar);
+  }
+}
+
+const rowsByName = {};
+function refreshPicked() {
+  const changed = Object.entries(state.picks).filter(([n, p]) => p && SOUNDS[n] && p !== Object.keys(SOUNDS[n].options)[0]);
+  document.getElementById("picked-text").textContent = changed.length
+    ? "Your picks: " + changed.map(([n, p]) => `${n} = ${p}`).join("; ") + ". Everything else: its first option."
+    : "Your picks: all first options.";
+}
+function buildLibrary() {
+  const lib = document.getElementById("library");
+  lib.append(Object.assign(document.createElement("h2"), { textContent: "Every sound" }));
+  for (const [fam, title, blurb] of FAMILIES) {
+    const names = Object.keys(SOUNDS).filter((n) => n.startsWith(fam + "."));
+    if (!names.length) continue;
+    const sec = h("section", "fam");
+    const fh = h("div", "fam-head"); fh.append(h("h2", "", title), h("p", "", blurb)); sec.append(fh);
+    for (const name of names) {
+      const def = SOUNDS[name];
+      const row = h("div", "row");
+      const left = h("div");
+      left.append(h("div", "id", name), h("p", "when", def.when));
+      const picks = h("div", "picks");
+      const labels = [...Object.keys(def.options), ...(FIRST_SET[name] ? [FIRST] : [])];
+      const canvas = h("canvas");
+      const redraw = () => { const cur = current(name); canvas.style.color = cur.label === FIRST ? "var(--mute)" : "var(--accent)"; drawWave(canvas, renderOne(name, cur, hash(name), 0)); };
+      for (const l of labels) {
+        const b = h("button", l === FIRST ? "first" : "", l); b.type = "button";
+        const sync = () => b.classList.toggle("on", current(name).label === l);
+        b.addEventListener("click", (e) => {
+          state.picks[name] = l; save(); cache.clear();
+          for (const s of picks.children) s.dispatchEvent(new Event("sync"));
+          redraw(); refreshPicked(); play(name, { x: ex(e) });
+        });
+        b.addEventListener("sync", sync); sync();
+        picks.append(b);
+      }
+      if (labels.length > 1) left.append(picks);
+      const keysEl = h("div", "keys");
+      const once = h("button", "", "Play"); once.type = "button";
+      once.addEventListener("click", (e) => play(name, { x: ex(e) }));
+      const burst = h("button", "", "×8"); burst.type = "button"; burst.title = "Eight in a row, 90 ms apart";
+      burst.addEventListener("click", (e) => { const x = ex(e); for (let i = 0; i < 8; i++) setTimeout(() => play(name, { x }), i * 90); });
+      keysEl.append(once, burst);
+      if (name === "ui.tick") {
+        const dn = h("button", "", "down"), up = h("button", "", "up");
+        dn.addEventListener("click", (e) => play(name, { pitch: 0.9, x: ex(e) }));
+        up.addEventListener("click", (e) => play(name, { pitch: 1.12, x: ex(e) }));
+        keysEl.prepend(dn, up);
+      }
+      row.append(left, canvas, keysEl);
+      if (name === "dial.tier") {
+        const ladder = h("div", "picks"); ladder.style.gridColumn = "1 / -1";
+        TIERS.forEach((t, i) => { const b = h("button", "", t); b.type = "button"; b.addEventListener("click", (e) => play(name, { pitch: tierPitch(i), x: ex(e) })); ladder.append(b); });
+        row.append(ladder);
+      }
+      sec.append(row);
+      rowsByName[name] = row;
+      requestAnimationFrame(redraw);
+    }
+    lib.append(sec);
+  }
+}
+
+document.getElementById("copy").addEventListener("click", () => {
+  const text = document.getElementById("picked-text").textContent + ` Variation: ${state.mode}, ${state.order}, pitch ±${state.pitch}%${state.musical ? " musical" : ""}, loudness ±${state.volume} dB, brightness ±${state.bright}%, timing ±${state.timing} ms${state.duck ? ", ducking" : ""}${state.streak ? ", streaks" : ""}${state.stereo ? ", stereo" : ""}.`;
+  navigator.clipboard.writeText(text).then(() => { document.getElementById("copy").textContent = "Copied"; }).catch(() => {
+    const r = document.createRange(); r.selectNodeContents(document.getElementById("picked-text"));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  });
+});
+
+// endregion
+
+buildVary();
+placeCard();
+checkRunning();
+buildLibrary();
+refreshPicked();
+</script>

@@ -55,6 +55,7 @@ public enum Sfx {
     WIRE_FLUID("wire.fluid"),
     WIRE_POWER("wire.power"),
     WIRE_CUT("wire.cut"),
+    WIRE_FLUID_CUT("wire.fluid_cut"),
     WIRE_POWER_CUT("wire.power_cut"),
     // A voltage tier stepped, pitched up its ladder
     TIER("dial.tier"),
@@ -160,9 +161,10 @@ public enum Sfx {
         else WIRE_ITEM.play();
     }
 
-    /** A wire cut: power discharges, anything else just lets go. */
+    /** A wire cut, as what it carried: power hums off, a fluid drains, an item unlatches. */
     public static void cut(final String resourceKey) {
         if (resourceKey != null && Resources.isPower(resourceKey)) WIRE_POWER_CUT.play();
+        else if (resourceKey != null && Resources.isFluid(resourceKey)) WIRE_FLUID_CUT.play();
         else WIRE_CUT.play();
     }
 

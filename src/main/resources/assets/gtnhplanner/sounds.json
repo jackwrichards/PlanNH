@@ -200,6 +200,13 @@
       "gtnhplanner:wire/fluid3"
     ]
   },
+  "wire.fluid_cut": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/fluid_cut1",
+      "gtnhplanner:wire/fluid_cut2"
+    ]
+  },
   "wire.grab": {
     "category": "master",
     "sounds": [

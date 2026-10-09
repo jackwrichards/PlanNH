@@ -2,27 +2,41 @@
 
 Every action in the planner makes a sound, but most actions share one: a key press is the click, a page or tab is the
 page turn. What gets its own voice is what changes the plan, and what is themed is what a resource does: a wire or a
-drawer sounds of what it carries (an item clacks, a fluid bubbles, power sparks).
+drawer sounds of what it carries (an item snaps in, a fluid blubs, power hums on).
+
+The feel is clicky but smooth: rounded knocks that die away without ringing, soft edges, low short tones. The first set
+(2026-10-09) sounded like lab glassware (an inharmonic partial on the click, a metal ring on items, bubbles rising to
+1.5 kHz, high pure blips) and was redone; it is kept in the recipes to compare in the lab.
 
 ## Where the sounds come from
 
-All of them are synthesized by `tools/sound/synth.mjs` (no samples, nothing borrowed) and rendered to Ogg Vorbis in
-`src/main/resources/assets/gtnhplanner/sounds/`, with `sounds.json` naming them. To change one, edit its recipe there
-and run `node tools/sound/synth.mjs` (or `node tools/sound/synth.mjs wire.` for some); it needs ffmpeg on the path.
+All of them are synthesized (no samples, nothing borrowed). `tools/sound/engine.mjs` is the material, plain JavaScript
+that runs in Node and in a browser; `tools/sound/sounds.mjs` is the recipes, each sound with its level, its variant
+count, when it plays and its options (the first is what the game uses unless `pick` names another).
+`node tools/sound/synth.mjs` (or `node tools/sound/synth.mjs wire.` for some) renders them to Ogg Vorbis in
+`src/main/resources/assets/gtnhplanner/sounds/` and writes `sounds.json`; it needs ffmpeg on the path.
 `tools/sound/manifest.json` records the loudness reference so a partial render matches the rest.
+
+**The lab** (`node tools/sound/lab/build.mjs`, then open `build/sound/lab/gtnh-planner-sound-lab.html`) inlines the
+same engine and recipes and makes every sound live: a working mock board (ports, drawers, the tier chip, pins, menus),
+every sound with its options and the first set to compare, and the variation techniques as switches (variants fixed or
+new every play; shuffled, random or in turn; pitch, loudness and brightness spread; musical pitch; layer timing;
+ducking; streak climb; stereo). Picks copy out as text, to be set as `pick` in the recipes.
 
 The materials follow the website's board sounds (`src/lib/board-sounds.ts` in gtnh-factory-flow), and its rules:
 every envelope ramps in and fully out, fundamentals sit at 200 Hz and up, the mix runs under a soft lowpass and a
-memoryless tanh clip. Added for the game:
+memoryless tanh clip. The set's own:
 
-- **click**: a short plastic knock with a tick of bright noise and a little low body, in the manner of the game's own
-  click. The workhorse.
-- **bubble**: a sine whose pitch rises as it goes, the way a bubble rings as it lifts off (fluids).
-- **metal**: struck partials at a bar's ratios, ringing on after a solid knock (items).
-- **sparks over a buzz**: narrow noise bursts over a breath of mains hum (power).
+- **tock**: a rounded knock whose pitch drops as it dies away, like a tap on plastic or wood; no ring.
+- **snap**: a millisecond or two of soft noise, the edge on a click. A tock with a snap and a little low body under it
+  is the click.
+- **swish**: noise through a band sliding from one pitch to another: lifts, pages, panels, undo.
+- **tone**: a soft, warm sine, low and short, gliding if asked (toggles, the running relay).
+- **blob**: a low rounded bubble rising a little (fluids, without the glassware).
+- **hum**: a smooth buzz of a few harmonics (power, the tier dial).
 - **paper grains**: short noise grains, each its own pitch (sticky notes).
 
-Each sound has two to four variants (a seed apiece) and the game picks one; the game also drifts the pitch a few cents.
+Each sound has one to four variants (a seed apiece) and the game picks one; the game also drifts the pitch a few cents.
 
 ## Loudness
 
@@ -68,7 +82,7 @@ Off, Quiet, Normal, Loud), under the game's master volume. So the balance lives 
 | `wire.grab` | a wire picked up off a port (once it leaves it) |
 | `wire.snap` | the wire in hand comes over a card or drawer that would take it |
 | `wire.item` / `wire.fluid` / `wire.power` | a wire or drawer link made, or a drawer made for a port, by what it carries |
-| `wire.cut` / `wire.power_cut` | a wire or drawer link cut (power discharges) |
+| `wire.cut` / `wire.fluid_cut` / `wire.power_cut` | a wire or drawer link cut, as what it carried (unlatch, drain, hum off) |
 | `dial.tier` | a voltage tier stepped, pitched up the ladder ULV to MAX |
 | `screen.open` / `screen.close` | the planner opening and closing (a visit to NEI's pages is a page turn instead) |
 | `note.stick` / `note.crumple` | a sticky note added; a note deleted, or a plan deleted |

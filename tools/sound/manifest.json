@@ -1,5 +1,5 @@
 {
-  "reference": 0.2014757848758588,
+  "reference": 0.18506380147595766,
   "sounds": {
     "ui.click": {
       "files": [
@@ -8,48 +8,48 @@
         "ui/click3",
         "ui/click4"
       ],
-      "ms": 131,
-      "punch": 0.2028
+      "ms": 98,
+      "punch": 0.1872
     },
     "ui.toggle_on": {
       "files": [
         "ui/toggle_on1",
         "ui/toggle_on2"
       ],
-      "ms": 131,
-      "punch": 0.2032
+      "ms": 98,
+      "punch": 0.1847
     },
     "ui.toggle_off": {
       "files": [
         "ui/toggle_off1",
         "ui/toggle_off2"
       ],
-      "ms": 131,
-      "punch": 0.2018
+      "ms": 99,
+      "punch": 0.184
     },
     "ui.open": {
       "files": [
         "ui/open1",
         "ui/open2"
       ],
-      "ms": 124,
-      "punch": 0.1402
+      "ms": 137,
+      "punch": 0.1374
     },
     "ui.close": {
       "files": [
         "ui/close1",
         "ui/close2"
       ],
-      "ms": 103,
-      "punch": 0.1214
+      "ms": 88,
+      "punch": 0.1206
     },
     "ui.deny": {
       "files": [
         "ui/deny1",
         "ui/deny2"
       ],
-      "ms": 160,
-      "punch": 0.1498
+      "ms": 224,
+      "punch": 0.1388
     },
     "ui.tick": {
       "files": [
@@ -57,8 +57,8 @@
         "ui/tick2",
         "ui/tick3"
       ],
-      "ms": 40,
-      "punch": 0.1099
+      "ms": 29,
+      "punch": 0.1005
     },
     "ui.page": {
       "files": [
@@ -66,8 +66,8 @@
         "ui/page2",
         "ui/page3"
       ],
-      "ms": 77,
-      "punch": 0.1196
+      "ms": 84,
+      "punch": 0.1053
     },
     "board.place": {
       "files": [
@@ -75,24 +75,24 @@
         "board/place2",
         "board/place3"
       ],
-      "ms": 219,
-      "punch": 0.2623
+      "ms": 229,
+      "punch": 0.2413
     },
     "board.remove": {
       "files": [
         "board/remove1",
         "board/remove2"
       ],
-      "ms": 197,
-      "punch": 0.2209
+      "ms": 213,
+      "punch": 0.2026
     },
     "board.lift": {
       "files": [
         "board/lift1",
         "board/lift2"
       ],
-      "ms": 77,
-      "punch": 0.1024
+      "ms": 64,
+      "punch": 0.0967
     },
     "board.drop": {
       "files": [
@@ -100,64 +100,64 @@
         "board/drop2",
         "board/drop3"
       ],
-      "ms": 137,
-      "punch": 0.1713
+      "ms": 165,
+      "punch": 0.1575
     },
     "board.clone": {
       "files": [
         "board/clone1",
         "board/clone2"
       ],
-      "ms": 223,
-      "punch": 0.2415
+      "ms": 240,
+      "punch": 0.2219
     },
     "board.merge": {
       "files": [
         "board/merge1",
         "board/merge2"
       ],
-      "ms": 297,
-      "punch": 0.2413
+      "ms": 314,
+      "punch": 0.2225
     },
     "board.sweep": {
       "files": [
         "board/sweep1",
         "board/sweep2"
       ],
-      "ms": 315,
-      "punch": 0.216
+      "ms": 444,
+      "punch": 0.205
     },
     "board.undo": {
       "files": [
         "board/undo1",
         "board/undo2"
       ],
-      "ms": 115,
-      "punch": 0.1619
+      "ms": 92,
+      "punch": 0.1485
     },
     "board.redo": {
       "files": [
         "board/redo1",
         "board/redo2"
       ],
-      "ms": 113,
-      "punch": 0.1607
+      "ms": 91,
+      "punch": 0.1548
     },
     "board.pin": {
       "files": [
         "board/pin1",
         "board/pin2"
       ],
-      "ms": 120,
-      "punch": 0.1812
+      "ms": 108,
+      "punch": 0.166
     },
     "board.unpin": {
       "files": [
         "board/unpin1",
         "board/unpin2"
       ],
-      "ms": 104,
-      "punch": 0.161
+      "ms": 55,
+      "punch": 0.153
     },
     "board.adjust": {
       "files": [
@@ -165,23 +165,23 @@
         "board/adjust2",
         "board/adjust3"
       ],
-      "ms": 95,
-      "punch": 0.1612
+      "ms": 53,
+      "punch": 0.1471
     },
     "board.running": {
       "files": [
         "board/running1"
       ],
-      "ms": 155,
-      "punch": 0.141
+      "ms": 244,
+      "punch": 0.1295
     },
     "wire.grab": {
       "files": [
         "wire/grab1",
         "wire/grab2"
       ],
-      "ms": 47,
-      "punch": 0.1001
+      "ms": 45,
+      "punch": 0.0927
     },
     "wire.snap": {
       "files": [
@@ -189,8 +189,8 @@
         "wire/snap2",
         "wire/snap3"
       ],
-      "ms": 62,
-      "punch": 0.1287
+      "ms": 29,
+      "punch": 0.1234
     },
     "wire.item": {
       "files": [
@@ -198,8 +198,8 @@
         "wire/item2",
         "wire/item3"
       ],
-      "ms": 429,
-      "punch": 0.2227
+      "ms": 149,
+      "punch": 0.2026
     },
     "wire.fluid": {
       "files": [
@@ -207,8 +207,8 @@
         "wire/fluid2",
         "wire/fluid3"
       ],
-      "ms": 145,
-      "punch": 0.2218
+      "ms": 103,
+      "punch": 0.2063
     },
     "wire.power": {
       "files": [
@@ -216,78 +216,86 @@
         "wire/power2",
         "wire/power3"
       ],
-      "ms": 131,
-      "punch": 0.2214
+      "ms": 124,
+      "punch": 0.2041
     },
     "wire.cut": {
       "files": [
         "wire/cut1",
         "wire/cut2"
       ],
-      "ms": 176,
-      "punch": 0.1807
+      "ms": 120,
+      "punch": 0.1654
+    },
+    "wire.fluid_cut": {
+      "files": [
+        "wire/fluid_cut1",
+        "wire/fluid_cut2"
+      ],
+      "ms": 117,
+      "punch": 0.166
     },
     "wire.power_cut": {
       "files": [
         "wire/power_cut1",
         "wire/power_cut2"
       ],
-      "ms": 140,
-      "punch": 0.1815
+      "ms": 122,
+      "punch": 0.1665
     },
     "dial.tier": {
       "files": [
         "dial/tier1",
         "dial/tier2"
       ],
-      "ms": 106,
-      "punch": 0.1611
+      "ms": 64,
+      "punch": 0.1481
     },
     "screen.open": {
       "files": [
         "screen/open1"
       ],
-      "ms": 279,
-      "punch": 0.2015
+      "ms": 285,
+      "punch": 0.1851
     },
     "screen.close": {
       "files": [
         "screen/close1"
       ],
-      "ms": 185,
-      "punch": 0.1813
+      "ms": 261,
+      "punch": 0.1666
     },
     "note.stick": {
       "files": [
         "note/stick1",
         "note/stick2"
       ],
-      "ms": 86,
-      "punch": 0.1839
+      "ms": 121,
+      "punch": 0.1666
     },
     "note.crumple": {
       "files": [
         "note/crumple1",
         "note/crumple2"
       ],
-      "ms": 188,
-      "punch": 0.1852
+      "ms": 180,
+      "punch": 0.1655
     },
     "world.place": {
       "files": [
         "world/place1",
         "world/place2"
       ],
-      "ms": 215,
-      "punch": 0.2645
+      "ms": 285,
+      "punch": 0.2404
     },
     "world.remove": {
       "files": [
         "world/remove1",
         "world/remove2"
       ],
-      "ms": 154,
-      "punch": 0.2006
+      "ms": 164,
+      "punch": 0.185
     }
   }
 }
