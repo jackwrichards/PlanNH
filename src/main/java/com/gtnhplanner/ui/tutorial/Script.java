@@ -618,10 +618,14 @@ final class Script {
         beat(out).when(Script::libraryOpen, Steps.click(Targets.topKey("library")))
             .until(() -> !libraryOpen(), 2000)
             .opens(Targets.topKey("settings"))
+            .click(Targets.settingsSection("Minimap"))
             .clickUntil(Targets.popupRow("Show the minimap"), () -> "On".equals(Targets.setting("Show the minimap")), 2)
-            .clickUntil(Targets.popupRow("Size"), () -> "Large".equals(Targets.setting("Size")), 4)
-            .clickUntil(Targets.popupRow("Shape"), () -> "Square".equals(Targets.setting("Shape")), 2)
-            .clickUntil(Targets.popupRow("Position"), () -> "Top right".equals(Targets.setting("Position")), 4)
+            .clickUntil(Targets.settingChoice("Size", "Large"), () -> "Large".equals(Targets.setting("Size")), 2)
+            .clickUntil(Targets.settingChoice("Shape", "Square"), () -> "Square".equals(Targets.setting("Shape")), 2)
+            .clickUntil(
+                Targets.settingChoice("Position", "Top right"),
+                () -> "Top right".equals(Targets.setting("Position")),
+                2)
             .pause(200)
             .esc()
             .rest()

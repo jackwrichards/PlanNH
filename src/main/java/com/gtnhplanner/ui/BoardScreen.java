@@ -170,7 +170,10 @@ public final class BoardScreen extends ModularScreen {
                     fit("/t", "/s", "/min", "/hr"),
                     () -> session.setRateUnit(
                         session.rateUnit()
-                            .next())).marginLeft(GROUP_GAP)));
+                            .next()),
+                    step -> session.setRateUnit(
+                        session.rateUnit()
+                            .step(step))).marginLeft(GROUP_GAP)));
         topBar.child(
             named(
                 parts,
@@ -180,7 +183,8 @@ public final class BoardScreen extends ModularScreen {
                     () -> true,
                     "Show power as EU/t, or as amps at each machine's tier",
                     fit("EU/t", "Amps"),
-                    session::togglePowerKey)));
+                    session::togglePowerKey,
+                    step -> session.togglePowerKey())));
         topBar.child(
             named(
                 parts,
@@ -190,7 +194,8 @@ public final class BoardScreen extends ModularScreen {
                     () -> true,
                     "Average or peak power use (peak: every machine running at once)",
                     fit("Peak", "Avg"),
-                    session::togglePeakPower)));
+                    session::togglePeakPower,
+                    step -> session.togglePeakPower())));
         topBar.child(
             named(
                 parts,
@@ -214,11 +219,7 @@ public final class BoardScreen extends ModularScreen {
             named(
                 parts,
                 "settings",
-                iconKey(
-                    Arrow.GEAR,
-                    () -> true,
-                    "Settings",
-                    () -> com.gtnhplanner.ui.popup.SettingsPanel.open(panel, Integer.MAX_VALUE / 2, TOP_BAR + 2))));
+                iconKey(Arrow.GEAR, () -> true, "Settings", () -> com.gtnhplanner.ui.popup.SettingsPanel.open(panel))));
         topBar.child(
             named(
                 parts,
@@ -409,10 +410,42 @@ public final class BoardScreen extends ModularScreen {
         }
     }
 
+    /** A top-bar key the wheel steps too: +1 up, -1 down, with a tick. */
+    private static final class WheelKey extends ButtonWidget<WheelKey> {
+
+        private final BooleanSupplier enabled;
+        private final java.util.function.IntConsumer wheel;
+
+        WheelKey(final BooleanSupplier enabled, final java.util.function.IntConsumer wheel) {
+            this.enabled = enabled;
+            this.wheel = wheel;
+        }
+
+        @Override
+        public boolean onMouseScroll(final com.cleanroommc.modularui.api.UpOrDown direction, final int amount) {
+            if (!enabled.getAsBoolean()) return false;
+            final int step = direction == com.cleanroommc.modularui.api.UpOrDown.UP ? 1 : -1;
+            wheel.accept(step);
+            com.gtnhplanner.ui.sound.Sfx.TICK.play(step > 0 ? 1.12f : 0.9f);
+            return true;
+        }
+    }
+
     /** A top-bar key in the card's key style: a label, a tooltip, greyed when it can do nothing. */
     private static ButtonWidget<?> key(final Supplier<String> label, final BooleanSupplier enabled,
         final String tooltip, final int width, final Runnable action) {
-        final ButtonWidget<?> button = new ButtonWidget<>();
+        return key(label, enabled, tooltip, width, action, null);
+    }
+
+    /**
+     * As above, and the wheel over it steps it too ({@code wheel} gets +1 up, -1 down), as the card's chips do: the
+     * unit
+     * keys go round their choices.
+     */
+    private static ButtonWidget<?> key(final Supplier<String> label, final BooleanSupplier enabled,
+        final String tooltip, final int width, final Runnable action,
+        @org.jetbrains.annotations.Nullable final java.util.function.IntConsumer wheel) {
+        final ButtonWidget<?> button = wheel == null ? new ButtonWidget<>() : new WheelKey(enabled, wheel);
         button.size(width, 16)
             .background(
                 (IDrawable) (ctx, x, y, w, h, theme) -> {

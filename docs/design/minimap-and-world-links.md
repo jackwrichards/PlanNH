@@ -6,8 +6,9 @@ order they are built.
 ## 1. Settings, and names when zoomed out
 
 - A gear key on the top bar, beside "?", opens the settings (`ui/popup/SettingsPanel`), stored in
-  `config/gtnhplanner-settings.properties` (`ui/PlannerSettings`). A row is a setting's name and its value; click for
-  the next value, right-click for the one before.
+  `config/gtnhplanner-settings.properties` (`ui/PlannerSettings`): a box in the middle of the screen, its sections
+  down the left (Board, Sound, Minimap, In the world, Keys), each setting with the control that fits it (a switch, a
+  row of choices, a slider, a little screen for the minimap's corner). The wheel over a control steps it.
 - **Names when zoomed out**: past the glance zoom, every card's machine name and every drawer's resource name, small (a
   screen pixel per font pixel, two at large GUI scales) whatever the zoom, and no wider than what they name (a card's
   width, twice a drawer's; cut short with "..."). They are placed like map labels (`ui/canvas/ZoomedOutLabels`): drawn

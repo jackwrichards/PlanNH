@@ -78,8 +78,10 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   A selection outline shows only when several things are selected. Dragged cards and drawers stop against the others
   (`BoardCanvas.clearAt`; past one far enough, they jump through), notes pass over. While the plan has nothing set,
   every unpinned count says "(set count)" and every empty drawer "Set rate", pulsing gold together (`CardPaint.prompt`);
-  the count keeps its place, a line kept under it. Scrolling a pinned count below one unpins it. The gear's Board background makes the board, its
-  dots and the overview see-through (`Hyb.seeThrough`); cards and text stay solid.
+  the count keeps its place, a line kept under it. Scrolling a pinned count below one unpins it. The gear's See-through slider (0 to 100%) fades
+  the board, its dots and the overview (`Hyb.seeThrough`) down to nothing; cards and text stay solid. The gear opens
+  `ui/popup/SettingsPanel`, a centred box of sections. Drawers are drawn by `ui/drawer/DrawerPaint` (board and
+  minimap): the clean card's look in the website's shapes per kind (tank, crate, shield, bin).
   They are Factory Flow's text annotations (`kind: "text"`, its colour tags and font sizes), so they come in with an
   imported plan and go out with a posted one; they take no part in the solve, the wiring or Arrange.
 - The tour (`ui/tutorial/`, `docs/design/tutorial.md`): the "?" key's Take the tour, or the first-run offer (`TourOffer`:

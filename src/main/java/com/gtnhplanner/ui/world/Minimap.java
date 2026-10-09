@@ -398,8 +398,12 @@ public final class Minimap {
         final Fmt.RateUnit unit) {
         for (final PlanSnapshot.Box b : boxes) {
             final float x = ox + b.x() * z, y = oy + b.y() * z, w = b.w() * z, h = b.h() * z;
-            Hyb.rect(x, y, w, h, Hyb.mix(b.tint(), 0x262B34, 0.55f));
-            Hyb.rect(x + 1, y + 1, w - 2, h - 2, Hyb.mix(b.tint(), 0x101318, 0.24f));
+            Hyb.beginBatch();
+            com.gtnhplanner.ui.drawer.DrawerPaint
+                .shape(b.kind(), x, y, w, h, 0, com.gtnhplanner.ui.drawer.DrawerPaint.edge(b.kind()), z);
+            com.gtnhplanner.ui.drawer.DrawerPaint
+                .shape(b.kind(), x, y, w, h, -1, com.gtnhplanner.ui.drawer.DrawerPaint.fill(b.kind()), z);
+            Hyb.endBatch();
             final float side = Math.min(h - 4, w * 0.5f);
             if (side >= 6 && inMap(x + 2 + side / 2f, y + h / 2f)) {
                 if (b.power()) com.gtnhplanner.ui.card.RecipeCard.euIcon(x + 2, y + (h - side) / 2f, side);
@@ -407,7 +411,8 @@ public final class Minimap {
                 keepMask();
             }
             final String sign = b.rate() <= 0 ? "" : b.source() ? "-" : "+";
-            final int color = b.rate() <= 0 ? Hyb.MUTED : b.source() ? Hyb.SOURCE_INK : Hyb.PRODUCT_INK;
+            final int color = b.rate() <= 0 ? Hyb.MUTED
+                : com.gtnhplanner.ui.drawer.DrawerPaint.rateInk(b.kind(), b.rate());
             pill(sign + Fmt.brief(b.power() ? b.rate() / 20 : b.rate() * unit.perSecond), x, y, w, h, color);
             LABELS.drawer(b.label(), b.x(), b.y(), b.w(), b.h(), b.source(), b.rate());
         }

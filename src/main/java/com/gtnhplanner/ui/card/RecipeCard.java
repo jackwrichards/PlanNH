@@ -543,7 +543,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     }
 
     /** Rounds to the nearest half pixel: one screen pixel at the game's GUI scale 2, so text stays crisp. */
-    static float crisp(final float v) {
+    public static float crisp(final float v) {
         return Math.round(v * 2) / 2f;
     }
 

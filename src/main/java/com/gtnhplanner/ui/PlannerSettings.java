@@ -44,9 +44,6 @@ public final class PlannerSettings {
     public static final float[] MINIMAP_ZOOMS = { 0.04f, 0.06f, 0.09f, 0.13f, 0.18f, 0.25f, 0.35f, 0.5f, 0.71f, 1f };
     /** How far away linked machines show their AR panels, in blocks. */
     public static final int[] AR_RANGES = { 16, 32, 64, 128 };
-    /** How solid the board's and the overview's backgrounds are: see-through shows the game behind the planner. */
-    public static final String[] BACKGROUND_NAMES = { "Solid", "Mostly solid", "Half", "See-through" };
-    public static final float[] BACKGROUND_ALPHAS = { 1f, 0.85f, 0.6f, 0.35f };
     /** The planner's sounds against the vanilla click's loudness (Normal matches it). */
     public static final String[] SOUND_NAMES = { "Off", "Quiet", "Normal", "Loud" };
     public static final float[] SOUND_GAINS = { 0f, 0.5f, 1f, 1.7f };
@@ -188,16 +185,32 @@ public final class PlannerSettings {
 
     // region Background
 
-    public static int backgroundIndex() {
-        return clamp(integer("board.background", 0), BACKGROUND_ALPHAS.length);
+    /** The see-through slider's step, in percent. */
+    public static final int SEE_THROUGH_STEP = 5;
+    /**
+     * The old four steps (Solid, Mostly solid, Half, See-through), read once into the percent that replaced them;
+     * See-through comes over as all the way, as it was meant to show the game behind.
+     */
+    private static final int[] OLD_SEE_THROUGH = { 0, 15, 40, 100 };
+
+    /**
+     * How see-through the board's and the overview's backgrounds are, in percent: 0 solid, 100 nothing but the game
+     * behind the planner (its cards and text stay solid).
+     */
+    public static int seeThrough() {
+        final int fallback = load().getProperty("board.background") == null ? 0
+            : OLD_SEE_THROUGH[clamp(integer("board.background", 0), OLD_SEE_THROUGH.length)];
+        return Math.max(0, Math.min(100, integer("board.seeThrough", fallback)));
     }
 
-    public static void setBackgroundIndex(final int i) {
-        set("board.background", clamp(i, BACKGROUND_ALPHAS.length));
+    public static void setSeeThrough(final int percent) {
+        load().remove("board.background");
+        set("board.seeThrough", Math.max(0, Math.min(100, percent)));
     }
 
+    /** How solid the backgrounds are drawn, 0 to 1. */
     public static float backgroundAlpha() {
-        return BACKGROUND_ALPHAS[backgroundIndex()];
+        return 1f - seeThrough() / 100f;
     }
 
     // endregion

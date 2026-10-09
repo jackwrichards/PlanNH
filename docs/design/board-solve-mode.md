@@ -110,16 +110,22 @@ Only the settings that matter for this machine, from the machine profile GTNH Pl
 
 ## 3. Drawers
 
-120 x 80. Title bar: [−] delete, the resource name, and on products a [⟳] key that cycles
-product → byproduct → trash. Body: the slot icon and the signed rate in big digits (`−900 /hr` red for sources,
-`+540 /hr` green for products).
+116 x 54, drawn by `ui/drawer/DrawerPaint` in the clean card's look (its surface and 1 px edge, a breath of the
+kind's colour in both) and the website's shapes. A slim header: [−] delete, the resource name centred, and on all
+but sources a [⟳] key (the website's repeat sign) that cycles product → byproduct → trash. Body, as a card's port row:
+the resource (24 px) and beside it the signed rate in big digits (`-900 /hr` red for sources, `+540 /hr` green for
+products and byproducts, grey for trash).
 
-- **Source** (red frame, rounded): a rule button and a rate box. Typing a rate on Any switches the rule to Exactly.
-- **Product** (green frame, square): a rule button and a rate box, then a reading of what the plan actually makes
-  with a bar toward the target. Typing a rate on Any switches the rule to At least.
-- **Byproduct / Trash**: no rule; they show what arrives.
+- **Source** (red, a rounded tank): a rule key and a rate box under the rate. Typing a rate on Any switches the rule
+  to Exactly.
+- **Product** (green, a crate): the same; a line along the box's foot fills toward the target (green when met, red
+  when it can't be, slate for At most). Typing a rate on Any switches the rule to At least.
+- **Byproduct** (green, a shield: its base's corners cut off) / **Trash** (steel, a bin narrowing to its base): no
+  rule; the rate with "Surplus" or "Voided" under it.
 - **Rules**: `~ Any`, `≥ At least`, `= Exactly`, `≤ At most`. The rate box takes shorthand (`2.5k`, `1/3`) in the
-  board's unit. Empty, it reads `rate?` and pulses when the plan has nothing to solve for.
+  board's unit. Empty, it reads "Set rate" and pulses when the plan has nothing to solve for.
+- Wires still dock on the box: the shield's and the bin's cut corners leave a wire end a few pixels off the shape
+  near the base, as on the website.
 - A product whose target can't be met shows its box in red, and the notice names the limit.
 
 ## 4. Wires

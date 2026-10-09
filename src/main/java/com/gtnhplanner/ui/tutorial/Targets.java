@@ -606,6 +606,35 @@ public final class Targets {
 
     // endregion
 
+    /** A section's name down the left of the open settings. */
+    public static Target settingsSection(final String name) {
+        return () -> {
+            final com.gtnhplanner.ui.popup.SettingsPanel s = settings();
+            return s == null ? null : Rect.of(s.sectionRect(name));
+        };
+    }
+
+    /** One value's choice on a setting of the open settings ("Large" on Size, "Top right" on Position). */
+    public static Target settingChoice(final String label, final String choice) {
+        return () -> {
+            final com.gtnhplanner.ui.popup.SettingsPanel s = settings();
+            return s == null ? null : Rect.of(s.choiceRect(label, choice));
+        };
+    }
+
+    @Nullable
+    private static com.gtnhplanner.ui.popup.SettingsPanel settings() {
+        final BoardScreen b = board();
+        if (b == null) return null;
+        for (final ModularPanel p : b.getPanelManager()
+            .getOpenPanels()) {
+            if (!(p instanceof Popup)) continue;
+            for (final IWidget w : p.getChildren())
+                if (w instanceof final com.gtnhplanner.ui.popup.SettingsPanel settings) return settings;
+        }
+        return null;
+    }
+
     /** What a row of the open settings shows now; null when the settings are shut. */
     @Nullable
     static String setting(final String label) {

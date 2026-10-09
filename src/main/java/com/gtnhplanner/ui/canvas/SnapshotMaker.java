@@ -88,8 +88,7 @@ final class SnapshotMaker {
                     m.item,
                     m.fluid,
                     m.isPower(),
-                    m.kind == Drawer.Kind.SOURCE,
-                    DrawerCard.tint(m.kind),
+                    m.kind,
                     m.rate));
         }
         final List<PlanSnapshot.Line> lines = new ArrayList<>(wires.size());

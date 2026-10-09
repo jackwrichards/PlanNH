@@ -163,6 +163,11 @@ public final class Hyb {
         batchCount = 0;
     }
 
+    /** Whether a batch is open, so a drawing made of parts joins it rather than drawing its own. */
+    public static boolean batching() {
+        return batching;
+    }
+
     public static void endBatch() {
         batching = false;
         final int n = batchCount;

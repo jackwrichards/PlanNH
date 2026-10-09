@@ -25,6 +25,12 @@ public final class Fmt {
         public RateUnit next() {
             return values()[(ordinal() + 1) % values().length];
         }
+
+        /** A step along the units, round and round: up to a longer one (+1), down to a shorter (-1). */
+        public RateUnit step(final int step) {
+            final int n = values().length;
+            return values()[((ordinal() + step) % n + n) % n];
+        }
     }
 
     private static final String[] SUFFIXES = { "", "k", "M", "G", "T", "P" };

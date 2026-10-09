@@ -150,8 +150,8 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         hits.clear();
         final int w = getArea().width, h = getArea().height;
         Hyb.rect(0, 0, w, h, Hyb.seeThrough(0xFF202226));
-        // Its edge on the board: a dark line, a border rather than a seam.
-        Hyb.rect(w - 1, 0, 1, h, 0xFF0C0D10);
+        // Its edge on the board: a dark line, a border rather than a seam; as see-through as the rest.
+        Hyb.rect(w - 1, 0, 1, h, Hyb.seeThrough(0xFF0C0D10));
         if (!open) {
             drawFolded(h);
             session.setRailHoverKey(null);
@@ -314,7 +314,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
             return y + ROW_H + GAP;
         }
         final Fmt.RateUnit unit = session.rateUnit();
-        final int tint = ink & 0x00FFFFFF | 0x0D000000;
+        final int tint = Hyb.seeThrough(ink & 0x00FFFFFF | 0x0D000000);
         for (final BoardSession.TotalLine line : shown) {
             final boolean hot = hover != null && hover.data() == line
                 && (hover.kind() == Kind.RESOURCE || hover.kind() == Kind.ADD);
@@ -392,7 +392,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
     }
 
     /** The rule key and the rate box, as the drawer card wears them, at the right of a line. */
-    private static final int RULE_W = 20, BOX_W = 40, CONTROLS_W = RULE_W + 2 + BOX_W;
+    private static final int RULE_W = 20, BOX_W = 50, CONTROLS_W = RULE_W + 2 + BOX_W;
 
     private void drawerControls(final DrawerModel d, final int y, final int w, final Hit hover) {
         final int bx = w - 6 - BOX_W, rx = bx - 2 - RULE_W, h = 14;
@@ -414,7 +414,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         final Double wheeled = session.wheeledRate(d.drawer.getId());
         final double target = wheeled != null ? wheeled : d.target;
         final boolean empty = wheeled != null ? wheeled <= 0 : d.rule == Drawer.Rule.ANY || d.target <= 0;
-        if (empty) Hyb.text("Set rate", bx + 4, y + 3, 0xFF6F737C);
+        if (empty) Hyb.textCentered("Set rate", bx + BOX_W / 2f, y + 3, 0xFF6F737C);
         else {
             final Fmt.RateUnit unit = session.rateUnit();
             // In the line's own unit, as the number beside it.

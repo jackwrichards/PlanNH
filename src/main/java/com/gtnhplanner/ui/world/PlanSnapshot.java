@@ -51,7 +51,16 @@ public record PlanSnapshot(Graph graph, String planName, long graphVersion, List
 
     /** A drawer: its resource, kind (a source supplies, the rest take) and rate. */
     public record Box(UUID id, float x, float y, float w, float h, String label, @Nullable ItemStack item,
-        @Nullable FluidStack fluid, boolean power, boolean source, int tint, double rate) {}
+        @Nullable FluidStack fluid, boolean power, com.gtnhplanner.data.flowchart.Drawer.Kind kind, double rate) {
+
+        public boolean source() {
+            return kind == com.gtnhplanner.data.flowchart.Drawer.Kind.SOURCE;
+        }
+
+        public int tint() {
+            return com.gtnhplanner.ui.drawer.DrawerPaint.tint(kind);
+        }
+    }
 
     /**
      * A wire: its route on the board, colour and width; {@code flowing} false for one nothing moves along. Between two
