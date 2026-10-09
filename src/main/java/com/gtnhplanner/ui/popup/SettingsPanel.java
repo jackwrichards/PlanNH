@@ -113,12 +113,12 @@ public final class SettingsPanel extends Widget<SettingsPanel> implements Intera
         rows.add(Row.heading("IN THE WORLD"));
         rows.add(
             new Row(
-                "Show the plan over the world (AR)",
+                "Show the plan over the world (Shift+Y)",
                 () -> onOff(PlannerSettings.arLens()),
                 s -> PlannerSettings.setArLens(!PlannerSettings.arLens())));
         rows.add(
             new Row(
-                "Cards only where you look (Shift+Y)",
+                "Cards only where you look (Shift+U)",
                 () -> onOff(PlannerSettings.arFocus()),
                 s -> PlannerSettings.setArFocus(!PlannerSettings.arFocus())));
         rows.add(

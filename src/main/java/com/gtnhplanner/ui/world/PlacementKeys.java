@@ -20,12 +20,12 @@ import cpw.mods.fml.common.gameevent.InputEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
 
 /**
- * Adjusting a placed machine from the world. Hold sneak (Shift) with the crosshair on a placed machine and it is in
- * hand while sneak is held: R turns it about its middle, G picks it up to put down elsewhere (the picker, where [ and ]
- * size a structure that comes in sizes), and Delete takes it out of the world. Each is one undo step in its plan.
- * Moving
- * is picking up and putting down only: no keys nudge it, so the minimap keeps its arrows and [ ]. While the crosshair
- * is on a placed machine, or one is in hand, the keys show under the minimap.
+ * The plan over the world's keys, all with sneak (Shift) held, and their strip under the minimap. With a machine lit
+ * gold, it is in hand while sneak is held: R turns it about its middle, G picks it up to put down elsewhere (the
+ * picker, where [ and ] size a structure that comes in sizes), and Delete takes it out of the world, each one undo step
+ * in its plan. U turns Focus on and off; Y (the overlay's own key, with Shift or without) hides and shows the whole
+ * overlay. Moving is picking up and putting down only, so the minimap keeps its arrows and [ ]. With the overlay off
+ * none of this shows or acts: nothing is lit to act on.
  *
  * <p>
  * Sneak, not a key binding of its own: in 1.7.10 a key drives one binding, so one of ours on Shift would take it from
@@ -48,7 +48,7 @@ public final class PlacementKeys {
     /** Whether sneak is held in the world, not while placing. */
     static boolean adjusting() {
         final Minecraft mc = Minecraft.getMinecraft();
-        return sneaking() && mc.currentScreen == null && !LinkPicker.active();
+        return sneaking() && PlanOverlay.on() && mc.currentScreen == null && !LinkPicker.active();
     }
 
     /** Whether sneak is held: by its binding, or its key down (input the binding has not seen yet). */
@@ -89,16 +89,22 @@ public final class PlacementKeys {
 
     /**
      * The placement the keys act on: the one the plan over the world has lit gold (its card or its ghost under the
-     * crosshair, with the overlay's margins), else, with the overlay off, the placed block looked at.
+     * crosshair, with the overlay's margins); none with the overlay off.
      */
     @Nullable
     private static WorldLinks.Spot target() {
-        return PlanOverlay.on() ? PlanOverlay.highlighted() : WorldView.looked();
+        return PlanOverlay.on() ? PlanOverlay.highlighted() : null;
     }
 
     @SubscribeEvent
     public void onKey(final InputEvent.KeyInputEvent event) {
         if (!adjusting() || !Keyboard.getEventKeyState()) return;
+        // Focus needs no machine lit.
+        if (Keyboard.getEventKey() == Keyboard.KEY_U) {
+            com.gtnhplanner.ui.PlannerSettings.setArFocus(!com.gtnhplanner.ui.PlannerSettings.arFocus());
+            WorldView.say(com.gtnhplanner.ui.PlannerSettings.arFocus() ? "Focus: on" : "Focus: off");
+            return;
+        }
         // The key can come in the same tick as sneak, before the tick takes the placement in hand.
         grab();
         if (link == null) return;
@@ -167,14 +173,10 @@ public final class PlacementKeys {
     /** One line of the keys list: the keys, what they do, and whether they do anything now. */
     private record Item(String key, String what, boolean live) {}
 
-    /**
-     * Whether the keys strip shows: always while the plan is over the world, else while a placed machine is looked at
-     * or in hand; never over a screen, with the HUD hidden, or while placing.
-     */
+    /** Whether the keys strip shows: while the plan is over the world, not over a screen, the HUD hidden or placing. */
     static boolean stripShown() {
         final Minecraft mc = Minecraft.getMinecraft();
-        if (mc.currentScreen != null || mc.gameSettings.hideGUI || LinkPicker.active()) return false;
-        return PlanOverlay.on() || INSTANCE.link != null && adjusting() || target() != null;
+        return PlanOverlay.on() && mc.currentScreen == null && !mc.gameSettings.hideGUI && !LinkPicker.active();
     }
 
     /**
@@ -194,7 +196,8 @@ public final class PlacementKeys {
             new Item(shift + "R", "Rotate", some),
             new Item(shift + "G", "Pick up", some),
             new Item(shift + "Del", "Remove", some),
-            new Item(shift + "Y", "Focus", true));
+            new Item(shift + "U", "Focus", true),
+            new Item(shift + "Y", "Hide", true));
 
         final ScaledResolution sr = event.resolution;
         final int[] map = Minimap.bounds(sr);

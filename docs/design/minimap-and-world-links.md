@@ -60,16 +60,19 @@ plan show what the machines are doing.
   picks it up to put down elsewhere (the picker, its facing and size kept; [ ] size it there), and Delete or Backspace
   takes it out of the world. Each is one undo step in its plan; a turn onto another machine's spot is refused. The
   machine lit is the one the plan over the world lights, with all its margins: its card under the crosshair, or its
-  ghost (`PlanOverlay.highlighted`); with the overlay off, the placed block looked at. Moving is picking up and putting
+  ghost (`PlanOverlay.highlighted`); with the overlay off, none. Moving is picking up and putting
   down only, so the minimap keeps its arrows and [ ]. Sneak rather than a binding of ours: in 1.7.10 a key drives one
   binding, so one on Shift would take it from sneaking; held is its binding pressed or its key down.
 - The keys are listed in a narrow see-through strip at the right under the minimap, touching it (above it in a
-  bottom corner, in its corner when it is off), always while the plan is over the world and else while a placed
-  machine is looked at, one word each: Shift + R Rotate, Shift + G Pick up, Shift + Del Remove, Shift + Y Focus. The
-  first three are dim while no machine is lit; Focus is gold while it is on. The last thing done ("Removed ...",
-  "Cards only where you look") is its last line for four seconds, in place of the note at the top of the screen. The
-  strip and the minimap share one backing, a little see-through (`Minimap.BACKING`); the minimap's frame is drawn as
-  rings beside its fill, never over it, so the see-through stays even.
+  bottom corner, in its corner when it is off), while the plan is over the world, one word each: Shift + R Rotate,
+  Shift + G Pick up, Shift + Del Remove, Shift + U Focus, Shift + Y Hide. The first three are dim while no machine is
+  lit; Focus is gold while it is on. The last thing done ("Removed ...", "Focus: on") is its last line for four
+  seconds, in place of the note at the top of the screen. The strip and the minimap share one backing, a little
+  see-through (`Minimap.BACKING`); the minimap's frame is drawn as rings beside its fill, never over it, so the
+  see-through stays even.
+- Shift + Y (or Y alone: the overlay's key in Controls) hides and shows the whole plan over the world, not the
+  minimap: its ghosts, cards, wires and the keys strip. Hidden, nothing of it shows or pops up, and Rotate, Pick up and
+  Remove do nothing (nothing is lit to act on); the note "Plan over the world: off" shows at the top.
 - While a machine is being placed or moved, the plan over the world stays: its card and wires go where it would be put
   down, following the crosshair as a card being dragged on the board, and the rest stay where they are; where it was
   is empty while it is in hand (all of a card's spots for its first placing, the one picked up for a move).
@@ -90,7 +93,7 @@ plan show what the machines are doing.
 ## 5. The plan over the world (AR)
 
 `ui/world/PlanOverlay`, toggled with Y and in the settings ("Show the plan over the world (AR)", "How far to show it").
-Shift+Y, Focus (or "Cards only where you look" in the settings), shows a card only while you look at or near its machine: whole
+Shift+U, Focus (or "Cards only where you look" in the settings), shows a card only while you look at or near its machine: whole
 with the crosshair within 28 GUI pixels of the machine's outline on the screen, fading out smoothly to nothing at 150,
 easing in and out over a few frames; a wire shows as much as the more shown of its two cards. The card in hand and the
 card looked at always show. Cards are faded whole through `Hyb.fadeOut`, which every colour, text and picture `Hyb`

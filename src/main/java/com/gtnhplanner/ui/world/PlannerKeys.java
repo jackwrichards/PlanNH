@@ -46,13 +46,10 @@ public final class PlannerKeys {
     public void onKey(final InputEvent.KeyInputEvent event) {
         if (Minecraft.getMinecraft().currentScreen != null) return;
         while (MINIMAP.isPressed()) PlannerSettings.setMinimap(!PlannerSettings.minimap());
+        // The plan over the world on and off, with sneak held or not (Shift + Y in the keys strip).
         while (AR.isPressed()) {
-            // With sneak held: every card, or only where you look.
-            if (PlacementKeys.sneaking()) {
-                PlannerSettings.setArFocus(!PlannerSettings.arFocus());
-                if (!PlannerSettings.arLens()) PlannerSettings.setArLens(true);
-                WorldView.say(PlannerSettings.arFocus() ? "Cards only where you look" : "Every card");
-            } else PlannerSettings.setArLens(!PlannerSettings.arLens());
+            PlannerSettings.setArLens(!PlannerSettings.arLens());
+            WorldView.say(PlannerSettings.arLens() ? "Plan over the world: on" : "Plan over the world: off");
         }
         while (LINK.isPressed()) LinkTarget.beginForCrosshair();
         // Placing a machine takes [ and ] for its size.

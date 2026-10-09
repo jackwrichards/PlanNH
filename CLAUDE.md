@@ -76,8 +76,8 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   wires as connectors. Multiblocks show as their whole structure (`ui/gt/StructureGhosts`), drawn every frame from a
   kept fake world: display lists of block rendering come out invisible under Angelica. They are built as the card needs
   them (its coil, a tower's height, a line's length) through GregTech's structure channels. Placed machines are adjusted
-  from the world with sneak held (`PlacementKeys`: R turn, G pick up and move, Del remove); Shift+Y shows cards only
-  where you look. World code never loads the plans (`Plan.loaded()`). The earlier lens of every machine's live
+  from the world with sneak held (`PlacementKeys`: R turn, G pick up and move, Del remove, U Focus: cards only where you
+  look, Y hides the whole overlay). World code never loads the plans (`Plan.loaded()`). The earlier lens of every machine's live
   state is shelved on `shelf/ar-machine-lens`. Settings are the top bar's gear (`PlannerSettings`).
 - Multiblock pictures in `assets/gtnhplanner/textures/structures/` are Factory Flow's renders (`public/power-art`: the
   owner's processing multiblocks and the Power Planner workbook's power plants), scaled to 320 px palette PNGs with
