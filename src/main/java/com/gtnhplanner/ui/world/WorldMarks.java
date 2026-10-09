@@ -3,8 +3,11 @@ package com.gtnhplanner.ui.world;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.entity.RenderManager;
+import net.minecraft.item.ItemStack;
 
 import org.lwjgl.opengl.GL11;
+
+import com.gtnhplanner.ui.gt.StructureGhosts;
 
 /**
  * Drawing marks in the world, between {@link #begin()} and {@link #end()} in a world-last render: block outlines that
@@ -129,38 +132,35 @@ final class WorldMarks {
     }
 
     /**
-     * What a machine placed on (x, y, z) facing that way fills: its block, or its whole structure once its ghost is
-     * built. {x0, y0, z0, x1, y1, z1}.
+     * What a machine placed on (x, y, z) facing that way fills: its block, or its whole structure (as its card needs
+     * it, at {@code size}, 0 as its recipe needs) once its ghost is built. {x0, y0, z0, x1, y1, z1}.
      */
-    static double[] extent(@javax.annotation.Nullable final net.minecraft.item.ItemStack machine, final int x,
-        final int y, final int z, final int facing) {
-        final com.gtnhplanner.ui.gt.StructureGhosts.Ghost structure = com.gtnhplanner.ui.gt.StructureGhosts
-            .peek(machine);
+    static double[] extent(@javax.annotation.Nullable final ItemStack machine, final StructureGhosts.Needs needs,
+        final int size, final int x, final int y, final int z, final int facing) {
+        final StructureGhosts.Ghost structure = StructureGhosts.peek(machine, needs, size);
         final double[] b = structure == null ? new double[] { 0, 0, 0, 1, 1, 1 } : structure.box(facing);
         return new double[] { x + b[0], y + b[1], z + b[2], x + b[3], y + b[4], z + b[5] };
     }
 
     /**
      * A machine's ghost's first pass: a multiblock's nearest faces into the depth buffer (see
-     * {@link com.gtnhplanner.ui.gt.StructureGhosts#depth}); nothing for a single block. Every ghost's before any's
-     * {@link #machineGhost}.
+     * {@link StructureGhosts#depth}); nothing for a single block. Every ghost's before any's {@link #machineGhost}.
      */
-    static void ghostDepth(final net.minecraft.item.ItemStack machine, final int x, final int y, final int z,
-        final int facing) {
-        final com.gtnhplanner.ui.gt.StructureGhosts.Ghost structure = com.gtnhplanner.ui.gt.StructureGhosts
-            .get(machine);
-        if (structure != null) com.gtnhplanner.ui.gt.StructureGhosts.depth(structure, x, y, z, facing);
+    static void ghostDepth(final ItemStack machine, final StructureGhosts.Needs needs, final int size, final int x,
+        final int y, final int z, final int facing) {
+        final StructureGhosts.Ghost structure = StructureGhosts.get(machine, needs, size);
+        if (structure != null) StructureGhosts.depth(structure, x, y, z, facing);
     }
 
     /**
-     * A placed machine's ghost: its whole structure, turned to {@code facing}, when it is a GregTech multiblock that
-     * can be ghosted (its outside, after {@link #ghostDepth}); else its block, unless {@code builtHere}.
+     * A placed machine's ghost: its whole structure as its card needs it, turned to {@code facing}, when it is a
+     * GregTech multiblock that can be ghosted (its outside, after {@link #ghostDepth}); else its block, unless
+     * {@code builtHere}.
      */
-    static void machineGhost(final net.minecraft.item.ItemStack machine, final int x, final int y, final int z,
-        final int facing, final boolean builtHere) {
-        final com.gtnhplanner.ui.gt.StructureGhosts.Ghost structure = com.gtnhplanner.ui.gt.StructureGhosts
-            .get(machine);
-        if (structure != null) com.gtnhplanner.ui.gt.StructureGhosts.colour(structure, x, y, z, facing);
+    static void machineGhost(final ItemStack machine, final StructureGhosts.Needs needs, final int size, final int x,
+        final int y, final int z, final int facing, final boolean builtHere) {
+        final StructureGhosts.Ghost structure = StructureGhosts.get(machine, needs, size);
+        if (structure != null) StructureGhosts.colour(structure, x, y, z, facing);
         else if (!builtHere) ghost(machine, x, y, z);
     }
 

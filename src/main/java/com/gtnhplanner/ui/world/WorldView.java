@@ -62,6 +62,13 @@ public final class WorldView {
 
     private WorldView() {}
 
+    /** The placed spot under the crosshair this tick (a structure anywhere on it), or null. */
+    @Nullable
+    static WorldLinks.Spot looked() {
+        final WorldLinks.Hit hit = INSTANCE.look;
+        return hit == null ? null : new WorldLinks.Spot(hit, INSTANCE.lookX, INSTANCE.lookY, INSTANCE.lookZ, 0);
+    }
+
     /** Outlines a card's blocks for a while, with beams to find them by; the planner closes. */
     public static void show(final Graph graph, final UUID nodeId) {
         INSTANCE.shownGraph = graph;
@@ -131,12 +138,14 @@ public final class WorldView {
             if (hit != null) {
                 final int[] at = LinkPicker.spot(hit);
                 final net.minecraft.item.ItemStack machine = LinkPicker.machine();
+                final com.gtnhplanner.ui.gt.StructureGhosts.Needs needs = LinkPicker.needs();
+                final int size = LinkPicker.size(), facing = LinkPicker.facing();
                 if (machine != null) {
-                    WorldMarks.ghostDepth(machine, at[0], at[1], at[2], LinkPicker.facing());
-                    WorldMarks.machineGhost(machine, at[0], at[1], at[2], LinkPicker.facing(), false);
+                    WorldMarks.ghostDepth(machine, needs, size, at[0], at[1], at[2], facing);
+                    WorldMarks.machineGhost(machine, needs, size, at[0], at[1], at[2], facing, false);
                 }
                 WorldMarks.outline(
-                    WorldMarks.extent(machine, at[0], at[1], at[2], LinkPicker.facing()),
+                    WorldMarks.extent(machine, needs, size, at[0], at[1], at[2], facing),
                     Hyb.LIT & 0xFFFFFF,
                     0.004f,
                     1.5f,

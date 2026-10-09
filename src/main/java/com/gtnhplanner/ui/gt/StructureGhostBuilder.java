@@ -2,6 +2,8 @@ package com.gtnhplanner.ui.gt;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
@@ -15,6 +17,8 @@ import org.joml.Vector3f;
 import org.lwjgl.opengl.GL11;
 
 import blockrenderer6343.client.world.TrackedDummyWorld;
+import gregtech.api.GregTechAPI;
+import gregtech.api.enums.HeatingCoilLevel;
 
 /**
  * Builds and draws a multiblock's ghost: the structure placed in BlockRenderer6343's fake world as the card's picture
@@ -29,13 +33,80 @@ final class StructureGhostBuilder {
     /** A structure as built: its world, its renderer, and each block as {dx, dy, dz} from the controller. */
     record Built(TrackedDummyWorld world, RenderBlocks render, List<int[]> blocks) {}
 
+    /**
+     * A structure that comes in sizes: its channel, how many steps it has (the Hologram Projector's 1 the smallest),
+     * and how a card's recipe picks one, by its fluid outputs or item inputs (none: the smallest), with how many the
+     * smallest holds.
+     */
+    private record Sizing(String channel, int steps, boolean byFluids, boolean byItems, int smallestHolds) {
+
+        /** The step a card's recipe needs: one more for each output or input past what the smallest holds. */
+        int forNeeds(final StructureGhosts.Needs needs) {
+            final int count = byFluids ? needs.fluidOutputs() : byItems ? needs.itemInputs() : 0;
+            return Math.max(1, Math.min(steps, count - smallestHolds + 1));
+        }
+    }
+
+    /**
+     * The structures that come in sizes, by their GregTech class, and how (read from each one's {@code construct}): a
+     * distillation tower is its base and a layer for each fluid output, 3 to 12 high; an assembly line a slice for each
+     * item input, 5 to 16 long; the mega tower's layers hold its outputs by a rule of their own, so it starts at its
+     * smallest.
+     */
+    private static final Map<String, Sizing> SIZINGS = Map.of(
+        "MTEDistillationTower",
+        new Sizing("height", 10, true, false, 2),
+        "MTEAdvDistillationTower",
+        new Sizing("height", 10, true, false, 2),
+        "MTEMegaDistillationTower",
+        new Sizing("height", 5, false, false, 0),
+        "MTEMegaDistillTowerLegacy",
+        new Sizing("height", 5, false, false, 0),
+        "MTEAssemblyLine",
+        new Sizing("length", 12, false, true, 5),
+        "MTEAdvAssLine",
+        new Sizing("length", 12, false, true, 5));
+
     private StructureGhostBuilder() {}
 
-    /** The ghost of one controller's structure, or null when it has none to show or is too big. Render thread only. */
-    static StructureGhosts.Ghost build(final int meta) {
+    @javax.annotation.Nullable
+    private static Sizing sizing(final int meta) {
+        final Object machine = GregTechAPI.METATILEENTITIES[meta];
+        return machine == null ? null
+            : SIZINGS.get(
+                machine.getClass()
+                    .getSimpleName());
+    }
+
+    /**
+     * The structure channels a controller is built with for a card's needs at a size (0: as its recipe needs), in
+     * order: the coil's tier (1 cupronickel, as GregTech counts them) and the size's step, where it has them.
+     */
+    static Map<String, Integer> channels(final int meta, final StructureGhosts.Needs needs, final int size) {
+        final Map<String, Integer> out = new TreeMap<>();
+        if (needs.coilHeat() > 0) {
+            for (final HeatingCoilLevel level : HeatingCoilLevel.values()) {
+                if (level != HeatingCoilLevel.None && level.getHeat() == needs.coilHeat()) {
+                    out.put("coil", level.ordinal() - 1);
+                }
+            }
+        }
+        final Sizing sizing = sizing(meta);
+        if (sizing != null) {
+            out.put(sizing.channel(), size > 0 ? Math.min(size, sizing.steps()) : sizing.forNeeds(needs));
+        }
+        return out;
+    }
+
+    /**
+     * The ghost of one controller's structure as a card needs it at a size (0: as its recipe needs), or null when it
+     * has none to show or is too big. Render thread only.
+     */
+    static StructureGhosts.Ghost build(final int meta, final StructureGhosts.Needs needs, final int size) {
+        final Map<String, Integer> channels = channels(meta, needs, size);
         final TrackedDummyWorld world = new TrackedDummyWorld();
         world.updateEntitiesForNEI();
-        MultiblockRenderer.place(world, meta);
+        MultiblockRenderer.place(world, meta, channels);
         final int count = world.blockMap.size();
         if (count <= 1 || count > MultiblockRenderer.MAX_BLOCKS) return null;
         final Vector3f min = world.getMinPos(), max = world.getMaxPos();
@@ -56,6 +127,7 @@ final class StructureGhostBuilder {
                     maxY = Math.max(maxY, dy);
                     maxZ = Math.max(maxZ, dz);
                 }
+        final Sizing sizing = sizing(meta);
         return new StructureGhosts.Ghost(
             new Built(world, new RenderBlocks(world), blocks),
             blocks.size(),
@@ -64,7 +136,9 @@ final class StructureGhostBuilder {
             minZ,
             maxX,
             maxY,
-            maxZ);
+            maxZ,
+            sizing == null ? 0 : channels.get(sizing.channel()),
+            sizing == null ? 0 : sizing.steps());
     }
 
     /**

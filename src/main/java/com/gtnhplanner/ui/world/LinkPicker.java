@@ -14,21 +14,25 @@ import net.minecraftforge.client.event.GuiOpenEvent;
 import net.minecraftforge.client.event.MouseEvent;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 
+import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 
 import com.gtnhplanner.data.flowchart.Graph;
 import com.gtnhplanner.data.flowchart.Node;
 import com.gtnhplanner.ui.Planner;
+import com.gtnhplanner.ui.gt.StructureGhosts;
 import com.gtnhplanner.ui.theme.Hyb;
 
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
+import cpw.mods.fml.common.gameevent.InputEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
 
 /**
  * Placing a plan card in the world. Started from the card's place key: the planner closes, and the card's machine shows
- * as a ghost on an imaginary block in front of the face under the crosshair; a left-click places the card there (taking
- * the spot from any other card), and the player stays in the world. A right-click or Esc gives up; opening the planner
- * ends it too.
+ * as a ghost on an imaginary block in front of the face under the crosshair (a multiblock standing on it); a left-click
+ * places the card there (taking the spot from any other card), and the player stays in the world. R turns it, [ and ]
+ * size a structure that comes in sizes. A right-click or Esc gives up; opening the planner ends it too. Also picks up
+ * one placement to put it down elsewhere ({@link #move}).
  */
 public final class LinkPicker {
 
@@ -41,8 +45,17 @@ public final class LinkPicker {
     private String name = "";
     @Nullable
     private ItemStack machine;
+    private StructureGhosts.Needs needs = StructureGhosts.Needs.NONE;
     /** How many of the card's machines can be placed, and how many have been this time. */
     private int max = 1, placed;
+    /**
+     * Quarter turns clockwise from the facing it takes (toward the player, or a moved placement's own), and the
+     * structure's size (0: as its recipe needs).
+     */
+    private int turn, size;
+    /** The placement being moved, or null when placing. */
+    @Nullable
+    private int[] moving;
     /** Set from a menu or an event: the screen changes on the next tick, outside them. */
     private boolean starting, finishing;
 
@@ -53,13 +66,31 @@ public final class LinkPicker {
      * next tick.
      */
     public static void start(final Graph graph, final UUID nodeId, final String name, @Nullable final ItemStack machine,
-        final int machines) {
+        final StructureGhosts.Needs needs, final int machines) {
+        begin(graph, nodeId, name, machine, needs);
+        INSTANCE.max = Math.max(1, machines);
+    }
+
+    /** Picks up one of a card's placements, to put it down elsewhere as it is (its facing and size kept). */
+    static void move(final Graph graph, final UUID nodeId, final String name, @Nullable final ItemStack machine,
+        final StructureGhosts.Needs needs, final int[] link) {
+        begin(graph, nodeId, name, machine, needs);
+        INSTANCE.moving = link.clone();
+        INSTANCE.size = WorldLinks.size(link);
+    }
+
+    private static void begin(final Graph graph, final UUID nodeId, final String name,
+        @Nullable final ItemStack machine, final StructureGhosts.Needs needs) {
         INSTANCE.graph = graph;
         INSTANCE.nodeId = nodeId;
         INSTANCE.name = name == null ? "" : name;
         INSTANCE.machine = machine;
-        INSTANCE.max = Math.max(1, machines);
+        INSTANCE.needs = needs == null ? StructureGhosts.Needs.NONE : needs;
+        INSTANCE.max = 1;
         INSTANCE.placed = 0;
+        INSTANCE.turn = 0;
+        INSTANCE.size = 0;
+        INSTANCE.moving = null;
         INSTANCE.starting = true;
         INSTANCE.finishing = false;
     }
@@ -72,6 +103,28 @@ public final class LinkPicker {
     @Nullable
     static ItemStack machine() {
         return INSTANCE.machine;
+    }
+
+    /** The placement picked up to move, while it is: it shows where it goes, not where it was. Else null. */
+    @Nullable
+    static int[] moving() {
+        return active() ? INSTANCE.moving : null;
+    }
+
+    /** What the card being placed asks of its structure. */
+    static StructureGhosts.Needs needs() {
+        return INSTANCE.needs;
+    }
+
+    /** The size the structure being placed is set to: 0 for as its recipe needs. */
+    static int size() {
+        return INSTANCE.size;
+    }
+
+    /** The structure being placed, once its ghost is built; null for a single block. */
+    @Nullable
+    static StructureGhosts.Ghost ghost() {
+        return StructureGhosts.peek(INSTANCE.machine, INSTANCE.needs, INSTANCE.size);
     }
 
     /** How far the crosshair reaches when placing: past the game's reach, to stand back from a big structure. */
@@ -92,14 +145,19 @@ public final class LinkPicker {
      */
     static int[] spot(final MovingObjectPosition hit) {
         final int[] at = WorldLinks.inFront(hit);
-        at[1] += com.gtnhplanner.ui.gt.StructureGhosts.lift(INSTANCE.machine);
+        at[1] += StructureGhosts.lift(INSTANCE.machine, INSTANCE.needs, INSTANCE.size);
         return at;
     }
 
-    /** The way the machine being placed would face: its front toward the player. */
+    /**
+     * The way the machine being placed would face: its front toward the player (a moved one as it faced), turned by R.
+     */
     static int facing() {
+        final int[] was = INSTANCE.moving;
         final net.minecraft.entity.EntityLivingBase eye = Minecraft.getMinecraft().renderViewEntity;
-        return eye == null ? 0 : WorldLinks.facingToward(eye.rotationYaw);
+        final int base = was != null ? WorldLinks.facing(was)
+            : eye == null ? 0 : WorldLinks.facingToward(eye.rotationYaw);
+        return (base + INSTANCE.turn) & 3;
     }
 
     /** The card being placed, while picking. */
@@ -112,6 +170,7 @@ public final class LinkPicker {
         graph = null;
         nodeId = null;
         machine = null;
+        moving = null;
         starting = finishing = false;
     }
 
@@ -127,6 +186,32 @@ public final class LinkPicker {
             starting = false;
             mc.displayGuiScreen(null);
         } else if (finishing) stop();
+    }
+
+    /** R turns what is being placed (Shift: the other way); [ and ] size a structure that comes in sizes. */
+    @SubscribeEvent
+    public void onKey(final InputEvent.KeyInputEvent event) {
+        if (!active() || Minecraft.getMinecraft().currentScreen != null || !Keyboard.getEventKeyState()) return;
+        switch (Keyboard.getEventKey()) {
+            case Keyboard.KEY_R -> {
+                turn = (turn + (PlacementKeys.shift() ? 3 : 1)) & 3;
+                Hyb.click();
+            }
+            case Keyboard.KEY_LBRACKET -> resize(-1);
+            case Keyboard.KEY_RBRACKET -> resize(1);
+            default -> {}
+        }
+    }
+
+    private void resize(final int step) {
+        final StructureGhosts.Ghost g = ghost();
+        if (g == null || !g.sized()) return;
+        final int next = Math.max(1, Math.min(g.sizes(), g.size() + step));
+        if (next == g.size()) return;
+        // Back at the size its recipe needs, it follows the recipe again.
+        final StructureGhosts.Ghost auto = StructureGhosts.get(machine, needs, 0);
+        size = auto != null && auto.size() == next ? 0 : next;
+        Hyb.click();
     }
 
     /** Left-click places the card on the block; right-click gives up. Neither reaches the game while picking. */
@@ -155,11 +240,17 @@ public final class LinkPicker {
         final MovingObjectPosition hit = aim();
         if (node == null || hit == null) return;
         final int[] at = spot(hit);
-        // The first spot this time replaces where the card was; the rest are its other machines.
-        final WorldLinks.Hit was = WorldLinks
-            .assign(graph, node, mc.theWorld.provider.dimensionId, at[0], at[1], at[2], facing(), placed > 0);
-        placed++;
+        final int dim = mc.theWorld.provider.dimensionId;
         Hyb.click();
+        if (moving != null) {
+            WorldLinks.relink(graph, node, moving, WorldLinks.link(dim, at[0], at[1], at[2], facing(), size), true);
+            WorldView.say("Moved " + name + " to " + at[0] + ", " + at[1] + ", " + at[2]);
+            finishing = true;
+            return;
+        }
+        // The first spot this time replaces where the card was; the rest are its other machines.
+        final WorldLinks.Hit was = WorldLinks.assign(graph, node, dim, at[0], at[1], at[2], facing(), size, placed > 0);
+        placed++;
         WorldView.say(
             "Placed " + name
                 + (max > 1 ? " " + placed + " of " + max : "")
@@ -216,10 +307,13 @@ public final class LinkPicker {
         if (event.type != RenderGameOverlayEvent.ElementType.ALL || !active()) return;
         final Minecraft mc = Minecraft.getMinecraft();
         if (mc.currentScreen != null || mc.gameSettings.hideGUI) return;
-        final String title = "Place " + name + (max > 1 ? ": " + (placed + 1) + " of " + max : "");
-        final String how = placed == 0
-            ? "Click a block face to place it in front of it, facing you. Right-click or Esc to cancel."
-            : "Click for the next one. Right-click or Esc to stop here.";
+        final StructureGhosts.Ghost g = ghost();
+        final String title = (moving != null ? "Move " : "Place ") + name
+            + (max > 1 ? ": " + (placed + 1) + " of " + max : "")
+            + (g == null ? "" : "   " + dimensions(g));
+        final String how = placed > 0 ? "Click for the next one. R turns it. Right-click or Esc to stop here."
+            : "Click a block face to place it there. R turns it" + (g != null && g.sized() ? ", [ ] sizes it" : "")
+                + ". Right-click or Esc to cancel.";
         final int w = Math.max(Hyb.width(title) + 22, Hyb.width(how)) + 12, h = 29;
         final float x = (event.resolution.getScaledWidth() - w) / 2f, y = 6;
         Hyb.rect(x - 1, y - 1, w + 2, h + 2, Hyb.FRAME);
@@ -230,6 +324,11 @@ public final class LinkPicker {
         Hyb.text(how, x + 6, y + 17, Hyb.MUTED);
         GL11.glColor4f(1, 1, 1, 1);
         GL11.glEnable(GL11.GL_TEXTURE_2D);
+    }
+
+    /** A structure's size in blocks, across, high and deep as it faces you: "3 x 7 x 3". */
+    static String dimensions(final StructureGhosts.Ghost g) {
+        return (g.maxX() - g.minX() + 1) + " x " + (g.maxY() - g.minY() + 1) + " x " + (g.maxZ() - g.minZ() + 1);
     }
 
     // endregion

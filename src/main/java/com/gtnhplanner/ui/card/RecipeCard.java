@@ -1451,6 +1451,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                     node.id,
                     placeName(),
                     model.machineStack,
+                    CardModel.structureNeeds(models),
                     (int) Math.min(64, Math.ceil(machinesTotal() - 1e-9)));
                 else if (mouseButton == 1 && placed()) com.gtnhplanner.ui.world.WorldLinks.clear(session.graph(), node);
             }

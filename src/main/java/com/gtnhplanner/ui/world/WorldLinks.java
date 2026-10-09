@@ -91,7 +91,14 @@ public final class WorldLinks {
     @Nullable
     public static Hit assign(final Graph graph, final Node node, final int dim, final int x, final int y, final int z,
         final int facing, final boolean another) {
-        final int[] at = { dim, x, y, z, facing };
+        return assign(graph, node, dim, x, y, z, facing, 0, another);
+    }
+
+    /** As {@link #assign(Graph, Node, int, int, int, int, int, boolean)}, a structure set to a size (0: none set). */
+    @Nullable
+    public static Hit assign(final Graph graph, final Node node, final int dim, final int x, final int y, final int z,
+        final int facing, final int size, final boolean another) {
+        final int[] at = link(dim, x, y, z, facing, size);
         Hit was = null;
         for (final Graph g : Plan.getInstance()
             .getGraphs()) {
@@ -104,7 +111,8 @@ public final class WorldLinks {
         final Node holder = holder(graph, at, node);
         if (holder != null) was = new Hit(graph, holder);
         final boolean there = node.worldLinks.size() == 1 && indexOf(node, dim, x, y, z) == 0
-            && facing(node.worldLinks.get(0)) == facing;
+            && facing(node.worldLinks.get(0)) == facing
+            && size(node.worldLinks.get(0)) == size;
         if (holder != null || !there) PlanAPI.recordEdit(graph, () -> moveWithin(graph, node, at, another));
         PlanAPI.save();
         return was;
@@ -134,6 +142,46 @@ public final class WorldLinks {
             if (!another) keep.worldLinks.clear();
             keep.worldLinks.add(at.clone());
         }
+    }
+
+    /**
+     * Puts one of a card's placements elsewhere, turned or sized: {@code from} becomes {@code to}, as one edit. With
+     * {@code take} it takes the spot from any card that has it, as placing does; without, it is refused (false) when
+     * another card, or another of this card's machines, is there.
+     */
+    public static boolean relink(final Graph graph, final Node node, final int[] from, final int[] to,
+        final boolean take) {
+        final int i = indexOf(node, from[0], from[1], from[2], from[3]);
+        if (i < 0) return false;
+        final int[] now = to.clone();
+        final boolean same = from[0] == to[0] && from[1] == to[1] && from[2] == to[2] && from[3] == to[3];
+        if (!same) {
+            for (final Graph g : Plan.getInstance()
+                .getGraphs()) {
+                final Node holder = holder(g, now, null);
+                if (holder == null) continue;
+                if (!take) return false;
+                if (g != graph) PlanAPI.recordEdit(g, () -> moveWithin(g, null, now));
+            }
+        }
+        PlanAPI.recordEdit(graph, () -> {
+            if (!same) for (final Node n : graph.nodes.values())
+                n.worldLinks.removeIf(l -> l[0] == now[0] && l[1] == now[1] && l[2] == now[2] && l[3] == now[3]);
+            final int at = indexOf(node, from[0], from[1], from[2], from[3]);
+            if (at >= 0) node.worldLinks.set(at, now);
+        });
+        PlanAPI.save();
+        return true;
+    }
+
+    /** A placement: {dim, x, y, z, facing}, and a structure's size when one is set (above 0). */
+    static int[] link(final int dim, final int x, final int y, final int z, final int facing, final int size) {
+        return size > 0 ? new int[] { dim, x, y, z, facing & 3, size } : new int[] { dim, x, y, z, facing & 3 };
+    }
+
+    /** A placement's structure size: the step set for it, 0 for as its recipe needs. */
+    public static int size(final int[] link) {
+        return link.length > 5 ? link[5] : 0;
     }
 
     /** Where a spot's machine faces: 0 south, 1 west, 2 north, 3 east (south for spots saved before facings). */
@@ -187,7 +235,8 @@ public final class WorldLinks {
     static double[] extent(final Graph graph, final Node node, final int[] link) {
         final PlanSnapshot snap = PlanSnapshot.latest();
         final PlanSnapshot.Card card = snap == null || snap.graph() != graph ? null : snap.cardOf(node.id);
-        return WorldMarks.extent(card == null ? null : card.machine(), link[1], link[2], link[3], facing(link));
+        return card == null ? new double[] { link[1], link[2], link[3], link[1] + 1, link[2] + 1, link[3] + 1 }
+            : WorldMarks.extent(card.machine(), card.needs(), size(link), link[1], link[2], link[3], facing(link));
     }
 
     /** A placed card's spot met by a ray: the card, where it is, and how far along the ray. */

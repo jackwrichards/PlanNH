@@ -119,6 +119,24 @@ public final class CardModel {
         return power != null;
     }
 
+    /**
+     * What one card's recipes (one, or a shared machine's several) ask of the machine's structure, for its ghost in the
+     * world: the coil when a recipe needs heat, and the most fluid outputs and item inputs of any of them.
+     */
+    public static com.gtnhplanner.ui.gt.StructureGhosts.Needs structureNeeds(final List<CardModel> models) {
+        int coil = 0, fluids = 0, items = 0;
+        for (final CardModel m : models) {
+            if (m == null) continue;
+            if (m.usesHeat) coil = Math.max(coil, m.coilHeat);
+            int f = 0, i = 0;
+            for (final PortView p : m.outputs) if (p.isFluid()) f++;
+            for (final PortView p : m.inputs) if (!p.isFluid() && !p.isPower() && p.item() != null) i++;
+            fluids = Math.max(fluids, f);
+            items = Math.max(items, i);
+        }
+        return new com.gtnhplanner.ui.gt.StructureGhosts.Needs(coil, fluids, items);
+    }
+
     /** EU/t the solved machines make (average): a generator's output, 0 on a recipe card. */
     public double madeEuPerTick() {
         return power == null ? 0 : power.madePerMachine() * machines;

@@ -42,6 +42,7 @@ public class ClientProxy extends CommonProxy {
         ClientRegistry.registerKeyBinding(openFlowchartKey);
         // Playing with the planner closed: its keys, the minimap.
         com.gtnhplanner.ui.world.PlannerKeys.register();
+        com.gtnhplanner.ui.world.PlacementKeys.register();
         FMLCommonHandler.instance()
             .bus()
             .register(new com.gtnhplanner.ui.world.PlannerKeys());
@@ -49,7 +50,7 @@ public class ClientProxy extends CommonProxy {
         // Plan cards placed on blocks: placing them, seeing them, and the plan overlaid on the world.
         for (final Object world : new Object[] { com.gtnhplanner.ui.world.LinkPicker.INSTANCE,
             com.gtnhplanner.ui.world.LinkTarget.INSTANCE, com.gtnhplanner.ui.world.WorldView.INSTANCE,
-            com.gtnhplanner.ui.world.PlanOverlay.INSTANCE }) {
+            com.gtnhplanner.ui.world.PlanOverlay.INSTANCE, com.gtnhplanner.ui.world.PlacementKeys.INSTANCE }) {
             MinecraftForge.EVENT_BUS.register(world);
             FMLCommonHandler.instance()
                 .bus()

@@ -110,7 +110,7 @@ public final class LinkTarget {
             final PlanSnapshot snap = PlanSnapshot.latest();
             final PlanSnapshot.Card shown = snap == null || snap.graph() != graph ? null : snap.cardOf(card.id);
             final int lift = shown == null || WorldLinks.find(b.dim(), b.x(), b.y(), b.z()) != null ? 0
-                : com.gtnhplanner.ui.gt.StructureGhosts.lift(shown.machine());
+                : com.gtnhplanner.ui.gt.StructureGhosts.lift(shown.machine(), shown.needs(), 0);
             final WorldLinks.Hit was = WorldLinks.assign(
                 graph,
                 card,

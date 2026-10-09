@@ -18,7 +18,7 @@ import cpw.mods.fml.common.gameevent.TickEvent;
  */
 public final class PlannerKeys {
 
-    private static final String CATEGORY = "key.categories.neiflowchart";
+    static final String CATEGORY = "key.categories.neiflowchart";
 
     static final KeyBinding MINIMAP = new KeyBinding("key.gtnhplanner.minimap", Keyboard.KEY_N, CATEGORY);
     static final KeyBinding ZOOM_IN = new KeyBinding("key.gtnhplanner.minimapZoomIn", Keyboard.KEY_RBRACKET, CATEGORY);
@@ -48,7 +48,11 @@ public final class PlannerKeys {
         while (MINIMAP.isPressed()) PlannerSettings.setMinimap(!PlannerSettings.minimap());
         while (AR.isPressed()) PlannerSettings.setArLens(!PlannerSettings.arLens());
         while (LINK.isPressed()) LinkTarget.beginForCrosshair();
-        if (!PlannerSettings.minimap()) return;
+        // Adjusting a placed machine or placing one takes [ and ] for its size.
+        if (!PlannerSettings.minimap() || PlacementKeys.adjusting() || LinkPicker.active()) {
+            while (ZOOM_IN.isPressed() || ZOOM_OUT.isPressed()) {}
+            return;
+        }
         while (ZOOM_IN.isPressed()) PlannerSettings.setMinimapZoomIndex(PlannerSettings.minimapZoomIndex() + 1);
         while (ZOOM_OUT.isPressed()) PlannerSettings.setMinimapZoomIndex(PlannerSettings.minimapZoomIndex() - 1);
         while (RECENTRE.isPressed()) Minimap.INSTANCE.recentre();
@@ -58,7 +62,8 @@ public final class PlannerKeys {
     @SubscribeEvent
     public void onTick(final TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END || Minecraft.getMinecraft().currentScreen != null
-            || !PlannerSettings.minimap()) return;
+            || !PlannerSettings.minimap()
+            || PlacementKeys.adjusting()) return;
         final int dx = (PAN_RIGHT.getIsKeyPressed() ? 1 : 0) - (PAN_LEFT.getIsKeyPressed() ? 1 : 0);
         final int dy = (PAN_DOWN.getIsKeyPressed() ? 1 : 0) - (PAN_UP.getIsKeyPressed() ? 1 : 0);
         if (dx != 0 || dy != 0) Minimap.INSTANCE.pan(dx, dy);

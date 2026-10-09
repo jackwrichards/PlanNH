@@ -60,7 +60,7 @@ public final class PlanOverlay {
     private static final class Placed {
 
         final PlanSnapshot.Card card;
-        final int x, y, z, facing;
+        final int x, y, z, facing, size;
         /** The card's first spot: the one its card stands over and its wires run from. */
         final boolean main;
         /** Where the card stands: the middle of its spot, or of its structure. */
@@ -80,8 +80,9 @@ public final class PlanOverlay {
             this.y = at[2];
             this.z = at[3];
             this.facing = WorldLinks.facing(at);
+            this.size = WorldLinks.size(at);
             this.main = main;
-            box = WorldMarks.extent(card.machine(), x, y, z, facing);
+            box = WorldMarks.extent(card.machine(), card.needs(), size, x, y, z, facing);
             home = new double[] { (box[0] + box[3]) / 2, (box[1] + box[4]) / 2, (box[2] + box[5]) / 2 };
         }
 
@@ -142,7 +143,10 @@ public final class PlanOverlay {
             final Node n = snap.graph().nodes.get(c.id());
             if (n == null) continue;
             boolean first = true;
+            final int[] moving = LinkPicker.moving();
             for (final int[] l : n.worldLinks) if (l[0] == dim) {
+                // One picked up to move is in hand, not here.
+                if (moving != null && l[1] == moving[1] && l[2] == moving[2] && l[3] == moving[3]) continue;
                 all.add(new Placed(c, l, first));
                 first = false;
             }
@@ -200,11 +204,11 @@ public final class PlanOverlay {
         WorldMarks.begin();
         // Each placed card's spot: the machine's ghost (unless the machine is built there); the one looked at outlined.
         // Every multiblock's depth first, so each shows its outside alone and nearer ghosts hide farther ones.
-        for (final Placed p : placed)
-            if (p.card.machine() != null) WorldMarks.ghostDepth(p.card.machine(), p.x, p.y, p.z, p.facing);
+        for (final Placed p : placed) if (p.card.machine() != null)
+            WorldMarks.ghostDepth(p.card.machine(), p.card.needs(), p.size, p.x, p.y, p.z, p.facing);
         for (final Placed p : placed) {
-            if (p.card.machine() != null)
-                WorldMarks.machineGhost(p.card.machine(), p.x, p.y, p.z, p.facing, built(mc, p));
+            if (p.card.machine() != null) WorldMarks
+                .machineGhost(p.card.machine(), p.card.needs(), p.size, p.x, p.y, p.z, p.facing, built(mc, p));
             if (p.card.id()
                 .equals(lit)) WorldMarks.outline(p.box, Hyb.LIT & 0xFFFFFF, 0.012f, 1.5f, 0.6f);
         }

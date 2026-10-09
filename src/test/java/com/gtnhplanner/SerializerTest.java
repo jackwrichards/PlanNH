@@ -222,10 +222,17 @@ class SerializerTest {
         final Node placed = chart.machine(0);
         placed.worldLinks.add(new int[] { 0, 10, 4, -2, 3 });
         placed.worldLinks.add(new int[] { 0, 14, 4, -2 });
+        placed.worldLinks.add(new int[] { 0, 18, 4, -2, 1, 6 });
 
         final List<int[]> back = Serializer.decode(Serializer.encode(chart.graph())).nodes.get(placed.id).worldLinks;
 
-        assertEquals(2, back.size());
+        assertEquals(3, back.size());
+        assertEquals(
+            List.of(0, 18, 4, -2, 1, 6),
+            Arrays.stream(back.get(2))
+                .boxed()
+                .toList(),
+            "a structure set to a size");
         assertEquals(
             List.of(0, 10, 4, -2, 3),
             Arrays.stream(back.get(0))

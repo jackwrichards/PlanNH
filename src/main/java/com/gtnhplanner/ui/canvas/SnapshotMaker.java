@@ -33,9 +33,11 @@ final class SnapshotMaker {
             final List<UUID> ids = session.sectionsOf(card.nodeId);
             final List<PlanSnapshot.Flow> ins = new ArrayList<>(), outs = new ArrayList<>();
             double machines = 0, eu = 0, made = 0;
+            final List<CardModel> models = new ArrayList<>();
             for (final UUID id : ids) {
                 final CardModel s = session.model(id);
                 if (s == null) continue;
+                models.add(s);
                 machines += s.machines;
                 eu += session.power(s);
                 made += s.madeEuPerTick();
@@ -68,7 +70,8 @@ final class SnapshotMaker {
                     m.gregtech && m.tier != null ? m.tier : "",
                     m.multiblock ? m.amps : 0,
                     m.isPower() ? null : m.circuit,
-                    settings(session, m)));
+                    settings(session, m),
+                    CardModel.structureNeeds(models)));
         }
         final List<PlanSnapshot.Box> boxes = new ArrayList<>();
         for (final Drawer d : graph.getDrawers()) {

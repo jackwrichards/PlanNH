@@ -389,8 +389,8 @@ public final class Serializer {
             if (obj.has("worldLinks")) {
                 for (final JsonElement l : obj.getAsJsonArray("worldLinks")) {
                     final JsonArray at = l.getAsJsonArray();
-                    // {dimension, x, y, z}, and the facing when there is one.
-                    if (at.size() != 4 && at.size() != 5) continue;
+                    // {dimension, x, y, z}, then the facing and a structure's size when there are.
+                    if (at.size() < 4 || at.size() > 6) continue;
                     final int[] link = new int[at.size()];
                     for (int k = 0; k < link.length; k++) link[k] = at.get(k)
                         .getAsInt();

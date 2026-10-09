@@ -14,9 +14,13 @@ import com.gtnhplanner.GtnhPlanner;
 /**
  * Whole GregTech multiblocks as see-through ghosts in the world, for cards placed there: the structure built from its
  * definition as the card's picture is ({@link MultiblockRenderer}) and kept, then drawn block by block wherever a card
- * is
- * placed, turned to face the way it was placed. Real blocks hide the ghost where they stand,
- * so a structure half built shows what is left to build.
+ * is placed, turned to face the way it was placed. Real blocks hide the ghost where they stand, so a structure half
+ * built shows what is left to build.
+ *
+ * <p>
+ * A structure is built as the card needs it ({@link Needs}): GregTech's own structure channels, as the Hologram
+ * Projector sets them, carry the card's coil, a distillation tower's height for its recipe's fluid outputs and an
+ * assembly line's length for its item inputs; a placement can set the size itself.
  *
  * <p>
  * Safe to load without GregTech: building goes through {@link StructureGhostBuilder} only once
@@ -25,10 +29,21 @@ import com.gtnhplanner.GtnhPlanner;
 public final class StructureGhosts {
 
     /**
-     * A structure's ghost: the structure as built (kept by {@link StructureGhostBuilder}), how many blocks it has, and
-     * how far it reaches from the controller, in blocks, each way (its front to the south).
+     * What a card asks of its structure: its coil (the coil's heat, 0 for none), and the most fluid outputs and item
+     * inputs of its recipes (a distillation tower's layers, an assembly line's slices).
      */
-    public record Ghost(Object built, int blocks, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+    public record Needs(int coilHeat, int fluidOutputs, int itemInputs) {
+
+        public static final Needs NONE = new Needs(0, 0, 0);
+    }
+
+    /**
+     * A structure's ghost: the structure as built (kept by {@link StructureGhostBuilder}), how many blocks it has, how
+     * far it reaches from the controller, in blocks, each way (its front to the south), and its size: the step it was
+     * built at and the most there are, both 0 for a structure of one size.
+     */
+    public record Ghost(Object built, int blocks, int minX, int minY, int minZ, int maxX, int maxY, int maxZ, int size,
+        int sizes) {
 
         /**
          * The box the structure fills, turned to {@code facing}, from the controller block's corner: {x0, y0, z0, x1,
@@ -38,6 +53,11 @@ public final class StructureGhosts {
             final int[] a = turn(minX, minZ, facing), b = turn(maxX, maxZ, facing);
             return new double[] { Math.min(a[0], b[0]), minY, Math.min(a[1], b[1]), Math.max(a[0], b[0]) + 1, maxY + 1,
                 Math.max(a[1], b[1]) + 1 };
+        }
+
+        /** Whether the structure comes in more than one size. */
+        public boolean sized() {
+            return sizes > 1;
         }
     }
 
@@ -51,42 +71,47 @@ public final class StructureGhosts {
         };
     }
 
-    private static final Map<Integer, Ghost> GHOSTS = new HashMap<>();
-    /** Controllers that cannot be ghosted (not constructable, too big, or building threw): they keep their block. */
-    private static final Set<Integer> NONE = new HashSet<>();
+    /** Built ghosts by controller and channels. */
+    private static final Map<String, Ghost> GHOSTS = new HashMap<>();
+    /** Structures that cannot be ghosted (not constructable, too big, or building threw): they keep their block. */
+    private static final Set<String> NONE = new HashSet<>();
     /** At most one structure built a frame: building one can take tens of milliseconds. */
     private static long builtAt;
 
     private StructureGhosts() {}
 
-    /** The ghost already built for a controller, or null; never builds. Safe off the render thread. */
+    /**
+     * The ghost already built for a controller as a card needs it at a size (0: as its recipe needs), or null; never
+     * builds. Render thread.
+     */
     @Nullable
-    public static Ghost peek(@Nullable final ItemStack controller) {
-        final int meta = meta(controller);
-        return meta < 0 ? null : GHOSTS.get(meta);
+    public static Ghost peek(@Nullable final ItemStack controller, final Needs needs, final int size) {
+        final String key = key(controller, needs, size);
+        return key == null ? null : GHOSTS.get(key);
     }
 
     /**
-     * The ghost for a controller, built the first time it is asked for (one a frame), or null: not a constructable
-     * GregTech multiblock, not built yet this frame, or it cannot be built. Render thread only.
+     * The ghost for a controller as a card needs it at a size (0: as its recipe needs), built the first time it is
+     * asked for (one a frame), or null: not a constructable GregTech multiblock, not built yet this frame, or it cannot
+     * be built. Render thread only.
      */
     @Nullable
-    public static Ghost get(@Nullable final ItemStack controller) {
-        final int meta = meta(controller);
-        if (meta < 0 || NONE.contains(meta)) return null;
-        final Ghost known = GHOSTS.get(meta);
+    public static Ghost get(@Nullable final ItemStack controller, final Needs needs, final int size) {
+        final String key = key(controller, needs, size);
+        if (key == null || NONE.contains(key)) return null;
+        final Ghost known = GHOSTS.get(key);
         if (known != null) return known;
         final long now = System.nanoTime();
         if (now - builtAt < 50_000_000L) return null;
         builtAt = now;
         Ghost made = null;
         try {
-            made = StructureGhostBuilder.build(meta);
+            made = StructureGhostBuilder.build(MultiblockRenderer.controllerMeta(controller), needs, size);
         } catch (final LinkageError | RuntimeException e) {
-            GtnhPlanner.LOG.warn("Could not ghost multiblock {}", meta, e);
+            GtnhPlanner.LOG.warn("Could not ghost multiblock {}", key, e);
         }
-        if (made == null) NONE.add(meta);
-        else GHOSTS.put(meta, made);
+        if (made == null) NONE.add(key);
+        else GHOSTS.put(key, made);
         return made;
     }
 
@@ -94,17 +119,20 @@ public final class StructureGhosts {
      * How far above a picked spot a machine's controller goes so the structure's bottom stands on it: 0 for anything
      * without a ghost built yet.
      */
-    public static int lift(@Nullable final ItemStack controller) {
-        final Ghost g = peek(controller);
+    public static int lift(@Nullable final ItemStack controller, final Needs needs, final int size) {
+        final Ghost g = peek(controller, needs, size);
         return g == null ? 0 : -g.minY();
     }
 
-    private static int meta(@Nullable final ItemStack controller) {
-        if (controller == null || !MultiblockPictures.available()) return -1;
+    /** The cache key: the controller's meta and the channels it is built with; null when it is no multiblock. */
+    @Nullable
+    private static String key(@Nullable final ItemStack controller, final Needs needs, final int size) {
+        if (controller == null || !MultiblockPictures.available()) return null;
         try {
-            return MultiblockRenderer.controllerMeta(controller);
+            final int meta = MultiblockRenderer.controllerMeta(controller);
+            return meta < 0 ? null : meta + " " + StructureGhostBuilder.channels(meta, needs, size);
         } catch (final LinkageError e) {
-            return -1;
+            return null;
         }
     }
 

@@ -54,10 +54,10 @@ is a thin curl wrapper. Every request waits until the game has processed it, so 
 | `/key?code[&char][&mods=ctrl,shift][&hold=ms]` | press + release an LWJGL2 key code (modifiers held around it; `hold` keeps it down that long) (`Keyboard.KEY_*`: 1 Esc, 28 Enter, 14 Backspace, 20 T, 66 F8) |
 | `/type?text` | type text into the focused field |
 | `/cmd?c=/time%20set%20day` | run a command as the player (client commands first, then chat) |
-| `/look?yaw&pitch` | turn the player (yaw 0 south, 90 west, 180 north, 270 east; pitch down positive); returns the position |
+| `/look?yaw&pitch` | turn the player (yaw 0 south, 90 west, 180 north, 270 east; pitch down positive); returns the position and view (neither given: only reads them, to put the player back after a test) |
 | `/machine?x&y&z&feed=minecraft:iron_ore&count=16` | GT runs: fill a single-block machine's energy and put the stack in its input, so it runs a real recipe (for the AR lens) |
 | `/machine?own=1` | GT runs: give every ownerless GregTech machine near the player an owner (machines placed with `/setblock ... {mID:1000}` have none, and GregTech crashes when an ownerless multiblock is broken) |
-| `/board` | the open board as data: zoom/pan, per card its state (tier, amps, coil, machines, pinned, ports) and the GUI rect of each control and port (`parts.TIER`, `parts.OUT1`, with `cx/cy`), per drawer its kind, rule, target, rate, unmet flag and parts, the edge count, every routed wire (`wires`: resource, then its points), `solving`, and the notices |
+| `/board` | the open board as data: zoom/pan, per card its state (tier, amps, coil, machines, pinned, ports, `worldLinks`: where it is placed) and the GUI rect of each control and port (`parts.TIER`, `parts.OUT1`, with `cx/cy`), per drawer its kind, rule, target, rate, unmet flag and parts, the edge count, every routed wire (`wires`: resource, then its points), `solving`, and the notices |
 | `/cards?from&count&scale&match` | card designs side by side for the plan last open: today's card and the trial (`ui/card/CleanCardView`), on the board's canvas (`dev/CardGallery`); `match` keeps cards whose machine's name has it; Esc closes it |
 | `/view?zoom&panX&panY` | set the board view (defaults 1, 0, 0) so tests start from a known place |
 | `/slots[?add=name \| switch=i \| delete=i]` | the plan slots (`slots`, `active`); `add` opens a new one, so a check can work without touching the owner's plans |

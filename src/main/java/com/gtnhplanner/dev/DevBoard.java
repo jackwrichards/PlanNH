@@ -62,6 +62,15 @@ final class DevBoard {
             c.put("recipeHeat", model.recipeHeat);
             c.put("machines", model.machines);
             c.put("pinned", model.pinned);
+            // Where it is placed in the world: {dim, x, y, z}, then a facing and a structure size when set.
+            c.put(
+                "worldLinks",
+                model.node.worldLinks.stream()
+                    .map(
+                        l -> java.util.Arrays.stream(l)
+                            .boxed()
+                            .toList())
+                    .toList());
             c.put(
                 "selected",
                 screen.session()

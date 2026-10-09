@@ -23,6 +23,7 @@ import org.lwjgl.opengl.GL30;
 import org.lwjgl.util.glu.GLU;
 
 import com.gtnewhorizon.structurelib.StructureLibAPI;
+import com.gtnewhorizon.structurelib.alignment.constructable.ChannelDataAccessor;
 import com.gtnewhorizon.structurelib.alignment.constructable.IConstructable;
 import com.gtnewhorizon.structurelib.alignment.constructable.ISurvivalConstructable;
 import com.gtnewhorizon.structurelib.structure.ISurvivalBuildEnvironment;
@@ -132,6 +133,14 @@ final class MultiblockRenderer {
 
     /** Places the controller and auto-builds its structure, the way BlockRenderer6343's GT preview does. */
     static void place(final TrackedDummyWorld world, final int meta) {
+        place(world, meta, Map.of());
+    }
+
+    /**
+     * As {@link #place(TrackedDummyWorld, int)}, with structure channels set on the trigger as the Hologram Projector
+     * sets them (a coil's tier, a tower's height), each read by the structure's own definition.
+     */
+    static void place(final TrackedDummyWorld world, final int meta, final Map<String, Integer> channels) {
         // BlockRenderer6343's shared fake player: its construction already ran every mod's entity hooks once.
         final ClientFakePlayer player = BRUtil.FAKE_PLAYER;
         final World playerWorld = player.worldObj;
@@ -151,6 +160,8 @@ final class MultiblockRenderer {
             final IMetaTileEntity machine = gtTile.getMetaTileEntity();
             final ItemStack trigger = new ItemStack(StructureLibAPI.getDefaultHologramItem());
             trigger.stackSize = 1;
+            for (final Map.Entry<String, Integer> c : channels.entrySet())
+                ChannelDataAccessor.setChannelData(trigger, c.getKey(), c.getValue());
             if (machine instanceof final INEIPreviewModifier preview) preview.onPreviewConstruct(trigger);
             if (machine instanceof final ISurvivalConstructable survival) {
                 final ISurvivalBuildEnvironment env = ISurvivalBuildEnvironment

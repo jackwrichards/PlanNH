@@ -47,13 +47,23 @@ plan show what the machines are doing.
   GregTech multiblock as its whole structure, see section 5, standing on that spot: the structure's bottom goes there,
   its controller as high above it as it is in the structure, and the whole structure is outlined); a click places it
   there, facing that way, and you stay in the world (`ui/world/LinkPicker`). The crosshair reaches 48 blocks while
-  placing, past the game's own reach, to stand back from a big structure. A card of several machines places one a click ("Place X: 2 of 3", up to 64): the
+  placing, past the game's own reach, to stand back from a big structure. While placing, R turns it (Shift: the other
+  way) and [ ] size a structure that comes in sizes; the title says its size in blocks ("3 x 4 x 3"). A card of several machines places one a click ("Place X: 2 of 3", up to 64): the
   first click replaces where the card was, each later one adds a spot, and right-click or Esc stops there, keeping the
   ones placed. Right-click or Esc before the first click cancels. Right-click on the key removes the card from the world.
   The card's menu also has **Show in the world** and **Remove from the world**.
 - A card is placed on as many spots as it has machines and a spot holds one card: placing a card on a spot takes it
-  from any other card, in any plan (`ui/world/WorldLinks`, `Node.worldLinks`: {dim, x, y, z, facing}, facing 0 south,
-  1 west, 2 north, 3 east; placements saved before facing face south).
+  from any other card, in any plan (`ui/world/WorldLinks`, `Node.worldLinks`: {dim, x, y, z, facing, size}, facing 0
+  south, 1 west, 2 north, 3 east; size, when set, a structure's step; placements saved before facing face south).
+- Adjusting a placed machine from the world (`ui/world/PlacementKeys`): hold the adjust key (Ctrl, in Controls) with
+  the crosshair on a placed machine and it is in hand while the key is held, outlined bright: the arrows move it a
+  block (up is away from you, as you look), Shift with up and down raises and lowers it, R turns it about its middle
+  (Shift: the other way), [ ] size a structure that comes in sizes (its bottom stays put; back at the size its recipe
+  needs it follows the recipe again), G picks it up to put down elsewhere (the picker, its facing and size kept, its
+  old spot empty while in hand; Esc leaves it where it was), Delete or Backspace takes it out of the world. Each is one
+  undo step in its plan; a move onto another machine's spot is refused. While the crosshair is on a placed machine, or
+  one is in hand, a panel under the minimap (in its corner when it is off) names it, its size, and the keys. The
+  minimap's own arrows and [ ] stand aside while the adjust key is held or a machine is being placed.
 - From the world: the Link key (L) opens the planner in link mode (`ui/world/LinkTarget`) for the placed spot under
   the crosshair, or else the spot in front of the face looked at; clicking a card places it there alone, facing you (a
   multiblock standing on an empty spot, as above), clicking the card already there removes it, Esc cancels.
@@ -76,7 +86,12 @@ Nothing shows until a card of the plan last open is placed.
 - Each placed spot shows a ghost of the card's machine, see-through and behind real blocks. A GregTech multiblock shows
   its whole structure (`ui/gt/StructureGhosts`): built from its definition in BlockRenderer6343's fake world, as the
   card's picture is, once per machine and kept, then drawn block by block each frame against that world (so casings
-  join and only outside faces draw), turned to the spot's facing. It is drawn in two passes: every structure's nearest
+  join and only outside faces draw), turned to the spot's facing. It is built as its card needs it, through GregTech's
+  own structure channels as the Hologram Projector sets them (`StructureGhosts.Needs`, from the card's recipes): the
+  card's coil on any coil machine, a distillation tower's height (its base and a layer for each fluid output, 3 to 12;
+  the GT++ advanced tower too), an assembly line's length (a slice for each item input, 5 to 16; the advanced one too).
+  The mega distillation tower's layers hold its outputs by a rule of their own, so it starts at its smallest; [ ] sets
+  any of them. Each rule was read from the machine's own `construct`. It is drawn in two passes: every structure's nearest
   faces into the depth buffer first, then its colour where that depth is its own, so a structure shows as one solid
   see-through shape, never its insides through its walls, and a ghost in front hides the one behind (the depth stays,
   as a real block's would). Transparent texels are left out of both passes: GregTech draws a controller's front as

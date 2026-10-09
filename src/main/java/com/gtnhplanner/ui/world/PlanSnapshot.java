@@ -32,13 +32,15 @@ public record PlanSnapshot(Graph graph, String planName, long graphVersion, List
      * A card (a shared machine is one, its recipes' flows together), at its place on the board.
      *
      * @param art     its structure picture, or null for its item
-     * @param links   the blocks it is linked to, each {dimension, x, y, z}
+     * @param links   its placements in the world, each {dimension, x, y, z}, then a facing and a size when set
+     * @param needs   what its recipes ask of its structure, for its ghost
      * @param nodeIds every recipe on it, the card's own first
      */
     public record Card(UUID id, List<UUID> nodeIds, float x, float y, float w, float h, String name,
         @Nullable ItemStack machine, @Nullable StructureArt.Art art, int tint, double machines, boolean pinned,
         List<Flow> inputs, List<Flow> outputs, double euPerTick, double madeEuPerTick, List<int[]> links, String tier,
-        int amps, @Nullable ItemStack circuit, List<Setting> settings) {}
+        int amps, @Nullable ItemStack circuit, List<Setting> settings,
+        com.gtnhplanner.ui.gt.StructureGhosts.Needs needs) {}
 
     /**
      * A setting pinned to the card, as a chip ({@code ui/card/SettingControls}, {@code SettingPins}): the coil, a
