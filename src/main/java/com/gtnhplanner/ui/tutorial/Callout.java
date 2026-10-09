@@ -30,7 +30,7 @@ final class Callout {
         MIDDLE
     }
 
-    private record Hit(Rect r, Runnable action, boolean enabled) {}
+    private record Hit(Rect r, Glyph glyph, Runnable action, boolean enabled) {}
 
     private final Director d;
     private final Runnable leave;
@@ -48,7 +48,8 @@ final class Callout {
         for (final Hit h : hits) {
             if (!h.r.contains(x, y)) continue;
             if (h.enabled) {
-                Hyb.click();
+                (h.glyph == Glyph.LEAVE ? com.gtnhplanner.ui.sound.Sfx.CLOSE : com.gtnhplanner.ui.sound.Sfx.PAGE)
+                    .play();
                 h.action.run();
             }
             return true;
@@ -358,7 +359,7 @@ final class Callout {
         else if (hot) Hyb.rect(x, y, KEY, KEY, fade(HOT, e));
         final int ink = fade(!enabled ? OFF : lit ? ON_GOLD : hot ? GOLD : Hyb.INK, e);
         glyph(g, x, y, ink);
-        hits.add(new Hit(r.grow(1), action, enabled));
+        hits.add(new Hit(r.grow(1), g, action, enabled));
     }
 
     /** Drawn a pixel at a time: the game's font has no arrows or crosses at this size. */

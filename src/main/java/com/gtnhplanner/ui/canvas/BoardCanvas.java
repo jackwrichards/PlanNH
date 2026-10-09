@@ -35,6 +35,7 @@ import com.gtnhplanner.ui.drawer.DrawerCard;
 import com.gtnhplanner.ui.drawer.DrawerModel;
 import com.gtnhplanner.ui.popup.PickList;
 import com.gtnhplanner.ui.popup.Popup;
+import com.gtnhplanner.ui.sound.Sfx;
 import com.gtnhplanner.ui.theme.Hyb;
 
 /**
@@ -424,8 +425,10 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     public void dragMove() {
         if (moveStart == null) return;
         final float zoom = graph().getZoom();
+        final boolean wasMoving = moveDX != 0 || moveDY != 0;
         moveDX = BoardSession.snap((getContext().getAbsMouseX() - moveMouseX) / zoom);
         moveDY = BoardSession.snap((getContext().getAbsMouseY() - moveMouseY) / zoom);
+        if (!wasMoving && (moveDX != 0 || moveDY != 0)) Sfx.LIFT.play();
         final java.util.Map<UUID, int[]> at = new HashMap<>();
         for (final java.util.Map.Entry<UUID, int[]> e : moveStart.entrySet())
             at.put(e.getKey(), new int[] { e.getValue()[0] + moveDX, e.getValue()[1] + moveDY });
@@ -446,6 +449,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
                 .commitEdit(moveUndo, graph());
             graph().touchLayout();
             com.gtnhplanner.api.PlanAPI.save();
+            Sfx.DROP.play();
         } else place(moveStart);
         moveStart = null;
         moveUndo = null;
@@ -595,11 +599,42 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     /** Called by a port slot when the mouse goes down on it and starts to drag. */
     public void beginPortDrag(final UUID nodeId, final boolean output, final int port) {
         portDrag = new PortDrag(nodeId, output, port, getContext().getAbsMouseX(), getContext().getAbsMouseY());
+        dragHeard = false;
+        snappedTo = null;
+    }
+
+    /** Whether the wire in hand has made its pick-up sound, and what it last snapped over (for the snap sound). */
+    private boolean dragHeard;
+    private UUID snappedTo;
+
+    /** The card or drawer under a world point that would take the wire in hand; null for none. */
+    private UUID dragTargetAt(final int wx, final int wy) {
+        for (final RecipeCard card : cards.values()) {
+            final CardModel m = card.model();
+            if (m == null || !inside(m.node.x, m.node.y, CardLayout.W, card.layout().height, wx, wy)) continue;
+            if (card.nodeId.equals(portDrag.nodeId())) return null;
+            for (final UUID section : session.sectionsOf(card.nodeId)) {
+                final CardModel sm = portModel(section);
+                if (sm == null) continue;
+                for (final CardModel.PortView p : portDrag.output() ? sm.inputs : sm.outputs)
+                    if (acceptsDrag(section, !portDrag.output(), p.key())) return card.nodeId;
+            }
+            return null;
+        }
+        for (final DrawerCard drawer : drawers.values()) {
+            if (drawer.model() == null) continue;
+            final Drawer d = drawer.model().drawer;
+            if (inside(d.getX(), d.getY(), DrawerCard.W, DrawerCard.H, wx, wy))
+                return drawerAcceptsDrag(d) ? d.getId() : null;
+        }
+        return null;
     }
 
     /** Called by an empty custom rate card's socket when a drag starts on it: its supply socket, or its drain. */
     public void beginSocketDrag(final UUID nodeId, final boolean supply) {
         portDrag = new PortDrag(nodeId, supply, -1, getContext().getAbsMouseX(), getContext().getAbsMouseY());
+        dragHeard = false;
+        snappedTo = null;
     }
 
     /** Whether a wire is in hand that a custom rate card would take: one dragged from a port of another card. */
@@ -623,14 +658,16 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             if (card.model() == null || card.nodeId.equals(drag.nodeId())
                 || !inside(card.model().node.x, card.model().node.y, CardLayout.W, card.layout().height, wx, wy))
                 continue;
-            if (com.gtnhplanner.power.CustomRate.is(card.model().node)) return;
-            final int[] hit = card.portAt(!supply, wy - card.model().node.y);
-            if (hit == null) return;
-            final CardModel m = card.modelOf(hit[0]);
-            final List<CardModel.PortView> ports = supply ? m.inputs : m.outputs;
-            final String key = ports.get(hit[1])
-                .key();
-            if (key == null || key.isEmpty()) return;
+            final int[] hit = com.gtnhplanner.power.CustomRate.is(card.model().node) ? null
+                : card.portAt(!supply, wy - card.model().node.y);
+            final CardModel m = hit == null ? null : card.modelOf(hit[0]);
+            final String key = m == null ? null
+                : (supply ? m.inputs : m.outputs).get(hit[1])
+                    .key();
+            if (key == null || key.isEmpty()) {
+                Sfx.DENY.play();
+                return;
+            }
             session.holdAndWire(custom, key, supply, card.sectionId(hit[0]), hit[1]);
             return;
         }
@@ -640,8 +677,10 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             if (!inside(d.getX(), d.getY(), DrawerCard.W, DrawerCard.H, wx, wy)) continue;
             if (d.getKind()
                 .linksInputs() != supply) session.holdAndLink(custom, d);
+            else Sfx.DENY.play();
             return;
         }
+        Sfx.DENY.play();
     }
 
     /**
@@ -668,15 +707,15 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             if (card.model() == null
                 || !inside(card.model().node.x, card.model().node.y, CardLayout.W, card.layout().height, wx, wy))
                 continue;
-            if (!card.nodeId.equals(drag.nodeId()))
-                session.dropPortOnCard(drag.nodeId(), drag.output(), drag.port(), card.nodeId);
+            if (card.nodeId.equals(drag.nodeId())
+                || !session.dropPortOnCard(drag.nodeId(), drag.output(), drag.port(), card.nodeId)) Sfx.DENY.play();
             return;
         }
         for (final DrawerCard drawer : drawers.values()) {
             if (drawer.model() == null) continue;
             final Drawer d = drawer.model().drawer;
             if (!inside(d.getX(), d.getY(), DrawerCard.W, DrawerCard.H, wx, wy)) continue;
-            session.dropPortOnDrawer(drag.nodeId(), drag.output(), drag.port(), d);
+            if (!session.dropPortOnDrawer(drag.nodeId(), drag.output(), drag.port(), d)) Sfx.DENY.play();
             return;
         }
         session.dropPortOnBoard(drag.nodeId(), drag.output(), drag.port(), Math.round(wx), Math.round(wy));
@@ -731,6 +770,14 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             : card.anchorY(portDrag.nodeId(), portDrag.output(), portDrag.port()));
         final int mx = Math.round(worldX(getContext().getAbsMouseX()));
         final int my = Math.round(worldY(getContext().getAbsMouseY()));
+        if (!dragHeard && Math.abs(getContext().getAbsMouseX() - portDrag.startX())
+            + Math.abs(getContext().getAbsMouseY() - portDrag.startY()) >= 4) {
+            dragHeard = true;
+            Sfx.WIRE_GRAB.play();
+        }
+        final UUID over = dragTargetAt(mx, my);
+        if (over != null && !over.equals(snappedTo)) Sfx.WIRE_SNAP.play();
+        snappedTo = over;
         // The bend stays on the port's own side, so the wire in hand never cuts back across its card.
         final int bend = portDrag.output() ? Math.max(sx + 16, (sx + mx) / 2) : Math.min(sx - 16, (sx + mx) / 2);
         final List<int[]> path = portDrag.output()
@@ -1070,6 +1117,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         if (to.isEmpty()) return;
         // One undoable step with the final places, then rewind and let everything glide there.
         session.editLayout(() -> place(to));
+        Sfx.SWEEP.play();
         place(from);
         glideFrom = from;
         glideTo = to;

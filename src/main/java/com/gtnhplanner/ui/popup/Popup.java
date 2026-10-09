@@ -47,11 +47,12 @@ public class Popup extends ModularPanel {
         final int x = Math.max(2, Math.min(screenX, sr.getScaledWidth() - w - 2));
         final int y = Math.max(2, Math.min(screenY, sr.getScaledHeight() - h - 2));
         popup.pos(x, y);
-        PENDING.add(
-            () -> {
-                if (parent.isOpen()) IPanelHandler.simple(parent, (p, player) -> popup, true)
-                    .openPanel();
-            });
+        PENDING.add(() -> {
+            if (!parent.isOpen()) return;
+            IPanelHandler.simple(parent, (p, player) -> popup, true)
+                .openPanel();
+            com.gtnhplanner.ui.sound.Sfx.OPEN.play();
+        });
     }
 
     private static final List<Runnable> PENDING = new ArrayList<>();
@@ -64,8 +65,10 @@ public class Popup extends ModularPanel {
         now.forEach(Runnable::run);
     }
 
+    /** A click off the popup dismisses it, with the fold-away sound (picking a row sounds as what it does). */
     @Override
     public boolean closeOnOutOfBoundsClick() {
+        com.gtnhplanner.ui.sound.Sfx.CLOSE.play();
         return true;
     }
 

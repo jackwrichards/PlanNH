@@ -35,6 +35,7 @@ import com.gtnhplanner.ui.card.CardModel;
 import com.gtnhplanner.ui.card.MachineChoices;
 import com.gtnhplanner.ui.drawer.DrawerCard;
 import com.gtnhplanner.ui.drawer.DrawerModel;
+import com.gtnhplanner.ui.sound.Sfx;
 import com.gtnhplanner.ui.theme.Fmt;
 import com.gtnhplanner.ui.theme.Hyb;
 
@@ -238,10 +239,14 @@ public final class BoardSession {
         final UUID joinTo = addSectionTo;
         addSectionTo = null;
         justAdded = joinTo != null && graph.nodes.containsKey(joinTo) ? joinTo : node.id;
+        final boolean[] joined = { false };
         edit(() -> {
             graph.addNode(node);
             // "Add another recipe" on a card: it joins that machine.
-            if (joinTo != null && joinArmedCard(node, joinTo)) return;
+            if (joinTo != null && joinArmedCard(node, joinTo)) {
+                joined[0] = true;
+                return;
+            }
             final Node from = origin == null ? null : graph.nodes.get(origin.nodeId());
             if (from != null && wireToOrigin(node, from, origin)) {
                 node.x = origin.output() ? from.x + CardLayout.W + NewCards.GAP : from.x - CardLayout.W - NewCards.GAP;
@@ -249,6 +254,7 @@ public final class BoardSession {
                 for (int tries = 0; tries < 50 && NewCards.overlapsAnything(graph, node); tries++) node.y += 40;
             } else NewCards.place(graph, node);
         });
+        (joined[0] ? Sfx.MERGE : Sfx.PLACE).play();
         return node;
     }
 
@@ -256,21 +262,36 @@ public final class BoardSession {
 
     /** Wires an output to an input; drawing a wire that already exists removes it instead. */
     public void connect(final UUID from, final int output, final UUID to, final int input) {
+        final boolean[] cut = { false };
         edit(() -> {
             for (final Edge e : new ArrayList<>(graph.getEdges())) {
                 if (e.sourceNodeId.equals(from) && e.sourceOutputIndex == output
                     && e.targetNodeId.equals(to)
                     && e.targetInputIndex == input) {
                     graph.removeEdge(e.id);
+                    cut[0] = true;
                     return;
                 }
             }
             graph.addEdge(new Edge(UUID.randomUUID(), from, to, output, input));
         });
+        final String key = outputKey(from, output);
+        if (cut[0]) Sfx.cut(key);
+        else Sfx.connect(key);
     }
 
     public void deleteEdge(final UUID edgeId) {
+        String key = null;
+        for (final Edge e : graph.getEdges())
+            if (e.id.equals(edgeId)) key = outputKey(e.sourceNodeId, e.sourceOutputIndex);
         edit(() -> graph.removeEdge(edgeId));
+        Sfx.cut(key);
+    }
+
+    /** The resource an output carries, for its wire's sound; null when there is no such port. */
+    private String outputKey(final UUID nodeId, final int output) {
+        final Node n = graph.nodes.get(nodeId);
+        return n == null || output < 0 || output >= n.outputs.size() ? null : Resources.key(n.outputs.get(output));
     }
 
     /**
@@ -345,6 +366,7 @@ public final class BoardSession {
                 && e.targetInputIndex == in) return;
             graph.addEdge(new Edge(UUID.randomUUID(), from, to, out, in));
         });
+        Sfx.connect(key);
     }
 
     /**
@@ -366,6 +388,7 @@ public final class BoardSession {
             if (card.inputs.isEmpty() && card.outputs.isEmpty()) return;
             graph.linkDrawer(drawer.getId(), new Drawer.Link(card.id, 0));
         });
+        Sfx.connect(key);
     }
 
     /** Every wire and drawer link on a card, gone. */
@@ -403,10 +426,13 @@ public final class BoardSession {
             .linksInputs() == output) return false;
         final String key = Resources.key((output ? node.outputs : node.inputs).get(port));
         if (!key.equals(drawer.getResourceKey())) return false;
+        final boolean linked = drawer.isLinked(node.id, port);
         edit(() -> {
-            if (drawer.isLinked(node.id, port)) graph.unlinkDrawer(drawer.getId(), new Drawer.Link(node.id, port));
+            if (linked) graph.unlinkDrawer(drawer.getId(), new Drawer.Link(node.id, port));
             else graph.linkDrawer(drawer.getId(), new Drawer.Link(node.id, port));
         });
+        if (linked) Sfx.cut(key);
+        else Sfx.connect(key);
         return true;
     }
 
@@ -430,6 +456,7 @@ public final class BoardSession {
             graph.addDrawer(drawer);
             graph.linkDrawer(drawer.getId(), new Drawer.Link(node.id, port));
         });
+        Sfx.connect(drawer.getResourceKey());
     }
 
     /**
@@ -481,6 +508,7 @@ public final class BoardSession {
                 }
             }
         });
+        Sfx.connect(resourceKey);
     }
 
     private boolean isWired(final Node node, final boolean output, final int port) {
@@ -508,14 +536,17 @@ public final class BoardSession {
                 source ? new Drawer.Link(dst.id, edge.targetInputIndex)
                     : new Drawer.Link(src.id, edge.sourceOutputIndex));
         });
+        Sfx.connect(drawer.getResourceKey());
     }
 
     public void unlinkDrawer(final Drawer drawer, final Drawer.Link link) {
         edit(() -> graph.unlinkDrawer(drawer.getId(), link));
+        Sfx.cut(drawer.getResourceKey());
     }
 
     public void deleteDrawer(final Drawer drawer) {
         edit(() -> graph.removeDrawer(drawer.getId()));
+        Sfx.REMOVE.play();
     }
 
     /** Product, byproduct, trash, product again; a source stays a source. */
@@ -524,6 +555,11 @@ public final class BoardSession {
             () -> drawer.setKind(
                 drawer.getKind()
                     .next()));
+        Sfx.ADJUST.playStep(
+            drawer.getKind()
+                .ordinal(),
+            0.9f,
+            1.12f);
     }
 
     /** Rates being wheeled, per drawer (per second), shown at once and set once the wheel is still; null for none. */
@@ -535,6 +571,8 @@ public final class BoardSession {
      */
     public void wheelDrawerRate(final Drawer drawer, final double perSecond) {
         if (wheeledRates == null) wheeledRates = new HashMap<>();
+        final Double was = wheeledRates.get(drawer.getId());
+        Sfx.TICK.play(perSecond >= (was == null ? drawer.getRate() : was) ? 1.12f : 0.9f);
         wheeledRates.put(drawer.getId(), perSecond);
         rateWheelAt = System.currentTimeMillis();
     }
@@ -556,6 +594,7 @@ public final class BoardSession {
 
     public void setDrawerRule(final Drawer drawer, final Drawer.Rule rule) {
         edit(() -> drawer.setRule(rule));
+        Sfx.ADJUST.playStep(rule.ordinal(), 0.9f, 1.12f);
     }
 
     /**
@@ -573,6 +612,8 @@ public final class BoardSession {
                 rule = drawer.getKind() == Drawer.Kind.SOURCE ? Drawer.Rule.EXACTLY : Drawer.Rule.AT_LEAST;
             drawer.setTarget(rule, perSecond);
         });
+        // A rate is a target the plan solves for: pinned, or let go.
+        (perSecond > 0 ? Sfx.PIN : Sfx.UNPIN).play();
     }
 
     // endregion
@@ -753,6 +794,7 @@ public final class BoardSession {
         for (final Node n : made) if (n != null) selection.add(n.id);
         for (final Drawer d : madeDrawers) selection.add(d.getId());
         selection.addAll(madeNotes);
+        (selection.size() > 1 ? Sfx.SWEEP : Sfx.PLACE).play();
         return List.copyOf(selection);
     }
 
@@ -768,13 +810,16 @@ public final class BoardSession {
         editLayout(() -> graph.notes.put(note.getId(), note));
         selection.clear();
         selection.add(note.getId());
+        Sfx.NOTE_STICK.play();
         return note;
     }
 
     /** Deletes a sticky note, as one undoable step. */
     public void deleteNote(final UUID id) {
         selection.remove(id);
-        if (graph.notes.containsKey(id)) editLayout(() -> graph.notes.remove(id));
+        if (!graph.notes.containsKey(id)) return;
+        editLayout(() -> graph.notes.remove(id));
+        Sfx.NOTE_CRUMPLE.play();
     }
 
     // endregion
@@ -792,6 +837,7 @@ public final class BoardSession {
 
     /** Selects a card or drawer; {@code add} keeps the others (Shift), and toggles this one. */
     public void select(final UUID id, final boolean add) {
+        Sfx.CLICK.play(0.6f, 1.15f);
         if (!add) {
             selection.clear();
             selection.add(id);
@@ -820,6 +866,7 @@ public final class BoardSession {
         selection.addAll(graph.nodes.keySet());
         selection.addAll(graph.drawers.keySet());
         selection.addAll(graph.notes.keySet());
+        Sfx.CLICK.play(0.6f, 1.15f);
     }
 
     /** Deletes every selected card, drawer and note as one undoable step. */
@@ -829,6 +876,8 @@ public final class BoardSession {
         final List<UUID> ids = new ArrayList<>();
         for (final UUID id : selection) for (final UUID s : sectionsOf(id)) if (!ids.contains(s)) ids.add(s);
         selection.clear();
+        final boolean notesOnly = ids.stream()
+            .allMatch(graph.notes::containsKey);
         edit(() -> {
             for (final UUID id : ids) {
                 if (graph.nodes.containsKey(id)) graph.removeNode(id);
@@ -836,6 +885,7 @@ public final class BoardSession {
                 else graph.notes.remove(id);
             }
         });
+        (notesOnly ? Sfx.NOTE_CRUMPLE : Sfx.REMOVE).play();
     }
 
     // endregion
@@ -853,15 +903,25 @@ public final class BoardSession {
     }
 
     public void undo() {
-        if (canUndo()) adopt(
+        if (!canUndo()) {
+            Sfx.DENY.play();
+            return;
+        }
+        adopt(
             PlanAPI.undoHistory(graph)
                 .undo(graph));
+        Sfx.UNDO.play();
     }
 
     public void redo() {
-        if (canRedo()) adopt(
+        if (!canRedo()) {
+            Sfx.DENY.play();
+            return;
+        }
+        adopt(
             PlanAPI.undoHistory(graph)
                 .redo(graph));
+        Sfx.REDO.play();
     }
 
     /**
@@ -945,6 +1005,7 @@ public final class BoardSession {
         plan.setActiveIndex(index);
         follow();
         PlanAPI.save();
+        Sfx.PAGE.play();
     }
 
     /** Takes up the active plan when it changed (a tab, or the plan button on NEI's recipe page picking another). */
@@ -964,6 +1025,7 @@ public final class BoardSession {
             .add(new Graph("Plan " + (size + 1)));
         plan.setActiveIndex(size);
         PlanAPI.save();
+        Sfx.PAGE.play();
     }
 
     public void renameSlot(final int index, final String name) {
@@ -971,6 +1033,7 @@ public final class BoardSession {
         slots().get(index)
             .setName(name.trim());
         PlanAPI.save();
+        Sfx.ADJUST.play();
     }
 
     /** Removes a plan slot; the last one stays. */
@@ -984,6 +1047,7 @@ public final class BoardSession {
         plan.removeSlot(index);
         follow();
         PlanAPI.save();
+        Sfx.NOTE_CRUMPLE.play();
         flash(Severity.INFO, "Deleted '" + name + "'");
     }
 
@@ -995,6 +1059,7 @@ public final class BoardSession {
         plan.closeSlot(index);
         follow();
         PlanAPI.save();
+        Sfx.CLOSE.play();
     }
 
     /** Closes every tab but this one, which becomes the open plan; the others stay in My plans. */
@@ -1006,6 +1071,7 @@ public final class BoardSession {
         for (final int other : plan.openSlots()) if (other != index) plan.closeSlot(other);
         follow();
         PlanAPI.save();
+        Sfx.CLOSE.play();
     }
 
     /** Asks before deleting a plan for good: it cannot be undone. */
@@ -1167,7 +1233,10 @@ public final class BoardSession {
      * step. Returns the host, or null when they cannot share a machine.
      */
     public UUID combine(final java.util.Collection<UUID> ids) {
-        if (!canCombine(ids)) return null;
+        if (!canCombine(ids)) {
+            Sfx.DENY.play();
+            return null;
+        }
         final List<UUID> cards = cardsIn(ids);
         cards.sort(
             java.util.Comparator.comparingInt((UUID id) -> graph.nodes.get(id).y)
@@ -1207,6 +1276,7 @@ public final class BoardSession {
         });
         selection.clear();
         selection.add(hostId);
+        Sfx.MERGE.play();
         return hostId;
     }
 
@@ -1245,6 +1315,7 @@ public final class BoardSession {
             graph.removeNode(nodeId);
             if (!g.isShared()) graph.removeGroup(g.getId());
         });
+        Sfx.REMOVE.play();
     }
 
     /** Moves a recipe up (-1) or down (+1) on its shared card; the first one is the host. */
@@ -1255,10 +1326,12 @@ public final class BoardSession {
         final int i = sections.indexOf(nodeId), j = i + step;
         if (i < 0 || j < 0 || j >= sections.size()) return;
         editLayout(() -> java.util.Collections.swap(sections, i, j));
+        Sfx.TICK.play(step < 0 ? 1.12f : 0.9f);
     }
 
     /** Pins a shared machine's count (zero unpins): its recipes' machines then add up to exactly that. */
     public void pinShared(final com.gtnhplanner.data.flowchart.MachineGroup g, final double count) {
+        (count > 0 ? Sfx.PIN : Sfx.UNPIN).play();
         edit(() -> {
             g.setPinned(count > 0);
             g.setMachineCapacity(count > 0 ? Math.max(1, (int) Math.round(count)) : 0);
@@ -1355,6 +1428,9 @@ public final class BoardSession {
      */
     public void setPowerSetting(final Node node, final String settingId, final String value) {
         if (!node.isPower() || value.equals(node.powerSettings.get(settingId))) return;
+        if ("true".equals(value)) Sfx.TOGGLE_ON.play();
+        else if ("false".equals(value)) Sfx.TOGGLE_OFF.play();
+        else Sfx.ADJUST.play();
         edit(() -> {
             final List<String> ins = keys(node.inputs), outs = keys(node.outputs);
             node.powerSettings.put(settingId, value);
@@ -1407,6 +1483,8 @@ public final class BoardSession {
     }
 
     public void setSetting(final Node node, final String key, final Object value) {
+        if (value instanceof final Boolean on) (on ? Sfx.TOGGLE_ON : Sfx.TOGGLE_OFF).play();
+        else Sfx.ADJUST.play();
         edit(() -> {
             if (value instanceof final Boolean b) node.machineConfig.setBoolean(key, b);
             else if (value instanceof final Integer i) node.machineConfig.setInt(key, i);
@@ -1433,6 +1511,7 @@ public final class BoardSession {
             pinShared(g, count);
             return;
         }
+        (count > 0 ? Sfx.PIN : Sfx.UNPIN).play();
         edit(() -> {
             if (count <= 0) {
                 node.setMachineCountFixed(false);
@@ -1447,6 +1526,7 @@ public final class BoardSession {
     public void delete(final Node node) {
         final List<UUID> sections = sectionsOf(node.id);
         edit(() -> { for (final UUID s : sections) graph.removeNode(s); });
+        Sfx.REMOVE.play();
     }
 
     /**
@@ -1480,6 +1560,7 @@ public final class BoardSession {
             g.setPinned(shared.isPinned());
             graph.groups.put(g.getId(), g);
         });
+        Sfx.CLONE.play();
     }
 
     // endregion
@@ -1531,7 +1612,8 @@ public final class BoardSession {
             GtnhPlanner.LOG.warn("Could not snapshot the plan for solving", e);
         }
         final SolveService.Result latest = solver.latest();
-        if (latest != null && latest != lastResult) {
+        final boolean answered = latest != null && latest != lastResult;
+        if (answered) {
             lastResult = latest;
             if (latest.error() != null) GtnhPlanner.LOG.warn("Solve failed", latest.error());
             result = latest.balance();
@@ -1571,6 +1653,27 @@ public final class BoardSession {
         drawerModels = nextDrawers;
         notices = buildNotices(next);
         totals = buildTotals(next);
+        if (answered) heardRunning(next);
+    }
+
+    /** Whether the plan last solved to machines running, and for which graph: another one is taken as it is. */
+    private boolean running;
+    private Graph runningOf;
+
+    /**
+     * The relay when a fresh answer has the plan running where it did not (the first pin or rate that makes it
+     * solve). A graph taken up (a tab, an undo, back from NEI) only sets where things stand.
+     */
+    private void heardRunning(final Map<UUID, CardModel> cards) {
+        final boolean now = result instanceof BalanceResult.Solved && !nothingToSolveFor
+            && notices.stream()
+                .noneMatch(n -> n.severity() == Severity.ERROR)
+            && cards.values()
+                .stream()
+                .anyMatch(m -> m.machines > 0);
+        if (runningOf == graph && now && !running) Sfx.RUNNING.play();
+        running = now;
+        runningOf = graph;
     }
 
     // region Totals
@@ -1739,12 +1842,14 @@ public final class BoardSession {
         final String text = net.minecraft.client.gui.GuiScreen.getClipboardString();
         if (text == null || text.isBlank()) {
             flash(Severity.WARN, "The clipboard is empty: copy a Factory Flow plan link or code first");
+            Sfx.DENY.play();
             return;
         }
         final Graph own = PlanAPI.importFromClipboard();
         if (own != null) {
             com.gtnhplanner.importer.game.FactoryFlowImport.addAsSlot(own);
             flash(Severity.INFO, "Pasted '" + own.getName() + "'");
+            Sfx.SWEEP.play();
             return;
         }
         try {
@@ -1756,10 +1861,12 @@ public final class BoardSession {
             final String name = result.graph()
                 .getName();
             flash(missing == 0 ? Severity.INFO : Severity.WARN, "Imported '" + name + "': " + report.summary());
+            Sfx.SWEEP.play();
         } catch (final RuntimeException e) {
             flash(
                 Severity.WARN,
                 "The clipboard does not hold a plan (a Factory Flow link or code, or a GTNH Planner code)");
+            Sfx.DENY.play();
             com.gtnhplanner.GtnhPlanner.LOG.info("Paste plan failed", e);
         }
     }

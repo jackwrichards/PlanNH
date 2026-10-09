@@ -109,6 +109,11 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   from the world with sneak held (`PlacementKeys`: R turn, G pick up and move, Del remove, U Focus: cards only where you
   look, Y hides the whole overlay). World code never loads the plans (`Plan.loaded()`). The earlier lens of every machine's live
   state is shelved on `shelf/ar-machine-lens`. Settings are the top bar's gear (`PlannerSettings`).
+- Sound (`ui/sound/Sfx`, `docs/design/sound.md`): every sound is synthesized by `tools/sound/synth.mjs` (ffmpeg
+  encodes; `sounds.json` names them) and balanced there against the click; the game plays them at one volume matched
+  to the vanilla click, times the gear's Sounds setting. Anything pressed clicks unless the action has a sound of its
+  own; wires and drawers sound of what they carry (item clack, fluid bubbles, power sparks). `call sfx` lists what
+  played (the dev game is muted).
 - Multiblock pictures in `assets/gtnhplanner/textures/structures/` are Factory Flow's renders (`public/power-art`: the
   owner's processing multiblocks and the Power Planner workbook's power plants), scaled to 320 px palette PNGs with
   transparency. `ui/card/StructureArt` maps in-game machine names to them; `call 'gtmachines?art=1'` checks coverage.

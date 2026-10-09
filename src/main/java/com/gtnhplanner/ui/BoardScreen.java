@@ -113,11 +113,15 @@ public final class BoardScreen extends ModularScreen {
                     .height(16)));
         // Over the board (and the library): the non-recipe machines, opened from their key.
         final PickerDoor pickerDoor = new PickerDoor();
-        final PowerPicker picker = new PowerPicker(session, () -> pickerDoor.picker.setEnabled(false));
+        final PowerPicker picker = new PowerPicker(session, () -> {
+            if (pickerDoor.picker.isEnabled()) com.gtnhplanner.ui.sound.Sfx.CLOSE.play();
+            pickerDoor.picker.setEnabled(false);
+        });
         pickerDoor.picker = picker;
         picker.setEnabled(false);
         final Runnable openPicker = () -> {
             library.set(false);
+            com.gtnhplanner.ui.sound.Sfx.OPEN.play();
             picker.opened();
             picker.setEnabled(true);
         };
@@ -125,8 +129,10 @@ public final class BoardScreen extends ModularScreen {
         topBar.child(
             named(parts, "nonrecipe", boltKey("Non-recipe machines: generators, turbines, boilers, reactors", () -> {
                 // The key opens the picker and closes it again.
-                if (picker.isEnabled()) picker.setEnabled(false);
-                else openPicker.run();
+                if (picker.isEnabled()) {
+                    com.gtnhplanner.ui.sound.Sfx.CLOSE.play();
+                    picker.setEnabled(false);
+                } else openPicker.run();
             }).marginLeft(GROUP_GAP)));
         topBar.child(
             named(
@@ -346,6 +352,7 @@ public final class BoardScreen extends ModularScreen {
         void set(final boolean open) {
             if (open == this.open) return;
             this.open = open;
+            com.gtnhplanner.ui.sound.Sfx.PAGE.play();
             view.setEnabled(open);
             for (final com.cleanroommc.modularui.widget.Widget<?> w : board) w.setEnabled(!open);
             if (open) view.opened();
@@ -413,8 +420,9 @@ public final class BoardScreen extends ModularScreen {
                     x + w / 2f,
                     y + (h - 8) / 2f,
                     enabled.getAsBoolean() ? Hyb.INK : 0xFF5A5C65))
+            .clickSound(Hyb::click)
             .onMousePressed(b -> {
-                // True makes ModularUI play its click: only when the key did something.
+                // True makes ModularUI play the click: only when the key did something.
                 if (b != 0 || !enabled.getAsBoolean()) return false;
                 action.run();
                 return true;
@@ -557,6 +565,7 @@ public final class BoardScreen extends ModularScreen {
             && getPanelManager().getTopMostPanel() instanceof Popup popup) {
             getContext().removeFocus();
             popup.closeIfOpen();
+            com.gtnhplanner.ui.sound.Sfx.CLOSE.play();
             return true;
         }
         // The non-recipe machines: Esc closes them, even from the search; the board's keys wait meanwhile.

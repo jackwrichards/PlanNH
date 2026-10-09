@@ -61,6 +61,8 @@ public class ClientProxy extends CommonProxy {
             .register(handler);
 
         MinecraftForge.EVENT_BUS.register(new ChatHandler());
+        // The planner's screens coming and going (its other sounds play where they happen: ui/sound/Sfx).
+        MinecraftForge.EVENT_BUS.register(com.gtnhplanner.ui.sound.ScreenSounds.INSTANCE);
         ClientCommandHandler.instance.registerCommand(new ImportCommand());
         // The tour: drives the planner while the player watches.
         com.gtnhplanner.ui.tutorial.Tutorial.register();

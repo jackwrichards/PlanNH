@@ -389,6 +389,22 @@ public final class DevHarness {
                     r.put("guiHeight", sr.getScaledHeight());
                     return r;
                 });
+            case "/sfx":
+                // The planner's sounds played lately, newest first (the dev game is muted, so this is how a test
+                // hears them); play=<name or enum> plays one, at pitch=.
+                return onClient(() -> {
+                    if (q.containsKey("play")) {
+                        final String want = q.get("play");
+                        for (final com.gtnhplanner.ui.sound.Sfx s : com.gtnhplanner.ui.sound.Sfx.values()) if (s.name()
+                            .equalsIgnoreCase(want)
+                            || s.id()
+                                .equals(want))
+                            s.play(Float.parseFloat(q.getOrDefault("pitch", "1")));
+                    }
+                    final Map<String, Object> r = new LinkedHashMap<>();
+                    r.put("recent", com.gtnhplanner.ui.sound.Sfx.recent());
+                    return r;
+                });
             case "/library":
                 // The site the library reads and posts to: url=<base> (tools/dev/mock-library.mjs for a local
                 // stand-in).

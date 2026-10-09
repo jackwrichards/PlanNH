@@ -125,6 +125,7 @@ public final class PlacementKeys {
         to[3] += (int) Math.round(((a[2] + a[5]) - (b[2] + b[5])) / 2);
         if (!WorldLinks.relink(graph, node, link, to, false)) {
             WorldView.say("Another machine is placed there");
+            com.gtnhplanner.ui.sound.Sfx.DENY.play();
             return;
         }
         link = to;
@@ -146,7 +147,7 @@ public final class PlacementKeys {
     private void remove() {
         WorldLinks.unlink(graph, node, link[0], link[1], link[2], link[3]);
         WorldView.say("Removed " + WorldView.cardName(node) + " from the world");
-        Hyb.click();
+        com.gtnhplanner.ui.sound.Sfx.WORLD_REMOVE.play();
         link = null;
     }
 

@@ -85,10 +85,16 @@ public final class PlannerKeys {
     @SubscribeEvent
     public void onKey(final InputEvent.KeyInputEvent event) {
         if (Minecraft.getMinecraft().currentScreen != null) return;
-        while (MINIMAP.isPressed()) PlannerSettings.setMinimap(!PlannerSettings.minimap());
+        while (MINIMAP.isPressed()) {
+            PlannerSettings.setMinimap(!PlannerSettings.minimap());
+            (PlannerSettings.minimap() ? com.gtnhplanner.ui.sound.Sfx.TOGGLE_ON
+                : com.gtnhplanner.ui.sound.Sfx.TOGGLE_OFF).play();
+        }
         // The plan over the world on and off, with sneak held or not (Shift + Y in the keys strip).
         while (AR.isPressed()) {
             PlannerSettings.setArLens(!PlannerSettings.arLens());
+            (PlannerSettings.arLens() ? com.gtnhplanner.ui.sound.Sfx.TOGGLE_ON
+                : com.gtnhplanner.ui.sound.Sfx.TOGGLE_OFF).play();
             WorldView.say(PlannerSettings.arLens() ? "Plan over the world: on" : "Plan over the world: off");
         }
         while (LINK.isPressed()) LinkTarget.beginForCrosshair();

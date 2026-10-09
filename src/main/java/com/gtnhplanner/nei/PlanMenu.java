@@ -175,6 +175,7 @@ public final class PlanMenu implements IContainerDrawHandler, IContainerInputHan
     // region The menu
 
     private void open(final PlanButton button, final String heading, final List<Row> list) {
+        com.gtnhplanner.ui.sound.Sfx.OPEN.play();
         int width = Hyb.width(heading) + 12;
         for (final Row r : list) {
             final int detail = r.detail.isEmpty() ? 0 : Hyb.width(r.detail) + 12;

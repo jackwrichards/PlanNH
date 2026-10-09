@@ -84,8 +84,9 @@ public final class Hyb {
     private Hyb() {}
 
     /** Minecraft's button click, for every control that acts on a click (ModularUI's own buttons already make it). */
+    /** The planner's click: what anything pressed sounds of, unless the action has a sound of its own. */
     public static void click() {
-        com.cleanroommc.modularui.api.widget.Interactable.playButtonClickSound();
+        com.gtnhplanner.ui.sound.Sfx.CLICK.play();
     }
 
     public static Tier tier(final String name) {

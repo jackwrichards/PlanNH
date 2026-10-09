@@ -422,7 +422,7 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
         final int next = Math
             .max(Note.MIN_FONT, Math.min(Note.MAX_FONT, n.fontSizeOrDefault() + steps * Note.FONT_STEP));
         if (next == n.fontSizeOrDefault()) return;
-        Hyb.click();
+        com.gtnhplanner.ui.sound.Sfx.TICK.play(steps > 0 ? 1.12f : 0.9f);
         session.editLayout(() -> n.setFontSize(next));
     }
 
@@ -447,14 +447,11 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
         final Note n = note();
         if (n == null) return;
         final List<PickList.Entry> rows = new ArrayList<>();
-        for (final String[] c : NoteColors.MENU) rows.add(
-            new PickList.Entry(
-                null,
-                "■ " + c[1],
-                "",
-                NoteColors.paper(c[0]),
-                c[0].equals(n.colorTag()),
-                () -> session.editLayout(() -> n.setColor(c[0]))));
+        for (final String[] c : NoteColors.MENU) rows
+            .add(new PickList.Entry(null, "■ " + c[1], "", NoteColors.paper(c[0]), c[0].equals(n.colorTag()), () -> {
+                com.gtnhplanner.ui.sound.Sfx.ADJUST.play();
+                session.editLayout(() -> n.setColor(c[0]));
+            }));
         Popup.open(
             getPanel(),
             PickList.popup("gtnhplanner_note_colour", "Colour", rows, false, 120, NoteColors.MENU.size()),

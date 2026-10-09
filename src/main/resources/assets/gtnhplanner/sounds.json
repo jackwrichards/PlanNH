@@ -1,0 +1,255 @@
+{
+  "board.adjust": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/adjust1",
+      "gtnhplanner:board/adjust2",
+      "gtnhplanner:board/adjust3"
+    ]
+  },
+  "board.clone": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/clone1",
+      "gtnhplanner:board/clone2"
+    ]
+  },
+  "board.drop": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/drop1",
+      "gtnhplanner:board/drop2",
+      "gtnhplanner:board/drop3"
+    ]
+  },
+  "board.lift": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/lift1",
+      "gtnhplanner:board/lift2"
+    ]
+  },
+  "board.merge": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/merge1",
+      "gtnhplanner:board/merge2"
+    ]
+  },
+  "board.pin": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/pin1",
+      "gtnhplanner:board/pin2"
+    ]
+  },
+  "board.place": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/place1",
+      "gtnhplanner:board/place2",
+      "gtnhplanner:board/place3"
+    ]
+  },
+  "board.redo": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/redo1",
+      "gtnhplanner:board/redo2"
+    ]
+  },
+  "board.remove": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/remove1",
+      "gtnhplanner:board/remove2"
+    ]
+  },
+  "board.running": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/running1"
+    ]
+  },
+  "board.sweep": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/sweep1",
+      "gtnhplanner:board/sweep2"
+    ]
+  },
+  "board.undo": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/undo1",
+      "gtnhplanner:board/undo2"
+    ]
+  },
+  "board.unpin": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/unpin1",
+      "gtnhplanner:board/unpin2"
+    ]
+  },
+  "dial.tier": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:dial/tier1",
+      "gtnhplanner:dial/tier2"
+    ]
+  },
+  "note.crumple": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:note/crumple1",
+      "gtnhplanner:note/crumple2"
+    ]
+  },
+  "note.stick": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:note/stick1",
+      "gtnhplanner:note/stick2"
+    ]
+  },
+  "screen.close": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:screen/close1"
+    ]
+  },
+  "screen.open": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:screen/open1"
+    ]
+  },
+  "ui.click": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/click1",
+      "gtnhplanner:ui/click2",
+      "gtnhplanner:ui/click3",
+      "gtnhplanner:ui/click4"
+    ]
+  },
+  "ui.close": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/close1",
+      "gtnhplanner:ui/close2"
+    ]
+  },
+  "ui.deny": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/deny1",
+      "gtnhplanner:ui/deny2"
+    ]
+  },
+  "ui.open": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/open1",
+      "gtnhplanner:ui/open2"
+    ]
+  },
+  "ui.page": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/page1",
+      "gtnhplanner:ui/page2",
+      "gtnhplanner:ui/page3"
+    ]
+  },
+  "ui.tick": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/tick1",
+      "gtnhplanner:ui/tick2",
+      "gtnhplanner:ui/tick3"
+    ]
+  },
+  "ui.toggle_off": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/toggle_off1",
+      "gtnhplanner:ui/toggle_off2"
+    ]
+  },
+  "ui.toggle_on": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/toggle_on1",
+      "gtnhplanner:ui/toggle_on2"
+    ]
+  },
+  "wire.cut": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/cut1",
+      "gtnhplanner:wire/cut2"
+    ]
+  },
+  "wire.fluid": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/fluid1",
+      "gtnhplanner:wire/fluid2",
+      "gtnhplanner:wire/fluid3"
+    ]
+  },
+  "wire.grab": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/grab1",
+      "gtnhplanner:wire/grab2"
+    ]
+  },
+  "wire.item": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/item1",
+      "gtnhplanner:wire/item2",
+      "gtnhplanner:wire/item3"
+    ]
+  },
+  "wire.power": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/power1",
+      "gtnhplanner:wire/power2",
+      "gtnhplanner:wire/power3"
+    ]
+  },
+  "wire.power_cut": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/power_cut1",
+      "gtnhplanner:wire/power_cut2"
+    ]
+  },
+  "wire.snap": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/snap1",
+      "gtnhplanner:wire/snap2",
+      "gtnhplanner:wire/snap3"
+    ]
+  },
+  "world.place": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:world/place1",
+      "gtnhplanner:world/place2"
+    ]
+  },
+  "world.remove": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:world/remove1",
+      "gtnhplanner:world/remove2"
+    ]
+  }
+}

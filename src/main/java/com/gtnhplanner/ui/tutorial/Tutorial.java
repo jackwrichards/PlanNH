@@ -47,6 +47,12 @@ public final class Tutorial {
         return current != null;
     }
 
+    /** Whether the tour is hurrying through a step or catching up to one: too fast for its sounds to be heard. */
+    public static boolean hurried() {
+        final Tutorial t = current;
+        return t != null && (t.director.hurrying() || t.director.catchingUp());
+    }
+
     /** Starts the tour from the top (in a world only). */
     public static void start() {
         if (current == null) startAt(0);

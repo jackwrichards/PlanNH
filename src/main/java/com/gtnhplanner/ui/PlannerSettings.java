@@ -44,6 +44,9 @@ public final class PlannerSettings {
     public static final float[] MINIMAP_ZOOMS = { 0.04f, 0.06f, 0.09f, 0.13f, 0.18f, 0.25f, 0.35f, 0.5f, 0.71f, 1f };
     /** How far away linked machines show their AR panels, in blocks. */
     public static final int[] AR_RANGES = { 16, 32, 64, 128 };
+    /** The planner's sounds against the vanilla click's loudness (Normal matches it). */
+    public static final String[] SOUND_NAMES = { "Off", "Quiet", "Normal", "Loud" };
+    public static final float[] SOUND_GAINS = { 0f, 0.5f, 1f, 1.7f };
 
     private static Properties props;
 
@@ -176,6 +179,22 @@ public final class PlannerSettings {
 
     public static int arRange() {
         return AR_RANGES[arRangeIndex()];
+    }
+
+    // endregion
+
+    // region Sound
+
+    public static int soundIndex() {
+        return clamp(integer("sound.level", 2), SOUND_GAINS.length);
+    }
+
+    public static void setSoundIndex(final int i) {
+        set("sound.level", clamp(i, SOUND_GAINS.length));
+    }
+
+    public static float soundGain() {
+        return SOUND_GAINS[soundIndex()];
     }
 
     // endregion

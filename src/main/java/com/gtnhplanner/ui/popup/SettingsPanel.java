@@ -70,6 +70,13 @@ public final class SettingsPanel extends Widget<SettingsPanel> implements Intera
                 "Circuit as an input",
                 () -> onOff(PlannerSettings.circuitAsInput()),
                 s -> PlannerSettings.setCircuitAsInput(!PlannerSettings.circuitAsInput())));
+        rows.add(Row.heading("SOUND"));
+        rows.add(
+            new Row(
+                "Sounds",
+                () -> PlannerSettings.SOUND_NAMES[PlannerSettings.soundIndex()],
+                s -> PlannerSettings.setSoundIndex(
+                    Math.max(0, Math.min(PlannerSettings.SOUND_NAMES.length - 1, PlannerSettings.soundIndex() + s)))));
         rows.add(Row.heading("MINIMAP (WHILE PLAYING)"));
         rows.add(
             new Row(
@@ -199,10 +206,16 @@ public final class SettingsPanel extends Widget<SettingsPanel> implements Intera
     public Result onMousePressed(final int mouseButton) {
         final int i = rowAtMouse();
         if (i < 0 || mouseButton > 1) return Result.IGNORE;
-        Hyb.click();
-        rows.get(i)
-            .step()
+        final Row row = rows.get(i);
+        row.step()
             .accept(mouseButton == 1 ? -1 : 1);
+        // A switch sounds as it lands (and the Sounds row at its new loudness).
+        final String now = row.value() == null ? ""
+            : row.value()
+                .get();
+        if ("On".equals(now)) com.gtnhplanner.ui.sound.Sfx.TOGGLE_ON.play();
+        else if ("Off".equals(now)) com.gtnhplanner.ui.sound.Sfx.TOGGLE_OFF.play();
+        else Hyb.click();
         return Result.SUCCESS;
     }
 }

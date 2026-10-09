@@ -1600,12 +1600,14 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 stepSetting(layout.chips.get(i), step);
             }
             case AMPS -> {
+                com.gtnhplanner.ui.sound.Sfx.TICK.play(step > 0 ? 1.12f : 0.9f);
                 pendingAmps = stepAmps(pendingAmps > 0 ? pendingAmps : model.amps, step);
                 wheelAt = System.currentTimeMillis();
                 committedOver = null;
             }
             case MACHINE -> stepMachine(step);
             case MACHINES -> {
+                com.gtnhplanner.ui.sound.Sfx.TICK.play(step > 0 ? 1.12f : 0.9f);
                 pendingCount = Math.max(1, (pendingCount > 0 ? pendingCount : Math.round(machinesTotal())) + step);
                 wheelAt = System.currentTimeMillis();
                 committedOver = null;
@@ -1649,12 +1651,16 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                     nextTier = t;
                 }
             }
-            if (next != null) session.chooseMachine(model.node, next, true);
+            if (next != null) {
+                com.gtnhplanner.ui.sound.Sfx.tier(nextTier);
+                session.chooseMachine(model.node, next, true);
+            }
             return;
         }
         int i = CardDefaults.tierIndex(model.tier);
         if (i < 0) i = CardDefaults.recipeTier(model.euPerTick);
         else i = Math.max(0, Math.min(CardDefaults.TIERS.length - 1, i + step));
+        if (i != CardDefaults.tierIndex(model.tier)) com.gtnhplanner.ui.sound.Sfx.tier(i);
         session.setVoltage(model.node, CardDefaults.TIERS[i]);
     }
 
@@ -1668,6 +1674,13 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     }
 
     private void setCoil(final GtCoils.Coil coil) {
+        com.gtnhplanner.ui.sound.Sfx.ADJUST.playStep(
+            Math.max(
+                0,
+                GtCoils.all()
+                    .indexOf(coil)),
+            0.8f,
+            1.05f);
         session.editMachine(model.node, () -> {
             final MachineConfig cfg = model.node.machineConfig;
             cfg.setBoolean("gt_multiblock", true);
@@ -1728,6 +1741,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         for (int k = 0; k < machines.size(); k++) if (ItemStack.areItemStacksEqual(machines.get(k), model.machineStack)
             || isSingle(machines.get(k)) && isSingle(model.machineStack)) i = k;
         i = (i + step + machines.size()) % machines.size();
+        com.gtnhplanner.ui.sound.Sfx.ADJUST.play();
         session.chooseMachine(model.node, machines.get(i), model.gregtech);
     }
 
@@ -1788,8 +1802,10 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             final boolean current = ItemStack.areItemStacksEqual(machine, model.machineStack)
                 || isSingle(machine) && isSingle(model.machineStack);
             rows.add(new PickList.Entry(machine, machine.getDisplayName(), detail, Hyb.INK, current, () -> {
-                if (!(isSingle(machine) && isSingle(model.machineStack)))
+                if (!(isSingle(machine) && isSingle(model.machineStack))) {
+                    com.gtnhplanner.ui.sound.Sfx.ADJUST.play();
                     session.chooseMachine(model.node, machine, model.gregtech);
+                }
             }));
         }
         // The machine menu's last row: another recipe for this machine, as on the website.

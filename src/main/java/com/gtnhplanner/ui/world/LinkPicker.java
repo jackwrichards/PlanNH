@@ -263,7 +263,7 @@ public final class LinkPicker {
         if (node == null || hit == null) return;
         final int[] at = spot(hit);
         final int dim = mc.theWorld.provider.dimensionId;
-        Hyb.click();
+        com.gtnhplanner.ui.sound.Sfx.WORLD_PLACE.play();
         if (moving != null) {
             WorldLinks.relink(graph, node, moving, WorldLinks.link(dim, at[0], at[1], at[2], facing(), size), true);
             WorldView.say("Moved " + name + " to " + at[0] + ", " + at[1] + ", " + at[2]);
