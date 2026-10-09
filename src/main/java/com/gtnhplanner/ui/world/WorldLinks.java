@@ -170,7 +170,7 @@ public final class WorldLinks {
             if (only != null && g != only) continue;
             for (final Node n : g.nodes.values()) for (final int[] l : n.worldLinks) {
                 if (l[0] != dim) continue;
-                final double t = enter(from, dir, l[1], l[2], l[3]);
+                final double t = enter(from, dir, extent(g, n, l));
                 if (t >= 0 && t < bestT) {
                     bestT = t;
                     best = new Spot(new Hit(g, n), l[1], l[2], l[3], t);
@@ -178,6 +178,16 @@ public final class WorldLinks {
             }
         }
         return best;
+    }
+
+    /**
+     * What a placed card's spot fills: its whole structure when the card is a multiblock of the plan last open (the
+     * plan whose machines are known), else its block. {x0, y0, z0, x1, y1, z1}.
+     */
+    static double[] extent(final Graph graph, final Node node, final int[] link) {
+        final PlanSnapshot snap = PlanSnapshot.latest();
+        final PlanSnapshot.Card card = snap == null || snap.graph() != graph ? null : snap.cardOf(node.id);
+        return WorldMarks.extent(card == null ? null : card.machine(), link[1], link[2], link[3], facing(link));
     }
 
     /** A placed card's spot met by a ray: the card, where it is, and how far along the ray. */

@@ -62,10 +62,11 @@ plan show what the machines are doing.
 
 ## 4. Seeing placements in the world
 
-- **Show in the world**: the card's block is outlined through walls, with a beam and its name and distance, for 30
+- **Show in the world**: the card's block (a multiblock's whole structure) is outlined through walls, with a beam and its name and distance, for 30
   seconds (`ui/world/WorldView`, drawing in `WorldMarks`).
-- With the overlay off, looking at a placed spot (up to 64 blocks away, through blocks) outlines it, names its card and plan under the
-  crosshair, and centres the minimap on that card (when set).
+- With the overlay off, looking at a placed spot or structure (up to 64 blocks away, through blocks) outlines it, names
+  its card and plan under the crosshair, and centres the minimap on that card (when set). With the overlay on, the
+  overlay outlines it instead. A structure is known for cards of the plan last open; others are found by their block.
 
 ## 5. The plan over the world (AR)
 

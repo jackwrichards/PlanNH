@@ -146,14 +146,20 @@ public final class WorldView {
         if (shown != null) {
             for (final int[] l : shown.worldLinks) {
                 if (l[0] != dim) continue;
-                WorldMarks.outline(l[1], l[2], l[3], Hyb.LIT & 0xFFFFFF, 0.004f, 2f, 0.8f);
+                WorldMarks.outline(WorldLinks.extent(shownGraph, shown, l), Hyb.LIT & 0xFFFFFF, 0.004f, 2f, 0.8f);
                 WorldMarks.beam(l[1], l[2], l[3], Hyb.LIT & 0xFFFFFF);
             }
         }
-        if (looked != null && looked != shown && looked != picking) {
+        // The plan over the world outlines what the crosshair is on itself.
+        if (looked != null && looked != shown && looked != picking && !PlanOverlay.on()) {
             for (final int[] l : looked.worldLinks) if (l[0] == dim) {
                 final boolean it = l[1] == lookX && l[2] == lookY && l[3] == lookZ;
-                WorldMarks.outline(l[1], l[2], l[3], Hyb.LIT & 0xFFFFFF, 0.004f, 1.5f, it ? 0.7f : 0.45f);
+                WorldMarks.outline(
+                    WorldLinks.extent(look.graph(), looked, l),
+                    Hyb.LIT & 0xFFFFFF,
+                    0.004f,
+                    1.5f,
+                    it ? 0.7f : 0.45f);
             }
         }
         if (shown != null) labels(shown, dim);
