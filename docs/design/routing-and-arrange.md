@@ -29,6 +29,12 @@ normal test run.
 ./gradlew test -Pbench=profile -PprofileBoard='Farm Power' -Pjfr --tests '*RouterProfile*'
 ```
 
+A board straight from the game joins the corpus as `game/<name>`: with the dev game open on it,
+`tools/dev/mc.sh call board > build/bench/boards/<name>.json` (the dump has every card's and drawer's world rect and
+the boxes each wire joins, so it routes exactly as the board did). That is how to look into a spot someone points at
+in a screenshot: `-PbenchOnly='game/<name>'`, and `RouterTrace` with `-PprofileBoard='game/<name>' -Pcrop=...` for a close-up.
+`-Pstages` prints how long each step of Arrange takes.
+
 `-Prouter.turn45=… -Prouter.turn90=… -Prouter.cross=… -Prouter.nearCost=… -Prouter.run=… -Prouter.rounds=…
 -Prouter.near=… -Prouter.wide=…` override the router's prices for an experiment. `RouterTrace` prints the costliest
 searches (and what each route paid for: steps, turns, junctions, corner crossings) and draws close-ups round the
