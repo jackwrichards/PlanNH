@@ -460,55 +460,28 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     }
 
     /**
-     * Zoomed out, hovering a card shows what it is, as Factory Flow's glance does: a panel at the screen's own scale
-     * with the name, the count, tier and power, and what goes in and comes out with its rates. Drawn in the screen's
-     * foreground; false when the card is not in the glance view (the ordinary tooltip applies).
+     * Zoomed out, hovering a card shows the card itself as it is zoomed in, the clean card at full size beside the
+     * pointer (as the minimap and the plan over the world draw it, from the board's snapshot), in the screen's
+     * foreground. False when the card is not in the glance view or not in the snapshot yet (the ordinary tooltip
+     * applies).
      */
     public boolean drawReveal(final int mouseX, final int mouseY, final int right, final int bottom) {
-        final CardModel m = model;
-        if (m == null || !glance() || !isHovering()) return false;
-        // Every recipe's ports, on a shared machine one after another.
-        final List<CardModel.PortView> ins = new ArrayList<>(), outs = new ArrayList<>();
-        for (final CardModel each : models) {
-            ins.addAll(each.inputs);
-            outs.addAll(each.outputs);
-        }
-        final int rows = Math.max(1, Math.max(ins.size(), outs.size()));
-        final int colW = 136, rowH = 22, w = 2 * colW + 28, h = 6 + 18 + 6 + 10 + 6 + rows * rowH + 4;
+        if (model == null || !glance() || !isHovering()) return false;
+        final com.gtnhplanner.ui.world.PlanSnapshot snap = com.gtnhplanner.ui.world.PlanSnapshot.latest();
+        final com.gtnhplanner.ui.world.PlanSnapshot.Card card = snap == null || snap.graph() != session.graph() ? null
+            : snap.cardOf(nodeId);
+        if (card == null) return false;
+        final int w = CleanCardView.width(), h = CleanCardView.height(card);
         int x = mouseX + 14, y = mouseY + 14;
         if (x + w > right) x = Math.max(2, mouseX - 14 - w);
         if (y + h > bottom) y = Math.max(2, bottom - h);
         Tip.beginPanel();
-        Tip.chrome(x, y, w, h);
-        // The name bar the card wears zoomed in.
-        Hyb.bevel(x + 6, y + 6, w - 12, 18, Hyb.KEY, Hyb.KEY_HI, Hyb.KEY_LO, Hyb.KEY_EDGE, 1);
-        Hyb.textCentered(Hyb.fit(m.machineName, w - 24), x + w / 2f, y + 11, Hyb.INK);
-        // How many, at what tier, drawing how much.
-        float lx = x + 8;
-        final int ly = y + 30;
-        final String count = "×" + Fmt.machines(machinesTotal());
-        Hyb.text(count, lx, ly, pinned() ? Hyb.GOLD : Hyb.INK);
-        lx += Hyb.width(count) + 8;
-        if (m.gregtech) {
-            final Hyb.Tier tier = Hyb.tier(m.tier);
-            Hyb.text(tier.name(), lx, ly, tier.bg());
-            lx += Hyb.width(tier.name()) + 8;
-        }
-        Hyb.text(Fmt.power(powerTotal()) + " EU/t", lx, ly, Hyb.MUTED);
-        // Inputs, the arrow, outputs: the card's own reading order.
-        final int top = y + 46;
-        for (int i = 0; i < ins.size(); i++) revealPort(ins.get(i), x + 8, top + i * rowH, colW - 8);
-        for (int i = 0; i < outs.size(); i++) revealPort(outs.get(i), x + 8 + colW + 20, top + i * rowH, colW - 8);
-        final float ax = x + 8 + colW + 4, ay = top + 8;
-        Hyb.triangle(ax + 8, ay, ax, ay - 4, ax, ay + 4, Hyb.MUTED);
+        org.lwjgl.opengl.GL11.glPushMatrix();
+        org.lwjgl.opengl.GL11.glTranslatef(x, y, 0);
+        CleanCardView.draw(card, session.rateUnit(), false);
+        org.lwjgl.opengl.GL11.glPopMatrix();
         Tip.endPanel();
         return true;
-    }
-
-    private void revealPort(final CardModel.PortView p, final float x, final float y, final int width) {
-        Hyb.icon(p.item(), p.fluid(), x, y + 2, 16, 300);
-        Hyb.text(Hyb.fit(p.name(), width - 22), x + 20, y, Hyb.INK);
-        Hyb.text(Fmt.rate(p.perSecond(), session.rateUnit(), p.isFluid()), x + 20, y + 10, Hyb.MUTED);
     }
 
     /** Rounds to the nearest half pixel: one screen pixel at the game's GUI scale 2, so text stays crisp. */
