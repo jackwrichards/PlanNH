@@ -18,7 +18,7 @@ import cpw.mods.fml.common.gameevent.TickEvent;
  */
 public final class PlannerKeys {
 
-    static final String CATEGORY = "key.categories.neiflowchart";
+    private static final String CATEGORY = "key.categories.neiflowchart";
 
     static final KeyBinding MINIMAP = new KeyBinding("key.gtnhplanner.minimap", Keyboard.KEY_N, CATEGORY);
     static final KeyBinding ZOOM_IN = new KeyBinding("key.gtnhplanner.minimapZoomIn", Keyboard.KEY_RBRACKET, CATEGORY);
@@ -46,10 +46,17 @@ public final class PlannerKeys {
     public void onKey(final InputEvent.KeyInputEvent event) {
         if (Minecraft.getMinecraft().currentScreen != null) return;
         while (MINIMAP.isPressed()) PlannerSettings.setMinimap(!PlannerSettings.minimap());
-        while (AR.isPressed()) PlannerSettings.setArLens(!PlannerSettings.arLens());
+        while (AR.isPressed()) {
+            // With sneak held: every card, or only where you look.
+            if (PlacementKeys.sneaking()) {
+                PlannerSettings.setArFocus(!PlannerSettings.arFocus());
+                if (!PlannerSettings.arLens()) PlannerSettings.setArLens(true);
+                WorldView.say(PlannerSettings.arFocus() ? "Cards only where you look" : "Every card");
+            } else PlannerSettings.setArLens(!PlannerSettings.arLens());
+        }
         while (LINK.isPressed()) LinkTarget.beginForCrosshair();
-        // Adjusting a placed machine or placing one takes [ and ] for its size.
-        if (!PlannerSettings.minimap() || PlacementKeys.adjusting() || LinkPicker.active()) {
+        // Placing a machine takes [ and ] for its size.
+        if (!PlannerSettings.minimap() || LinkPicker.active()) {
             while (ZOOM_IN.isPressed() || ZOOM_OUT.isPressed()) {}
             return;
         }
@@ -62,8 +69,7 @@ public final class PlannerKeys {
     @SubscribeEvent
     public void onTick(final TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END || Minecraft.getMinecraft().currentScreen != null
-            || !PlannerSettings.minimap()
-            || PlacementKeys.adjusting()) return;
+            || !PlannerSettings.minimap()) return;
         final int dx = (PAN_RIGHT.getIsKeyPressed() ? 1 : 0) - (PAN_LEFT.getIsKeyPressed() ? 1 : 0);
         final int dy = (PAN_DOWN.getIsKeyPressed() ? 1 : 0) - (PAN_UP.getIsKeyPressed() ? 1 : 0);
         if (dx != 0 || dy != 0) Minimap.INSTANCE.pan(dx, dy);

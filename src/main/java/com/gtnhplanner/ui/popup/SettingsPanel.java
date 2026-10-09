@@ -118,6 +118,11 @@ public final class SettingsPanel extends Widget<SettingsPanel> implements Intera
                 s -> PlannerSettings.setArLens(!PlannerSettings.arLens())));
         rows.add(
             new Row(
+                "Cards only where you look (Shift+Y)",
+                () -> onOff(PlannerSettings.arFocus()),
+                s -> PlannerSettings.setArFocus(!PlannerSettings.arFocus())));
+        rows.add(
+            new Row(
                 "How far to show it",
                 () -> PlannerSettings.arRange() + " blocks",
                 s -> PlannerSettings

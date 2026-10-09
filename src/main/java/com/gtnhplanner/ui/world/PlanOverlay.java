@@ -63,6 +63,8 @@ public final class PlanOverlay {
         final int x, y, z, facing, size;
         /** The card's first spot: the one its card stands over and its wires run from. */
         final boolean main;
+        /** Where the machine being placed or moved would go now: the picker draws its ghost. */
+        final boolean preview;
         /** Where the card stands: the middle of its spot, or of its structure. */
         final double[] home;
         /** What it fills in the world, its spot or its structure: {x0, y0, z0, x1, y1, z1}. */
@@ -75,6 +77,11 @@ public final class PlanOverlay {
         float sx, sy, bx, by, scale, w, h, left, top;
 
         Placed(final PlanSnapshot.Card card, final int[] at, final boolean main) {
+            this(card, at, main, false);
+        }
+
+        Placed(final PlanSnapshot.Card card, final int[] at, final boolean main, final boolean preview) {
+            this.preview = preview;
             this.card = card;
             this.x = at[1];
             this.y = at[2];
@@ -96,6 +103,15 @@ public final class PlanOverlay {
     /** The card the crosshair is on, its spot or the card itself, found on the screen last frame; drawn highlighted. */
     @Nullable
     private UUID lit;
+    /** The placement the crosshair meets (its ghost), found with {@link #looked}. */
+    @Nullable
+    private Placed lookedAt;
+    /**
+     * The placement lit gold this frame, its card or its ghost under the crosshair, for the keys that act on a placed
+     * machine; null when none is (or a wire is).
+     */
+    @Nullable
+    private WorldLinks.Spot highlight;
     /** The wire under the crosshair, found on the screen last frame, and drawn lit. */
     @Nullable
     private Conn hovered;
@@ -129,6 +145,12 @@ public final class PlanOverlay {
 
     private PlanOverlay() {}
 
+    /** The placement lit gold by the plan over the world this frame, or null. */
+    @Nullable
+    static WorldLinks.Spot highlighted() {
+        return INSTANCE.highlight;
+    }
+
     public static boolean on() {
         return PlannerSettings.arLens();
     }
@@ -139,14 +161,24 @@ public final class PlanOverlay {
         final PlanSnapshot snap = PlanSnapshot.latest();
         if (snap == null || mc.theWorld == null || mc.renderViewEntity == null) return all;
         final int dim = mc.theWorld.provider.dimensionId;
+        final Node picking = LinkPicker.active() ? LinkPicker.node() : null;
+        final int[] preview = picking == null ? null : LinkPicker.preview();
         for (final PlanSnapshot.Card c : snap.cards()) {
             final Node n = snap.graph().nodes.get(c.id());
             if (n == null) continue;
             boolean first = true;
+            // The machine in hand goes where it would be put down, card and wires with it, as dragging on the board.
+            final boolean inHand = picking != null && c.nodeIds()
+                .contains(picking.id);
+            if (inHand && preview != null) {
+                all.add(new Placed(c, preview, true, true));
+                first = false;
+            }
             final int[] moving = LinkPicker.moving();
             for (final int[] l : n.worldLinks) if (l[0] == dim) {
-                // One picked up to move is in hand, not here.
-                if (moving != null && l[1] == moving[1] && l[2] == moving[2] && l[3] == moving[3]) continue;
+                // Where the machine in hand was is empty while it is in hand.
+                if (inHand && moving != null && l[1] == moving[1] && l[2] == moving[2] && l[3] == moving[3]) continue;
+                if (inHand && moving == null && LinkPicker.replacing()) continue;
                 all.add(new Placed(c, l, first));
                 first = false;
             }
@@ -168,16 +200,19 @@ public final class PlanOverlay {
     public void onTick(final TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
         looked = null;
+        lookedAt = null;
         final Minecraft mc = Minecraft.getMinecraft();
         if (!on() || mc.theWorld == null || mc.renderViewEntity == null || mc.currentScreen != null) return;
         // The spot the crosshair meets first, through blocks: spots are often empty, and the plan shows over the world.
         final net.minecraft.util.Vec3 from = mc.renderViewEntity.getPosition(1f), dir = mc.renderViewEntity.getLook(1f);
         double first = PlannerSettings.arRange();
         for (final Placed p : placed(mc)) {
+            if (p.preview) continue;
             final double t = WorldLinks.enter(from, dir, p.box);
             if (t >= 0 && t < first) {
                 first = t;
                 looked = p.card.id();
+                lookedAt = p;
             }
         }
     }
@@ -204,9 +239,10 @@ public final class PlanOverlay {
         WorldMarks.begin();
         // Each placed card's spot: the machine's ghost (unless the machine is built there); the one looked at outlined.
         // Every multiblock's depth first, so each shows its outside alone and nearer ghosts hide farther ones.
-        for (final Placed p : placed) if (p.card.machine() != null)
+        for (final Placed p : placed) if (!p.preview && p.card.machine() != null)
             WorldMarks.ghostDepth(p.card.machine(), p.card.needs(), p.size, p.x, p.y, p.z, p.facing);
         for (final Placed p : placed) {
+            if (p.preview) continue;
             if (p.card.machine() != null) WorldMarks
                 .machineGhost(p.card.machine(), p.card.needs(), p.size, p.x, p.y, p.z, p.facing, built(mc, p));
             if (p.card.id()
@@ -256,18 +292,22 @@ public final class PlanOverlay {
     public void onOverlay(final RenderGameOverlayEvent.Post event) {
         if (event.type != RenderGameOverlayEvent.ElementType.ALL) return;
         Minimap.INSTANCE.point(null, null);
+        highlight = null;
         if (!on() || !cameraKnown) return;
         final Minecraft mc = Minecraft.getMinecraft();
-        if (mc.currentScreen != null || mc.gameSettings.hideGUI || LinkPicker.active()) return;
+        if (mc.currentScreen != null || mc.gameSettings.hideGUI) return;
         final PlanSnapshot snap = PlanSnapshot.latest();
         if (snap == null) return;
         final ScaledResolution sr = event.resolution;
         final List<Placed> all = placed(mc);
         final List<Placed> shown = new ArrayList<>();
-        // A card over its first spot only: its other machines show as ghosts.
-        for (final Placed p : all) if (p.main && project(p, sr, mc)) shown.add(p);
-        // The plan's wires, flat on the screen as the board draws them, and the one the crosshair is on.
         final float cx = sr.getScaledWidth() / 2f, cy = sr.getScaledHeight() / 2f;
+        // How much of each card shows: all, or only where you look, fading in and out.
+        final Map<UUID, Float> seen = focus(all, sr, mc, cx, cy);
+        // A card over its first spot only: its other machines show as ghosts.
+        for (final Placed p : all)
+            if (p.main && seen.getOrDefault(p.card.id(), 1f) > 0.01f && project(p, sr, mc)) shown.add(p);
+        // The plan's wires, flat on the screen as the board draws them, and the one the crosshair is on.
         final List<Run> runs = runs(conns(all), sr, mc, snap);
         layout(shown, runs, sr);
         // What the crosshair is on: a wire's tag, else the nearest card it is over, else a spot (its ghost), else the
@@ -280,8 +320,14 @@ public final class PlanOverlay {
             over = p;
             break;
         }
-        final UUID card = near != null ? null : over != null ? over.card.id() : looked;
-        if (near == null && card == null) {
+        // While a machine is in hand, it is the one lit, and nothing else is under the crosshair.
+        final Node inHand = LinkPicker.active() ? LinkPicker.node() : null;
+        if (inHand != null) {
+            near = null;
+            over = null;
+        }
+        final UUID card = inHand != null ? inHand.id : near != null ? null : over != null ? over.card.id() : looked;
+        if (inHand == null && near == null && card == null) {
             float nearest = WIRE_REACH;
             for (final Run r : runs) {
                 final float d = distance(cx, cy, r.ax, r.ay, r.bx, r.by);
@@ -293,9 +339,25 @@ public final class PlanOverlay {
         }
         hovered = near == null ? null : near.conn;
         lit = card;
+        // What the keys act on: the card the crosshair is over, else the ghost it meets.
+        final Placed target = inHand != null || near != null ? null
+            : over != null ? over
+                : lookedAt != null && lookedAt.card.id()
+                    .equals(card) ? lookedAt : null;
+        final Node targetNode = target == null || target.preview ? null : snap.graph().nodes.get(target.card.id());
+        if (targetNode != null) highlight = new WorldLinks.Spot(
+            new WorldLinks.Hit(snap.graph(), targetNode),
+            target.x,
+            target.y,
+            target.z,
+            target.distance);
         Minimap.INSTANCE.point(card, hovered == null ? null : hovered.line);
         Hyb.beginBatch();
-        for (final Run r : runs) wire(r, r.conn.same(hovered));
+        for (final Run r : runs) {
+            Hyb.fadeOut = 1 - shown(r, seen);
+            if (Hyb.fadeOut < 0.99f) wire(r, r.conn.same(hovered));
+        }
+        Hyb.fadeOut = 0;
         Hyb.endBatch();
         // Far to near, so nearer cards cover farther ones as objects do; the one the crosshair is on over them all.
         Placed top = null;
@@ -303,15 +365,101 @@ public final class PlanOverlay {
             final Placed p = shown.get(i);
             if (p.card.id()
                 .equals(lit)) top = p;
-            else card(p, snap, false);
+            else {
+                Hyb.fadeOut = 1 - seen.getOrDefault(p.card.id(), 1f);
+                card(p, snap, false);
+            }
         }
+        Hyb.fadeOut = 0;
         if (top != null) card(top, snap, true);
         // Over the cards: what each wire carries.
-        for (final Run r : runs) if (!r.conn.same(hovered)) tag(r, false);
+        for (final Run r : runs) if (!r.conn.same(hovered)) {
+            Hyb.fadeOut = 1 - shown(r, seen);
+            if (Hyb.fadeOut < 0.99f) tag(r, false);
+        }
+        Hyb.fadeOut = 0;
         if (near != null) tag(near, true);
         GL11.glColor4f(1, 1, 1, 1);
         GL11.glEnable(GL11.GL_TEXTURE_2D);
     }
+
+    // region Cards only where you look
+
+    /**
+     * How near the crosshair comes to a machine, on the screen in GUI pixels, for its card to show whole, and how far
+     * it fades out over: a wide margin, so cards come and go softly as you look around.
+     */
+    private static final float FOCUS_NEAR = 28, FOCUS_FAR = 150;
+
+    /** Each card's share shown, eased from frame to frame; and when it was last eased. */
+    @Nullable
+    private Map<UUID, Float> focus;
+    private long focusAt;
+
+    /**
+     * How much of each card shows, by card: every card whole, or with "Cards only where you look" by how near the
+     * crosshair is to its machine (whole on it, gone past {@link #FOCUS_FAR}), easing in and out over a few frames. The
+     * card in hand while placing and the card looked at show whole.
+     */
+    private Map<UUID, Float> focus(final List<Placed> all, final ScaledResolution sr, final Minecraft mc,
+        final float cx, final float cy) {
+        if (focus == null) focus = new HashMap<>();
+        if (!PlannerSettings.arFocus()) {
+            focus.clear();
+            return focus;
+        }
+        final long now = System.nanoTime();
+        final float step = focusAt == 0 ? 1 : Math.min(1, (now - focusAt) / 1e9f * 9);
+        focusAt = now;
+        final Map<UUID, Float> want = new HashMap<>();
+        final Node inHand = LinkPicker.active() ? LinkPicker.node() : null;
+        for (final Placed p : all) {
+            final UUID id = p.card.id();
+            float w = id.equals(looked) || inHand != null && p.card.nodeIds()
+                .contains(inHand.id) ? 1 : near(p.box, sr, mc, cx, cy);
+            want.merge(id, w, Math::max);
+        }
+        final Map<UUID, Float> next = new HashMap<>();
+        for (final Map.Entry<UUID, Float> e : want.entrySet()) {
+            final float was = focus.getOrDefault(e.getKey(), 0f);
+            next.put(e.getKey(), was + (e.getValue() - was) * step);
+        }
+        focus = next;
+        return focus;
+    }
+
+    /** 1 with the crosshair on or near a box's outline on the screen, down to 0 past {@link #FOCUS_FAR}. */
+    private float near(final double[] box, final ScaledResolution sr, final Minecraft mc, final float cx,
+        final float cy) {
+        float x0 = Float.MAX_VALUE, y0 = Float.MAX_VALUE, x1 = -Float.MAX_VALUE, y1 = -Float.MAX_VALUE;
+        int corners = 0;
+        for (int i = 0; i < 8; i++) {
+            final float[] at = screen(
+                (i & 1) == 0 ? box[0] : box[3],
+                (i & 2) == 0 ? box[1] : box[4],
+                (i & 4) == 0 ? box[2] : box[5],
+                sr,
+                mc);
+            if (at == null) continue;
+            corners++;
+            x0 = Math.min(x0, at[0]);
+            y0 = Math.min(y0, at[1]);
+            x1 = Math.max(x1, at[0]);
+            y1 = Math.max(y1, at[1]);
+        }
+        if (corners == 0) return 0;
+        final float dx = Math.max(0, Math.max(x0 - cx, cx - x1)), dy = Math.max(0, Math.max(y0 - cy, cy - y1));
+        final float t = Math.max(0, Math.min(1, ((float) Math.hypot(dx, dy) - FOCUS_NEAR) / (FOCUS_FAR - FOCUS_NEAR)));
+        // Smoothstep, so the fade starts and ends gently.
+        return 1 - t * t * (3 - 2 * t);
+    }
+
+    /** How much of a wire shows: as much as the more shown of the two cards it joins. */
+    private static float shown(final Run r, final Map<UUID, Float> seen) {
+        return Math.max(seen.getOrDefault(r.conn.from().card.id(), 1f), seen.getOrDefault(r.conn.to().card.id(), 1f));
+    }
+
+    // endregion
 
     // region The wires
 

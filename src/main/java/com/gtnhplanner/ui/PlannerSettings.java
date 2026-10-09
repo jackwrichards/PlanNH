@@ -145,6 +145,18 @@ public final class PlannerSettings {
         set("world.ar", on);
     }
 
+    /**
+     * The plan over the world shows a card only while you look at (or near) its machine, fading in and out, instead
+     * of every card at once.
+     */
+    public static boolean arFocus() {
+        return bool("world.arFocus", false);
+    }
+
+    public static void setArFocus(final boolean on) {
+        set("world.arFocus", on);
+    }
+
     public static int arRangeIndex() {
         return clamp(integer("world.arRange", 2), AR_RANGES.length);
     }

@@ -47,23 +47,29 @@ plan show what the machines are doing.
   GregTech multiblock as its whole structure, see section 5, standing on that spot: the structure's bottom goes there,
   its controller as high above it as it is in the structure, and the whole structure is outlined); a click places it
   there, facing that way, and you stay in the world (`ui/world/LinkPicker`). The crosshair reaches 48 blocks while
-  placing, past the game's own reach, to stand back from a big structure. While placing, R turns it (Shift: the other
-  way) and [ ] size a structure that comes in sizes; the title says its size in blocks ("3 x 4 x 3"). A card of several machines places one a click ("Place X: 2 of 3", up to 64): the
+  placing, past the game's own reach, to stand back from a big structure. While placing, R turns it a quarter and
+  [ ] size a structure that comes in sizes; the title says its size in blocks ("3 x 4 x 3"). A card of several machines places one a click ("Place X: 2 of 3", up to 64): the
   first click replaces where the card was, each later one adds a spot, and right-click or Esc stops there, keeping the
   ones placed. Right-click or Esc before the first click cancels. Right-click on the key removes the card from the world.
   The card's menu also has **Show in the world** and **Remove from the world**.
 - A card is placed on as many spots as it has machines and a spot holds one card: placing a card on a spot takes it
   from any other card, in any plan (`ui/world/WorldLinks`, `Node.worldLinks`: {dim, x, y, z, facing, size}, facing 0
   south, 1 west, 2 north, 3 east; size, when set, a structure's step; placements saved before facing face south).
-- Adjusting a placed machine from the world (`ui/world/PlacementKeys`): hold the adjust key (Ctrl, in Controls) with
-  the crosshair on a placed machine and it is in hand while the key is held, outlined bright: the arrows move it a
-  block (up is away from you, as you look), Shift with up and down raises and lowers it, R turns it about its middle
-  (Shift: the other way), [ ] size a structure that comes in sizes (its bottom stays put; back at the size its recipe
-  needs it follows the recipe again), G picks it up to put down elsewhere (the picker, its facing and size kept, its
-  old spot empty while in hand; Esc leaves it where it was), Delete or Backspace takes it out of the world. Each is one
-  undo step in its plan; a move onto another machine's spot is refused. While the crosshair is on a placed machine, or
-  one is in hand, a panel under the minimap (in its corner when it is off) names it, its size, and the keys. The
-  minimap's own arrows and [ ] stand aside while the adjust key is held or a machine is being placed.
+- Adjusting a placed machine from the world (`ui/world/PlacementKeys`): hold sneak (Shift; whatever sneak is bound to)
+  and the machine lit gold is in hand while sneak is held, outlined bright: R turns it a quarter about its middle, G
+  picks it up to put down elsewhere (the picker, its facing and size kept; [ ] size it there), and Delete or Backspace
+  takes it out of the world. Each is one undo step in its plan; a turn onto another machine's spot is refused. The
+  machine lit is the one the plan over the world lights, with all its margins: its card under the crosshair, or its
+  ghost (`PlanOverlay.highlighted`); with the overlay off, the placed block looked at. Moving is picking up and putting
+  down only, so the minimap keeps its arrows and [ ]. Sneak rather than a binding of ours: in 1.7.10 a key drives one
+  binding, so one on Shift would take it from sneaking; held is its binding pressed or its key down.
+- The keys are listed plainly under the minimap (in its corner when it is off), one to a line, always while the plan
+  is over the world and else while a placed machine is looked at: the lit machine's name and size, then "Shift + R
+  Turn the highlighted machine", "Shift + G Pick up and move it", "Shift + Del Remove it from the world", "Shift + Y
+  Show only cards you look at" (or "Show every card"). The lines for the lit machine are dim while none is lit.
+- While a machine is being placed or moved, the plan over the world stays: its card and wires go where it would be put
+  down, following the crosshair as a card being dragged on the board, and the rest stay where they are; where it was
+  is empty while it is in hand (all of a card's spots for its first placing, the one picked up for a move).
 - From the world: the Link key (L) opens the planner in link mode (`ui/world/LinkTarget`) for the placed spot under
   the crosshair, or else the spot in front of the face looked at; clicking a card places it there alone, facing you (a
   multiblock standing on an empty spot, as above), clicking the card already there removes it, Esc cancels.
@@ -81,6 +87,12 @@ plan show what the machines are doing.
 ## 5. The plan over the world (AR)
 
 `ui/world/PlanOverlay`, toggled with Y and in the settings ("Show the plan over the world (AR)", "How far to show it").
+Shift+Y (or "Cards only where you look" in the settings) shows a card only while you look at or near its machine: whole
+with the crosshair within 28 GUI pixels of the machine's outline on the screen, fading out smoothly to nothing at 150,
+easing in and out over a few frames; a wire shows as much as the more shown of its two cards. The card in hand and the
+card looked at always show. Cards are faded whole through `Hyb.fadeOut`, which every colour, text and picture `Hyb`
+draws is multiplied by; items and fluids, which the game draws solid whatever the blending, drop out once a card is a
+third faded.
 Nothing shows until a card of the plan last open is placed.
 
 - Each placed spot shows a ghost of the card's machine, see-through and behind real blocks. A GregTech multiblock shows

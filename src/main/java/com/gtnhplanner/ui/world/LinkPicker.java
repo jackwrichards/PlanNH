@@ -111,6 +111,28 @@ public final class LinkPicker {
         return active() ? INSTANCE.moving : null;
     }
 
+    /**
+     * Where the machine in hand would go now, as a placement {dim, x, y, z, facing, size}, or null when the crosshair
+     * is
+     * on no block.
+     */
+    @Nullable
+    static int[] preview() {
+        final MovingObjectPosition hit = active() ? aim() : null;
+        if (hit == null) return null;
+        final int[] at = spot(hit);
+        return WorldLinks
+            .link(Minecraft.getMinecraft().theWorld.provider.dimensionId, at[0], at[1], at[2], facing(), INSTANCE.size);
+    }
+
+    /**
+     * Whether putting it down takes the card off where it was: moving one placement takes that one, the first of a
+     * card's placements all of them.
+     */
+    static boolean replacing() {
+        return INSTANCE.moving != null || INSTANCE.placed == 0;
+    }
+
     /** What the card being placed asks of its structure. */
     static StructureGhosts.Needs needs() {
         return INSTANCE.needs;
@@ -188,13 +210,13 @@ public final class LinkPicker {
         } else if (finishing) stop();
     }
 
-    /** R turns what is being placed (Shift: the other way); [ and ] size a structure that comes in sizes. */
+    /** R turns what is being placed a quarter; [ and ] size a structure that comes in sizes. */
     @SubscribeEvent
     public void onKey(final InputEvent.KeyInputEvent event) {
         if (!active() || Minecraft.getMinecraft().currentScreen != null || !Keyboard.getEventKeyState()) return;
         switch (Keyboard.getEventKey()) {
             case Keyboard.KEY_R -> {
-                turn = (turn + (PlacementKeys.shift() ? 3 : 1)) & 3;
+                turn = (turn + 1) & 3;
                 Hyb.click();
             }
             case Keyboard.KEY_LBRACKET -> resize(-1);

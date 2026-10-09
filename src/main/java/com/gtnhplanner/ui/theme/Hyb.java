@@ -101,7 +101,32 @@ public final class Hyb {
         return font().getStringWidth(s);
     }
 
-    public static void rect(final float x, final float y, final float w, final float h, final int argb) {
+    // region Fading: a whole drawing see-through
+
+    /**
+     * How far everything drawn now is faded out, 0 (as drawn) to 1 (gone): multiplies the alpha of every colour,
+     * text, picture and item {@code Hyb} draws, and of what is batched while it is set. For a card fading in and out as
+     * a whole. Set it around the drawing and put it back to 0 after.
+     */
+    public static float fadeOut;
+
+    /** A colour with the fade applied. */
+    public static int faded(final int argb) {
+        if (fadeOut <= 0) return argb;
+        final int a = Math.round((argb >>> 24) * (1 - Math.min(1, fadeOut)));
+        return a << 24 | argb & 0xFFFFFF;
+    }
+
+    /** The fade as an alpha to multiply by. */
+    private static float kept() {
+        return 1 - Math.max(0, Math.min(1, fadeOut));
+    }
+
+    // endregion
+
+    public static void rect(final float x, final float y, final float w, final float h, final int color) {
+        final int argb = faded(color);
+        if (fadeOut > 0 && argb >>> 24 == 0) return;
         if (batching) {
             vertex(x, y, argb);
             vertex(x, y + h, argb);
@@ -149,7 +174,8 @@ public final class Hyb {
             });
     }
 
-    private static void vertex(final float x, final float y, final int argb) {
+    private static void vertex(final float x, final float y, final int color) {
+        final int argb = faded(color);
         if (batchCount == batchColor.length) {
             batchColor = java.util.Arrays.copyOf(batchColor, batchCount * 2);
             batchXY = java.util.Arrays.copyOf(batchXY, batchCount * 4);
@@ -252,7 +278,7 @@ public final class Hyb {
         org.lwjgl.opengl.GL11.glEnable(org.lwjgl.opengl.GL11.GL_TEXTURE_2D);
         org.lwjgl.opengl.GL11.glEnable(org.lwjgl.opengl.GL11.GL_BLEND);
         net.minecraft.client.renderer.OpenGlHelper.glBlendFunc(770, 771, 1, 0);
-        org.lwjgl.opengl.GL11.glColor4f(1, 1, 1, 1);
+        org.lwjgl.opengl.GL11.glColor4f(1, 1, 1, kept());
         final net.minecraft.client.renderer.Tessellator t = net.minecraft.client.renderer.Tessellator.instance;
         t.startDrawingQuads();
         t.addVertexWithUV(x, y + h, 0, 0, 1);
@@ -276,7 +302,7 @@ public final class Hyb {
             (argb >> 16 & 0xFF) / 255f,
             (argb >> 8 & 0xFF) / 255f,
             (argb & 0xFF) / 255f,
-            (argb >>> 24) / 255f);
+            (argb >>> 24) / 255f * kept());
         org.lwjgl.opengl.GL11.glTexEnvi(
             org.lwjgl.opengl.GL11.GL_TEXTURE_ENV,
             org.lwjgl.opengl.GL11.GL_TEXTURE_ENV_MODE,
@@ -328,7 +354,8 @@ public final class Hyb {
             vertex(x2, y2, argb);
             return;
         }
-        final int a = argb >>> 24, r = argb >> 16 & 0xFF, g = argb >> 8 & 0xFF, b = argb & 0xFF;
+        final int c = faded(argb);
+        final int a = c >>> 24, r = c >> 16 & 0xFF, g = c >> 8 & 0xFF, b = c & 0xFF;
         com.cleanroommc.modularui.utils.Platform.setupDrawColor();
         com.cleanroommc.modularui.utils.Platform.startDrawing(
             com.cleanroommc.modularui.utils.Platform.DrawMode.TRIANGLES,
@@ -428,27 +455,41 @@ public final class Hyb {
     }
 
     public static void item(final ItemStack stack, final float x, final float y, final float size, final float z) {
-        if (stack != null) GuiDraw.drawItem(stack, (int) x, (int) y, size, size, (int) z);
+        // The game draws items with no alpha of their own, whatever the blending: a fading drawing drops them once it
+        // is more than a third gone, a little ahead of the rest.
+        if (stack != null && fadeOut < FADE_ITEMS) GuiDraw.drawItem(stack, (int) x, (int) y, size, size, (int) z);
     }
 
     public static void fluid(final FluidStack stack, final float x, final float y, final float size, final float z) {
-        if (stack != null) GuiDraw.drawFluidTexture(stack, x, y, size, size, z);
+        if (stack != null && fadeOut < FADE_ITEMS) GuiDraw.drawFluidTexture(stack, x, y, size, size, z);
     }
 
+    /** How far a drawing fades before its items and fluids drop out. */
+    private static final float FADE_ITEMS = 0.35f;
+
     public static void text(final String s, final float x, final float y, final int color) {
-        GuiDraw.drawText(s, x, y, 1f, color, true);
+        text(s, x, y, 1f, color, true);
     }
 
     public static void text(final String s, final float x, final float y, final float scale, final int color) {
-        GuiDraw.drawText(s, x, y, scale, color, true);
+        text(s, x, y, scale, color, true);
+    }
+
+    /** Text, faded as everything is; with or without its shadow. */
+    public static void text(final String s, final float x, final float y, final float scale, final int color,
+        final boolean shadow) {
+        final int c = faded(color);
+        // The game's font takes an alpha under 4 as none at all, and draws it solid.
+        if (fadeOut > 0 && (c >>> 24) < 8) return;
+        GuiDraw.drawText(s, x, y, scale, c, shadow);
     }
 
     public static void textRight(final String s, final float right, final float y, final int color) {
-        GuiDraw.drawText(s, right - width(s), y, 1f, color, true);
+        text(s, right - width(s), y, 1f, color, true);
     }
 
     public static void textCentered(final String s, final float cx, final float y, final int color) {
-        GuiDraw.drawText(s, cx - width(s) / 2f, y, 1f, color, true);
+        text(s, cx - width(s) / 2f, y, 1f, color, true);
     }
 
     /** Cuts a string to fit {@code maxWidth}, ending in "..." when it had to. The game font has one size. */

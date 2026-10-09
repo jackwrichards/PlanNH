@@ -42,7 +42,6 @@ public class ClientProxy extends CommonProxy {
         ClientRegistry.registerKeyBinding(openFlowchartKey);
         // Playing with the planner closed: its keys, the minimap.
         com.gtnhplanner.ui.world.PlannerKeys.register();
-        com.gtnhplanner.ui.world.PlacementKeys.register();
         FMLCommonHandler.instance()
             .bus()
             .register(new com.gtnhplanner.ui.world.PlannerKeys());

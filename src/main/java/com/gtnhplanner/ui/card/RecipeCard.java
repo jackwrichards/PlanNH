@@ -11,7 +11,6 @@ import org.jetbrains.annotations.Nullable;
 import com.cleanroommc.modularui.api.UpOrDown;
 import com.cleanroommc.modularui.api.widget.IDraggable;
 import com.cleanroommc.modularui.api.widget.Interactable;
-import com.cleanroommc.modularui.drawable.GuiDraw;
 import com.cleanroommc.modularui.screen.viewport.ModularGuiContext;
 import com.cleanroommc.modularui.theme.WidgetThemeEntry;
 import com.cleanroommc.modularui.widget.ParentWidget;
@@ -714,13 +713,13 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             ty = snap(ty, g[2], g[3], g[4]);
             pixel = 1 / (g[0] * g[4]);
         }
-        GuiDraw.drawText(label, tx + 1, ty + 1, s, tier.border(), false);
-        GuiDraw.drawText(label, tx, ty, s, tier.text(), false);
+        Hyb.text(label, tx + 1, ty + 1, s, tier.border(), false);
+        Hyb.text(label, tx, ty, s, tier.text(), false);
         if (heavy) {
             // Moved by the drawing, not the text's position, which the text drawing rounds to whole GUI pixels.
             org.lwjgl.opengl.GL11.glPushMatrix();
             org.lwjgl.opengl.GL11.glTranslatef(pixel, 0, 0);
-            GuiDraw.drawText(label, tx, ty, s, tier.text(), false);
+            Hyb.text(label, tx, ty, s, tier.text(), false);
             org.lwjgl.opengl.GL11.glPopMatrix();
         }
         if (underline) Hyb.rect(tx, ty + 8 * s, tw, 1, tier.text());
