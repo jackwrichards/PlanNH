@@ -230,12 +230,7 @@ public final class SettingsPanel extends Widget<SettingsPanel> implements Intera
                         null,
                         ranges,
                         PlannerSettings::arRangeIndex,
-                        PlannerSettings::setArRangeIndex),
-                    toggle(
-                        "Outline a placed block you look at",
-                        null,
-                        PlannerSettings::worldHighlight,
-                        PlannerSettings::setWorldHighlight))));
+                        PlannerSettings::setArRangeIndex))));
 
         out.add(
             new Section(

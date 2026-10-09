@@ -139,15 +139,6 @@ public final class PlannerSettings {
         set("minimap.follow", on);
     }
 
-    /** World: an outline on linked machines while you look at them, and their card's name by the crosshair. */
-    public static boolean worldHighlight() {
-        return bool("world.highlight", true);
-    }
-
-    public static void setWorldHighlight(final boolean on) {
-        set("world.highlight", on);
-    }
-
     /** The plan overlaid on the world: its placed cards over their blocks, with their wires. */
     public static boolean arLens() {
         return bool("world.ar", false);

@@ -15,8 +15,6 @@ import org.lwjgl.opengl.GL11;
 
 import com.gtnhplanner.data.flowchart.Graph;
 import com.gtnhplanner.data.flowchart.Node;
-import com.gtnhplanner.ui.PlannerSettings;
-import com.gtnhplanner.ui.theme.Fmt;
 import com.gtnhplanner.ui.theme.Hyb;
 
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
@@ -24,9 +22,8 @@ import cpw.mods.fml.common.gameevent.TickEvent;
 
 /**
  * Cards' blocks in the world: outlined while they are being picked ({@link LinkPicker}); outlined with a beam and a
- * label for a while after "Show in the world"; and, for the linked block under the crosshair, outlined (with the rest
- * of its card's) and named under the crosshair, its card rung on the minimap. A linked block that is broken is
- * unlinked.
+ * label for a while after "Show in the world"; and the placed block under the crosshair has its card rung on the
+ * minimap. The plan over the world outlines that block itself; with it off, the world shows nothing of the plan.
  */
 public final class WorldView {
 
@@ -139,8 +136,7 @@ public final class WorldView {
         final int dim = mc.theWorld.provider.dimensionId;
         final Node picking = LinkPicker.active() ? LinkPicker.node() : null;
         final Node shown = shown();
-        final Node looked = look != null && PlannerSettings.worldHighlight() ? look.node() : null;
-        if (picking == null && shown == null && looked == null) return;
+        if (picking == null && shown == null) return;
         WorldMarks.begin();
         if (picking != null) {
             // Where the card would go: the machine's ghost in front of the face looked at, a multiblock standing on it.
@@ -167,18 +163,6 @@ public final class WorldView {
                 if (l[0] != dim) continue;
                 WorldMarks.outline(WorldLinks.extent(shownGraph, shown, l), Hyb.LIT & 0xFFFFFF, 0.004f, 2f, 0.8f);
                 WorldMarks.beam(l[1], l[2], l[3], Hyb.LIT & 0xFFFFFF);
-            }
-        }
-        // The plan over the world outlines what the crosshair is on itself.
-        if (looked != null && looked != shown && looked != picking && !PlanOverlay.on()) {
-            for (final int[] l : looked.worldLinks) if (l[0] == dim) {
-                final boolean it = l[1] == lookX && l[2] == lookY && l[3] == lookZ;
-                WorldMarks.outline(
-                    WorldLinks.extent(look.graph(), looked, l),
-                    Hyb.LIT & 0xFFFFFF,
-                    0.004f,
-                    1.5f,
-                    it ? 0.7f : 0.45f);
             }
         }
         if (shown != null) labels(shown, dim);
@@ -222,33 +206,19 @@ public final class WorldView {
         return node.machineName != null ? node.machineName : "Machine";
     }
 
-    /** Under the crosshair: the linked block's card (name, count) and plan; at the top, a passing note. */
+    /** At the top of the screen, a passing note. */
     @SubscribeEvent
     public void onOverlay(final RenderGameOverlayEvent.Post event) {
         if (event.type != RenderGameOverlayEvent.ElementType.ALL) return;
         final Minecraft mc = Minecraft.getMinecraft();
         if (mc.currentScreen != null || mc.gameSettings.hideGUI) return;
         final ScaledResolution sr = event.resolution;
-        final float cx = sr.getScaledWidth() / 2f, cy = sr.getScaledHeight() / 2f;
+        final float cx = sr.getScaledWidth() / 2f;
         // While the keys strip shows, the note is its last line instead.
         if (System.currentTimeMillis() < noteUntil && !PlacementKeys.stripShown()) {
             Hyb.rect(cx - Hyb.width(note) / 2f - 4, 6, Hyb.width(note) + 8, 13, 0xE0141414);
             Hyb.textCentered(note, cx, 9, noteColor);
         }
-        if (look == null || !PlannerSettings.worldHighlight() || PlanOverlay.on()) return;
-        final Node node = look.node();
-        final PlanSnapshot snap = PlanSnapshot.latest();
-        final PlanSnapshot.Card card = snap != null && snap.graph() == look.graph() ? snap.cardOf(node.id) : null;
-        String line = cardName(node);
-        if (card != null) line += "  ×" + Fmt.machines(card.machines());
-        final String plan = "In " + look.graph()
-            .getName();
-        final int w = Math.max(Hyb.width(line), Hyb.width(plan)) + 10;
-        final float x = cx - w / 2f, y = cy + 12;
-        Hyb.rect(x, y, w, 24, 0xD0141414);
-        Hyb.rect(x, y, 2, 24, Hyb.LIT);
-        Hyb.textCentered(line, cx + 1, y + 3, card != null && card.pinned() ? Hyb.GOLD : Hyb.INK);
-        Hyb.textCentered(plan, cx + 1, y + 13, Hyb.MUTED);
         GL11.glColor4f(1, 1, 1, 1);
     }
 }

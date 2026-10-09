@@ -155,6 +155,9 @@ public final class PlanOverlay {
         return PlannerSettings.arLens();
     }
 
+    /** How solid the plan over the world is drawn: a touch see-through, so the world behind it still shows. */
+    private static final float SOLID = 0.8f;
+
     /** The cards placed in this dimension within range, nearest first. */
     private static List<Placed> placed(final Minecraft mc) {
         final List<Placed> all = new ArrayList<>();
@@ -354,7 +357,7 @@ public final class PlanOverlay {
         Minimap.INSTANCE.point(card, hovered == null ? null : hovered.line);
         Hyb.beginBatch();
         for (final Run r : runs) {
-            Hyb.fadeOut = 1 - shown(r, seen);
+            Hyb.fadeOut = 1 - SOLID * shown(r, seen);
             if (Hyb.fadeOut < 0.99f) wire(r, r.conn.same(hovered));
         }
         Hyb.fadeOut = 0;
@@ -366,19 +369,20 @@ public final class PlanOverlay {
             if (p.card.id()
                 .equals(lit)) top = p;
             else {
-                Hyb.fadeOut = 1 - seen.getOrDefault(p.card.id(), 1f);
+                Hyb.fadeOut = 1 - SOLID * seen.getOrDefault(p.card.id(), 1f);
                 card(p, snap, false);
             }
         }
-        Hyb.fadeOut = 0;
+        Hyb.fadeOut = 1 - SOLID;
         if (top != null) card(top, snap, true);
         // Over the cards: what each wire carries.
         for (final Run r : runs) if (!r.conn.same(hovered)) {
-            Hyb.fadeOut = 1 - shown(r, seen);
+            Hyb.fadeOut = 1 - SOLID * shown(r, seen);
             if (Hyb.fadeOut < 0.99f) tag(r, false);
         }
-        Hyb.fadeOut = 0;
+        Hyb.fadeOut = 1 - SOLID;
         if (near != null) tag(near, true);
+        Hyb.fadeOut = 0;
         GL11.glColor4f(1, 1, 1, 1);
         GL11.glEnable(GL11.GL_TEXTURE_2D);
     }

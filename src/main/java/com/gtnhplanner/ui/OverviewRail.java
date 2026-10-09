@@ -146,10 +146,14 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         com.gtnhplanner.dev.DevPerf.time("overview", System.nanoTime() - started);
     }
 
+    /** The least of its background the overview keeps when the board is all see-through. */
+    private static final float RAIL_FLOOR = 0.45f;
+
     private void drawRail(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
         hits.clear();
         final int w = getArea().width, h = getArea().height;
-        Hyb.rect(0, 0, w, h, Hyb.seeThrough(0xFF202226));
+        // However see-through the board is, the overview keeps a little of its background, so it reads.
+        Hyb.rect(0, 0, w, h, Hyb.seeThrough(0xFF202226, RAIL_FLOOR));
         // Its edge on the board: a dark line, a border rather than a seam; as see-through as the rest.
         Hyb.rect(w - 1, 0, 1, h, Hyb.seeThrough(0xFF0C0D10));
         if (!open) {
@@ -162,7 +166,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
             hover != null && hover.kind() == Kind.RESOURCE ? ((BoardSession.TotalLine) hover.data()).key() : null);
 
         // Heading: the title and the fold key.
-        Hyb.rect(0, 0, w - 1, HEAD_H, Hyb.seeThrough(0xFF2A2D33));
+        Hyb.rect(0, 0, w - 1, HEAD_H, Hyb.seeThrough(0xFF2A2D33, RAIL_FLOOR));
         Hyb.text("OVERVIEW", 6, 5, Hyb.MUTED);
         final int fx = w - 4 - 14;
         Hyb.bevel(
@@ -287,7 +291,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         final boolean isFolded = folded.contains(title);
         if (hover != null && hover.kind() == Kind.SECTION && title.equals(hover.data()))
             Hyb.rect(0, y, w - 1, SECTION_H, 0xFF30333A);
-        else Hyb.rect(0, y, w - 1, SECTION_H, Hyb.seeThrough(0xFF2A2D33));
+        else Hyb.rect(0, y, w - 1, SECTION_H, Hyb.seeThrough(0xFF2A2D33, RAIL_FLOOR));
         // A small triangle: pointing right when folded, down when open.
         if (isFolded) Hyb.triangle(6, y + 4, 6, y + 12, 10, y + 8, ink);
         else Hyb.triangle(4, y + 6, 12, y + 6, 8, y + 10, ink);
