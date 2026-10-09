@@ -1572,6 +1572,24 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
     private void stepTier(final int step) {
         if (!model.gregtech) return;
+        if (isSingle(model.machineStack)) {
+            // Each tier of a single block is its own machine: step to the next one there is, and it brings its tier.
+            final int now = GtMachines.of(model.machineStack)
+                .tier();
+            ItemStack next = null;
+            int nextTier = step > 0 ? Integer.MAX_VALUE : -1;
+            for (final ItemStack m : machineChoices()) {
+                if (!isSingle(m)) continue;
+                final int t = GtMachines.of(m)
+                    .tier();
+                if (step > 0 ? t > now && t < nextTier : t < now && t > nextTier) {
+                    next = m;
+                    nextTier = t;
+                }
+            }
+            if (next != null) session.chooseMachine(model.node, next, true);
+            return;
+        }
         int i = CardDefaults.tierIndex(model.tier);
         if (i < 0) i = CardDefaults.recipeTier(model.euPerTick);
         else i = Math.max(0, Math.min(CardDefaults.TIERS.length - 1, i + step));
@@ -1596,17 +1614,57 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         SettingMemory.remember(model.node, "machine_heat", coil.heat());
     }
 
+    /**
+     * The machines the card's menu offers: GregTech's single blocks as one (each tier is its own machine, and the tier
+     * chip moves between them), the card's own when it is one, else the lowest tier that runs the recipe; then the
+     * rest.
+     */
+    private List<ItemStack> machineMenu() {
+        final List<ItemStack> all = machineChoices(), out = new ArrayList<>();
+        ItemStack single = isSingle(model.machineStack) ? model.machineStack : null;
+        if (single == null) {
+            final Object eut = model.node.properties.get(GTProvider.EU_PER_TICK);
+            final int recipe = CardDefaults.recipeTier(eut instanceof final Number n ? n.longValue() : 0);
+            int best = -1;
+            for (final ItemStack m : all) {
+                if (!isSingle(m)) continue;
+                final int t = GtMachines.of(m)
+                    .tier();
+                if (single == null || (t >= recipe != best >= recipe ? t >= recipe : t >= recipe ? t < best : t > best)) {
+                    single = m;
+                    best = t;
+                }
+            }
+        }
+        boolean added = false;
+        for (final ItemStack m : all) {
+            if (!isSingle(m)) out.add(m);
+            else if (!added && single != null) {
+                out.add(single);
+                added = true;
+            }
+        }
+        return out;
+    }
+
+    /** Whether a machine is one of GregTech's electric single blocks: one tier of a machine that comes in many. */
+    private boolean isSingle(final ItemStack machine) {
+        if (machine == null || model == null || !model.gregtech) return false;
+        final GtMachines.Kind kind = GtMachines.of(machine);
+        return kind != null && !kind.multiblock() && !kind.steam() && kind.tier() >= 0;
+    }
+
     /** The machines the card can run on: its recipe's, or on a shared machine those that run every recipe on it. */
     private List<ItemStack> machineChoices() {
         return shared() ? session.commonMachines(sections) : model.catalysts;
     }
 
     private void stepMachine(final int step) {
-        final List<ItemStack> machines = machineChoices();
+        final List<ItemStack> machines = machineMenu();
         if (machines.size() < 2) return;
         int i = 0;
-        for (int k = 0; k < machines.size(); k++)
-            if (ItemStack.areItemStacksEqual(machines.get(k), model.machineStack)) i = k;
+        for (int k = 0; k < machines.size(); k++) if (ItemStack.areItemStacksEqual(machines.get(k), model.machineStack)
+            || isSingle(machines.get(k)) && isSingle(model.machineStack)) i = k;
         i = (i + step + machines.size()) % machines.size();
         session.chooseMachine(model.node, machines.get(i), model.gregtech);
     }
@@ -1658,22 +1716,19 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
     private void openMachines() {
         final List<PickList.Entry> rows = new ArrayList<>();
-        for (final ItemStack machine : machineChoices()) {
+        for (final ItemStack machine : machineMenu()) {
             String detail = "";
             if (model.gregtech) {
                 final GtMachines.Kind kind = GtMachines.of(machine);
-                if (kind != null) detail = kind.multiblock() ? "multi"
-                    : kind.tier() >= 0 && kind.tier() < CardDefaults.TIERS.length ? CardDefaults.TIERS[kind.tier()]
-                        : "";
+                if (kind != null) detail = kind.multiblock() ? "Multiblock"
+                    : kind.steam() ? "Steam" : isSingle(machine) ? "Single block, tier by the chip" : "";
             }
-            rows.add(
-                new PickList.Entry(
-                    machine,
-                    machine.getDisplayName(),
-                    detail,
-                    Hyb.INK,
-                    ItemStack.areItemStacksEqual(machine, model.machineStack),
-                    () -> session.chooseMachine(model.node, machine, model.gregtech)));
+            final boolean current = ItemStack.areItemStacksEqual(machine, model.machineStack)
+                || isSingle(machine) && isSingle(model.machineStack);
+            rows.add(new PickList.Entry(machine, machine.getDisplayName(), detail, Hyb.INK, current, () -> {
+                if (!(isSingle(machine) && isSingle(model.machineStack)))
+                    session.chooseMachine(model.node, machine, model.gregtech);
+            }));
         }
         // The machine menu's last row: another recipe for this machine, as on the website.
         rows.add(
