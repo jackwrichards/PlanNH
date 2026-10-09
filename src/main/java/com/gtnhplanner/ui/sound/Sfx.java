@@ -21,7 +21,11 @@ import com.gtnhplanner.ui.tutorial.Tutorial;
  * {@link #CLICK} is the fallback for anything pressed: it gives way to a sound of the same action that says more (a
  * tier stepping, a menu opening, a card landing), played just before or just after it. Repeats of a sound in quick
  * succession play quieter (a wheel spun sounds like one, not a crescendo), and nothing plays while the tour hurries.
- * Client thread only.
+ * <p>
+ * Each sound has several takes (each its own brightness and timing, made by the synth), dealt like a shuffled deck so
+ * the same take never plays twice in a row; each play steps its pitch a little (a whole tone either way, or none,
+ * landing on a pentatonic scale, so repeats stay in tune) and its loudness by up to a decibel. As picked in the sound
+ * lab. Client thread only.
  */
 public enum Sfx {
 
@@ -68,7 +72,13 @@ public enum Sfx {
     WORLD_REMOVE("world.remove");
 
     /** The volume our click plays at to be as loud as the game's own click, which plays at a quarter. */
-    private static final float BASE = 0.227f;
+    private static final float BASE = 0.573f;
+    /** Each play's loudness, up to this many decibels either way. */
+    private static final float LOUDNESS_DB = 1f;
+    /** Each play's pitch step in semitones, one picked at random; then the pitch lands on {@link #SCALE}. */
+    private static final int[] PITCH_STEPS = { -2, 0, 0, 0, 2 };
+    /** The pentatonic scale every pitch lands on, in semitones within the octave (12 closes it). */
+    private static final int[] SCALE = { 0, 2, 4, 7, 9, 12 };
     /** A second play of a sound this soon is the same event twice (keys come in twice), and dropped. */
     private static final long SAME_MS = 30;
     /**
@@ -92,6 +102,11 @@ public enum Sfx {
     private final ResourceLocation location;
     private long lastAt = -1;
     private int streak;
+    /** Its takes (gtnhplanner:name.1, .2...), found once the sounds have loaded; empty plays it whole. */
+    private ResourceLocation[] takes;
+    /** The takes left in this round of the deck, and the last one dealt. */
+    private final java.util.ArrayDeque<Integer> deck = new java.util.ArrayDeque<>();
+    private int lastTake = -1;
 
     Sfx(final String name) {
         this.location = new ResourceLocation("gtnhplanner", name);
@@ -132,9 +147,11 @@ public enum Sfx {
         lastAt = now;
         final float duck = (float) Math.pow(DUCK, Math.min(streak, DUCK_FLOOR));
         // A few cents either way, so a sound played over and over is never stamped out.
-        final float jitter = 1 + (RANDOM.nextFloat() - 0.5f) * 0.04f;
-        final float p = Math.max(0.5f, Math.min(2f, pitch * jitter));
-        final UiSound sound = new UiSound(location, Math.min(1f, BASE * gain * volume * duck), p);
+        final float step = (float) Math.pow(2, PITCH_STEPS[RANDOM.nextInt(PITCH_STEPS.length)] / 12.0);
+        final float p = Math.max(0.5f, Math.min(2f, onScale(pitch * step)));
+        final float loud = (float) Math.pow(10, (RANDOM.nextFloat() * 2 - 1) * LOUDNESS_DB / 20);
+        final ResourceLocation take = deal();
+        final UiSound sound = new UiSound(take, Math.min(1f, BASE * gain * volume * duck * loud), p);
         final Minecraft mc = Minecraft.getMinecraft();
         if (this == SCREEN_OPEN) openedAt = now;
         if (this != SCREEN_OPEN && openedAt >= 0 && now - openedAt < AFTER_OPEN_MS) mc.getSoundHandler()
@@ -145,7 +162,42 @@ public enum Sfx {
             lastClick = sound;
             lastClickAt = now;
         }
-        remember(String.format("%s v%.2f p%.2f", location.getResourcePath(), sound.getVolume(), p));
+        remember(String.format("%s v%.2f p%.2f", take.getResourcePath(), sound.getVolume(), p));
+    }
+
+    /** The next take: a shuffled round of them, the first of a round never the last of the one before. */
+    private ResourceLocation deal() {
+        if (takes == null) {
+            final java.util.List<ResourceLocation> found = new java.util.ArrayList<>();
+            final net.minecraft.client.audio.SoundHandler handler = Minecraft.getMinecraft()
+                .getSoundHandler();
+            for (int k = 1; k <= 16; k++) {
+                final ResourceLocation at = new ResourceLocation("gtnhplanner", id() + "." + k);
+                if (handler.getSound(at) == null) break;
+                found.add(at);
+            }
+            takes = found.toArray(new ResourceLocation[0]);
+        }
+        if (takes.length == 0) return location;
+        if (takes.length == 1) return takes[0];
+        if (deck.isEmpty()) {
+            final java.util.List<Integer> round = new java.util.ArrayList<>();
+            for (int k = 0; k < takes.length; k++) round.add(k);
+            java.util.Collections.shuffle(round, RANDOM);
+            if (round.get(0) == lastTake) java.util.Collections.swap(round, 0, round.size() - 1);
+            deck.addAll(round);
+        }
+        lastTake = deck.poll();
+        return takes[lastTake];
+    }
+
+    /** A pitch moved to the nearest note of {@link #SCALE}, in whatever octave it is in. */
+    private static float onScale(final float pitch) {
+        final double semis = 12 * Math.log(pitch) / Math.log(2);
+        final double octave = Math.floor(semis / 12), within = semis - octave * 12;
+        int best = 0;
+        for (final int note : SCALE) if (Math.abs(note - within) < Math.abs(best - within)) best = note;
+        return (float) Math.pow(2, (octave * 12 + best) / 12);
     }
 
     /** One rung of a ladder: the tier dial's and the like, {@code step} rungs of {@code ratio} up from {@code base}. */

@@ -1,301 +1,401 @@
 {
-  "reference": 0.18506380147595766,
+  "reference": 0.09041050777786112,
   "sounds": {
     "ui.click": {
       "files": [
         "ui/click1",
         "ui/click2",
         "ui/click3",
-        "ui/click4"
+        "ui/click4",
+        "ui/click5"
       ],
-      "ms": 98,
-      "punch": 0.1872
+      "ms": 97,
+      "punch": 0.0791
     },
     "ui.toggle_on": {
       "files": [
         "ui/toggle_on1",
-        "ui/toggle_on2"
+        "ui/toggle_on2",
+        "ui/toggle_on3",
+        "ui/toggle_on4",
+        "ui/toggle_on5"
       ],
-      "ms": 98,
-      "punch": 0.1847
+      "ms": 82,
+      "punch": 0.0815
     },
     "ui.toggle_off": {
       "files": [
         "ui/toggle_off1",
-        "ui/toggle_off2"
+        "ui/toggle_off2",
+        "ui/toggle_off3",
+        "ui/toggle_off4",
+        "ui/toggle_off5"
       ],
-      "ms": 99,
-      "punch": 0.184
+      "ms": 90,
+      "punch": 0.0646
     },
     "ui.open": {
       "files": [
         "ui/open1",
-        "ui/open2"
+        "ui/open2",
+        "ui/open3",
+        "ui/open4",
+        "ui/open5"
       ],
-      "ms": 137,
-      "punch": 0.1374
+      "ms": 176,
+      "punch": 0.0693
     },
     "ui.close": {
       "files": [
         "ui/close1",
-        "ui/close2"
+        "ui/close2",
+        "ui/close3",
+        "ui/close4",
+        "ui/close5"
       ],
-      "ms": 88,
-      "punch": 0.1206
+      "ms": 175,
+      "punch": 0.0588
     },
     "ui.deny": {
       "files": [
         "ui/deny1",
-        "ui/deny2"
+        "ui/deny2",
+        "ui/deny3",
+        "ui/deny4",
+        "ui/deny5"
       ],
-      "ms": 224,
-      "punch": 0.1388
+      "ms": 222,
+      "punch": 0.0657
     },
     "ui.tick": {
       "files": [
         "ui/tick1",
         "ui/tick2",
-        "ui/tick3"
+        "ui/tick3",
+        "ui/tick4",
+        "ui/tick5"
       ],
       "ms": 29,
-      "punch": 0.1005
+      "punch": 0.0315
     },
     "ui.page": {
       "files": [
         "ui/page1",
         "ui/page2",
-        "ui/page3"
+        "ui/page3",
+        "ui/page4",
+        "ui/page5"
       ],
-      "ms": 84,
-      "punch": 0.1053
+      "ms": 99,
+      "punch": 0.0508
     },
     "board.place": {
       "files": [
         "board/place1",
         "board/place2",
-        "board/place3"
+        "board/place3",
+        "board/place4",
+        "board/place5"
       ],
-      "ms": 229,
-      "punch": 0.2413
+      "ms": 290,
+      "punch": 0.1063
     },
     "board.remove": {
       "files": [
         "board/remove1",
-        "board/remove2"
+        "board/remove2",
+        "board/remove3",
+        "board/remove4",
+        "board/remove5"
       ],
-      "ms": 213,
-      "punch": 0.2026
+      "ms": 188,
+      "punch": 0.0947
     },
     "board.lift": {
       "files": [
         "board/lift1",
-        "board/lift2"
+        "board/lift2",
+        "board/lift3",
+        "board/lift4",
+        "board/lift5"
       ],
-      "ms": 64,
-      "punch": 0.0967
+      "ms": 32,
+      "punch": 0.0374
     },
     "board.drop": {
       "files": [
         "board/drop1",
         "board/drop2",
-        "board/drop3"
+        "board/drop3",
+        "board/drop4",
+        "board/drop5"
       ],
-      "ms": 165,
-      "punch": 0.1575
+      "ms": 62,
+      "punch": 0.0693
     },
     "board.clone": {
       "files": [
         "board/clone1",
-        "board/clone2"
+        "board/clone2",
+        "board/clone3",
+        "board/clone4",
+        "board/clone5"
       ],
-      "ms": 240,
-      "punch": 0.2219
+      "ms": 129,
+      "punch": 0.1116
     },
     "board.merge": {
       "files": [
         "board/merge1",
-        "board/merge2"
+        "board/merge2",
+        "board/merge3",
+        "board/merge4",
+        "board/merge5"
       ],
-      "ms": 314,
-      "punch": 0.2225
+      "ms": 179,
+      "punch": 0.1011
     },
     "board.sweep": {
       "files": [
         "board/sweep1",
-        "board/sweep2"
+        "board/sweep2",
+        "board/sweep3",
+        "board/sweep4",
+        "board/sweep5"
       ],
-      "ms": 444,
-      "punch": 0.205
+      "ms": 267,
+      "punch": 0.0922
     },
     "board.undo": {
       "files": [
         "board/undo1",
-        "board/undo2"
+        "board/undo2",
+        "board/undo3",
+        "board/undo4",
+        "board/undo5"
       ],
-      "ms": 92,
-      "punch": 0.1485
+      "ms": 105,
+      "punch": 0.0649
     },
     "board.redo": {
       "files": [
         "board/redo1",
-        "board/redo2"
+        "board/redo2",
+        "board/redo3",
+        "board/redo4",
+        "board/redo5"
       ],
-      "ms": 91,
-      "punch": 0.1548
+      "ms": 92,
+      "punch": 0.0642
     },
     "board.pin": {
       "files": [
         "board/pin1",
-        "board/pin2"
+        "board/pin2",
+        "board/pin3",
+        "board/pin4",
+        "board/pin5"
       ],
-      "ms": 108,
-      "punch": 0.166
+      "ms": 150,
+      "punch": 0.0686
     },
     "board.unpin": {
       "files": [
         "board/unpin1",
-        "board/unpin2"
+        "board/unpin2",
+        "board/unpin3",
+        "board/unpin4",
+        "board/unpin5"
       ],
-      "ms": 55,
-      "punch": 0.153
+      "ms": 100,
+      "punch": 0.074
     },
     "board.adjust": {
       "files": [
         "board/adjust1",
         "board/adjust2",
-        "board/adjust3"
+        "board/adjust3",
+        "board/adjust4",
+        "board/adjust5"
       ],
-      "ms": 53,
-      "punch": 0.1471
+      "ms": 47,
+      "punch": 0.0523
     },
     "board.running": {
       "files": [
-        "board/running1"
+        "board/running1",
+        "board/running2",
+        "board/running3",
+        "board/running4",
+        "board/running5"
       ],
-      "ms": 244,
-      "punch": 0.1295
+      "ms": 281,
+      "punch": 0.0507
     },
     "wire.grab": {
       "files": [
         "wire/grab1",
-        "wire/grab2"
+        "wire/grab2",
+        "wire/grab3",
+        "wire/grab4",
+        "wire/grab5"
       ],
-      "ms": 45,
-      "punch": 0.0927
+      "ms": 93,
+      "punch": 0.0458
     },
     "wire.snap": {
       "files": [
         "wire/snap1",
         "wire/snap2",
-        "wire/snap3"
+        "wire/snap3",
+        "wire/snap4",
+        "wire/snap5"
       ],
-      "ms": 29,
-      "punch": 0.1234
+      "ms": 50,
+      "punch": 0.0479
     },
     "wire.item": {
       "files": [
         "wire/item1",
         "wire/item2",
-        "wire/item3"
+        "wire/item3",
+        "wire/item4",
+        "wire/item5"
       ],
-      "ms": 149,
-      "punch": 0.2026
+      "ms": 148,
+      "punch": 0.1056
     },
     "wire.fluid": {
       "files": [
         "wire/fluid1",
         "wire/fluid2",
-        "wire/fluid3"
+        "wire/fluid3",
+        "wire/fluid4",
+        "wire/fluid5"
       ],
-      "ms": 103,
-      "punch": 0.2063
+      "ms": 130,
+      "punch": 0.0998
     },
     "wire.power": {
       "files": [
         "wire/power1",
         "wire/power2",
-        "wire/power3"
+        "wire/power3",
+        "wire/power4",
+        "wire/power5"
       ],
-      "ms": 124,
-      "punch": 0.2041
+      "ms": 250,
+      "punch": 0.0867
     },
     "wire.cut": {
       "files": [
         "wire/cut1",
-        "wire/cut2"
+        "wire/cut2",
+        "wire/cut3",
+        "wire/cut4",
+        "wire/cut5"
       ],
-      "ms": 120,
-      "punch": 0.1654
+      "ms": 121,
+      "punch": 0.0736
     },
     "wire.fluid_cut": {
       "files": [
         "wire/fluid_cut1",
-        "wire/fluid_cut2"
+        "wire/fluid_cut2",
+        "wire/fluid_cut3",
+        "wire/fluid_cut4",
+        "wire/fluid_cut5"
       ],
-      "ms": 117,
-      "punch": 0.166
+      "ms": 219,
+      "punch": 0.0758
     },
     "wire.power_cut": {
       "files": [
         "wire/power_cut1",
-        "wire/power_cut2"
+        "wire/power_cut2",
+        "wire/power_cut3",
+        "wire/power_cut4",
+        "wire/power_cut5"
       ],
-      "ms": 122,
-      "punch": 0.1665
+      "ms": 222,
+      "punch": 0.0819
     },
     "dial.tier": {
       "files": [
         "dial/tier1",
-        "dial/tier2"
+        "dial/tier2",
+        "dial/tier3",
+        "dial/tier4",
+        "dial/tier5"
       ],
       "ms": 64,
-      "punch": 0.1481
+      "punch": 0.0651
     },
     "screen.open": {
       "files": [
-        "screen/open1"
+        "screen/open1",
+        "screen/open2",
+        "screen/open3",
+        "screen/open4",
+        "screen/open5"
       ],
-      "ms": 285,
-      "punch": 0.1851
+      "ms": 224,
+      "punch": 0.0829
     },
     "screen.close": {
       "files": [
-        "screen/close1"
+        "screen/close1",
+        "screen/close2",
+        "screen/close3",
+        "screen/close4",
+        "screen/close5"
       ],
-      "ms": 261,
-      "punch": 0.1666
+      "ms": 209,
+      "punch": 0.0752
     },
     "note.stick": {
       "files": [
         "note/stick1",
-        "note/stick2"
+        "note/stick2",
+        "note/stick3",
+        "note/stick4",
+        "note/stick5"
       ],
-      "ms": 121,
-      "punch": 0.1666
+      "ms": 122,
+      "punch": 0.0817
     },
     "note.crumple": {
       "files": [
         "note/crumple1",
-        "note/crumple2"
+        "note/crumple2",
+        "note/crumple3",
+        "note/crumple4",
+        "note/crumple5"
       ],
-      "ms": 180,
-      "punch": 0.1655
+      "ms": 195,
+      "punch": 0.0797
     },
     "world.place": {
       "files": [
         "world/place1",
-        "world/place2"
+        "world/place2",
+        "world/place3",
+        "world/place4",
+        "world/place5"
       ],
-      "ms": 285,
-      "punch": 0.2404
+      "ms": 175,
+      "punch": 0.1096
     },
     "world.remove": {
       "files": [
         "world/remove1",
-        "world/remove2"
+        "world/remove2",
+        "world/remove3",
+        "world/remove4",
+        "world/remove5"
       ],
-      "ms": 164,
-      "punch": 0.185
+      "ms": 143,
+      "punch": 0.0915
     }
   }
 }

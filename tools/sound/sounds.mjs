@@ -607,6 +607,55 @@ for (const name of ["ui.click", "ui.tick", "ui.page", "ui.close", "board.lift", 
   SOUNDS[name].options["None"] = () => {};
 }
 
+/**
+ * What the game uses where it is not a sound's first option: picked in the lab on 2026-10-09. A sound not here plays its
+ * first option.
+ */
+const PICKS = {
+  "ui.click": "Low click",
+  "ui.toggle_on": "Hollow box",
+  "ui.page": "Thock",
+  "ui.toggle_off": "Hollow box",
+  "ui.open": "Thock",
+  "ui.close": "Thock",
+  "board.place": "Rubber pop",
+  "board.remove": "Thock",
+  "board.lift": "Hollow box",
+  "board.drop": "Hollow box",
+  "board.clone": "Hollow box",
+  "board.merge": "Hollow box",
+  "board.sweep": "Hollow box",
+  "board.undo": "Hollow box",
+  "board.redo": "Hollow box",
+  "board.pin": "Thock",
+  "board.unpin": "Thock",
+  "board.adjust": "Hollow box",
+  "board.running": "Motor starting",
+  "wire.grab": "Soft synth",
+  "wire.snap": "Wood block",
+  "wire.fluid": "Drip",
+  "wire.power": "Low thrum",
+  "wire.fluid_cut": "Low plop down",
+  "wire.power_cut": "Thrum down",
+  "screen.open": "Low click",
+  "screen.close": "Low click",
+  "world.place": "Thock",
+  "world.remove": "Thock",
+};
+for (const [name, pick] of Object.entries(PICKS)) {
+  if (!SOUNDS[name] || !SOUNDS[name].options[pick]) throw new Error("No option " + pick + " for " + name);
+  SOUNDS[name].pick = pick;
+}
+
+/**
+ * The set's shape, as picked in the lab: one lowpass over everything (tone, Hz), the first milliseconds faded in (attack,
+ * seconds), and what each take varies by, baked into the takes (brightness: a lowpass this far either way of 5 kHz, in
+ * halves of an octave; timing: each layer this many seconds early or late). The game does the rest as it plays: musical
+ * pitch (a step either way, landing on a pentatonic scale), loudness (±1 dB), ducking fast repeats, and dealing the
+ * takes shuffled, never the same twice in a row.
+ */
+export const SET = { tone: 3500, attack: 0.004, brightness: 0.25, timing: 0.002, takes: 5 };
+
 /** The first set, as it shipped on 2026-10-09 (the glassy one), kept to compare in the lab: name: [variants, level, make]. */
 export const FIRST_SET = {
   // The keys: clicky, short, the game's own manner. The workhorse of everything pressed.

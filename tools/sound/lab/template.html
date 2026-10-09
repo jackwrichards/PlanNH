@@ -205,7 +205,7 @@ function current(name) {
   const def = SOUNDS[name];
   const pick = state.picks[name];
   if (pick === FIRST && FIRST_SET[name]) return { label: FIRST, make: FIRST_SET[name][2], level: FIRST_SET[name][1], variants: FIRST_SET[name][0] };
-  const label = pick && def.options[pick] ? pick : Object.keys(def.options)[0];
+  const label = pick && def.options[pick] ? pick : def.pick ?? Object.keys(def.options)[0];
   return { label, make: def.options[label], level: def.level, variants: def.variants };
 }
 
@@ -696,11 +696,11 @@ function drawWave(canvas, data) {
 
 const rowsByName = {};
 function refreshPicked() {
-  const changed = Object.entries(state.picks).filter(([n, p]) => p && SOUNDS[n] && p !== Object.keys(SOUNDS[n].options)[0]);
+  const changed = Object.entries(state.picks).filter(([n, p]) => p && SOUNDS[n] && p !== (SOUNDS[n].pick ?? Object.keys(SOUNDS[n].options)[0]));
   const shape = ` Tone ${state.tone >= 12000 ? "open" : (state.tone / 1000).toFixed(1) + " kHz"}, soft attack ${state.attack} ms.`;
   document.getElementById("picked-text").textContent = (changed.length
-    ? "Your picks: " + changed.map(([n, p]) => `${n} = ${p}`).join("; ") + ". Everything else: its first option."
-    : "Your picks: all first options.") + shape;
+    ? "Your picks: " + changed.map(([n, p]) => `${n} = ${p}`).join("; ") + ". Everything else: as in the game."
+    : "Your picks: the game's set as it is.") + shape;
 }
 const syncRows = [];
 function setWhole(family) {
@@ -715,7 +715,7 @@ function buildLibrary() {
   lib.append(Object.assign(document.createElement("h2"), { textContent: "Every sound" }));
   const wide = h("div", "setwide");
   const sel = h("select"); sel.id = "whole";
-  sel.append(Object.assign(document.createElement("option"), { value: "", textContent: "Each sound's own first version" }));
+  sel.append(Object.assign(document.createElement("option"), { value: "", textContent: "The game's set (as picked)" }));
   for (const fam of Object.keys(FAMILIES)) sel.append(Object.assign(document.createElement("option"), { value: fam, textContent: fam }));
   sel.addEventListener("change", () => setWhole(sel.value));
   const lab = h("label"); lab.htmlFor = "whole"; lab.textContent = "Whole set in one material";

@@ -43,7 +43,12 @@ sound offers its gesture in every material beside its own hand-made versions; th
 eight or more of their own instead. The loudness measure listens through a gentle low cut, so a low thud and a bright
 tick come out matched.
 
-Each sound has one to four variants (a seed apiece) and the game picks one; the game also drifts the pitch a few cents.
+**The set as picked** (2026-10-09, in the lab): `PICKS` and `SET` in `sounds.mjs`. Each sound renders five takes, each its
+own seed, its layers up to 2 ms early or late and its own brightness (a lowpass up to half an octave either way of
+5 kHz); then the set's tone (one lowpass at 3.5 kHz) and soft attack (the first 4 ms faded in). Loudness is set from
+the dry sound, as the lab sets it. `sounds.json` names each take on its own (`ui.click.1`...) and `Sfx` deals them like a
+shuffled deck, never the same twice in a row; each play steps the pitch a whole tone either way or none, landing on a
+pentatonic scale, and the loudness by up to a decibel.
 
 ## Loudness
 

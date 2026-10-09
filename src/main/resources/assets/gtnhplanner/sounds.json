@@ -4,14 +4,79 @@
     "sounds": [
       "gtnhplanner:board/adjust1",
       "gtnhplanner:board/adjust2",
+      "gtnhplanner:board/adjust3",
+      "gtnhplanner:board/adjust4",
+      "gtnhplanner:board/adjust5"
+    ]
+  },
+  "board.adjust.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/adjust1"
+    ]
+  },
+  "board.adjust.2": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/adjust2"
+    ]
+  },
+  "board.adjust.3": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:board/adjust3"
+    ]
+  },
+  "board.adjust.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/adjust4"
+    ]
+  },
+  "board.adjust.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/adjust5"
     ]
   },
   "board.clone": {
     "category": "master",
     "sounds": [
       "gtnhplanner:board/clone1",
+      "gtnhplanner:board/clone2",
+      "gtnhplanner:board/clone3",
+      "gtnhplanner:board/clone4",
+      "gtnhplanner:board/clone5"
+    ]
+  },
+  "board.clone.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/clone1"
+    ]
+  },
+  "board.clone.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:board/clone2"
+    ]
+  },
+  "board.clone.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/clone3"
+    ]
+  },
+  "board.clone.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/clone4"
+    ]
+  },
+  "board.clone.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/clone5"
     ]
   },
   "board.drop": {
@@ -19,28 +84,159 @@
     "sounds": [
       "gtnhplanner:board/drop1",
       "gtnhplanner:board/drop2",
+      "gtnhplanner:board/drop3",
+      "gtnhplanner:board/drop4",
+      "gtnhplanner:board/drop5"
+    ]
+  },
+  "board.drop.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/drop1"
+    ]
+  },
+  "board.drop.2": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/drop2"
+    ]
+  },
+  "board.drop.3": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:board/drop3"
+    ]
+  },
+  "board.drop.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/drop4"
+    ]
+  },
+  "board.drop.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/drop5"
     ]
   },
   "board.lift": {
     "category": "master",
     "sounds": [
       "gtnhplanner:board/lift1",
+      "gtnhplanner:board/lift2",
+      "gtnhplanner:board/lift3",
+      "gtnhplanner:board/lift4",
+      "gtnhplanner:board/lift5"
+    ]
+  },
+  "board.lift.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/lift1"
+    ]
+  },
+  "board.lift.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:board/lift2"
+    ]
+  },
+  "board.lift.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/lift3"
+    ]
+  },
+  "board.lift.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/lift4"
+    ]
+  },
+  "board.lift.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/lift5"
     ]
   },
   "board.merge": {
     "category": "master",
     "sounds": [
       "gtnhplanner:board/merge1",
+      "gtnhplanner:board/merge2",
+      "gtnhplanner:board/merge3",
+      "gtnhplanner:board/merge4",
+      "gtnhplanner:board/merge5"
+    ]
+  },
+  "board.merge.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/merge1"
+    ]
+  },
+  "board.merge.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:board/merge2"
+    ]
+  },
+  "board.merge.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/merge3"
+    ]
+  },
+  "board.merge.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/merge4"
+    ]
+  },
+  "board.merge.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/merge5"
     ]
   },
   "board.pin": {
     "category": "master",
     "sounds": [
       "gtnhplanner:board/pin1",
+      "gtnhplanner:board/pin2",
+      "gtnhplanner:board/pin3",
+      "gtnhplanner:board/pin4",
+      "gtnhplanner:board/pin5"
+    ]
+  },
+  "board.pin.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/pin1"
+    ]
+  },
+  "board.pin.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:board/pin2"
+    ]
+  },
+  "board.pin.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/pin3"
+    ]
+  },
+  "board.pin.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/pin4"
+    ]
+  },
+  "board.pin.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/pin5"
     ]
   },
   "board.place": {
@@ -48,81 +244,479 @@
     "sounds": [
       "gtnhplanner:board/place1",
       "gtnhplanner:board/place2",
+      "gtnhplanner:board/place3",
+      "gtnhplanner:board/place4",
+      "gtnhplanner:board/place5"
+    ]
+  },
+  "board.place.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/place1"
+    ]
+  },
+  "board.place.2": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/place2"
+    ]
+  },
+  "board.place.3": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:board/place3"
+    ]
+  },
+  "board.place.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/place4"
+    ]
+  },
+  "board.place.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/place5"
     ]
   },
   "board.redo": {
     "category": "master",
     "sounds": [
       "gtnhplanner:board/redo1",
+      "gtnhplanner:board/redo2",
+      "gtnhplanner:board/redo3",
+      "gtnhplanner:board/redo4",
+      "gtnhplanner:board/redo5"
+    ]
+  },
+  "board.redo.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/redo1"
+    ]
+  },
+  "board.redo.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:board/redo2"
+    ]
+  },
+  "board.redo.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/redo3"
+    ]
+  },
+  "board.redo.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/redo4"
+    ]
+  },
+  "board.redo.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/redo5"
     ]
   },
   "board.remove": {
     "category": "master",
     "sounds": [
       "gtnhplanner:board/remove1",
+      "gtnhplanner:board/remove2",
+      "gtnhplanner:board/remove3",
+      "gtnhplanner:board/remove4",
+      "gtnhplanner:board/remove5"
+    ]
+  },
+  "board.remove.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/remove1"
+    ]
+  },
+  "board.remove.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:board/remove2"
+    ]
+  },
+  "board.remove.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/remove3"
+    ]
+  },
+  "board.remove.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/remove4"
+    ]
+  },
+  "board.remove.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/remove5"
     ]
   },
   "board.running": {
     "category": "master",
     "sounds": [
+      "gtnhplanner:board/running1",
+      "gtnhplanner:board/running2",
+      "gtnhplanner:board/running3",
+      "gtnhplanner:board/running4",
+      "gtnhplanner:board/running5"
+    ]
+  },
+  "board.running.1": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:board/running1"
+    ]
+  },
+  "board.running.2": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/running2"
+    ]
+  },
+  "board.running.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/running3"
+    ]
+  },
+  "board.running.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/running4"
+    ]
+  },
+  "board.running.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/running5"
     ]
   },
   "board.sweep": {
     "category": "master",
     "sounds": [
       "gtnhplanner:board/sweep1",
+      "gtnhplanner:board/sweep2",
+      "gtnhplanner:board/sweep3",
+      "gtnhplanner:board/sweep4",
+      "gtnhplanner:board/sweep5"
+    ]
+  },
+  "board.sweep.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/sweep1"
+    ]
+  },
+  "board.sweep.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:board/sweep2"
+    ]
+  },
+  "board.sweep.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/sweep3"
+    ]
+  },
+  "board.sweep.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/sweep4"
+    ]
+  },
+  "board.sweep.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/sweep5"
     ]
   },
   "board.undo": {
     "category": "master",
     "sounds": [
       "gtnhplanner:board/undo1",
+      "gtnhplanner:board/undo2",
+      "gtnhplanner:board/undo3",
+      "gtnhplanner:board/undo4",
+      "gtnhplanner:board/undo5"
+    ]
+  },
+  "board.undo.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/undo1"
+    ]
+  },
+  "board.undo.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:board/undo2"
+    ]
+  },
+  "board.undo.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/undo3"
+    ]
+  },
+  "board.undo.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/undo4"
+    ]
+  },
+  "board.undo.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/undo5"
     ]
   },
   "board.unpin": {
     "category": "master",
     "sounds": [
       "gtnhplanner:board/unpin1",
+      "gtnhplanner:board/unpin2",
+      "gtnhplanner:board/unpin3",
+      "gtnhplanner:board/unpin4",
+      "gtnhplanner:board/unpin5"
+    ]
+  },
+  "board.unpin.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/unpin1"
+    ]
+  },
+  "board.unpin.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:board/unpin2"
+    ]
+  },
+  "board.unpin.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/unpin3"
+    ]
+  },
+  "board.unpin.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/unpin4"
+    ]
+  },
+  "board.unpin.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:board/unpin5"
     ]
   },
   "dial.tier": {
     "category": "master",
     "sounds": [
       "gtnhplanner:dial/tier1",
+      "gtnhplanner:dial/tier2",
+      "gtnhplanner:dial/tier3",
+      "gtnhplanner:dial/tier4",
+      "gtnhplanner:dial/tier5"
+    ]
+  },
+  "dial.tier.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:dial/tier1"
+    ]
+  },
+  "dial.tier.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:dial/tier2"
+    ]
+  },
+  "dial.tier.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:dial/tier3"
+    ]
+  },
+  "dial.tier.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:dial/tier4"
+    ]
+  },
+  "dial.tier.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:dial/tier5"
     ]
   },
   "note.crumple": {
     "category": "master",
     "sounds": [
       "gtnhplanner:note/crumple1",
+      "gtnhplanner:note/crumple2",
+      "gtnhplanner:note/crumple3",
+      "gtnhplanner:note/crumple4",
+      "gtnhplanner:note/crumple5"
+    ]
+  },
+  "note.crumple.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:note/crumple1"
+    ]
+  },
+  "note.crumple.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:note/crumple2"
+    ]
+  },
+  "note.crumple.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:note/crumple3"
+    ]
+  },
+  "note.crumple.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:note/crumple4"
+    ]
+  },
+  "note.crumple.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:note/crumple5"
     ]
   },
   "note.stick": {
     "category": "master",
     "sounds": [
       "gtnhplanner:note/stick1",
+      "gtnhplanner:note/stick2",
+      "gtnhplanner:note/stick3",
+      "gtnhplanner:note/stick4",
+      "gtnhplanner:note/stick5"
+    ]
+  },
+  "note.stick.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:note/stick1"
+    ]
+  },
+  "note.stick.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:note/stick2"
+    ]
+  },
+  "note.stick.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:note/stick3"
+    ]
+  },
+  "note.stick.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:note/stick4"
+    ]
+  },
+  "note.stick.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:note/stick5"
     ]
   },
   "screen.close": {
     "category": "master",
     "sounds": [
+      "gtnhplanner:screen/close1",
+      "gtnhplanner:screen/close2",
+      "gtnhplanner:screen/close3",
+      "gtnhplanner:screen/close4",
+      "gtnhplanner:screen/close5"
+    ]
+  },
+  "screen.close.1": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:screen/close1"
+    ]
+  },
+  "screen.close.2": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:screen/close2"
+    ]
+  },
+  "screen.close.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:screen/close3"
+    ]
+  },
+  "screen.close.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:screen/close4"
+    ]
+  },
+  "screen.close.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:screen/close5"
     ]
   },
   "screen.open": {
     "category": "master",
     "sounds": [
+      "gtnhplanner:screen/open1",
+      "gtnhplanner:screen/open2",
+      "gtnhplanner:screen/open3",
+      "gtnhplanner:screen/open4",
+      "gtnhplanner:screen/open5"
+    ]
+  },
+  "screen.open.1": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:screen/open1"
+    ]
+  },
+  "screen.open.2": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:screen/open2"
+    ]
+  },
+  "screen.open.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:screen/open3"
+    ]
+  },
+  "screen.open.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:screen/open4"
+    ]
+  },
+  "screen.open.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:screen/open5"
     ]
   },
   "ui.click": {
@@ -131,28 +725,158 @@
       "gtnhplanner:ui/click1",
       "gtnhplanner:ui/click2",
       "gtnhplanner:ui/click3",
+      "gtnhplanner:ui/click4",
+      "gtnhplanner:ui/click5"
+    ]
+  },
+  "ui.click.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/click1"
+    ]
+  },
+  "ui.click.2": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/click2"
+    ]
+  },
+  "ui.click.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/click3"
+    ]
+  },
+  "ui.click.4": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:ui/click4"
+    ]
+  },
+  "ui.click.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/click5"
     ]
   },
   "ui.close": {
     "category": "master",
     "sounds": [
       "gtnhplanner:ui/close1",
+      "gtnhplanner:ui/close2",
+      "gtnhplanner:ui/close3",
+      "gtnhplanner:ui/close4",
+      "gtnhplanner:ui/close5"
+    ]
+  },
+  "ui.close.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/close1"
+    ]
+  },
+  "ui.close.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:ui/close2"
+    ]
+  },
+  "ui.close.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/close3"
+    ]
+  },
+  "ui.close.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/close4"
+    ]
+  },
+  "ui.close.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/close5"
     ]
   },
   "ui.deny": {
     "category": "master",
     "sounds": [
       "gtnhplanner:ui/deny1",
+      "gtnhplanner:ui/deny2",
+      "gtnhplanner:ui/deny3",
+      "gtnhplanner:ui/deny4",
+      "gtnhplanner:ui/deny5"
+    ]
+  },
+  "ui.deny.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/deny1"
+    ]
+  },
+  "ui.deny.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:ui/deny2"
+    ]
+  },
+  "ui.deny.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/deny3"
+    ]
+  },
+  "ui.deny.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/deny4"
+    ]
+  },
+  "ui.deny.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/deny5"
     ]
   },
   "ui.open": {
     "category": "master",
     "sounds": [
       "gtnhplanner:ui/open1",
+      "gtnhplanner:ui/open2",
+      "gtnhplanner:ui/open3",
+      "gtnhplanner:ui/open4",
+      "gtnhplanner:ui/open5"
+    ]
+  },
+  "ui.open.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/open1"
+    ]
+  },
+  "ui.open.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:ui/open2"
+    ]
+  },
+  "ui.open.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/open3"
+    ]
+  },
+  "ui.open.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/open4"
+    ]
+  },
+  "ui.open.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/open5"
     ]
   },
   "ui.page": {
@@ -160,7 +884,39 @@
     "sounds": [
       "gtnhplanner:ui/page1",
       "gtnhplanner:ui/page2",
+      "gtnhplanner:ui/page3",
+      "gtnhplanner:ui/page4",
+      "gtnhplanner:ui/page5"
+    ]
+  },
+  "ui.page.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/page1"
+    ]
+  },
+  "ui.page.2": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/page2"
+    ]
+  },
+  "ui.page.3": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:ui/page3"
+    ]
+  },
+  "ui.page.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/page4"
+    ]
+  },
+  "ui.page.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/page5"
     ]
   },
   "ui.tick": {
@@ -168,28 +924,159 @@
     "sounds": [
       "gtnhplanner:ui/tick1",
       "gtnhplanner:ui/tick2",
+      "gtnhplanner:ui/tick3",
+      "gtnhplanner:ui/tick4",
+      "gtnhplanner:ui/tick5"
+    ]
+  },
+  "ui.tick.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/tick1"
+    ]
+  },
+  "ui.tick.2": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/tick2"
+    ]
+  },
+  "ui.tick.3": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:ui/tick3"
+    ]
+  },
+  "ui.tick.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/tick4"
+    ]
+  },
+  "ui.tick.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/tick5"
     ]
   },
   "ui.toggle_off": {
     "category": "master",
     "sounds": [
       "gtnhplanner:ui/toggle_off1",
+      "gtnhplanner:ui/toggle_off2",
+      "gtnhplanner:ui/toggle_off3",
+      "gtnhplanner:ui/toggle_off4",
+      "gtnhplanner:ui/toggle_off5"
+    ]
+  },
+  "ui.toggle_off.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/toggle_off1"
+    ]
+  },
+  "ui.toggle_off.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:ui/toggle_off2"
+    ]
+  },
+  "ui.toggle_off.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/toggle_off3"
+    ]
+  },
+  "ui.toggle_off.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/toggle_off4"
+    ]
+  },
+  "ui.toggle_off.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/toggle_off5"
     ]
   },
   "ui.toggle_on": {
     "category": "master",
     "sounds": [
       "gtnhplanner:ui/toggle_on1",
+      "gtnhplanner:ui/toggle_on2",
+      "gtnhplanner:ui/toggle_on3",
+      "gtnhplanner:ui/toggle_on4",
+      "gtnhplanner:ui/toggle_on5"
+    ]
+  },
+  "ui.toggle_on.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/toggle_on1"
+    ]
+  },
+  "ui.toggle_on.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:ui/toggle_on2"
+    ]
+  },
+  "ui.toggle_on.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/toggle_on3"
+    ]
+  },
+  "ui.toggle_on.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/toggle_on4"
+    ]
+  },
+  "ui.toggle_on.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:ui/toggle_on5"
     ]
   },
   "wire.cut": {
     "category": "master",
     "sounds": [
       "gtnhplanner:wire/cut1",
+      "gtnhplanner:wire/cut2",
+      "gtnhplanner:wire/cut3",
+      "gtnhplanner:wire/cut4",
+      "gtnhplanner:wire/cut5"
+    ]
+  },
+  "wire.cut.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/cut1"
+    ]
+  },
+  "wire.cut.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:wire/cut2"
+    ]
+  },
+  "wire.cut.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/cut3"
+    ]
+  },
+  "wire.cut.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/cut4"
+    ]
+  },
+  "wire.cut.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/cut5"
     ]
   },
   "wire.fluid": {
@@ -197,21 +1084,119 @@
     "sounds": [
       "gtnhplanner:wire/fluid1",
       "gtnhplanner:wire/fluid2",
+      "gtnhplanner:wire/fluid3",
+      "gtnhplanner:wire/fluid4",
+      "gtnhplanner:wire/fluid5"
+    ]
+  },
+  "wire.fluid.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/fluid1"
+    ]
+  },
+  "wire.fluid.2": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/fluid2"
+    ]
+  },
+  "wire.fluid.3": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:wire/fluid3"
+    ]
+  },
+  "wire.fluid.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/fluid4"
+    ]
+  },
+  "wire.fluid.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/fluid5"
     ]
   },
   "wire.fluid_cut": {
     "category": "master",
     "sounds": [
       "gtnhplanner:wire/fluid_cut1",
+      "gtnhplanner:wire/fluid_cut2",
+      "gtnhplanner:wire/fluid_cut3",
+      "gtnhplanner:wire/fluid_cut4",
+      "gtnhplanner:wire/fluid_cut5"
+    ]
+  },
+  "wire.fluid_cut.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/fluid_cut1"
+    ]
+  },
+  "wire.fluid_cut.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:wire/fluid_cut2"
+    ]
+  },
+  "wire.fluid_cut.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/fluid_cut3"
+    ]
+  },
+  "wire.fluid_cut.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/fluid_cut4"
+    ]
+  },
+  "wire.fluid_cut.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/fluid_cut5"
     ]
   },
   "wire.grab": {
     "category": "master",
     "sounds": [
       "gtnhplanner:wire/grab1",
+      "gtnhplanner:wire/grab2",
+      "gtnhplanner:wire/grab3",
+      "gtnhplanner:wire/grab4",
+      "gtnhplanner:wire/grab5"
+    ]
+  },
+  "wire.grab.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/grab1"
+    ]
+  },
+  "wire.grab.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:wire/grab2"
+    ]
+  },
+  "wire.grab.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/grab3"
+    ]
+  },
+  "wire.grab.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/grab4"
+    ]
+  },
+  "wire.grab.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/grab5"
     ]
   },
   "wire.item": {
@@ -219,7 +1204,39 @@
     "sounds": [
       "gtnhplanner:wire/item1",
       "gtnhplanner:wire/item2",
+      "gtnhplanner:wire/item3",
+      "gtnhplanner:wire/item4",
+      "gtnhplanner:wire/item5"
+    ]
+  },
+  "wire.item.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/item1"
+    ]
+  },
+  "wire.item.2": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/item2"
+    ]
+  },
+  "wire.item.3": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:wire/item3"
+    ]
+  },
+  "wire.item.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/item4"
+    ]
+  },
+  "wire.item.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/item5"
     ]
   },
   "wire.power": {
@@ -227,14 +1244,79 @@
     "sounds": [
       "gtnhplanner:wire/power1",
       "gtnhplanner:wire/power2",
+      "gtnhplanner:wire/power3",
+      "gtnhplanner:wire/power4",
+      "gtnhplanner:wire/power5"
+    ]
+  },
+  "wire.power.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/power1"
+    ]
+  },
+  "wire.power.2": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/power2"
+    ]
+  },
+  "wire.power.3": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:wire/power3"
+    ]
+  },
+  "wire.power.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/power4"
+    ]
+  },
+  "wire.power.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/power5"
     ]
   },
   "wire.power_cut": {
     "category": "master",
     "sounds": [
       "gtnhplanner:wire/power_cut1",
+      "gtnhplanner:wire/power_cut2",
+      "gtnhplanner:wire/power_cut3",
+      "gtnhplanner:wire/power_cut4",
+      "gtnhplanner:wire/power_cut5"
+    ]
+  },
+  "wire.power_cut.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/power_cut1"
+    ]
+  },
+  "wire.power_cut.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:wire/power_cut2"
+    ]
+  },
+  "wire.power_cut.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/power_cut3"
+    ]
+  },
+  "wire.power_cut.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/power_cut4"
+    ]
+  },
+  "wire.power_cut.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/power_cut5"
     ]
   },
   "wire.snap": {
@@ -242,21 +1324,119 @@
     "sounds": [
       "gtnhplanner:wire/snap1",
       "gtnhplanner:wire/snap2",
+      "gtnhplanner:wire/snap3",
+      "gtnhplanner:wire/snap4",
+      "gtnhplanner:wire/snap5"
+    ]
+  },
+  "wire.snap.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/snap1"
+    ]
+  },
+  "wire.snap.2": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/snap2"
+    ]
+  },
+  "wire.snap.3": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:wire/snap3"
+    ]
+  },
+  "wire.snap.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/snap4"
+    ]
+  },
+  "wire.snap.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:wire/snap5"
     ]
   },
   "world.place": {
     "category": "master",
     "sounds": [
       "gtnhplanner:world/place1",
+      "gtnhplanner:world/place2",
+      "gtnhplanner:world/place3",
+      "gtnhplanner:world/place4",
+      "gtnhplanner:world/place5"
+    ]
+  },
+  "world.place.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:world/place1"
+    ]
+  },
+  "world.place.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:world/place2"
+    ]
+  },
+  "world.place.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:world/place3"
+    ]
+  },
+  "world.place.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:world/place4"
+    ]
+  },
+  "world.place.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:world/place5"
     ]
   },
   "world.remove": {
     "category": "master",
     "sounds": [
       "gtnhplanner:world/remove1",
+      "gtnhplanner:world/remove2",
+      "gtnhplanner:world/remove3",
+      "gtnhplanner:world/remove4",
+      "gtnhplanner:world/remove5"
+    ]
+  },
+  "world.remove.1": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:world/remove1"
+    ]
+  },
+  "world.remove.2": {
+    "category": "master",
+    "sounds": [
       "gtnhplanner:world/remove2"
+    ]
+  },
+  "world.remove.3": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:world/remove3"
+    ]
+  },
+  "world.remove.4": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:world/remove4"
+    ]
+  },
+  "world.remove.5": {
+    "category": "master",
+    "sounds": [
+      "gtnhplanner:world/remove5"
     ]
   }
 }
