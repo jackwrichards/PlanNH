@@ -121,6 +121,44 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         child(searchField);
     }
 
+    /**
+     * The GUI rectangle {x, y, w, h} of a part, for the tour: "search" its search field, "shelf:public" or "shelf:mine"
+     * a shelf's key, "tile:N" the Nth setup tile in view (from 0), "all" the whole view; null when not showing.
+     */
+    public int[] partRect(final String id) {
+        final com.cleanroommc.modularui.widget.sizer.Area a = getArea();
+        if ("all".equals(id)) return new int[] { a.x, a.y, a.width, a.height };
+        if ("search".equals(id)) {
+            final com.cleanroommc.modularui.widget.sizer.Area f = searchField.getArea();
+            return new int[] { f.x, f.y, f.width, f.height };
+        }
+        if (id.startsWith("shelf:")) {
+            final boolean wantMine = id.endsWith("mine");
+            for (final Hit h : lastHits) if (h.kind() == Kind.SHELF && Boolean.valueOf(wantMine)
+                .equals(h.data())) return new int[] { a.x + h.x0(), a.y + h.y0(), h.x1() - h.x0(), h.y1() - h.y0() };
+            return null;
+        }
+        if (id.startsWith("tile:")) {
+            int n = Integer.parseInt(id.substring(5));
+            for (final Hit h : lastHits) {
+                if (h.kind() != Kind.TILE || n-- > 0) continue;
+                return new int[] { a.x + h.x0(), a.y + h.y0(), h.x1() - h.x0(), h.y1() - h.y0() };
+            }
+        }
+        return null;
+    }
+
+    /** The search field, for the tour to type into. */
+    public TextFieldWidget searchField() {
+        return searchField;
+    }
+
+    /** Whether the public shelf has setups to show yet. */
+    public boolean publicLoaded() {
+        for (final Hit h : lastHits) if (h.kind() == Kind.TILE) return true;
+        return false;
+    }
+
     /** Opens on the shelf as it was left; the public list is fetched the first time it is shown. */
     public void opened() {
         if (!mine && !feed.started()) feed.restart();

@@ -51,9 +51,21 @@ public class OpenFlowchartButton extends Button {
         return BUTTON_WIDTH;
     }
 
+    /** The key as last drawn, and when: the tour points at it. */
+    private static OpenFlowchartButton shown;
+    private static long shownAt;
+
+    /** The key, when it was drawn in the last moment (an inventory with NEI is open); else null. */
+    @Nullable
+    public static OpenFlowchartButton shown() {
+        return System.currentTimeMillis() - shownAt < 300 ? shown : null;
+    }
+
     /** NEI's key, then the logo on it. */
     @Override
     public void draw(final int mouseX, final int mouseY) {
+        shown = this;
+        shownAt = System.currentTimeMillis();
         super.draw(mouseX, mouseY);
         // 12 GUI pixels for the 24-pixel logo: one to one at GUI scale 2, a pixel clear of the key's edges.
         final int size = 12;

@@ -168,7 +168,41 @@ public class Plan {
     }
 
     public static void unloadPlan() {
+        leaveSandbox();
         PlanAPI.save();
         INSTANCE = null;
     }
+
+    // region The tour's sandbox
+
+    /** The player's plans, kept aside while the tour works in plans of its own; null otherwise. */
+    @Nullable
+    private static Plan aside;
+
+    /** Whether the tour's plans stand in for the player's: nothing is saved meanwhile. */
+    public static boolean sandboxed() {
+        return aside != null;
+    }
+
+    /** Puts the player's plans aside and stands in plans of the tour's own: one empty plan, never saved. */
+    public static void enterSandbox() {
+        if (aside != null) return;
+        aside = getInstance();
+        INSTANCE = new Plan();
+        INSTANCE.graphs.add(new Graph("Plan 1"));
+    }
+
+    /** The tour's plans as they were at some point, decoded again (the tour going back). */
+    public static void replaceSandbox(final Plan plan) {
+        if (aside != null) INSTANCE = plan;
+    }
+
+    /** Puts the player's plans back as they were. */
+    public static void leaveSandbox() {
+        if (aside == null) return;
+        INSTANCE = aside;
+        aside = null;
+    }
+
+    // endregion
 }

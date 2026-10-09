@@ -358,6 +358,51 @@ public final class DevHarness {
                         "1".equals(q.get("uses")),
                         !"0".equals(q.get("planner")),
                         q.getOrDefault("tab", "")));
+            case "/tutorial":
+                requireWorld();
+                return onClient(() -> {
+                    if ("1".equals(q.get("stop"))) com.gtnhplanner.ui.tutorial.Tutorial.stop();
+                    else if ("1".equals(q.get("next"))) com.gtnhplanner.ui.tutorial.Tutorial.nextBeat();
+                    else if (q.containsKey("chapter")) com.gtnhplanner.ui.tutorial.Tutorial.startAt(
+                        Integer.parseInt(q.get("chapter")) - 1,
+                        Integer.parseInt(q.getOrDefault("beat", "1")) - 1);
+                    else if ("1".equals(q.get("start"))) com.gtnhplanner.ui.tutorial.Tutorial.start();
+                    final Map<String, Object> r = new LinkedHashMap<>();
+                    if (q.containsKey("neitype")) {
+                        final codechicken.nei.SearchField f = codechicken.nei.LayoutManager.searchField;
+                        final List<Object> got = new ArrayList<>();
+                        f.setFocus(true);
+                        got.add("focused " + f.focused());
+                        for (final char c : q.get("neitype")
+                            .toCharArray())
+                            got.add(
+                                f.handleKeyPress(
+                                    org.lwjgl.input.Keyboard.getKeyIndex(String.valueOf(Character.toUpperCase(c))),
+                                    c) + " -> [" + f.text() + "]");
+                        r.put("neitype", got);
+                    }
+                    if ("1".equals(q.get("export"))) {
+                        try {
+                            final java.io.File f = com.gtnhplanner.ui.tutorial.Tutorial.exportStarts();
+                            r.put("exported", f == null ? null : f.getPath());
+                        } catch (final java.io.IOException e) {
+                            r.put("exported", e.toString());
+                        }
+                    }
+                    if (q.containsKey("neilist")) {
+                        final List<Object> names = new ArrayList<>();
+                        for (final net.minecraft.item.ItemStack s : codechicken.nei.ItemPanels.itemPanel.getGrid()
+                            .getItems()) {
+                            if (names.size() >= 12) break;
+                            names.add(
+                                net.minecraft.item.Item.itemRegistry.getNameForObject(
+                                    s.getItem()) + ":" + s.getItemDamage() + " '" + s.getDisplayName() + "'");
+                        }
+                        r.put("neilist", names);
+                    }
+                    r.put("where", com.gtnhplanner.ui.tutorial.Tutorial.where());
+                    return r;
+                });
             case "/recipeinfo":
                 requireWorld();
                 return onClient(
@@ -565,6 +610,8 @@ public final class DevHarness {
                 "/board - open board as data: view, and per card its state and every control's GUI rect (cx, cy)",
                 "/view?zoom&panX&panY - set the board view (defaults 1, 0, 0)",
                 "/structurepic?meta=1000 - (re)build that GT multiblock's card picture, save it as screenshots/structure-<meta>.png; no meta lists the controllers",
+                "/tutorial[?start=1 | chapter=N&beat=M | next=1 | stop=1] - the tour: start it, jump to a beat, hurry"
+                    + " the current beat, stop it; returns where it is",
                 "/quit - ask the client to quit (may hang on a confirm dialog with GT; mc.sh stop kills)"));
         return m;
     }

@@ -140,6 +140,27 @@ public final class SettingsPanel extends Widget<SettingsPanel> implements Intera
         return rows;
     }
 
+    /** The GUI rectangle {x, y, w, h} of the first setting whose name contains {@code label}; null for none. */
+    public int[] rowRect(final String label) {
+        for (int i = 0; i < rows.size(); i++) {
+            final Row r = rows.get(i);
+            if (r.value() == null || !r.label()
+                .contains(label)) continue;
+            final com.cleanroommc.modularui.widget.sizer.Area a = getArea();
+            return new int[] { a.x, a.y + i * ROW, a.width, ROW };
+        }
+        return null;
+    }
+
+    /** What a setting shows now, by its name; null for none. */
+    public String value(final String label) {
+        for (final Row r : rows) if (r.value() != null && r.label()
+            .contains(label))
+            return r.value()
+                .get();
+        return null;
+    }
+
     private int rowAtMouse() {
         if (!isHovering()) return -1;
         final int y = getContext().getAbsMouseY() - getArea().y;

@@ -61,6 +61,15 @@ public final class PlannerSettings {
         set("card.circuitAsInput", on);
     }
 
+    /** Whether the board has offered the tour yet (once, the first time it opens). */
+    public static boolean tourOffered() {
+        return bool("tour.offered", false);
+    }
+
+    public static void setTourOffered(final boolean offered) {
+        set("tour.offered", offered);
+    }
+
     public static boolean zoomedOutNames() {
         return bool("board.zoomedOutNames", false);
     }

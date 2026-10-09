@@ -44,14 +44,17 @@ public final class BoardScreen extends ModularScreen {
     private final BoardCanvas canvas;
     private final LibraryDoor library;
     private final PowerPicker picker;
+    /** The top bar's keys and the board's other parts, by name, for the tour to point at. */
+    private final java.util.Map<String, IWidget> parts;
 
     private BoardScreen(final ModularPanel panel, final BoardSession session, final BoardCanvas canvas,
-        final LibraryDoor library, final PowerPicker picker) {
+        final LibraryDoor library, final PowerPicker picker, final java.util.Map<String, IWidget> parts) {
         super(GtnhPlanner.MODID, panel);
         this.session = session;
         this.canvas = canvas;
         this.library = library;
         this.picker = picker;
+        this.parts = parts;
         getContext().setSettings(new UISettings());
         getContext().getUISettings()
             .getRecipeViewerSettings()
@@ -71,6 +74,8 @@ public final class BoardScreen extends ModularScreen {
                 0);
         final BoardCanvas canvas = new BoardCanvas(session, panel);
         final OverviewRail rail = new OverviewRail(session, canvas);
+        final java.util.Map<String, IWidget> parts = new java.util.HashMap<>();
+        parts.put("rail", rail);
         final LibraryDoor library = new LibraryDoor();
         library.view = new LibraryView(session, () -> library.set(false), () -> {
             library.set(false);
@@ -101,8 +106,11 @@ public final class BoardScreen extends ModularScreen {
         // The tabs take all the room the keys leave; the keys come in groups, a gap between each: editing, the view,
         // the library, then help.
         topBar.child(
-            new PlanTabs(session).expanded()
-                .height(16));
+            named(
+                parts,
+                "tabs",
+                new PlanTabs(session).expanded()
+                    .height(16)));
         // Over the board (and the library): the non-recipe machines, opened from their key.
         final PickerDoor pickerDoor = new PickerDoor();
         final PowerPicker picker = new PowerPicker(session, () -> pickerDoor.picker.setEnabled(false));
@@ -114,64 +122,102 @@ public final class BoardScreen extends ModularScreen {
             picker.setEnabled(true);
         };
         session.setPowerPickerOpener(openPicker);
-        topBar.child(boltKey("Non-recipe machines: generators, turbines, boilers, reactors", () -> {
-            // The key opens the picker and closes it again.
-            if (picker.isEnabled()) picker.setEnabled(false);
-            else openPicker.run();
-        }).marginLeft(GROUP_GAP));
-        topBar.child(iconKey(Arrow.UNDO, session::canUndo, "Undo (Ctrl+Z)", session::undo).marginLeft(GROUP_GAP));
-        topBar.child(iconKey(Arrow.REDO, session::canRedo, "Redo (Ctrl+Shift+Z or Ctrl+Y)", session::redo));
         topBar.child(
-            key(
-                canvas::arrangeLabel,
-                () -> true,
-                "Auto-arrange the plan (press again to stop)",
-                fit("Arrange", "Arranging 100%"),
-                canvas::arrange).marginLeft(GROUP_GAP));
-        topBar.child(key(() -> "Fit", () -> true, "Zoom to fit the whole plan", fit("Fit"), canvas::frameAll));
+            named(parts, "nonrecipe", boltKey("Non-recipe machines: generators, turbines, boilers, reactors", () -> {
+                // The key opens the picker and closes it again.
+                if (picker.isEnabled()) picker.setEnabled(false);
+                else openPicker.run();
+            }).marginLeft(GROUP_GAP)));
         topBar.child(
-            key(
-                () -> session.rateUnit().suffix,
-                () -> true,
-                "Rate unit: per tick, second, minute or hour",
-                fit("/t", "/s", "/min", "/hr"),
-                () -> session.setRateUnit(
-                    session.rateUnit()
-                        .next())).marginLeft(GROUP_GAP));
+            named(
+                parts,
+                "undo",
+                iconKey(Arrow.UNDO, session::canUndo, "Undo (Ctrl+Z)", session::undo).marginLeft(GROUP_GAP)));
         topBar.child(
-            key(
-                () -> session.powerKey() == BoardSession.PowerKey.EU ? "EU/t" : "Amps",
-                () -> true,
-                "Show power as EU/t, or as amps at each machine's tier",
-                fit("EU/t", "Amps"),
-                session::togglePowerKey));
+            named(
+                parts,
+                "redo",
+                iconKey(Arrow.REDO, session::canRedo, "Redo (Ctrl+Shift+Z or Ctrl+Y)", session::redo)));
         topBar.child(
-            key(
-                () -> session.peakPower() ? "Peak" : "Avg",
-                () -> true,
-                "Average or peak power use (peak: every machine running at once)",
-                fit("Peak", "Avg"),
-                session::togglePeakPower));
+            named(
+                parts,
+                "arrange",
+                key(
+                    canvas::arrangeLabel,
+                    () -> true,
+                    "Auto-arrange the plan (press again to stop)",
+                    fit("Arrange", "Arranging 100%"),
+                    canvas::arrange).marginLeft(GROUP_GAP)));
         topBar.child(
-            key(
-                () -> library.open ? "Board" : "Library",
-                () -> true,
-                "Library: your plans, and public plans from gtnhplanner.com",
-                fit("Library", "Board"),
-                () -> library.set(!library.open)).marginLeft(GROUP_GAP));
+            named(
+                parts,
+                "fit",
+                key(() -> "Fit", () -> true, "Zoom to fit the whole plan", fit("Fit"), canvas::frameAll)));
         topBar.child(
-            iconKey(
-                Arrow.FEEDBACK,
-                () -> true,
-                "Feedback and bug reports: a thread on the GT New Horizons Discord (join the server to see it)",
-                BoardScreen::openFeedback).marginLeft(GROUP_GAP));
+            named(
+                parts,
+                "rate",
+                key(
+                    () -> session.rateUnit().suffix,
+                    () -> true,
+                    "Rate unit: per tick, second, minute or hour",
+                    fit("/t", "/s", "/min", "/hr"),
+                    () -> session.setRateUnit(
+                        session.rateUnit()
+                            .next())).marginLeft(GROUP_GAP)));
         topBar.child(
-            iconKey(
-                Arrow.GEAR,
-                () -> true,
-                "Settings",
-                () -> com.gtnhplanner.ui.popup.SettingsPanel.open(panel, Integer.MAX_VALUE / 2, TOP_BAR + 2)));
-        topBar.child(key(() -> "?", () -> true, "Help: controls and shortcuts", 16, () -> showHelp(panel)));
+            named(
+                parts,
+                "power",
+                key(
+                    () -> session.powerKey() == BoardSession.PowerKey.EU ? "EU/t" : "Amps",
+                    () -> true,
+                    "Show power as EU/t, or as amps at each machine's tier",
+                    fit("EU/t", "Amps"),
+                    session::togglePowerKey)));
+        topBar.child(
+            named(
+                parts,
+                "peak",
+                key(
+                    () -> session.peakPower() ? "Peak" : "Avg",
+                    () -> true,
+                    "Average or peak power use (peak: every machine running at once)",
+                    fit("Peak", "Avg"),
+                    session::togglePeakPower)));
+        topBar.child(
+            named(
+                parts,
+                "library",
+                key(
+                    () -> library.open ? "Board" : "Library",
+                    () -> true,
+                    "Library: your plans, and public plans from gtnhplanner.com",
+                    fit("Library", "Board"),
+                    () -> library.set(!library.open)).marginLeft(GROUP_GAP)));
+        topBar.child(
+            named(
+                parts,
+                "feedback",
+                iconKey(
+                    Arrow.FEEDBACK,
+                    () -> true,
+                    "Feedback and bug reports: a thread on the GT New Horizons Discord (join the server to see it)",
+                    BoardScreen::openFeedback).marginLeft(GROUP_GAP)));
+        topBar.child(
+            named(
+                parts,
+                "settings",
+                iconKey(
+                    Arrow.GEAR,
+                    () -> true,
+                    "Settings",
+                    () -> com.gtnhplanner.ui.popup.SettingsPanel.open(panel, Integer.MAX_VALUE / 2, TOP_BAR + 2))));
+        topBar.child(
+            named(
+                parts,
+                "help",
+                key(() -> "?", () -> true, "Help: the tour, and every control", 16, () -> openHelp(panel))));
 
         final Flow column = Flow.column()
             .widthRel(1f)
@@ -197,8 +243,14 @@ public final class BoardScreen extends ModularScreen {
             .right(6)
             .top(TOP_BAR + 4);
         panel.child(notices);
+        parts.put("notices", notices);
         final SelectionBar selectionBar = new SelectionBar(session, canvas, notices);
         panel.child(selectionBar);
+        // The first time the planner opens: the tour, offered once along the bottom of the board.
+        panel.child(
+            new TourOffer()
+                .left(() -> rail.currentWidth() + 10, com.cleanroommc.modularui.widget.sizer.Unit.Measure.PIXEL)
+                .bottom(10));
         picker.left(0)
             .right(0)
             .top(TOP_BAR)
@@ -206,7 +258,74 @@ public final class BoardScreen extends ModularScreen {
         panel.child(picker);
         library.body = body;
         library.board = List.of(rail, canvas, notices, selectionBar);
-        return new BoardScreen(panel, session, canvas, library, picker);
+        parts.put("picker", picker);
+        parts.put("libraryView", library.view);
+        return new BoardScreen(panel, session, canvas, library, picker, parts);
+    }
+
+    /** Files a widget under a name, for the tour. */
+    private static <W extends IWidget> W named(final java.util.Map<String, IWidget> parts, final String id,
+        final W widget) {
+        parts.put(id, widget);
+        return widget;
+    }
+
+    /** A top-bar key or another part of the board, by name; null when there is no such part. */
+    public IWidget key(final String id) {
+        return parts.get(id);
+    }
+
+    /**
+     * The GUI rectangle {x, y, w, h} of a smaller part of the board, by name: "rail:..." a row of the overview,
+     * "tab:..." a plan tab; null when it is not showing.
+     */
+    public int[] partRect(final String id) {
+        if (id.startsWith("rail:")) return ((OverviewRail) parts.get("rail")).rowRect(id.substring(5));
+        if (id.startsWith("tab:")) return ((PlanTabs) parts.get("tabs")).tabRect(id.substring(4));
+        if (id.startsWith("picker:")) {
+            final PowerPicker p = (PowerPicker) parts.get("picker");
+            if (!p.isEnabled()) return null;
+            return "picker:sheet".equals(id) ? p.sheetRect() : p.tileRect(id.substring(7));
+        }
+        if (id.startsWith("library:")) return library.open ? library.view.partRect(id.substring(8)) : null;
+        if ("notices".equals(id)) {
+            final IWidget n = parts.get("notices");
+            if (n == null || !n.isEnabled()) return null;
+            final com.cleanroommc.modularui.widget.sizer.Area a = n.getArea();
+            return a.height <= 0 ? null : new int[] { a.x, a.y, a.width, a.height };
+        }
+        return null;
+    }
+
+    /** Whether the library is up, in place of the board. */
+    public boolean libraryOpen() {
+        return library.open;
+    }
+
+    /** The "?" key: the tour, or the list of every control. */
+    private static void openHelp(final ModularPanel panel) {
+        final List<com.gtnhplanner.ui.popup.PickList.Entry> rows = new ArrayList<>();
+        rows.add(
+            new com.gtnhplanner.ui.popup.PickList.Entry(
+                null,
+                "Take the tour",
+                "8 minutes",
+                Hyb.INK,
+                false,
+                com.gtnhplanner.ui.tutorial.Tutorial::start));
+        rows.add(
+            new com.gtnhplanner.ui.popup.PickList.Entry(
+                null,
+                "Controls and shortcuts",
+                "",
+                Hyb.INK,
+                false,
+                () -> showHelp(panel)));
+        com.gtnhplanner.ui.popup.Popup.open(
+            panel,
+            com.gtnhplanner.ui.popup.PickList.popup("gtnhplanner_help_menu", null, rows, false, 190),
+            Integer.MAX_VALUE / 2,
+            TOP_BAR + 2);
     }
 
     /** Swaps the board (the overview, the canvas and the bars over it) for the library, and back. */

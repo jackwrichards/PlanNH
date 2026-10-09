@@ -199,6 +199,24 @@ public final class PlanMenu implements IContainerDrawHandler, IContainerInputHan
         rows = List.of();
     }
 
+    /**
+     * The GUI rectangle {x, y, w, h} of the open menu's first row whose label contains {@code label}; null when the
+     * menu is shut or has none. For the tour.
+     */
+    @Nullable
+    public int[] rowRect(final String label) {
+        if (menuOn == null || Minecraft.getMinecraft().currentScreen != menuOn) return null;
+        for (int i = 0; i < rows.size(); i++) {
+            if (rows.get(i).label.contains(label)) return new int[] { mx + 2, my + TITLE + i * ROW, mw - 4, ROW };
+        }
+        return null;
+    }
+
+    /** Whether the menu is open. */
+    public boolean isOpen() {
+        return menuOn != null && Minecraft.getMinecraft().currentScreen == menuOn;
+    }
+
     private boolean menuOpenOn(final GuiContainer gui) {
         return menuOn != null && menuOn == gui;
     }

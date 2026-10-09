@@ -193,6 +193,8 @@ public final class PlanAPI {
     }
 
     public static void save() {
+        // The tour's own plans are never written.
+        if (Plan.sandboxed()) return;
         try {
             File saveFile = getSaveFile();
             saveFile.getParentFile()

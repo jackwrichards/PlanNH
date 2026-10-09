@@ -433,6 +433,36 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
 
     // region Input
 
+    /** The GUI rectangle {x, y, w, h} of the first tile in view whose machine's name contains {@code name}. */
+    public int[] tileRect(final String name) {
+        final com.cleanroommc.modularui.widget.sizer.Area a = getArea();
+        // A name exactly first ("Gas Turbine", not "Large Gas Turbine"), then any that has it.
+        for (final Hit h : lastHits) {
+            if (h.kind() == Kind.TILE && h.data() instanceof final PowerSearch.Hit hit
+                && hit.source()
+                    .name()
+                    .equals(name))
+                return new int[] { a.x + h.x0(), a.y + h.y0(), h.x1() - h.x0(), h.y1() - h.y0() };
+        }
+        for (final Hit h : lastHits) {
+            if (h.kind() != Kind.TILE || !(h.data() instanceof final PowerSearch.Hit hit)
+                || !hit.source()
+                    .name()
+                    .contains(name))
+                continue;
+            return new int[] { a.x + h.x0(), a.y + h.y0(), h.x1() - h.x0(), h.y1() - h.y0() };
+        }
+        return null;
+    }
+
+    /** The GUI rectangle of the whole sheet, while it is open. */
+    public int[] sheetRect() {
+        final com.cleanroommc.modularui.widget.sizer.Area a = getArea();
+        for (final Hit h : lastHits) if (h.kind() == Kind.SHEET)
+            return new int[] { a.x + h.x0(), a.y + h.y0(), h.x1() - h.x0(), h.y1() - h.y0() };
+        return null;
+    }
+
     private Hit hitAt(final List<Hit> from) {
         if (!isHovering()) return null;
         final int x = localX(), y = localY();

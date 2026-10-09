@@ -52,6 +52,17 @@ public final class MachinePicks {
         return id + "|" + (overlay == null || overlay.isEmpty() ? handler.getRecipeName() : overlay);
     }
 
+    /** What is remembered now, for the tour to put back when it ends. */
+    public static Properties copy() {
+        return (Properties) load().clone();
+    }
+
+    /** Puts back what {@link #copy()} took, on disk too. */
+    public static void restore(final Properties was) {
+        picks = (Properties) was.clone();
+        save();
+    }
+
     private static File file() {
         return new File(Minecraft.getMinecraft().mcDataDir, "config/gtnhplanner-machine-picks.properties");
     }

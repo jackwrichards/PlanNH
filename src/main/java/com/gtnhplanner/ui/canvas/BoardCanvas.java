@@ -63,6 +63,8 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     private final Map<UUID, com.gtnhplanner.ui.note.NoteCard> notes = new HashMap<>();
     private final WireLayer wires;
     private int builtStructure = -1;
+    /** When the widgets were last built afresh: the screen finds what is under the mouse again a frame later. */
+    private long builtAt;
 
     private float panStartX, panStartY;
     private int panMouseX, panMouseY;
@@ -118,6 +120,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     private void rebuildCards() {
         builtStructure = session.structure();
+        builtAt = System.currentTimeMillis();
         removeAll();
         cards.clear();
         drawers.clear();
@@ -679,7 +682,9 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     public void dropNeiItem(final ItemStack stack, final int screenX, final int screenY) {
         final int wx = Math.round(worldX(screenX)), wy = Math.round(worldY(screenY));
         final String key = com.gtnhplanner.ui.Resources.keyOf(stack);
-        final String label = stack.getDisplayName();
+        // A cell dropped in is its fluid, and is named as the fluid.
+        final net.minecraftforge.fluids.FluidStack fluid = com.gtnhplanner.ui.Resources.fluid(key);
+        final String label = fluid != null ? fluid.getLocalizedName() : stack.getDisplayName();
         final List<PickList.Entry> rows = new ArrayList<>();
         rows.add(
             new PickList.Entry(
@@ -730,6 +735,14 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         moveCamera(zoom, (box[0] + box[2]) / 2f, (box[1] + box[3]) / 2f, getArea().width / 2f, getArea().height / 2f);
     }
 
+    /**
+     * Brings a world box into view, panning the least it takes (framing it when it is bigger than the view), unless the
+     * camera is already on its way somewhere. For the tour, which points only at what can be seen.
+     */
+    public void bringIntoView(final int x0, final int y0, final int x1, final int y1) {
+        if (cameraStart < 0) revealBox(x0, y0, x1, y1);
+    }
+
     private void revealBox(final int x0, final int y0, final int x1, final int y1) {
         final Graph g = graph();
         final float z = g.getZoom(), m = 16;
@@ -772,6 +785,18 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         cameraSX = sx;
         cameraSY = sy;
         cameraStart = System.currentTimeMillis();
+    }
+
+    /**
+     * The board is not at rest for a click: the camera moving on its own (easing to a zoom or a place, gliding out of
+     * a fling), or its widgets about to be built afresh or just built (what is under the mouse is found a frame
+     * later). For the tour, which clicks as fast as the board allows.
+     */
+    public boolean busy() {
+        return cameraStart >= 0 || glideVX != 0
+            || glideVY != 0
+            || builtStructure != session.structure()
+            || System.currentTimeMillis() - builtAt < 120;
     }
 
     private void stepCamera() {

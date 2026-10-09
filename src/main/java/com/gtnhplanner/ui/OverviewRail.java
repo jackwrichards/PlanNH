@@ -222,6 +222,35 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         lastHits.addAll(moved);
     }
 
+    /**
+     * The GUI rectangle {x, y, w, h} of a row as last drawn, for the tour: "section:INPUTS", "resource:Hydrogen",
+     * "machine:Large Chemical", "peak", "rate:Hydrogen", or "all" for the whole rail; null when it is not on screen.
+     */
+    int[] rowRect(final String id) {
+        final com.cleanroommc.modularui.widget.sizer.Area a = getArea();
+        if ("all".equals(id)) return new int[] { a.x, a.y, a.width, a.height };
+        final int colon = id.indexOf(':');
+        final String kind = colon < 0 ? id : id.substring(0, colon), what = colon < 0 ? "" : id.substring(colon + 1);
+        for (final Hit h : lastHits) {
+            final boolean match = switch (kind) {
+                case "section" -> h.kind() == Kind.SECTION && what.equals(h.data());
+                case "resource" -> h.kind() == Kind.RESOURCE && h.data() instanceof final BoardSession.TotalLine l
+                    && l.label()
+                        .contains(what);
+                case "machine" -> h.kind() == Kind.MACHINE && h.data() instanceof final BoardSession.MachineLine m
+                    && m.name()
+                        .contains(what);
+                case "group" -> h.kind() == Kind.GROUP && h.data() instanceof final String g && g.contains(what);
+                case "peak" -> h.kind() == Kind.PEAK;
+                case "rate" -> h.kind() == Kind.RATE && h.data() instanceof final DrawerModel d
+                    && d.label.contains(what);
+                default -> false;
+            };
+            if (match) return new int[] { a.x + h.x0(), a.y + h.y0(), h.x1() - h.x0(), h.y1() - h.y0() };
+        }
+        return null;
+    }
+
     /** Hover is resolved against the previous frame's hit list, which is what is on screen. */
     private final List<Hit> lastHits = new ArrayList<>();
 

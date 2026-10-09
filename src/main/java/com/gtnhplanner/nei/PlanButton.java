@@ -38,9 +38,33 @@ public final class PlanButton extends GuiRecipeButton {
         return choices;
     }
 
+    /** The buttons drawn lately, and when each was: the tour finds a recipe's button among them. */
+    private static final java.util.Map<PlanButton, Long> SHOWN = new java.util.WeakHashMap<>();
+
+    /** The button on a recipe of NEI's open page, when it was drawn in the last moment; else null. */
+    @javax.annotation.Nullable
+    public static PlanButton shownFor(final codechicken.nei.recipe.IRecipeHandler handler, final int recipe) {
+        final long now = System.currentTimeMillis();
+        for (final java.util.Map.Entry<PlanButton, Long> e : SHOWN.entrySet()) {
+            final PlanButton b = e.getKey();
+            if (now - e.getValue() < 300 && b.handlerRef.handler == handler && b.handlerRef.recipeIndex == recipe)
+                return b;
+        }
+        return null;
+    }
+
+    public int screenX() {
+        return screenX;
+    }
+
+    public int screenY() {
+        return screenY;
+    }
+
     @Override
     public void drawButton(final Minecraft mc, final int mouseX, final int mouseY) {
         if (!visible) return;
+        SHOWN.put(this, System.currentTimeMillis());
         // NEI hands buttons the mouse in whatever space it draws them in; the real mouse gives the offset to the
         // screen.
         final Point mouse = GuiDraw.getMousePosition();

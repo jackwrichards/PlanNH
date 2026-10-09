@@ -587,7 +587,7 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
     public Result onKeyPressed(final char typedChar, final int keyCode) {
         if (!editing) return Result.IGNORE;
         final long nanos = Keyboard.getEventNanoseconds();
-        if (nanos == lastKeyNanos && nanos != 0) return Result.SUCCESS;
+        if (nanos == lastKeyNanos && nanos != 0 && !com.gtnhplanner.ui.tutorial.Pointer.typing) return Result.SUCCESS;
         lastKeyNanos = nanos;
         caretSince = System.currentTimeMillis();
         final boolean ctrl = GuiScreen.isCtrlKeyDown(), shift = GuiScreen.isShiftKeyDown();

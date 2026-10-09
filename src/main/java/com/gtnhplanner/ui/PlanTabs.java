@@ -120,6 +120,26 @@ final class PlanTabs extends Widget<PlanTabs> implements Interactable {
         return getContext().getAbsMouseY() - getArea().y;
     }
 
+    /** The GUI rectangle {x, y, w, h} of a plan's tab by its name, or of the "+" key for "+"; null when hidden. */
+    int[] tabRect(final String name) {
+        final List<Tab> tabs = tabs();
+        final com.cleanroommc.modularui.widget.sizer.Area a = getArea();
+        if ("+".equals(name)) {
+            final Tab p = plus(tabs);
+            return new int[] { a.x + p.x(), a.y, p.w(), a.height };
+        }
+        final List<Graph> slots = session.slots();
+        for (final Tab t : tabs) {
+            if (!slots.get(t.slot())
+                .getName()
+                .equals(name)) continue;
+            final int x = t.x() - scroll;
+            if (x + t.w() <= 0 || x >= stripW()) return null;
+            return new int[] { a.x + x, a.y, t.w(), a.height };
+        }
+        return null;
+    }
+
     /** The tab under the mouse, at its place on screen (scroll applied); "+" has slot -1. */
     private Tab tabAtMouse() {
         final int mx = mouseX();

@@ -62,6 +62,8 @@ public class ClientProxy extends CommonProxy {
 
         MinecraftForge.EVENT_BUS.register(new ChatHandler());
         ClientCommandHandler.instance.registerCommand(new ImportCommand());
+        // The tour: drives the planner while the player watches.
+        com.gtnhplanner.ui.tutorial.Tutorial.register();
 
         FMLCommonHandler.instance()
             .bus()

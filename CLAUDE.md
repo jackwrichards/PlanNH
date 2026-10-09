@@ -65,6 +65,21 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   `call 'nei?item=<key>&planner=0&tab=<name>'` opens a recipe page from the inventory.
 - Plans work as on the website: a tab is an open plan (`Graph.open`); closing one keeps it, in the Library's My
   plans, where every plan is listed, most recently open first (`Plan.byRecency`, `lastOpen`). Deleting asks first.
+- Sticky notes (`ui/note/NoteCard`, a `Note` in `graph.notes`): right-click empty board to add one; drag to move,
+  drag the folded corner or an edge to resize, double-click to write, right-click for colour, text size and delete.
+  They are Factory Flow's text annotations (`kind: "text"`, its colour tags and font sizes), so they come in with an
+  imported plan and go out with a posted one; they take no part in the solve, the wiring or Arrange.
+- The tour (`ui/tutorial/`, `docs/design/tutorial.md`): the "?" key's Take the tour, or the board's first-run offer.
+  It drives the real UI with a cursor of its own (`Pointer`, through two mixins on the mouse position screens and NEI
+  read; `VirtualInput` delivers presses, drags and keys to the open screen), in plans of its own (`Plan.enterSandbox`,
+  never saved; `Sandbox` puts everything back). `Script` is the sixteen chapters, `Targets` finds what they point at
+  by name, `Director` plays them (Back and the chapter list restore each beat's saved start). The player's input works
+  only its bar meanwhile. `call 'tutorial?chapter=N&beat=M'` jumps to a beat; `call tutorial` says where it is. A
+  chapter not watched yet starts from the plans it ships with (`Starts`, `assets/gtnhplanner/tutorial/starts.json`;
+  `call 'tutorial?export=1'` after a full run rewrites them, needed when a script change alters a chapter's start).
+  Next and Back hurry, and hurrying must never outrun the game: the pointer settles on screen draws, not frames (the
+  GUI does not draw every frame, and hover is found as it draws). After a script change, jump to each chapter's last
+  beat and check the log for `[tutorial]` warnings.
 - The Library (top bar; the + tab menu; right-click on an overview row: setups that make it) has two shelves: My
   plans, and Factory Flow's public setups from gtnhplanner.com (`library/CommunityApi`, `LibraryFeed`;
   `ui/library/LibraryView`), opened through the importer as a new plan. Signing in uses the website's own username
@@ -91,7 +106,7 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 
 - Gradle provisions the JDKs (25 for the build, JetBrains Runtime 25 for `runClient25`). Keep the checkout at a
   short path: deep Windows paths break the clone and the Minecraft dev setup (MAX_PATH).
-- `./gradlew test`: 425 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
+- `./gradlew test`: 436 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
   many over gtnh-flow YAML charts in `src/test/resources/gtnh-flow/`. About 40s, no Minecraft. `addon.gradle`
   opts `test` out of the configuration cache; without that a clean build reports `:test NO-SOURCE` and silently
   runs nothing, so if you ever see NO-SOURCE, check the count in `build/test-results/test/*.xml`.

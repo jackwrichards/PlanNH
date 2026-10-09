@@ -51,7 +51,7 @@ public final class Minimap {
     }
 
     /** One tick of panning with the keys, in steps of the map's own size. */
-    void pan(final int dx, final int dy) {
+    public void pan(final int dx, final int dy) {
         if (!placed) startAtBoardView();
         final float step = PlannerSettings.minimapSize() / 16f / zoom();
         centreX += dx * step;
@@ -88,7 +88,10 @@ public final class Minimap {
     public void onOverlay(final RenderGameOverlayEvent.Post event) {
         if (event.type != RenderGameOverlayEvent.ElementType.ALL || !PlannerSettings.minimap()) return;
         final Minecraft mc = Minecraft.getMinecraft();
-        if (mc.currentScreen != null || mc.gameSettings.hideGUI || mc.gameSettings.showDebugInfo) return;
+        // The tour's see-through screen shows the world, so the map shows over it too.
+        if (mc.currentScreen != null && !(mc.currentScreen instanceof com.gtnhplanner.ui.tutorial.TourScreen)
+            || mc.gameSettings.hideGUI
+            || mc.gameSettings.showDebugInfo) return;
         draw(mc, event.resolution);
     }
 

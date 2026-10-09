@@ -170,6 +170,21 @@ public final class PickList extends Widget<PickList> implements Interactable {
         return Result.SUCCESS;
     }
 
+    /**
+     * The GUI rectangle {x, y, w, h} of the first row whose label contains {@code label}, scrolled into view; null
+     * when there is none. For the tour.
+     */
+    public int[] rowRect(final String label) {
+        for (int i = 0; i < shown.size(); i++) {
+            if (!shown.get(i).label.contains(label)) continue;
+            if (i < scroll) scroll = i;
+            else if (i >= scroll + rows) scroll = i - rows + 1;
+            final com.cleanroommc.modularui.widget.sizer.Area a = getArea();
+            return new int[] { a.x, a.y + (i - scroll) * ROW, a.width, ROW };
+        }
+        return null;
+    }
+
     @Override
     public boolean onMouseScroll(final UpOrDown direction, final int amount) {
         final int max = Math.max(0, shown.size() - rows);
