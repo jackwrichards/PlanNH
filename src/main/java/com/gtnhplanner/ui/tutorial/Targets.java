@@ -31,6 +31,7 @@ import com.gtnhplanner.ui.note.NoteCard;
 import com.gtnhplanner.ui.popup.PickList;
 import com.gtnhplanner.ui.popup.Popup;
 
+import codechicken.nei.CollapsibleItems;
 import codechicken.nei.ItemPanels;
 import codechicken.nei.LayoutManager;
 import codechicken.nei.recipe.GuiRecipe;
@@ -113,20 +114,49 @@ public final class Targets {
 
     /**
      * The first item in NEI's list that the first of {@code inOrder} accepts (else the second's, and so on), turning
-     * its page to it.
+     * its page to it. One folded into a group of NEI's (GTNH folds every fluid into one and every cell into another, so
+     * a search shows one of each) has its group opened, as Alt-click opens it, and shows from the next frame.
      */
     @SafeVarargs
     public static Target neiItem(final Predicate<ItemStack>... inOrder) {
         return () -> {
             if (ItemPanels.itemPanel == null) return null;
-            final codechicken.nei.ItemsGrid<?, ?> grid = ItemPanels.itemPanel.getGrid();
+            final codechicken.nei.ItemsPanelGrid grid = ItemPanels.itemPanel.getGrid();
             final int i = neiIndex(grid.getItems(), inOrder);
-            if (i < 0) return null;
+            if (i < 0) {
+                openNeiGroup(grid, inOrder);
+                return null;
+            }
             final int perPage = Math.max(1, grid.getPerPage());
             if (grid.getPage() != i / perPage) grid.setPage(i / perPage);
             final codechicken.lib.vec.Rectangle4i r = grid.getItemRect(i);
             return r == null || r.w <= 0 ? null : new Rect(r.x, r.y, r.w, r.h);
         };
+    }
+
+    /** NEI's item groups the tour opened, closed again when it ends ({@link #closeNeiGroups()}). */
+    private static final java.util.Set<Integer> openedGroups = new java.util.HashSet<>();
+
+    @SafeVarargs
+    private static void openNeiGroup(final codechicken.nei.ItemsPanelGrid grid, final Predicate<ItemStack>... inOrder) {
+        if (grid.rawItems == null) return;
+        final int i = neiIndex(grid.rawItems, inOrder);
+        if (i < 0) return;
+        final int group = CollapsibleItems.getGroupIndex(grid.rawItems.get(i));
+        if (group < 0 || CollapsibleItems.isExpanded(group)) return;
+        CollapsibleItems.setExpanded(group, true);
+        openedGroups.add(group);
+        grid.setItems(grid.rawItems);
+    }
+
+    /** Folds NEI's groups the tour opened back up. */
+    static void closeNeiGroups() {
+        if (openedGroups.isEmpty()) return;
+        for (final int group : openedGroups) CollapsibleItems.setExpanded(group, false);
+        openedGroups.clear();
+        if (ItemPanels.itemPanel == null) return;
+        final codechicken.nei.ItemsPanelGrid grid = ItemPanels.itemPanel.getGrid();
+        if (grid.rawItems != null) grid.setItems(grid.rawItems);
     }
 
     /** Where the first item the first of {@code inOrder} accepts is in {@code items} (else the second's...); -1. */

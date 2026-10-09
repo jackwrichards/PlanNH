@@ -25,6 +25,7 @@ import com.gtnhplanner.data.flowchart.UndoHistory;
 
 import codechicken.nei.NEIClientConfig;
 import codechicken.nei.NEIClientUtils;
+import codechicken.nei.bookmark.BookmarkPayload;
 
 public final class PlanAPI {
 
@@ -67,7 +68,9 @@ public final class PlanAPI {
         final ItemStack stack = createShareStack();
         stack.getTagCompound()
             .setString(DATA_KEY, encoded);
-        NEIClientUtils.sendChatItemLink(stack);
+        NEIClientUtils.sendChatItemLink(
+            BookmarkPayload.of(stack, null)
+                .toNBT());
     }
 
     /** Copies the serialised graph to the system clipboard. */

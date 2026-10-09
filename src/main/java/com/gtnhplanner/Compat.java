@@ -105,7 +105,10 @@ public enum Compat {
         try {
             return clazz.getDeclaredConstructor()
                 .newInstance();
-        } catch (Exception | NoClassDefFoundError _) {}
+        } catch (Exception | LinkageError e) {
+            // A mod version the reader was not built against: that mod's recipes go unread (no plan button on them).
+            GtnhPlanner.LOG.warn("[compat] {} failed to load; its recipes are not read", clazz.getSimpleName(), e);
+        }
         return null;
     }
 

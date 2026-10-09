@@ -86,8 +86,10 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   starts or jumps to a step, `call tutorial` says where it is; every step's start ships in
   `assets/gtnhplanner/tutorial/starts.json` (`call 'tutorial?export=1'` after a full run rewrites it, needed when a
   script change alters a step's start). Hurrying must never outrun the game: the pointer settles on screen draws, not
-  frames (the GUI does not draw every frame, and hover is found as it draws). After a script change, walk every step
-  and check the log for `[tutorial]` warnings.
+  frames (the GUI does not draw every frame, and hover is found as it draws). It plays at a GUI scale with room for it
+  (960x540: GTNH ships scale 4, a 480x270 GUI at 1080p where its drags run out of board) and opens NEI's folded item
+  groups (the pack folds every fluid into one) as it looks for items; `Sandbox` puts both back. After a script change,
+  walk every step and check the log for `[tutorial]` warnings.
 - The Library (top bar; the + tab menu; right-click on an overview row: setups that make it) has two shelves: My
   plans, and Factory Flow's public setups from gtnhplanner.com (`library/CommunityApi`, `LibraryFeed`;
   `ui/library/LibraryView`), opened through the importer as a new plan. Signing in uses the website's own username
@@ -142,6 +144,17 @@ tools/dev/board-check.sh  # GT runs: end-to-end board check (recipe, port drag, 
 - `PLANNH_GTNH=1 tools/dev/mc.sh start` loads GregTech and the pack's recipes through the GTNH core mod (72 mods,
   about 30s once the jars are cached) in its own test world, `plannh-dev-gtnh`. Use it whenever real GT recipes,
   machines or items are needed; the plain start (29 mods, no GT) is enough for anything else.
+- The target pack is GTNH 2.9 (2.9.0-RC-2 as of 2026-10-09). `dependencies.gradle` pins that pack's versions of NEI,
+  GT, MUI2, GTNHLib, the core mod and every mod a recipe provider reads, so what compiles runs there; move them
+  together when the pack moves (NEI 2.8.155 changed the recipe button event and broke the plan button). The full
+  pack, all of its mods and recipes, is the Prism instance `GTNH_2.9.0-RC-2_planner`: build, swap the
+  `gtnhplanner-*.jar` in its `.minecraft/mods`, launch it with `prismlauncher.exe --launch GTNH_2.9.0-RC-2_planner`
+  (from `%LOCALAPPDATA%\Programs\PrismLauncher2`). Its JVM arguments turn the harness on and load
+  `gtnhplanner-dev`, so `mc.sh call`, `shot` and the rest work against it (screenshots land in the instance's
+  `.minecraft/screenshots`); `swap` and `start` do not. It opens at 854x480 whatever Prism's settings say:
+  `call 'window?w=1920&h=1080'` (`scale=` sets the GUI scale). It runs Java 21, so it runs the fully downgraded
+  classes (`gradle.properties`: the partial downgrade to 21 broke pattern switches), which the dev game on Java 25
+  never does; the harness port is the same, so stop one game before starting the other.
 - Input endpoints and `shot` crops take GUI coordinates (960x540), not screen pixels. On the board, act on a card
   control by name: `mc.sh part 1 MACHINES` (from `call board`, which also returns each card's state). Elsewhere
   find targets with `call widgets` and check `hovered`/`focused` in `call status` rather than estimating.

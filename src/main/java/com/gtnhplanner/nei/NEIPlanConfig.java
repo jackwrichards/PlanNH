@@ -122,10 +122,10 @@ public class NEIPlanConfig implements IConfigureNEI {
 
     /** The plan button, at the top of NEI's column of recipe buttons (+ at the bottom, the star above it). */
     private static void addPlanButton(final UpdateRecipeButtonsEvent.Post event) {
-        final RecipeHandlerRef ref = event.recipeWidget.getRecipeHandlerRef();
+        final RecipeHandlerRef ref = event.handlerRef;
         if (ref == null || !PlanOverlayHandler.plannable(ref.handler, ref.recipeIndex)) return;
-        int x = Math.min(166, event.recipeWidget.w) - GuiRecipeButton.BUTTON_WIDTH;
-        int top = event.recipeWidget.h - 5;
+        int x = Math.min(166, event.width) - GuiRecipeButton.BUTTON_WIDTH;
+        int top = event.height - 5;
         for (final GuiRecipeButton b : event.buttonList) {
             x = b.xPosition;
             top = Math.min(top, b.yPosition);

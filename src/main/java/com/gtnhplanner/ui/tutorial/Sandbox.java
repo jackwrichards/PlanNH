@@ -4,6 +4,7 @@ import java.util.Properties;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.gui.ScaledResolution;
 
 import com.gtnhplanner.api.PlanAPI;
 import com.gtnhplanner.data.flowchart.Plan;
@@ -20,7 +21,8 @@ import codechicken.nei.LayoutManager;
  * Keeps the player's things safe while the tour runs: their plans are put aside for plans of the tour's own (never
  * saved), and everything else the tour touches is noted and put back when it ends: the minimap's settings, the
  * machine picked per NEI tab, the settings remembered per machine, NEI's search, the minimap's picture of the plan,
- * and where the player was.
+ * where the player was, NEI's item groups the tour opened, and the GUI scale (the tour plays at a scale that gives it
+ * room; see {@link #roomyScale}).
  */
 final class Sandbox {
 
@@ -34,6 +36,11 @@ final class Sandbox {
     private boolean minimap, circle, follows;
     private int size, zoom;
     private PlannerSettings.Corner corner;
+    /** The player's GUI scale setting (0 is Auto). */
+    private int guiScale;
+
+    /** The GUI size the tour is made for: its moves and its saved starts are laid out on a GUI this big. */
+    private static final int ROOM_W = 960, ROOM_H = 540;
 
     void enter() {
         if (active) return;
@@ -43,6 +50,11 @@ final class Sandbox {
         // The board closing saves the player's plan as it is.
         if (screen != null) Minecraft.getMinecraft()
             .displayGuiScreen(null);
+        final Minecraft mc = Minecraft.getMinecraft();
+        guiScale = mc.gameSettings.guiScale;
+        // With no screen open, the next one opens at the new scale.
+        final int roomy = roomyScale(mc);
+        if (roomy > 0) mc.gameSettings.guiScale = roomy;
         PlanAPI.save();
         picks = MachinePicks.copy();
         memory = SettingMemory.copy();
@@ -81,12 +93,14 @@ final class Sandbox {
         final Minecraft mc = Minecraft.getMinecraft();
         // Off the tour's screens first: a board closing on the tour's plan must close while those plans stand in.
         if (mc.currentScreen != null) mc.displayGuiScreen(null);
+        mc.gameSettings.guiScale = guiScale;
         Plan.leaveSandbox();
         MachinePicks.restore(picks);
         SettingMemory.restore(memory);
         PlanSnapshot.publish(snapshot);
         PlanSnapshot.setView(viewX, viewY);
         clearSearch();
+        Targets.closeNeiGroups();
         PlannerSettings.setMinimap(minimap);
         PlannerSettings.setMinimapCircle(circle);
         PlannerSettings.setMinimapFollows(follows);
@@ -94,6 +108,20 @@ final class Sandbox {
         PlannerSettings.setMinimapZoomIndex(zoom);
         PlannerSettings.setMinimapCorner(corner);
         if (plannerWasOpen && mc.theWorld != null) Planner.open();
+    }
+
+    /**
+     * A smaller GUI scale when the player's leaves the GUI under the tour's {@link #ROOM_W} by {@link #ROOM_H} (a large
+     * scale on a small window: GTNH ships scale 4): the largest that gives that room, or 1 when even 1 cannot. On a
+     * smaller GUI the tour's drags run out of board (a clone has nowhere to go, a wire drops off the canvas). 0 when
+     * the GUI already has the room. Never larger than the scale in use.
+     */
+    private static int roomyScale(final Minecraft mc) {
+        final int now = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight).getScaleFactor();
+        if (mc.displayWidth / now >= ROOM_W && mc.displayHeight / now >= ROOM_H) return 0;
+        int s = now - 1;
+        while (s > 1 && (mc.displayWidth / s < ROOM_W || mc.displayHeight / s < ROOM_H)) s--;
+        return Math.max(1, s);
     }
 
     boolean active() {

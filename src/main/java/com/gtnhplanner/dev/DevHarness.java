@@ -173,7 +173,14 @@ public final class DevHarness {
         WorldSettings settings = null;
         if (mc.getSaveLoader()
             .getWorldInfo(WORLD) == null) {
-            settings = new WorldSettings(0L, WorldSettings.GameType.CREATIVE, false, false, WorldType.FLAT);
+            // A random seed, as a new world gets: with seed 0 the full GTNH pack fails to start the world (a ruin on
+            // Ross128b fills a chest with an enchanted book it cannot enchant).
+            settings = new WorldSettings(
+                new java.util.Random().nextLong(),
+                WorldSettings.GameType.CREATIVE,
+                false,
+                false,
+                WorldType.FLAT);
             settings.enableCommands();
         }
         GtnhPlanner.LOG.info("[dev] Loading test world '{}'", WORLD);
@@ -198,11 +205,11 @@ public final class DevHarness {
             GtnhPlanner.LOG.info("[dev] Harness listening on http://127.0.0.1:{}/", PORT);
             // Killing the gradle run task does not kill the game; tools/dev/mc.sh uses this as a fallback.
             final File pidFile = new File(mc.mcDataDir, "plannh-dev.pid");
-            Files.writeString(
-                pidFile.toPath(),
-                Long.toString(
-                    ProcessHandle.current()
-                        .pid()));
+            // "pid@host". Not ProcessHandle: below Java 25 the jar runs downgraded, where it asks WMIC, which
+            // Windows 11 no longer has.
+            final String name = java.lang.management.ManagementFactory.getRuntimeMXBean()
+                .getName();
+            Files.writeString(pidFile.toPath(), name.substring(0, Math.max(0, name.indexOf('@'))));
             pidFile.deleteOnExit();
         } catch (final IOException e) {
             GtnhPlanner.LOG.error("[dev] Harness failed to start on port {}", PORT, e);
@@ -336,6 +343,35 @@ public final class DevHarness {
                     }
                     final Map<String, Object> r = new LinkedHashMap<>();
                     r.put("volume", mc.gameSettings.getSoundLevel(SoundCategory.MASTER));
+                    return r;
+                });
+            case "/window":
+                // The window's size in screen pixels (w, h), for a launcher that opens it small and ignores
+                // --width/--height (the full pack's Prism instance), and the GUI scale setting (scale, 0 Auto; the
+                // open screen is laid out again at it, not saved to options.txt); neither: just report them.
+                return onClient(() -> {
+                    if (q.containsKey("w") && q.containsKey("h")) {
+                        try {
+                            org.lwjgl.opengl.Display
+                                .setDisplayMode(new org.lwjgl.opengl.DisplayMode(intArg(q, "w"), intArg(q, "h")));
+                        } catch (final org.lwjgl.LWJGLException e) {
+                            throw new IllegalStateException(e);
+                        }
+                    }
+                    if (q.containsKey("scale")) {
+                        mc.gameSettings.guiScale = intArg(q, "scale");
+                        if (mc.currentScreen != null) {
+                            final ScaledResolution sr = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
+                            mc.currentScreen.setWorldAndResolution(mc, sr.getScaledWidth(), sr.getScaledHeight());
+                        }
+                    }
+                    final ScaledResolution sr = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
+                    final Map<String, Object> r = new LinkedHashMap<>();
+                    r.put("width", mc.displayWidth);
+                    r.put("height", mc.displayHeight);
+                    r.put("guiScale", mc.gameSettings.guiScale);
+                    r.put("guiWidth", sr.getScaledWidth());
+                    r.put("guiHeight", sr.getScaledHeight());
                     return r;
                 });
             case "/library":

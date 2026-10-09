@@ -97,6 +97,8 @@ start() {
     # The GTNH core mod pulls in GregTech and the pack's recipes: ~180 dependencies, a much slower start.
     # Its own world too: a world saved with GregTech asks about missing blocks when opened without it.
     [ "$GTNH" = 1 ] && run_args=(-PgtnhRecipes "${run_args[@]}" "--mcJvmArgs=-Dgtnhplanner.dev.world=plannh-dev-gtnh")
+    # The harness listens where this script calls it (another game, the full pack's, may hold the default port).
+    [ "$PORT" != 25599 ] && run_args+=("--mcJvmArgs=-Dgtnhplanner.dev.port=$PORT")
     # JetBrains Runtime + HotswapAgent + a JDWP port so `mc.sh swap` can push recompiled classes into the game.
     [ "$HOTSWAP" = 1 ] && run_args+=(--hotswap
         "--mcJvmArgs=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:$JDWP_PORT")
