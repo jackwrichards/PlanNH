@@ -168,17 +168,26 @@ public final class PlacementKeys {
     private record Item(String key, String what, boolean live) {}
 
     /**
-     * The keys, one word each, in a strip joined to the minimap's edge and as wide as it (in its corner when it is
-     * off): always while the plan is over the world, else while a placed machine is looked at. The lines for the lit
-     * machine are dim while none is lit; Focus is gold while on.
+     * Whether the keys strip shows: always while the plan is over the world, else while a placed machine is looked at
+     * or in hand; never over a screen, with the HUD hidden, or while placing.
+     */
+    static boolean stripShown() {
+        final Minecraft mc = Minecraft.getMinecraft();
+        if (mc.currentScreen != null || mc.gameSettings.hideGUI || LinkPicker.active()) return false;
+        return PlanOverlay.on() || INSTANCE.link != null && adjusting() || target() != null;
+    }
+
+    /**
+     * The keys, one word each, in a see-through strip at the right under the minimap (above it in a bottom corner, in
+     * its corner when it is off), as wide as it needs; the last thing done (a note) is its last line while it lasts.
+     * The
+     * lines for the lit machine are dim while none is lit; Focus is gold while on.
      */
     @SubscribeEvent
     public void onOverlay(final RenderGameOverlayEvent.Post event) {
-        if (event.type != RenderGameOverlayEvent.ElementType.ALL) return;
+        if (event.type != RenderGameOverlayEvent.ElementType.ALL || !stripShown()) return;
         final Minecraft mc = Minecraft.getMinecraft();
-        if (mc.currentScreen != null || mc.gameSettings.hideGUI || LinkPicker.active()) return;
         final boolean some = link != null && adjusting() || target() != null;
-        if (!some && !PlanOverlay.on()) return;
         final String shift = keyName(mc.gameSettings.keyBindSneak.getKeyCode()) + " + ";
         final boolean focus = com.gtnhplanner.ui.PlannerSettings.arFocus();
         final java.util.List<Item> items = java.util.List.of(
@@ -189,29 +198,34 @@ public final class PlacementKeys {
 
         final ScaledResolution sr = event.resolution;
         final int[] map = Minimap.bounds(sr);
-        final int rowH = 10, h = items.size() * rowH + 5;
-        final int w = map == null ? 110 : map[2];
+        float keysW = 0, whatW = 0;
+        for (final Item it : items) {
+            keysW = Math.max(keysW, Hyb.width(it.key()));
+            whatW = Math.max(whatW, Hyb.width(it.what()));
+        }
+        final int most = map == null ? 200 : map[2];
+        final String said = WorldView.note();
+        final int rowH = 10;
+        final int w = (int) Math.min(most, Math.max(keysW + 8 + whatW + 10, said == null ? 0 : Hyb.width(said) + 10));
+        final int h = (items.size() + (said == null ? 0 : 1)) * rowH + 5;
         final boolean below = map == null || map[1] < sr.getScaledHeight() / 2;
-        final float x = map == null ? sr.getScaledWidth() - 6 - w : map[0];
+        final float right = map == null ? sr.getScaledWidth() - 6 : map[0] + map[2];
+        final float x = right - w;
         final float y = map == null ? 6 : below ? map[1] + map[3] : map[1] - h;
-        float keysW = 0;
-        for (final Item it : items) keysW = Math.max(keysW, Hyb.width(it.key()));
         GL11.glPushMatrix();
         GL11.glDisable(GL11.GL_LIGHTING);
-        // As the minimap's frame: its edge, a dark line, then the fill.
-        Hyb.rect(x, y, w, h, 0xFF3C3E45);
-        Hyb.rect(x + 1, below ? y : y + 1, w - 2, h - 1, 0xFF1D1F23);
-        Hyb.rect(x + 2, below ? y : y + 2, w - 4, h - 2, 0xE0141414);
-        float ry = y + (below ? 2 : 4);
+        Hyb.rect(x, y, w, h, Minimap.BACKING);
+        float ry = y + 3;
         for (final Item it : items) {
             final boolean on = focus && it.what()
                 .equals("Focus");
             final int key = on ? Hyb.GOLD : it.live() ? 0xFFC8CAD0 : 0x70C8CAD0;
             final int what = on ? Hyb.GOLD : it.live() ? Hyb.MUTED : 0x709A9CA4;
-            Hyb.text(it.key(), x + 6, ry, key);
-            Hyb.text(it.what(), x + 6 + keysW + 8, ry, what);
+            Hyb.text(it.key(), x + 5, ry, key);
+            Hyb.text(it.what(), x + 5 + keysW + 8, ry, what);
             ry += rowH;
         }
+        if (said != null) Hyb.text(Hyb.fit(said, w - 10), x + 5, ry, WorldView.noteColor());
         GL11.glPopMatrix();
         GL11.glColor4f(1, 1, 1, 1);
         GL11.glEnable(GL11.GL_TEXTURE_2D);

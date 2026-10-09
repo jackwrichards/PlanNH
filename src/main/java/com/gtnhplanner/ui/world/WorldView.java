@@ -49,6 +49,16 @@ public final class WorldView {
     private long noteUntil;
 
     /** A line at the top of the screen for a few seconds, after an action that sends the player back to the world. */
+    /** The note being shown, or null once it has gone. */
+    @Nullable
+    static String note() {
+        return System.currentTimeMillis() < INSTANCE.noteUntil ? INSTANCE.note : null;
+    }
+
+    static int noteColor() {
+        return INSTANCE.noteColor;
+    }
+
     public static void say(final String text) {
         INSTANCE.note = text;
         INSTANCE.noteColor = Hyb.INK;
@@ -220,7 +230,8 @@ public final class WorldView {
         if (mc.currentScreen != null || mc.gameSettings.hideGUI) return;
         final ScaledResolution sr = event.resolution;
         final float cx = sr.getScaledWidth() / 2f, cy = sr.getScaledHeight() / 2f;
-        if (System.currentTimeMillis() < noteUntil) {
+        // While the keys strip shows, the note is its last line instead.
+        if (System.currentTimeMillis() < noteUntil && !PlacementKeys.stripShown()) {
             Hyb.rect(cx - Hyb.width(note) / 2f - 4, 6, Hyb.width(note) + 8, 13, 0xE0141414);
             Hyb.textCentered(note, cx, 9, noteColor);
         }

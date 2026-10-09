@@ -185,23 +185,43 @@ public final class Minimap {
     }
 
     /** The map's frame and backing: a square, or a disc drawn in rows. */
+    /** The map's backing, a little see-through; the keys strip under it is the same. */
+    static final int BACKING = 0xB0141414;
+    /** Its frame's edge and the dark line inside it, as see-through. */
+    private static final int EDGE = 0xB03C3E45, INSIDE = 0xB01D1F23;
+
     private static void frame(final int x, final int y, final int size, final boolean circle) {
+        Hyb.beginBatch();
         if (!circle) {
-            Hyb.rect(x - 2, y - 2, size + 4, size + 4, 0xFF3C3E45);
-            Hyb.rect(x - 1, y - 1, size + 2, size + 2, 0xFF1D1F23);
-            Hyb.rect(x, y, size, size, 0xE0141414);
+            // Rings and fill side by side, never over each other, so the see-through parts stay even.
+            ring(x - 2, y - 2, size + 4, EDGE);
+            ring(x - 1, y - 1, size + 2, INSIDE);
+            Hyb.rect(x, y, size, size, BACKING);
+            Hyb.endBatch();
             return;
         }
-        final float r = size / 2f, cx = x + r, cy = y + r;
-        Hyb.beginBatch();
+        final float r = size / 2f, cx = x + r;
         for (int row = -2; row < size + 2; row++) {
             final float dy = row + 0.5f - r;
             final float outer = (float) Math.sqrt(Math.max(0, (r + 2) * (r + 2) - dy * dy));
-            if (outer > 0) Hyb.rect(cx - outer, y + row, 2 * outer, 1, 0xFF3C3E45);
             final float inner = (float) Math.sqrt(Math.max(0, r * r - dy * dy));
-            if (inner > 0) Hyb.rect(cx - inner, y + row, 2 * inner, 1, 0xE0141414);
+            if (inner <= 0) {
+                if (outer > 0) Hyb.rect(cx - outer, y + row, 2 * outer, 1, EDGE);
+                continue;
+            }
+            Hyb.rect(cx - outer, y + row, outer - inner, 1, EDGE);
+            Hyb.rect(cx + inner, y + row, outer - inner, 1, EDGE);
+            Hyb.rect(cx - inner, y + row, 2 * inner, 1, BACKING);
         }
         Hyb.endBatch();
+    }
+
+    /** A one-pixel square ring. */
+    private static void ring(final int x, final int y, final int size, final int argb) {
+        Hyb.rect(x, y, size, 1, argb);
+        Hyb.rect(x, y + size - 1, size, 1, argb);
+        Hyb.rect(x, y + 1, 1, size - 2, argb);
+        Hyb.rect(x + size - 1, y + 1, 1, size - 2, argb);
     }
 
     /**

@@ -63,10 +63,13 @@ plan show what the machines are doing.
   ghost (`PlanOverlay.highlighted`); with the overlay off, the placed block looked at. Moving is picking up and putting
   down only, so the minimap keeps its arrows and [ ]. Sneak rather than a binding of ours: in 1.7.10 a key drives one
   binding, so one on Shift would take it from sneaking; held is its binding pressed or its key down.
-- The keys are listed in a strip joined to the minimap's edge, as wide as it and framed as it (in its corner when
-  it is off), always while the plan is over the world and else while a placed machine is looked at, one word each:
-  Shift + R Rotate, Shift + G Pick up, Shift + Del Remove, Shift + Y Focus. The first three are dim while no machine is
-  lit; Focus is gold while it is on.
+- The keys are listed in a narrow see-through strip at the right under the minimap, touching it (above it in a
+  bottom corner, in its corner when it is off), always while the plan is over the world and else while a placed
+  machine is looked at, one word each: Shift + R Rotate, Shift + G Pick up, Shift + Del Remove, Shift + Y Focus. The
+  first three are dim while no machine is lit; Focus is gold while it is on. The last thing done ("Removed ...",
+  "Cards only where you look") is its last line for four seconds, in place of the note at the top of the screen. The
+  strip and the minimap share one backing, a little see-through (`Minimap.BACKING`); the minimap's frame is drawn as
+  rings beside its fill, never over it, so the see-through stays even.
 - While a machine is being placed or moved, the plan over the world stays: its card and wires go where it would be put
   down, following the crosshair as a card being dragged on the board, and the rest stay where they are; where it was
   is empty while it is in hand (all of a card's spots for its first placing, the one picked up for a move).
