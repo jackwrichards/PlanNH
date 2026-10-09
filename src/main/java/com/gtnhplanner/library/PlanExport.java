@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
@@ -15,6 +16,7 @@ import com.gtnhplanner.data.flowchart.Drawer;
 import com.gtnhplanner.data.flowchart.Edge;
 import com.gtnhplanner.data.flowchart.Graph;
 import com.gtnhplanner.data.flowchart.Node;
+import com.gtnhplanner.data.flowchart.Note;
 import com.gtnhplanner.data.flowchart.Port;
 import com.gtnhplanner.data.properties.RecipeProperty;
 import com.gtnhplanner.power.Energy;
@@ -24,9 +26,9 @@ import com.gtnhplanner.power.PowerSource;
 
 /**
  * A plan as Factory Flow's project JSON (its {@code factoryProjectSchema}, version 1), for posting to the library:
- * each card's recipe written out in full (Factory Flow plans carry their recipes), the cards, the drawers and the
- * wires, in Solve mode, laid out at Factory Flow's scale. The game's side (ids, names, solved counts) comes in
- * through {@link World}, so this stays free of Minecraft and can be tested on its own.
+ * each card's recipe written out in full (Factory Flow plans carry their recipes), the cards, the drawers, the wires
+ * and the notes (its text annotations), in Solve mode, laid out at Factory Flow's scale. The game's side (ids, names,
+ * solved counts) comes in through {@link World}, so this stays free of Minecraft and can be tested on its own.
  */
 public final class PlanExport {
 
@@ -59,6 +61,32 @@ public final class PlanExport {
 
     /** Factory Flow's cards are 380 wide to our 320, and taller (as the importer scales them the other way). */
     private static final double SCALE_X = 380.0 / 320.0, SCALE_Y = 1 / 0.6;
+    /** Factory Flow's board cell: it grows every drawing's size to whole cells when it loads a plan. */
+    private static final int CELL = 20;
+    /** The colour tags the site's schema takes (its factoryNodeColorTagSchema); a note in any other goes untagged. */
+    private static final Set<String> COLOR_TAGS = Set.of(
+        "white",
+        "orange",
+        "magenta",
+        "light_blue",
+        "yellow",
+        "lime",
+        "pink",
+        "gray",
+        "light_gray",
+        "cyan",
+        "purple",
+        "blue",
+        "brown",
+        "green",
+        "red",
+        "black",
+        "scarlet",
+        "amber",
+        "emerald",
+        "azure",
+        "steel",
+        "onyx");
 
     private PlanExport() {}
 
@@ -104,6 +132,8 @@ public final class PlanExport {
                             r));
             }
         }
+        final JsonArray annotations = new JsonArray();
+        for (final Note n : g.getNotes()) annotations.add(note(n));
         final JsonObject p = new JsonObject();
         p.addProperty("schemaVersion", 1);
         p.addProperty(
@@ -115,7 +145,7 @@ public final class PlanExport {
         p.add("recipes", recipes);
         p.add("nodes", nodes);
         p.add("storages", storages);
-        p.add("annotations", new JsonArray());
+        p.add("annotations", annotations);
         p.add("pockets", new JsonArray());
         p.add("edges", edges);
         p.add("fuelProfiles", new JsonArray());
@@ -266,6 +296,33 @@ public final class PlanExport {
         }
         o.add("position", position(d.getX(), d.getY()));
         return o;
+    }
+
+    /**
+     * A note as the site's text annotation, placed as a card is. Its size is rounded to whole cells: the site grows a
+     * size to the next cell when it loads, so a size a pixel over one could gain a whole cell on a trip there and back.
+     */
+    private static JsonObject note(final Note n) {
+        final JsonObject o = new JsonObject();
+        o.addProperty(
+            "id",
+            n.getId()
+                .toString());
+        o.addProperty("kind", "text");
+        if (COLOR_TAGS.contains(n.colorTag())) o.addProperty("colorTag", n.colorTag());
+        o.addProperty("text", n.joined());
+        o.add("position", position(n.getX(), n.getY()));
+        final JsonObject size = new JsonObject();
+        size.addProperty("width", cells(Math.max(Note.MIN_W, n.getWidth()) * SCALE_X));
+        size.addProperty("height", cells(Math.max(Note.MIN_H, n.getHeight()) * SCALE_Y));
+        o.add("size", size);
+        o.addProperty("fontSize", n.fontSizeOrDefault());
+        return o;
+    }
+
+    /** A length to the nearest whole number of the site's cells, at least one. */
+    private static int cells(final double length) {
+        return Math.max(CELL, (int) Math.round(length / CELL) * CELL);
     }
 
     private static JsonObject edge(final String id, final String source, final String target, final Res r) {

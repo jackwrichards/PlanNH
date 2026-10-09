@@ -20,7 +20,10 @@ import com.gtnhplanner.data.flowchart.Drawer;
 import com.gtnhplanner.data.flowchart.Edge;
 import com.gtnhplanner.data.flowchart.Graph;
 import com.gtnhplanner.data.flowchart.Node;
+import com.gtnhplanner.data.flowchart.Note;
+import com.gtnhplanner.data.flowchart.Port;
 import com.gtnhplanner.importer.ImportReport.Kind;
+import com.gtnhplanner.library.PlanExport;
 
 /**
  * Whole FF plans converted against a game whose recipes are the plans' own, so every card matches. The expected
@@ -440,6 +443,129 @@ class FfConverterTest {
         assertNotNull(water, "the custom rate card supplies the pool");
         assertEquals(Drawer.Rule.ANY, water.getRule(), "unpinned in Solve: the plan decides how much");
         assertTrue(has(r.report(), Kind.CONVERTED, "Pool plan"));
+    }
+
+    /**
+     * A mixer between two text notes, one above-left of everything that comes over, and a box further out still, which
+     * does not come over and so does not move anything.
+     */
+    private static final String NOTES = """
+        {"name": "Notes",
+         "recipes": [
+           {"id": "mix", "name": "Mixer: Mud", "machineType": "Mixer", "durationTicks": 20, "eut": 8,
+            "inputs": [{"kind": "item", "id": "a:dust", "amount": 1}],
+            "outputs": [{"kind": "fluid", "id": "mud", "amount": 1000}]}],
+         "nodes": [
+           {"id": "m", "recipeId": "mix", "machineCount": 1, "parallel": 1, "overclockTier": "LV", "enabled": true,
+            "position": {"x": 400, "y": 200}}],
+         "edges": [],
+         "annotations": [
+           {"id": "t1", "kind": "text", "colorTag": "light_blue", "text": "Mud line\\nfeeds the dryer",
+            "position": {"x": 0, "y": 0}, "size": {"width": 240, "height": 80}, "fontSize": 20},
+           {"id": "t2", "kind": "text", "text": "small", "position": {"x": 760, "y": 400},
+            "size": {"width": 100, "height": 40}},
+           {"id": "b1", "kind": "box", "position": {"x": -400, "y": -400}, "size": {"width": 800, "height": 800}}]}
+        """;
+
+    private static Note note(final Graph g, final String firstLine) {
+        for (final Note n : g.getNotes()) if (!n.getText()
+            .isEmpty() && n.getText()
+                .getFirst()
+                .equals(firstLine))
+            return n;
+        throw new AssertionError("no note starting " + firstLine);
+    }
+
+    @Test
+    void textNotesBecomeBoardNotes() {
+        final FfConverter.Result r = convert(NOTES, new FakeGame());
+        final Graph g = r.graph();
+        assertEquals(2, g.notes.size());
+
+        // The first note is the plan's top-left corner, so it sits at the margin and the mixer moves out from it.
+        final Note big = note(g, "Mud line");
+        assertEquals(List.of("Mud line", "feeds the dryer"), big.getText());
+        assertEquals(FfConverter.MARGIN, big.getX());
+        assertEquals(FfConverter.MARGIN, big.getY());
+        assertEquals(202, big.getWidth(), "240 FF px at 320/380");
+        assertEquals(48, big.getHeight(), "80 FF px at 0.6");
+        assertEquals("light_blue", big.getColor());
+        assertEquals(20, big.getFontSize());
+
+        final Node mixer = node(g, "Mixer");
+        assertEquals(FfConverter.MARGIN + 340, mixer.x);
+        assertEquals(FfConverter.MARGIN + 120, mixer.y);
+
+        final Note small = note(g, "small");
+        assertEquals(FfConverter.MARGIN + 640, small.getX());
+        assertEquals(FfConverter.MARGIN + 240, small.getY());
+        assertEquals(Note.MIN_W, small.getWidth(), "never smaller than a note gets");
+        assertEquals(Note.MIN_H, small.getHeight());
+        assertEquals(Note.DEFAULT_COLOR, small.colorTag(), "no colour is FF's yellow");
+        assertEquals(Note.DEFAULT_FONT, small.fontSizeOrDefault());
+
+        assertTrue(has(r.report(), Kind.NOTE, "1 box on the board left out"));
+        assertEquals(
+            "1 card, 0 wires, 0 drawers, 2 notes",
+            r.report()
+                .summary());
+    }
+
+    @Test
+    void notesGoToTheWebsiteAndBackUnchanged() {
+        final FakeGame game = new FakeGame();
+        final Graph first = convert(NOTES, game).graph();
+        // The game's side of the export: each port names the FF resource it came from.
+        final PlanExport.World world = new PlanExport.World() {
+
+            @Override
+            public PlanExport.Res port(final Port<?> port) {
+                final NodeMaker.PortInfo info = game.describe(port);
+                return new PlanExport.Res(info.kind(), info.label(), info.label());
+            }
+
+            @Override
+            public PlanExport.Res resource(final String key) {
+                return null;
+            }
+
+            @Override
+            public String machine(final Node node) {
+                return node.machineName;
+            }
+
+            @Override
+            public double machines(final Node node) {
+                return 1;
+            }
+
+            @Override
+            public String tier(final Node node) {
+                return "LV";
+            }
+        };
+        final String posted = PlanExport.project(first, "Notes", world)
+            .toString();
+        final Graph back = convert(posted, game).graph();
+
+        assertEquals(2, back.notes.size());
+        for (final Note was : first.getNotes()) {
+            final Note now = note(
+                back,
+                was.getText()
+                    .getFirst());
+            assertEquals(was.getText(), now.getText());
+            assertEquals(was.colorTag(), now.colorTag());
+            assertEquals(was.fontSizeOrDefault(), now.fontSizeOrDefault());
+            assertEquals(was.getX(), now.getX(), "the layout comes back as it went");
+            assertEquals(was.getY(), now.getY());
+        }
+        final Note big = note(back, "Mud line");
+        assertEquals(202, big.getWidth(), "a size in whole FF cells comes back as it went");
+        assertEquals(48, big.getHeight());
+        final Node mixer = node(back, "Mixer");
+        assertEquals(node(first, "Mixer").x, mixer.x);
+        assertEquals(node(first, "Mixer").y, mixer.y);
     }
 
     @Test

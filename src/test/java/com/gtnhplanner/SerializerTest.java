@@ -30,6 +30,7 @@ import com.gtnhplanner.data.effect.EffectResult;
 import com.gtnhplanner.data.flowchart.Edge;
 import com.gtnhplanner.data.flowchart.Graph;
 import com.gtnhplanner.data.flowchart.Node;
+import com.gtnhplanner.data.flowchart.Note;
 import com.gtnhplanner.data.flowchart.Plan;
 import com.gtnhplanner.data.flowchart.Serializer;
 import com.gtnhplanner.harness.GtnhFlowLoader;
@@ -299,6 +300,61 @@ class SerializerTest {
         assertFalse(
             decoded.nodes.get(chart.machine(2).id)
                 .isMachineCountFixed());
+    }
+
+    @Test
+    void notesSurviveARoundTrip() {
+        final Graph graph = GtnhFlowLoader.load("mk1")
+            .graph();
+        final Note note = new Note();
+        note.setX(120);
+        note.setY(-40);
+        note.setJoined("Line one\nline two");
+        note.setWidth(260);
+        note.setHeight(90);
+        note.setColor("pink");
+        note.setFontSize(18);
+        graph.notes.put(note.getId(), note);
+
+        final Note back = Serializer.decode(Serializer.encode(graph)).notes.get(note.getId());
+
+        assertEquals(List.of("Line one", "line two"), back.getText());
+        assertEquals(120, back.getX());
+        assertEquals(-40, back.getY());
+        assertEquals(260, back.getWidth());
+        assertEquals(90, back.getHeight());
+        assertEquals("pink", back.colorTag());
+        assertEquals(18, back.fontSizeOrDefault());
+    }
+
+    @Test
+    void notesSavedBeforeSizesReadWithDefaults() {
+        // A note as saves wrote it before notes had a size, a colour or a text size.
+        final JsonObject root = new com.google.gson.JsonParser()
+            .parse(
+                gunzip(
+                    Serializer.encode(
+                        GtnhFlowLoader.load("mk1")
+                            .graph())))
+            .getAsJsonObject();
+        final UUID id = UUID.nameUUIDFromBytes("old note".getBytes(StandardCharsets.UTF_8));
+        final JsonObject old = new com.google.gson.JsonParser()
+            .parse(
+                "{\"text\": [\"Remember\"], \"id\": \"" + id
+                    + "\", \"x\": 100, \"y\": 200, \"header\": \"Note\", \"type\": \"note\"}")
+            .getAsJsonObject();
+        root.getAsJsonArray("notes")
+            .add(old);
+
+        final Note note = Serializer.decode(gzipped(root.toString())).notes.get(id);
+
+        assertEquals(List.of("Remember"), note.getText());
+        assertEquals(100, note.getX());
+        assertEquals(200, note.getY());
+        assertEquals(Note.DEFAULT_W, note.getWidth());
+        assertEquals(Note.DEFAULT_H, note.getHeight());
+        assertEquals(Note.DEFAULT_COLOR, note.colorTag());
+        assertEquals(Note.DEFAULT_FONT, note.fontSizeOrDefault());
     }
 
     // ── helpers ──

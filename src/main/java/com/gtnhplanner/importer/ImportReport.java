@@ -35,7 +35,7 @@ public final class ImportReport {
     }
 
     private final List<Entry> entries = new ArrayList<>();
-    private int cards, wires, drawers;
+    private int cards, wires, drawers, notes;
 
     public void add(final Kind kind, final String subject, final String message) {
         entries.add(new Entry(kind, subject, message));
@@ -57,10 +57,11 @@ public final class ImportReport {
         return true;
     }
 
-    void setCounts(final int cards, final int wires, final int drawers) {
+    void setCounts(final int cards, final int wires, final int drawers, final int notes) {
         this.cards = cards;
         this.wires = wires;
         this.drawers = drawers;
+        this.notes = notes;
     }
 
     public int cards() {
@@ -75,6 +76,10 @@ public final class ImportReport {
         return drawers;
     }
 
+    public int notes() {
+        return notes;
+    }
+
     /** One line: what came over and how much did not. */
     public String summary() {
         final int unmatched = entries(Kind.UNMATCHED).size(), fuzzy = entries(Kind.FUZZY).size();
@@ -84,6 +89,9 @@ public final class ImportReport {
             .append(wires == 1 ? " wire, " : " wires, ")
             .append(drawers)
             .append(drawers == 1 ? " drawer" : " drawers");
+        if (notes > 0) s.append(", ")
+            .append(notes)
+            .append(notes == 1 ? " note" : " notes");
         if (unmatched > 0) s.append("; ")
             .append(unmatched)
             .append(" left out (no recipe in game)");

@@ -20,6 +20,7 @@ import com.google.gson.JsonPrimitive;
 import com.gtnhplanner.importer.FfPlan.FfEdge;
 import com.gtnhplanner.importer.FfPlan.FfHandler;
 import com.gtnhplanner.importer.FfPlan.FfNode;
+import com.gtnhplanner.importer.FfPlan.FfNote;
 import com.gtnhplanner.importer.FfPlan.FfRecipe;
 import com.gtnhplanner.importer.FfPlan.FfSection;
 import com.gtnhplanner.importer.FfPlan.FfSlot;
@@ -35,6 +36,10 @@ import com.gtnhplanner.importer.FfPlan.FfTarget;
 public final class FfPlanParser {
 
     private static final Gson GSON = new Gson();
+    /** FF's size for a new text note (board-grid.ts), for a note whose size is missing. */
+    private static final double NOTE_WIDTH = 240, NOTE_HEIGHT = 80;
+    /** FF's annotation kinds other than text; an unknown kind is counted as a drawing. */
+    private static final List<String> DRAWINGS = List.of("box", "arrow", "zone", "image");
 
     private FfPlanParser() {}
 
@@ -91,15 +96,15 @@ public final class FfPlanParser {
             if (storage != null) storages.add(storage);
         }
 
-        final int annotations = objects(root, "annotations").size();
-        if (annotations > 0) notes.add(
-            annotations + " note"
-                + (annotations == 1 ? "" : "s")
-                + ", box"
-                + (annotations == 1 ? "" : "es")
-                + " or picture"
-                + (annotations == 1 ? "" : "s")
-                + " on the board left out.");
+        // Text annotations are the board's notes; FF's other drawings have no counterpart.
+        final List<FfNote> textNotes = new ArrayList<>();
+        final Map<String, Integer> drawings = new LinkedHashMap<>();
+        for (final JsonObject a : objects(root, "annotations")) {
+            final String kind = str(a, "kind", "");
+            if ("text".equals(kind)) textNotes.add(note(a, boards));
+            else drawings.merge(DRAWINGS.contains(kind) ? kind : "", 1, Integer::sum);
+        }
+        if (!drawings.isEmpty()) notes.add(drawings(drawings) + " on the board left out; only text notes come over.");
         if (pool && (root.has("productionGroups") || root.has("poolResourceRules")))
             notes.add("Pool scopes (production groups and share/import rules) left out; every resource is one pool.");
 
@@ -107,7 +112,17 @@ public final class FfPlanParser {
         final FfTarget targetRate = target == null ? null : target(target);
 
         final String name = str(root, "name", "Factory Flow plan");
-        final FfPlan plan = new FfPlan(name, solve, pool, recipes, nodes, edges, storages, targetRate, notes);
+        final FfPlan plan = new FfPlan(
+            name,
+            solve,
+            pool,
+            recipes,
+            nodes,
+            edges,
+            storages,
+            textNotes,
+            targetRate,
+            notes);
         return migrateTrashCans(plan);
     }
 
@@ -307,6 +322,42 @@ public final class FfPlanParser {
             at[1]);
     }
 
+    /** A text note. It needs nothing else on the plan, so it is always kept: no id, no size or no text still read. */
+    private static FfNote note(final JsonObject a, final Map<String, Board> boards) {
+        final double[] at = absolute(position(a), str(a, "pocketId"), boards);
+        final JsonObject size = obj(a, "size");
+        final Double width = size == null ? null : num(size, "width");
+        final Double height = size == null ? null : num(size, "height");
+        final Double font = num(a, "fontSize");
+        return new FfNote(
+            str(a, "id", ""),
+            at[0],
+            at[1],
+            width == null ? NOTE_WIDTH : width,
+            height == null ? NOTE_HEIGHT : height,
+            str(a, "colorTag"),
+            str(a, "text", ""),
+            font == null ? null : (int) Math.round(font));
+    }
+
+    /** FF's other drawings, counted by kind: "2 boxes and 1 arrow". */
+    private static String drawings(final Map<String, Integer> byKind) {
+        final List<String> parts = new ArrayList<>();
+        for (final Map.Entry<String, Integer> e : byKind.entrySet()) {
+            final int n = e.getValue();
+            final String what = switch (e.getKey()) {
+                case "box" -> n == 1 ? "box" : "boxes";
+                case "arrow" -> n == 1 ? "arrow" : "arrows";
+                case "zone" -> n == 1 ? "zone" : "zones";
+                case "image" -> n == 1 ? "picture" : "pictures";
+                default -> n == 1 ? "drawing" : "drawings";
+            };
+            parts.add(n + " " + what);
+        }
+        if (parts.size() == 1) return parts.getFirst();
+        return String.join(", ", parts.subList(0, parts.size() - 1)) + " and " + parts.getLast();
+    }
+
     // endregion
 
     // region Load funnel
@@ -413,6 +464,7 @@ public final class FfPlanParser {
             keptNodes,
             edges,
             storages,
+            plan.textNotes(),
             plan.targetRate(),
             notes);
     }

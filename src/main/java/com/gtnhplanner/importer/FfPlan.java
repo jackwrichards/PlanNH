@@ -15,10 +15,12 @@ import javax.annotation.Nullable;
  * turned into trash drawers. Built by {@link FfPlanParser}. Ids keep FF's spelling (item ids are lowercase registry
  * names with {@code @meta} when the meta is not 0).
  *
- * @param notes what the parser saw and left out (boards, annotations, pool scopes), for the import report
+ * @param textNotes FF's text annotations, which become the board's notes
+ * @param notes     what the parser saw and left out (boards, other annotations, pool scopes), for the import report
  */
 public record FfPlan(String name, boolean solveMode, boolean poolMode, List<FfRecipe> recipes, List<FfNode> nodes,
-    List<FfEdge> edges, List<FfStorage> storages, @Nullable FfTarget targetRate, List<String> notes) {
+    List<FfEdge> edges, List<FfStorage> storages, List<FfNote> textNotes, @Nullable FfTarget targetRate,
+    List<String> notes) {
 
     /** FF's synthetic "dial a rate" card; see FF's custom-rate.ts. */
     public static final String CUSTOM_RATE_MACHINE = "Custom Rate";
@@ -197,4 +199,15 @@ public record FfPlan(String name, boolean solveMode, boolean poolMode, List<FfRe
     public record FfStorage(String id, String kind, String resourceId, @Nullable String displayName,
         @Nullable String drainMode, @Nullable String bufferMode, @Nullable Double targetPerSecond,
         @Nullable String targetMode, @Nullable String poolTargetMode, @Nullable String poolSide, double x, double y) {}
+
+    /**
+     * A text note (FF's {@code FactoryAnnotation} of kind "text"). Position and size are FF board pixels, boards
+     * flattened as for cards.
+     *
+     * @param colorTag FF's colour tag; null when the note has none (FF draws it yellow)
+     * @param text     the text, lines separated by newlines
+     * @param fontSize the text size in FF pixels; null when the note has none (FF's 14)
+     */
+    public record FfNote(String id, double x, double y, double width, double height, @Nullable String colorTag,
+        String text, @Nullable Integer fontSize) {}
 }

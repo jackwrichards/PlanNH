@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import com.gtnhplanner.importer.FfPlan.FfEdge;
 import com.gtnhplanner.importer.FfPlan.FfNode;
+import com.gtnhplanner.importer.FfPlan.FfNote;
 import com.gtnhplanner.importer.FfPlan.FfRecipe;
 import com.gtnhplanner.importer.FfPlan.FfStorage;
 
@@ -248,7 +249,54 @@ class FfPlanParserTest {
         assertTrue(
             plan.notes()
                 .stream()
-                .anyMatch(s -> s.contains("1 note")));
+                .anyMatch(s -> s.contains("1 drawing")),
+            "an annotation of no kind is no text note");
+    }
+
+    @Test
+    void keepsTextNotesAndLeavesOutOtherDrawings() {
+        final FfPlan plan = FfPlanParser.parse(
+            """
+                {"name": "N", "recipes": [], "nodes": [], "edges": [],
+                 "pockets": [{"id": "frame", "name": "Frame", "position": {"x": 1000, "y": 500}, "size": {"width": 800, "height": 600}}],
+                 "annotations": [
+                   {"id": "t1", "kind": "text", "colorTag": "light_blue", "text": "Mud line\\nfeeds the dryer",
+                    "position": {"x": 20, "y": -40}, "size": {"width": 240, "height": 80}, "fontSize": 20},
+                   {"id": "b1", "kind": "box", "colorTag": "red", "position": {"x": 0, "y": 0}, "size": {"width": 400, "height": 200}},
+                   {"id": "t2", "kind": "text", "pocketId": "frame", "position": {"x": 40, "y": 60}},
+                   {"id": "a1", "kind": "arrow", "position": {"x": 0, "y": 0}, "size": {"width": 200, "height": 20}},
+                   {"id": "b2", "kind": "box", "position": {"x": 0, "y": 0}, "size": {"width": 40, "height": 40}}]}
+                """);
+        assertEquals(
+            2,
+            plan.textNotes()
+                .size());
+        final FfNote first = plan.textNotes()
+            .getFirst();
+        assertEquals("t1", first.id());
+        assertEquals(20, first.x());
+        assertEquals(-40, first.y());
+        assertEquals(240, first.width());
+        assertEquals(80, first.height());
+        assertEquals("light_blue", first.colorTag());
+        assertEquals("Mud line\nfeeds the dryer", first.text());
+        assertEquals(20, first.fontSize());
+
+        final FfNote bare = plan.textNotes()
+            .get(1);
+        assertEquals(1040, bare.x(), "a note on a board lands where the board puts it, as a card does");
+        assertEquals(560, bare.y());
+        assertEquals(240, bare.width(), "no size reads as FF's new note");
+        assertEquals(80, bare.height());
+        assertNull(bare.colorTag());
+        assertNull(bare.fontSize());
+        assertEquals("", bare.text());
+
+        assertTrue(
+            plan.notes()
+                .contains("2 boxes and 1 arrow on the board left out; only text notes come over."),
+            plan.notes()
+                .toString());
     }
 
     @Test

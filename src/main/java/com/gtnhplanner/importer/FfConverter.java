@@ -16,11 +16,13 @@ import com.gtnhplanner.data.flowchart.Drawer;
 import com.gtnhplanner.data.flowchart.Edge;
 import com.gtnhplanner.data.flowchart.Graph;
 import com.gtnhplanner.data.flowchart.Node;
+import com.gtnhplanner.data.flowchart.Note;
 import com.gtnhplanner.data.flowchart.Port;
 import com.gtnhplanner.importer.FfDrawers.Role;
 import com.gtnhplanner.importer.FfDrawers.Target;
 import com.gtnhplanner.importer.FfPlan.FfEdge;
 import com.gtnhplanner.importer.FfPlan.FfNode;
+import com.gtnhplanner.importer.FfPlan.FfNote;
 import com.gtnhplanner.importer.FfPlan.FfRecipe;
 import com.gtnhplanner.importer.FfPlan.FfSection;
 import com.gtnhplanner.importer.FfPlan.FfSlot;
@@ -45,6 +47,7 @@ import com.gtnhplanner.importer.RecipeIndex.Lookup;
  * source drawers.</li>
  * <li>Pool plans ignore saved wires in FF, so every maker of a resource is wired to every user of it.</li>
  * <li>Positions keep FF's layout, scaled to GTNH Planner's cards; an Arrange afterwards tidies it.</li>
+ * <li>Text notes become the board's notes, placed and sized at the same scale, with their colour and text size.</li>
  * </ul>
  * Power cards and disabled cards are left out.
  */
@@ -147,6 +150,10 @@ public final class FfConverter {
                 x = Math.min(x, s.x());
                 y = Math.min(y, s.y());
             }
+            for (final FfNote n : plan.textNotes()) {
+                x = Math.min(x, n.x());
+                y = Math.min(y, n.y());
+            }
             minX = Double.isFinite(x) ? x : 0;
             minY = Double.isFinite(y) ? y : 0;
         }
@@ -159,6 +166,7 @@ public final class FfConverter {
             planTarget();
             makeDrawers();
             reportUnusedStorages();
+            placeNotes();
             if (lostWires > 0) report.add(
                 Kind.WIRE,
                 "Plan",
@@ -169,7 +177,7 @@ public final class FfConverter {
                 "A Build plan: each card's machine count came over pinned, as Build runs it, and drawer rates as no"
                     + " rule. Unpin a card, or set a drawer's rate, to let the plan size itself.");
             for (final String note : plan.notes()) report.add(Kind.NOTE, "Plan", note);
-            report.setCounts(graph.nodes.size(), graph.edges.size(), graph.drawers.size());
+            report.setCounts(graph.nodes.size(), graph.edges.size(), graph.drawers.size(), graph.notes.size());
             return new Result(graph, report);
         }
 
@@ -741,6 +749,29 @@ public final class FfConverter {
                 if (role == Role.IDLE) report.add(Kind.DROPPED, storageName(s), "an unwired drawer; left out");
                 else if (role != Role.BUFFER && !pending.containsKey(s.id()))
                     report.add(Kind.DROPPED, storageName(s), "its wires all went to cards that were left out");
+            }
+        }
+
+        // endregion
+
+        // region Notes
+
+        /**
+         * Each text note as a board note, at the cards' scale: placed like a card and sized by the same factors,
+         * never under a note's smallest size. Notes need nothing else on the plan, so none is ever left out.
+         */
+        void placeNotes() {
+            for (final FfNote n : plan.textNotes()) {
+                final Note note = new Note();
+                note.setX(px(n.x()));
+                note.setY(py(n.y()));
+                note.setWidth(Math.max(Note.MIN_W, (int) Math.round(n.width() * SCALE_X)));
+                note.setHeight(Math.max(Note.MIN_H, (int) Math.round(n.height() * SCALE_Y)));
+                if (n.colorTag() != null && !n.colorTag()
+                    .isEmpty()) note.setColor(n.colorTag());
+                if (n.fontSize() != null) note.setFontSize(n.fontSize());
+                note.setJoined(n.text());
+                graph.notes.put(note.getId(), note);
             }
         }
 
