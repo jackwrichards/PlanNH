@@ -60,6 +60,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     private final ModularPanel panel;
     private final Map<UUID, RecipeCard> cards = new HashMap<>();
     private final Map<UUID, DrawerCard> drawers = new HashMap<>();
+    private final Map<UUID, com.gtnhplanner.ui.note.NoteCard> notes = new HashMap<>();
     private final WireLayer wires;
     private int builtStructure = -1;
 
@@ -85,6 +86,11 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         boolean rebuild = builtStructure != session.structure();
         for (final RecipeCard card : cards.values()) rebuild |= card.shapeChanged();
         if (rebuild) rebuildCards();
+        if (editNote != null && notes.containsKey(editNote)) {
+            notes.get(editNote)
+                .startEditing();
+            editNote = null;
+        }
         if (frameAllPending && (!cards.isEmpty() || !drawers.isEmpty())) {
             frameAllPending = false;
             frameAll();
@@ -115,7 +121,13 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         removeAll();
         cards.clear();
         drawers.clear();
-        // Drawers first so cards draw over them where they overlap.
+        notes.clear();
+        // Notes first, then drawers, so cards draw over them where they overlap.
+        for (final UUID id : session.graph().notes.keySet()) {
+            final com.gtnhplanner.ui.note.NoteCard note = new com.gtnhplanner.ui.note.NoteCard(session, id);
+            notes.put(id, note);
+            child(note);
+        }
         for (final DrawerModel model : session.drawerModels()
             .values()) {
             final DrawerCard drawer = new DrawerCard(session, model.drawer.getId());
@@ -140,6 +152,19 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     public Map<UUID, DrawerCard> drawers() {
         return drawers;
+    }
+
+    public Map<UUID, com.gtnhplanner.ui.note.NoteCard> notes() {
+        return notes;
+    }
+
+    /** A note just added, to start writing on once its widget exists. */
+    private UUID editNote;
+
+    /** Adds a sticky note at a board point and starts writing on it. */
+    public void addNoteAt(final int worldX, final int worldY) {
+        editNote = session.addNote(worldX, worldY)
+            .getId();
     }
 
     /** Screen x of a board (world) x, through pan and zoom. */
@@ -183,7 +208,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         session.setHoverKey(hoveredResource());
         final Area a = getArea();
         Hyb.rect(0, 0, a.width, a.height, Hyb.CANVAS);
-        if (cards.isEmpty() && drawers.isEmpty()) {
+        if (cards.isEmpty() && drawers.isEmpty() && notes.isEmpty()) {
             // An empty board says how to start.
             Hyb.textCentered("Nothing here yet.", a.width / 2f, a.height / 2f - 14, Hyb.MUTED);
             Hyb.textCentered(
@@ -347,6 +372,8 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             if (n != null) moveStart.put(m, new int[] { n.x, n.y });
             final Drawer d = graph().getDrawer(m);
             if (d != null) moveStart.put(m, new int[] { d.getX(), d.getY() });
+            final com.gtnhplanner.data.flowchart.Note note = graph().notes.get(m);
+            if (note != null) moveStart.put(m, new int[] { note.getX(), note.getY() });
         }
         moveAnchor = id;
         moveMouseX = getContext().getAbsMouseX();
@@ -377,7 +404,8 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         final Map<UUID, IWidget> lifted = new HashMap<>();
         for (final IWidget w : all) {
             final UUID id = w instanceof final RecipeCard card ? card.nodeId
-                : w instanceof final DrawerCard drawer ? drawer.drawerId : null;
+                : w instanceof final DrawerCard drawer ? drawer.drawerId
+                    : w instanceof final com.gtnhplanner.ui.note.NoteCard note ? note.noteId : null;
             if (id != null && carrying && isCarried(id)) carried.add(w);
             else if (id != null && raised.contains(id)) lifted.put(id, w);
             else out.add(w);
@@ -447,6 +475,10 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
             final Drawer d = drawer.model().drawer;
             if (d.getX() < x1 && d.getX() + DrawerCard.W > x0 && d.getY() < y1 && d.getY() + DrawerCard.H > y0)
                 session.select(d.getId(), true);
+        }
+        for (final com.gtnhplanner.data.flowchart.Note n : graph().getNotes()) {
+            if (n.getX() < x1 && n.getX() + n.getWidth() > x0 && n.getY() < y1 && n.getY() + n.getHeight() > y0)
+                session.select(n.getId(), true);
         }
     }
 
@@ -985,6 +1017,14 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
                 }
                 continue;
             }
+            final com.gtnhplanner.data.flowchart.Note note = g.notes.get(e.getKey());
+            if (note != null) {
+                note.setX(e.getValue()[0]);
+                note.setY(e.getValue()[1]);
+                final com.gtnhplanner.ui.note.NoteCard widget = notes.get(note.getId());
+                if (widget != null) widget.sync();
+                continue;
+            }
             final Drawer d = g.getDrawer(e.getKey());
             if (d == null) continue;
             d.setX(e.getValue()[0]);
@@ -1025,6 +1065,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     public void frameAll() {
         final List<UUID> ids = new ArrayList<>(cards.keySet());
         ids.addAll(drawers.keySet());
+        ids.addAll(notes.keySet());
         frame(ids);
     }
 
@@ -1060,6 +1101,13 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
                 y0 = Math.min(y0, d.getY());
                 x1 = Math.max(x1, d.getX() + DrawerCard.W);
                 y1 = Math.max(y1, d.getY() + DrawerCard.H);
+            }
+            final com.gtnhplanner.data.flowchart.Note note = notes.containsKey(id) ? graph().notes.get(id) : null;
+            if (note != null) {
+                x0 = Math.min(x0, note.getX());
+                y0 = Math.min(y0, note.getY());
+                x1 = Math.max(x1, note.getX() + note.getWidth());
+                y1 = Math.max(y1, note.getY() + note.getHeight());
             }
         }
         return x0 == Integer.MAX_VALUE ? null : new int[] { x0, y0, x1, y1 };
@@ -1131,9 +1179,21 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     // region Pan and zoom
 
+    /** A right-click on empty board: what can be added there. */
+    private void openBoardMenu() {
+        final int sx = getContext().getAbsMouseX(), sy = getContext().getAbsMouseY();
+        final int wx = Math.round(worldX(sx)), wy = Math.round(worldY(sy));
+        final List<PickList.Entry> rows = new ArrayList<>();
+        rows.add(PickList.Entry.of("Add a sticky note", () -> addNoteAt(wx, wy)));
+        Popup.open(getPanel(), PickList.popup("gtnhplanner_board_menu", null, rows, false, 140), sx, sy);
+    }
+
     @Override
     public Result onMousePressed(final int mouseButton) {
-        if (mouseButton == 1) return openWireMenu() ? Result.SUCCESS : Result.IGNORE;
+        if (mouseButton == 1) {
+            if (!openWireMenu()) openBoardMenu();
+            return Result.SUCCESS;
+        }
         return mouseButton == 0 ? Result.ACCEPT : Result.IGNORE;
     }
 

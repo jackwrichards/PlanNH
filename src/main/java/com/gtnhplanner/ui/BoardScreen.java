@@ -236,6 +236,8 @@ public final class BoardScreen extends ModularScreen {
             { "Click a port", "Its recipes (left) or uses (right) in NEI; adding one wires it to the port" },
             { "Drag a port", "Drop on a card to wire it, or on empty board to add a drawer" },
             { "Right-click a wire", "Add a drawer on it, or delete it" }, { "Middle-click a rate", "Clear the rate" },
+            { "Right-click empty board", "Add a sticky note" },
+            { "Double-click a sticky note", "Write on it (Esc or a click elsewhere when done)" },
             { "Click a card or drawer", "Select it (Shift-click adds to the selection)" },
             { "Drag the board", "Pan (Shift-drag selects a box)" }, { "Drag a selected card", "Move the selection" },
             { "Ctrl+A", "Select everything" }, { "Delete", "Delete the selection (Esc deselects)" },
@@ -626,6 +628,8 @@ public final class BoardScreen extends ModularScreen {
             tip = card.tip();
         } else if (hovered instanceof final DrawerCard drawer) {
             tip = drawer.tip();
+        } else if (hovered instanceof final com.gtnhplanner.ui.note.NoteCard note) {
+            tip = note.tip(System.currentTimeMillis() - tipSince);
         } else if (hovered instanceof final PlanTabs tabs) {
             tip = Tip.ofLines(tabs.hoverLines());
         } else if (hovered instanceof final OverviewRail overview) {

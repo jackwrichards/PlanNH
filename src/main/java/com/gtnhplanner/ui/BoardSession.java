@@ -58,6 +58,8 @@ public final class BoardSession {
     private boolean nothingToSolveFor;
     /** Bumped when the set of cards changes, so the canvas knows to rebuild its widgets. */
     private int structure;
+    /** The sticky notes the widgets were last built for. */
+    private Set<UUID> noteIds = Set.of();
     private Fmt.RateUnit rateUnit = Fmt.RateUnit.SECOND;
     private NodeLookupContext pendingLookup;
     private SolveService solver = new SolveService();
@@ -512,16 +514,20 @@ public final class BoardSession {
     /** A wire between two copied cards, by their index in the copy. */
     private record ClipEdge(int from, int output, int to, int input) {}
 
-    private record Clip(List<ClipNode> nodes, List<ClipDrawer> drawers, List<ClipEdge> edges) {}
+    /** A copied sticky note, and where it sat from the copy's top-left. */
+    private record ClipNote(com.gtnhplanner.data.flowchart.Note note, int dx, int dy) {}
+
+    private record Clip(List<ClipNode> nodes, List<ClipDrawer> drawers, List<ClipEdge> edges, List<ClipNote> notes) {}
 
     /** The last copy, shared by every plan, so a group copied from one plan pastes into another. */
     private static Clip clipboard;
 
-    /** Copies the selected cards and drawers with the wires among them; false when nothing is selected. */
+    /** Copies the selected cards, drawers and notes with the wires among them; false when nothing is selected. */
     public boolean copySelection() {
         int x0 = Integer.MAX_VALUE, y0 = Integer.MAX_VALUE;
         final List<Node> nodes = new ArrayList<>();
         final List<Drawer> drawers = new ArrayList<>();
+        final List<com.gtnhplanner.data.flowchart.Note> notes = new ArrayList<>();
         for (final UUID id : selection) {
             final Node n = graph.nodes.get(id);
             if (n != null) {
@@ -535,8 +541,17 @@ public final class BoardSession {
                 x0 = Math.min(x0, d.getX());
                 y0 = Math.min(y0, d.getY());
             }
+            final com.gtnhplanner.data.flowchart.Note note = graph.notes.get(id);
+            if (note != null) {
+                notes.add(note);
+                x0 = Math.min(x0, note.getX());
+                y0 = Math.min(y0, note.getY());
+            }
         }
-        if (nodes.isEmpty() && drawers.isEmpty()) return false;
+        if (nodes.isEmpty() && drawers.isEmpty() && notes.isEmpty()) return false;
+        final List<ClipNote> clipNotes = new ArrayList<>();
+        for (final com.gtnhplanner.data.flowchart.Note note : notes)
+            clipNotes.add(new ClipNote(note.copy(), note.getX() - x0, note.getY() - y0));
         final Map<UUID, Integer> index = new HashMap<>();
         final List<ClipNode> clipNodes = new ArrayList<>();
         for (final Node n : nodes) {
@@ -575,7 +590,7 @@ public final class BoardSession {
                     d.getY() - y0,
                     links));
         }
-        clipboard = new Clip(clipNodes, clipDrawers, edges);
+        clipboard = new Clip(clipNodes, clipDrawers, edges, clipNotes);
         return true;
     }
 
@@ -608,6 +623,7 @@ public final class BoardSession {
             made.add(n);
         }
         final List<Drawer> madeDrawers = new ArrayList<>();
+        final List<UUID> madeNotes = new ArrayList<>();
         edit(() -> {
             for (final Node n : made) if (n != null) graph.addNode(n);
             for (final ClipEdge e : clip.edges()) {
@@ -628,11 +644,41 @@ public final class BoardSession {
                 }
                 madeDrawers.add(d);
             }
+            for (final ClipNote c : clip.notes()) {
+                final com.gtnhplanner.data.flowchart.Note note = c.note()
+                    .copy();
+                note.setX(snap(worldX + c.dx()));
+                note.setY(snap(worldY + c.dy()));
+                graph.notes.put(note.getId(), note);
+                madeNotes.add(note.getId());
+            }
         });
         selection.clear();
         for (final Node n : made) if (n != null) selection.add(n.id);
         for (final Drawer d : madeDrawers) selection.add(d.getId());
+        selection.addAll(madeNotes);
         return List.copyOf(selection);
+    }
+
+    // endregion
+
+    // region Sticky notes
+
+    /** Adds a sticky note with its top-left at a board point, as one undoable step, and selects it. */
+    public com.gtnhplanner.data.flowchart.Note addNote(final int worldX, final int worldY) {
+        final com.gtnhplanner.data.flowchart.Note note = new com.gtnhplanner.data.flowchart.Note();
+        note.setX(snap(worldX));
+        note.setY(snap(worldY));
+        editLayout(() -> graph.notes.put(note.getId(), note));
+        selection.clear();
+        selection.add(note.getId());
+        return note;
+    }
+
+    /** Deletes a sticky note, as one undoable step. */
+    public void deleteNote(final UUID id) {
+        selection.remove(id);
+        if (graph.notes.containsKey(id)) editLayout(() -> graph.notes.remove(id));
     }
 
     // endregion
@@ -672,14 +718,15 @@ public final class BoardSession {
         selection.clear();
     }
 
-    /** Every card and drawer on the board. */
+    /** Every card, drawer and note on the board. */
     public void selectAll() {
         selection.clear();
         selection.addAll(graph.nodes.keySet());
         selection.addAll(graph.drawers.keySet());
+        selection.addAll(graph.notes.keySet());
     }
 
-    /** Deletes every selected card and drawer as one undoable step. */
+    /** Deletes every selected card, drawer and note as one undoable step. */
     public void deleteSelected() {
         if (selection.isEmpty()) return;
         // A shared machine goes whole: every recipe on its card.
@@ -690,6 +737,7 @@ public final class BoardSession {
             for (final UUID id : ids) {
                 if (graph.nodes.containsKey(id)) graph.removeNode(id);
                 else if (graph.drawers.containsKey(id)) graph.removeDrawer(id);
+                else graph.notes.remove(id);
             }
         });
     }
@@ -1400,8 +1448,12 @@ public final class BoardSession {
         if (!next.keySet()
             .equals(models.keySet())
             || !nextDrawers.keySet()
-                .equals(drawerModels.keySet()))
+                .equals(drawerModels.keySet())
+            || !graph.notes.keySet()
+                .equals(noteIds)) {
             structure++;
+            noteIds = new HashSet<>(graph.notes.keySet());
+        }
         models = next;
         drawerModels = nextDrawers;
         notices = buildNotices(next);
