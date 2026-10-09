@@ -19,6 +19,14 @@ a flowchart planner that lives in NEI, builds its cards from NEI's own recipes, 
 - **The same account as the website.** Sign in with your gtnhplanner.com account to post a plan to the public
   library, where it shows on the website and in game.
 - **Client side only.** No server mod needed.
+  
+## Images
+<img width="1922" height="1081" alt="image" src="https://github.com/user-attachments/assets/5273a93c-d1f2-4dbd-9137-7a8e348d163b" />
+
+<img width="1911" height="1075" alt="image" src="https://github.com/user-attachments/assets/236653f5-76b8-44bf-b0fc-6796f145d6fd" />
+
+<img width="565" height="309" alt="image" src="https://github.com/user-attachments/assets/d9671f45-de26-448b-b750-b00a163fe34d" />
+
 
 ## Dependencies
 
