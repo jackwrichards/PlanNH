@@ -389,16 +389,12 @@ public final class Serializer {
             if (obj.has("worldLinks")) {
                 for (final JsonElement l : obj.getAsJsonArray("worldLinks")) {
                     final JsonArray at = l.getAsJsonArray();
-                    if (at.size() != 4) continue;
-                    node.worldLinks.add(
-                        new int[] { at.get(0)
-                            .getAsInt(),
-                            at.get(1)
-                                .getAsInt(),
-                            at.get(2)
-                                .getAsInt(),
-                            at.get(3)
-                                .getAsInt() });
+                    // {dimension, x, y, z}, and the facing when there is one.
+                    if (at.size() != 4 && at.size() != 5) continue;
+                    final int[] link = new int[at.size()];
+                    for (int k = 0; k < link.length; k++) link[k] = at.get(k)
+                        .getAsInt();
+                    node.worldLinks.add(link);
                 }
             }
             // Read independently of every other key.

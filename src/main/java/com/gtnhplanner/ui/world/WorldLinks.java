@@ -79,7 +79,19 @@ public final class WorldLinks {
      */
     @Nullable
     public static Hit assign(final Graph graph, final Node node, final int dim, final int x, final int y, final int z) {
-        final int[] at = { dim, x, y, z };
+        return assign(graph, node, dim, x, y, z, 0, false);
+    }
+
+    /**
+     * Places the card on the spot facing {@code facing} (0 south, 1 west, 2 north, 3 east: where a multiblock's
+     * controller looks), taking the spot off whichever card had it; with {@code another}, as one more of the card's
+     * machines, else in place of where it was. One undo step in each plan it touches. Returns the card it was on
+     * before, or null.
+     */
+    @Nullable
+    public static Hit assign(final Graph graph, final Node node, final int dim, final int x, final int y, final int z,
+        final int facing, final boolean another) {
+        final int[] at = { dim, x, y, z, facing };
         Hit was = null;
         for (final Graph g : Plan.getInstance()
             .getGraphs()) {
@@ -91,8 +103,9 @@ public final class WorldLinks {
         }
         final Node holder = holder(graph, at, node);
         if (holder != null) was = new Hit(graph, holder);
-        final boolean there = node.worldLinks.size() == 1 && indexOf(node, dim, x, y, z) == 0;
-        if (holder != null || !there) PlanAPI.recordEdit(graph, () -> moveWithin(graph, node, at));
+        final boolean there = node.worldLinks.size() == 1 && indexOf(node, dim, x, y, z) == 0
+            && facing(node.worldLinks.get(0)) == facing;
+        if (holder != null || !there) PlanAPI.recordEdit(graph, () -> moveWithin(graph, node, at, another));
         PlanAPI.save();
         return was;
     }
@@ -110,14 +123,27 @@ public final class WorldLinks {
      * null). No undo, no save: {@link #assign} wraps it.
      */
     static void moveWithin(final Graph graph, @Nullable final Node keep, final int[] at) {
-        for (final Node n : graph.nodes.values()) {
-            if (n == keep) continue;
+        moveWithin(graph, keep, at, false);
+    }
+
+    /** As {@link #moveWithin(Graph, Node, int[])}; with {@code another}, {@code keep} keeps its other spots too. */
+    static void moveWithin(final Graph graph, @Nullable final Node keep, final int[] at, final boolean another) {
+        for (final Node n : graph.nodes.values())
             n.worldLinks.removeIf(l -> l[0] == at[0] && l[1] == at[1] && l[2] == at[2] && l[3] == at[3]);
-        }
         if (keep != null) {
-            keep.worldLinks.clear();
+            if (!another) keep.worldLinks.clear();
             keep.worldLinks.add(at.clone());
         }
+    }
+
+    /** Where a spot's machine faces: 0 south, 1 west, 2 north, 3 east (south for spots saved before facings). */
+    public static int facing(final int[] link) {
+        return link.length > 4 ? link[4] & 3 : 0;
+    }
+
+    /** The facing that turns a machine's front toward the player: the way they look, turned around. */
+    public static int facingToward(final float yaw) {
+        return (Math.floorMod(Math.round(yaw / 90f), 4) + 2) & 3;
     }
 
     /** Unlinks every block of the card. */

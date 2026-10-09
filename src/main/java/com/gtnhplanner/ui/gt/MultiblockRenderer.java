@@ -60,7 +60,7 @@ final class MultiblockRenderer {
     /** Upper bound on blocks to draw, as a guard against odd structures within {@link #MAX_DIMENSION}. */
     static final int MAX_BLOCKS = 6000;
 
-    private static final int PLACE_X = 0, PLACE_Y = 64, PLACE_Z = 0;
+    static final int PLACE_X = 0, PLACE_Y = 64, PLACE_Z = 0;
     /** As BlockRenderer6343: survival auto-build rounds until a round places nothing. */
     private static final int MAX_PLACE_ROUNDS = 2000;
     /** Camera around the structure: from the controller's front-right, looking slightly down. */
@@ -131,7 +131,7 @@ final class MultiblockRenderer {
     }
 
     /** Places the controller and auto-builds its structure, the way BlockRenderer6343's GT preview does. */
-    private static void place(final TrackedDummyWorld world, final int meta) {
+    static void place(final TrackedDummyWorld world, final int meta) {
         // BlockRenderer6343's shared fake player: its construction already ran every mod's entity hooks once.
         final ClientFakePlayer player = BRUtil.FAKE_PLAYER;
         final World playerWorld = player.worldObj;

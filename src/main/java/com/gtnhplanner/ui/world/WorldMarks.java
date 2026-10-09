@@ -123,6 +123,18 @@ final class WorldMarks {
         t.draw();
     }
 
+    /**
+     * A placed machine's ghost: its whole structure, turned to {@code facing}, when it is a GregTech multiblock that
+     * can be ghosted; else its block, unless {@code builtHere}.
+     */
+    static void machineGhost(final net.minecraft.item.ItemStack machine, final int x, final int y, final int z,
+        final int facing, final boolean builtHere) {
+        final com.gtnhplanner.ui.gt.StructureGhosts.Ghost structure = com.gtnhplanner.ui.gt.StructureGhosts
+            .get(machine);
+        if (structure != null) com.gtnhplanner.ui.gt.StructureGhosts.draw(structure, x, y, z, facing);
+        else if (!builtHere) ghost(machine, x, y, z);
+    }
+
     private static final net.minecraft.client.renderer.RenderBlocks GHOST = new net.minecraft.client.renderer.RenderBlocks();
 
     /**

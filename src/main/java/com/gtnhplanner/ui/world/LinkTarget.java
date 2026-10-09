@@ -105,7 +105,16 @@ public final class LinkTarget {
             WorldLinks.unlink(graph, card, b.dim(), b.x(), b.y(), b.z());
             WorldView.say("Removed " + WorldView.cardName(card) + " from the world");
         } else {
-            final WorldLinks.Hit was = WorldLinks.assign(graph, card, b.dim(), b.x(), b.y(), b.z());
+            final net.minecraft.entity.EntityLivingBase eye = Minecraft.getMinecraft().renderViewEntity;
+            final WorldLinks.Hit was = WorldLinks.assign(
+                graph,
+                card,
+                b.dim(),
+                b.x(),
+                b.y(),
+                b.z(),
+                eye == null ? 0 : WorldLinks.facingToward(eye.rotationYaw),
+                false);
             WorldView.say(
                 "Placed " + WorldView.cardName(card)
                     + " here"

@@ -60,7 +60,11 @@ public final class PlanOverlay {
     private static final class Placed {
 
         final PlanSnapshot.Card card;
-        final int x, y, z;
+        final int x, y, z, facing;
+        /** The card's first spot: the one its card stands over and its wires run from. */
+        final boolean main;
+        /** Where the card stands: its spot's middle, or over the top of its structure. */
+        final double[] home;
         double distance;
         /**
          * Where the card's centre would be on the screen, on its spot; its spot's centre; its scale and size there; and
@@ -68,11 +72,20 @@ public final class PlanOverlay {
          */
         float sx, sy, bx, by, scale, w, h, left, top;
 
-        Placed(final PlanSnapshot.Card card, final int[] at) {
+        Placed(final PlanSnapshot.Card card, final int[] at, final boolean main) {
             this.card = card;
             this.x = at[1];
             this.y = at[2];
             this.z = at[3];
+            this.facing = WorldLinks.facing(at);
+            this.main = main;
+            final com.gtnhplanner.ui.gt.StructureGhosts.Ghost g = com.gtnhplanner.ui.gt.StructureGhosts
+                .peek(card.machine());
+            if (g == null) home = new double[] { x + 0.5, y + 0.5, z + 0.5 };
+            else {
+                final double[] top = g.top(facing);
+                home = new double[] { x + 0.5 + top[0], y + top[1] + 0.4, z + 0.5 + top[2] };
+            }
         }
 
         boolean covers(final float px, final float py) {
@@ -131,7 +144,11 @@ public final class PlanOverlay {
         for (final PlanSnapshot.Card c : snap.cards()) {
             final Node n = snap.graph().nodes.get(c.id());
             if (n == null) continue;
-            for (final int[] l : n.worldLinks) if (l[0] == dim) all.add(new Placed(c, l));
+            boolean first = true;
+            for (final int[] l : n.worldLinks) if (l[0] == dim) {
+                all.add(new Placed(c, l, first));
+                first = false;
+            }
         }
         final double range = PlannerSettings.arRange();
         final EntityLivingBase eye = mc.renderViewEntity;
@@ -186,7 +203,8 @@ public final class PlanOverlay {
         WorldMarks.begin();
         // Each placed card's spot: the machine's ghost (unless the machine is built there); the one looked at outlined.
         for (final Placed p : placed) {
-            if (p.card.machine() != null && !built(mc, p)) WorldMarks.ghost(p.card.machine(), p.x, p.y, p.z);
+            if (p.card.machine() != null)
+                WorldMarks.machineGhost(p.card.machine(), p.x, p.y, p.z, p.facing, built(mc, p));
             if (p.card.id()
                 .equals(lit)) WorldMarks.outline(p.x, p.y, p.z, Hyb.LIT & 0xFFFFFF, 0.012f, 1.5f, 0.6f);
         }
@@ -212,7 +230,7 @@ public final class PlanOverlay {
         final PlanSnapshot snap = PlanSnapshot.latest();
         if (snap == null) return out;
         final Map<UUID, Placed> byNode = new HashMap<>();
-        for (final Placed p : placed) for (final UUID id : p.card.nodeIds()) byNode.put(id, p);
+        for (final Placed p : placed) if (p.main) for (final UUID id : p.card.nodeIds()) byNode.put(id, p);
         for (final PlanSnapshot.Line w : snap.wires()) {
             if (w.from() == null || w.to() == null) continue;
             final Placed a = byNode.get(w.from()), b = byNode.get(w.to());
@@ -242,7 +260,8 @@ public final class PlanOverlay {
         final ScaledResolution sr = event.resolution;
         final List<Placed> all = placed(mc);
         final List<Placed> shown = new ArrayList<>();
-        for (final Placed p : all) if (project(p, sr, mc)) shown.add(p);
+        // A card over its first spot only: its other machines show as ghosts.
+        for (final Placed p : all) if (p.main && project(p, sr, mc)) shown.add(p);
         // The plan's wires, flat on the screen as the board draws them, and the one the crosshair is on.
         final float cx = sr.getScaledWidth() / 2f, cy = sr.getScaledHeight() / 2f;
         final List<Run> runs = runs(conns(all), sr, mc, snap);
@@ -646,7 +665,7 @@ public final class PlanOverlay {
      * screen.
      */
     private boolean project(final Placed p, final ScaledResolution sr, final Minecraft mc) {
-        final float[] middle = screen(p.x + 0.5, p.y + 0.5, p.z + 0.5, sr, mc);
+        final float[] middle = screen(p.home, sr, mc);
         if (middle == null) return false;
         p.sx = p.bx = middle[0];
         p.sy = p.by = middle[1];

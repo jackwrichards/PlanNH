@@ -71,9 +71,10 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 - While playing (`ui/world/`, `docs/design/minimap-and-world-links.md`): the minimap of the plan last open
   (`Minimap`, from the board's `PlanSnapshot`), and the plan over the world: a card's place key (or L on a block)
   places it on a spot, the imaginary block in front of the face looked at (`LinkPicker`, `LinkTarget`,
-  `WorldLinks`, `Node.worldLinks`, one spot per card; breaking blocks never removes one), and
-  `PlanOverlay` (Y) draws each placed card over its block as the board does (`ui/card/PlanCardView`), with the plan's
-  wires as connectors. World code never loads the plans (`Plan.loaded()`). The earlier lens of every machine's live
+  `WorldLinks`, `Node.worldLinks`, a spot and a facing per machine; breaking blocks never removes one), and
+  `PlanOverlay` (Y) draws each placed card over its block as the board does (`ui/card/CleanCardView`), with the plan's
+  wires as connectors. Multiblocks show as their whole structure (`ui/gt/StructureGhosts`), drawn every frame from a
+  kept fake world: display lists of block rendering come out invisible under Angelica. World code never loads the plans (`Plan.loaded()`). The earlier lens of every machine's live
   state is shelved on `shelf/ar-machine-lens`. Settings are the top bar's gear (`PlannerSettings`).
 - Multiblock pictures in `assets/gtnhplanner/textures/structures/` are Factory Flow's renders (`public/power-art`: the
   owner's processing multiblocks and the Power Planner workbook's power plants), scaled to 320 px palette PNGs with

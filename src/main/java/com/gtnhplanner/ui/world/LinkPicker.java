@@ -41,18 +41,25 @@ public final class LinkPicker {
     private String name = "";
     @Nullable
     private ItemStack machine;
+    /** How many of the card's machines can be placed, and how many have been this time. */
+    private int max = 1, placed;
     /** Set from a menu or an event: the screen changes on the next tick, outside them. */
     private boolean starting, finishing;
 
     private LinkPicker() {}
 
-    /** Starts picking a block for a card; the planner closes on the next tick. */
-    public static void start(final Graph graph, final UUID nodeId, final String name,
-        @Nullable final ItemStack machine) {
+    /**
+     * Starts picking spots for a card, one for each of its {@code machines} (at least one); the planner closes on the
+     * next tick.
+     */
+    public static void start(final Graph graph, final UUID nodeId, final String name, @Nullable final ItemStack machine,
+        final int machines) {
         INSTANCE.graph = graph;
         INSTANCE.nodeId = nodeId;
         INSTANCE.name = name == null ? "" : name;
         INSTANCE.machine = machine;
+        INSTANCE.max = Math.max(1, machines);
+        INSTANCE.placed = 0;
         INSTANCE.starting = true;
         INSTANCE.finishing = false;
     }
@@ -65,6 +72,12 @@ public final class LinkPicker {
     @Nullable
     static ItemStack machine() {
         return INSTANCE.machine;
+    }
+
+    /** The way the machine being placed would face: its front toward the player. */
+    static int facing() {
+        final net.minecraft.entity.EntityLivingBase eye = Minecraft.getMinecraft().renderViewEntity;
+        return eye == null ? 0 : WorldLinks.facingToward(eye.rotationYaw);
     }
 
     /** The card being placed, while picking. */
@@ -120,11 +133,14 @@ public final class LinkPicker {
         final MovingObjectPosition hit = mc.objectMouseOver;
         if (node == null || hit == null || hit.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK) return;
         final int[] at = WorldLinks.inFront(hit);
+        // The first spot this time replaces where the card was; the rest are its other machines.
         final WorldLinks.Hit was = WorldLinks
-            .assign(graph, node, mc.theWorld.provider.dimensionId, at[0], at[1], at[2]);
+            .assign(graph, node, mc.theWorld.provider.dimensionId, at[0], at[1], at[2], facing(), placed > 0);
+        placed++;
         Hyb.click();
         WorldView.say(
             "Placed " + name
+                + (max > 1 ? " " + placed + " of " + max : "")
                 + " at "
                 + at[0]
                 + ", "
@@ -132,7 +148,7 @@ public final class LinkPicker {
                 + ", "
                 + at[2]
                 + (was == null || was.node() == node ? "" : ". Taken from " + WorldView.cardName(was.node())));
-        finishing = true;
+        if (placed >= max) finishing = true;
     }
 
     /** What the block under the crosshair is, as its pick-block item, or null. */
@@ -179,8 +195,10 @@ public final class LinkPicker {
         if (event.type != RenderGameOverlayEvent.ElementType.ALL || !active()) return;
         final Minecraft mc = Minecraft.getMinecraft();
         if (mc.currentScreen != null || mc.gameSettings.hideGUI) return;
-        final String title = "Place " + name;
-        final String how = "Click a block face to place it in front of it. Right-click or Esc to cancel.";
+        final String title = "Place " + name + (max > 1 ? ": " + (placed + 1) + " of " + max : "");
+        final String how = placed == 0
+            ? "Click a block face to place it in front of it, facing you. Right-click or Esc to cancel."
+            : "Click for the next one. Right-click or Esc to stop here.";
         final int w = Math.max(Hyb.width(title) + 22, Hyb.width(how)) + 12, h = 29;
         final float x = (event.resolution.getScaledWidth() - w) / 2f, y = 6;
         Hyb.rect(x - 1, y - 1, w + 2, h + 2, Hyb.FRAME);

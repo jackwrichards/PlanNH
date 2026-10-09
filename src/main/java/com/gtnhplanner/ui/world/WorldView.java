@@ -130,7 +130,8 @@ public final class WorldView {
             final MovingObjectPosition hit = mc.objectMouseOver;
             if (hit != null && hit.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK) {
                 final int[] at = WorldLinks.inFront(hit);
-                if (LinkPicker.machine() != null) WorldMarks.ghost(LinkPicker.machine(), at[0], at[1], at[2]);
+                if (LinkPicker.machine() != null)
+                    WorldMarks.machineGhost(LinkPicker.machine(), at[0], at[1], at[2], LinkPicker.facing(), false);
                 WorldMarks.outline(at[0], at[1], at[2], Hyb.LIT & 0xFFFFFF, 0.004f, 1.5f, 0.6f);
             }
         }

@@ -42,15 +42,19 @@ plan show what the machines are doing.
 - A card goes on a spot: a block's place, usually an imaginary block in front of the face the crosshair is on (like
   placing a block, but nothing is placed and you can walk through it). Breaking or building blocks never moves or
   removes a placement.
-- Every card has a place key (a map pin, beside its menu key; gold once placed). Left-click: the planner closes and the
-  card's machine shows as a ghost on the spot in front of the face under the crosshair; a click places it there and you
-  stay in the world (`ui/world/LinkPicker`). Right-click or Esc cancels. Right-click on the key removes the card from
-  the world. The card's menu also has **Show in the world** and **Remove from the world**.
-- A card is placed on one spot and a spot holds one card: placing a card on a spot takes it from any other card, in any
-  plan (`ui/world/WorldLinks`, `Node.worldLinks`).
+- Every card has a place key (a map pin, between its menu key and gear; gold once placed). Left-click: the planner closes and the
+  card's machine shows as a ghost on the spot in front of the face under the crosshair, its front toward you (a
+  GregTech multiblock as its whole structure, see section 5); a click places it there, facing that way, and you stay in
+  the world (`ui/world/LinkPicker`). A card of several machines places one a click ("Place X: 2 of 3", up to 64): the
+  first click replaces where the card was, each later one adds a spot, and right-click or Esc stops there, keeping the
+  ones placed. Right-click or Esc before the first click cancels. Right-click on the key removes the card from the world.
+  The card's menu also has **Show in the world** and **Remove from the world**.
+- A card is placed on as many spots as it has machines and a spot holds one card: placing a card on a spot takes it
+  from any other card, in any plan (`ui/world/WorldLinks`, `Node.worldLinks`: {dim, x, y, z, facing}, facing 0 south,
+  1 west, 2 north, 3 east; placements saved before facing face south).
 - From the world: the Link key (L) opens the planner in link mode (`ui/world/LinkTarget`) for the placed spot under
-  the crosshair, or else the spot in front of the face looked at; clicking a card places it there, clicking the card
-  already there removes it, Esc cancels.
+  the crosshair, or else the spot in front of the face looked at; clicking a card places it there alone, facing you,
+  clicking the card already there removes it, Esc cancels.
 - Placements are saved with the plan, never copied with it, and undo like any edit, but are not changes to the plan:
   nothing re-solves and the minimap stays current.
 
@@ -66,11 +70,17 @@ plan show what the machines are doing.
 `ui/world/PlanOverlay`, toggled with Y and in the settings ("Show the plan over the world (AR)", "How far to show it").
 Nothing shows until a card of the plan last open is placed.
 
-- Each placed spot shows a ghost of the card's machine (its own block model, see-through, over the world; not when the
-  machine is built there already), and the card sits on the middle of the spot, over its ghost, drawn as the board
-  draws it (`ui/card/PlanCardView`: name bar and tier chips, ports with the plan's rates in large type over their names, the machine's picture, POWER
-  and MACHINES), with nothing to press. A card is drawn at six tenths of the board's size within ten blocks of you and
-  shrinks with distance beyond (always the whole card).
+- Each placed spot shows a ghost of the card's machine, see-through and behind real blocks. A GregTech multiblock shows
+  its whole structure (`ui/gt/StructureGhosts`): built from its definition in BlockRenderer6343's fake world, as the
+  card's picture is, once per machine and kept, then drawn block by block each frame against that world (so casings
+  join and only outside faces draw), turned to the spot's facing. A block of the structure already standing in the
+  world, the same block (and meta, but a machine's), is left out, so a structure half built shows what is left to
+  build. Anything else shows its own block model, not when the machine is built there already. Display lists do not
+  work here under Angelica (they come out invisible), hence drawing each frame.
+- The card sits on its spot, over the top of the structure for a multiblock, drawn as the board draws it
+  (`ui/card/CleanCardView`), with nothing to press. A card placed on several spots shows the card and its wires at the
+  first; the others show the ghost alone. A card is drawn at a little over half the board's size within ten blocks of
+  you and shrinks with distance beyond (always the whole card).
 - Cards move out of each other's way as map labels do (`PlanOverlay.layout`): nearest first, each stays on its spot
   while that is clear of the cards already placed and the wires' tags, else takes the clear place nearest it (aside, up,
   or down, which costs most), with a line from its nearest edge to the middle of its spot, ending in a small pin. A

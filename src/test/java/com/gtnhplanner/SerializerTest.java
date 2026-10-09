@@ -11,6 +11,7 @@ import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
@@ -213,6 +214,30 @@ class SerializerTest {
         assertEquals(List.of(0, 518, 5, -3), List.of(back.get(0)[0], back.get(0)[1], back.get(0)[2], back.get(0)[3]));
         assertEquals(List.of(-1, 12, 64, 40), List.of(back.get(1)[0], back.get(1)[1], back.get(1)[2], back.get(1)[3]));
         assertTrue(decoded.nodes.get(chart.machine(1).id).worldLinks.isEmpty(), "a card with no links gets none");
+    }
+
+    @Test
+    void aPlacementKeepsItsFacing() {
+        final LoadedChart chart = GtnhFlowLoader.load("light_fuel");
+        final Node placed = chart.machine(0);
+        placed.worldLinks.add(new int[] { 0, 10, 4, -2, 3 });
+        placed.worldLinks.add(new int[] { 0, 14, 4, -2 });
+
+        final List<int[]> back = Serializer.decode(Serializer.encode(chart.graph())).nodes.get(placed.id).worldLinks;
+
+        assertEquals(2, back.size());
+        assertEquals(
+            List.of(0, 10, 4, -2, 3),
+            Arrays.stream(back.get(0))
+                .boxed()
+                .toList(),
+            "a machine and its facing");
+        assertEquals(
+            List.of(0, 14, 4, -2),
+            Arrays.stream(back.get(1))
+                .boxed()
+                .toList(),
+            "saved before facings");
     }
 
     @Test

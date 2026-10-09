@@ -1446,8 +1446,12 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 if (mouseButton == 0) openActions();
             }
             case PLACE -> {
-                if (mouseButton == 0) com.gtnhplanner.ui.world.LinkPicker
-                    .start(session.graph(), node.id, placeName(), model.machineStack);
+                if (mouseButton == 0) com.gtnhplanner.ui.world.LinkPicker.start(
+                    session.graph(),
+                    node.id,
+                    placeName(),
+                    model.machineStack,
+                    (int) Math.min(64, Math.ceil(machinesTotal() - 1e-9)));
                 else if (mouseButton == 1 && placed()) com.gtnhplanner.ui.world.WorldLinks.clear(session.graph(), node);
             }
             case SECTION -> {
