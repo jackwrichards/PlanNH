@@ -106,12 +106,17 @@ public final class LinkTarget {
             WorldView.say("Removed " + WorldView.cardName(card) + " from the world");
         } else {
             final net.minecraft.entity.EntityLivingBase eye = Minecraft.getMinecraft().renderViewEntity;
+            // On an empty spot a multiblock stands on it, its controller up where the structure puts it.
+            final PlanSnapshot snap = PlanSnapshot.latest();
+            final PlanSnapshot.Card shown = snap == null || snap.graph() != graph ? null : snap.cardOf(card.id);
+            final int lift = shown == null || WorldLinks.find(b.dim(), b.x(), b.y(), b.z()) != null ? 0
+                : com.gtnhplanner.ui.gt.StructureGhosts.lift(shown.machine());
             final WorldLinks.Hit was = WorldLinks.assign(
                 graph,
                 card,
                 b.dim(),
                 b.x(),
-                b.y(),
+                b.y() + lift,
                 b.z(),
                 eye == null ? 0 : WorldLinks.facingToward(eye.rotationYaw),
                 false);

@@ -74,6 +74,28 @@ public final class LinkPicker {
         return INSTANCE.machine;
     }
 
+    /** How far the crosshair reaches when placing: past the game's reach, to stand back from a big structure. */
+    private static final double REACH = 48;
+
+    /** The block face under the crosshair, as far as placing reaches, or null. */
+    @Nullable
+    static MovingObjectPosition aim() {
+        final net.minecraft.entity.EntityLivingBase eye = Minecraft.getMinecraft().renderViewEntity;
+        if (eye == null || Minecraft.getMinecraft().theWorld == null) return null;
+        final MovingObjectPosition hit = eye.rayTrace(REACH, 1f);
+        return hit != null && hit.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK ? hit : null;
+    }
+
+    /**
+     * Where the machine being placed would go for a block face hit: on the spot in front of it, or, for a multiblock,
+     * its controller as high above that spot as stands the structure's bottom on it.
+     */
+    static int[] spot(final MovingObjectPosition hit) {
+        final int[] at = WorldLinks.inFront(hit);
+        at[1] += com.gtnhplanner.ui.gt.StructureGhosts.lift(INSTANCE.machine);
+        return at;
+    }
+
     /** The way the machine being placed would face: its front toward the player. */
     static int facing() {
         final net.minecraft.entity.EntityLivingBase eye = Minecraft.getMinecraft().renderViewEntity;
@@ -130,9 +152,9 @@ public final class LinkPicker {
     private void pick() {
         final Minecraft mc = Minecraft.getMinecraft();
         final Node node = node();
-        final MovingObjectPosition hit = mc.objectMouseOver;
-        if (node == null || hit == null || hit.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK) return;
-        final int[] at = WorldLinks.inFront(hit);
+        final MovingObjectPosition hit = aim();
+        if (node == null || hit == null) return;
+        final int[] at = spot(hit);
         // The first spot this time replaces where the card was; the rest are its other machines.
         final WorldLinks.Hit was = WorldLinks
             .assign(graph, node, mc.theWorld.provider.dimensionId, at[0], at[1], at[2], facing(), placed > 0);
@@ -171,8 +193,7 @@ public final class LinkPicker {
         event.setCanceled(true);
         final ScaledResolution sr = event.resolution;
         final float cx = sr.getScaledWidth() / 2f, cy = sr.getScaledHeight() / 2f;
-        final MovingObjectPosition hit = Minecraft.getMinecraft().objectMouseOver;
-        final boolean onBlock = hit != null && hit.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK;
+        final boolean onBlock = aim() != null;
         final int c = onBlock ? Hyb.GOLD : Hyb.MUTED;
         // Four corners of a square, and a dot.
         final float r = 6, l = 3;

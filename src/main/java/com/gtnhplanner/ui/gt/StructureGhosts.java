@@ -31,13 +31,13 @@ public final class StructureGhosts {
     public record Ghost(Object built, int blocks, int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
 
         /**
-         * Where a card stands over the structure: above its top, over the middle of its footprint, from the controller
-         * block's centre, turned to {@code facing}: {dx, dy, dz}.
+         * The box the structure fills, turned to {@code facing}, from the controller block's corner: {x0, y0, z0, x1,
+         * y1, z1}.
          */
-        public double[] top(final int facing) {
-            final double cx = (minX + maxX) / 2.0, cz = (minZ + maxZ) / 2.0;
-            final double a = Math.toRadians(-90.0 * facing);
-            return new double[] { cx * Math.cos(a) + cz * Math.sin(a), maxY + 1, -cx * Math.sin(a) + cz * Math.cos(a) };
+        public double[] box(final int facing) {
+            final int[] a = turn(minX, minZ, facing), b = turn(maxX, maxZ, facing);
+            return new double[] { Math.min(a[0], b[0]), minY, Math.min(a[1], b[1]), Math.max(a[0], b[0]) + 1, maxY + 1,
+                Math.max(a[1], b[1]) + 1 };
         }
     }
 
@@ -90,6 +90,15 @@ public final class StructureGhosts {
         return made;
     }
 
+    /**
+     * How far above a picked spot a machine's controller goes so the structure's bottom stands on it: 0 for anything
+     * without a ghost built yet.
+     */
+    public static int lift(@Nullable final ItemStack controller) {
+        final Ghost g = peek(controller);
+        return g == null ? 0 : -g.minY();
+    }
+
     private static int meta(@Nullable final ItemStack controller) {
         if (controller == null || !MultiblockPictures.available()) return -1;
         try {
@@ -102,11 +111,30 @@ public final class StructureGhosts {
     /**
      * Draws a ghost with its controller on the block at (x, y, z), its front turned to {@code facing} (0 south, 1 west,
      * 2 north, 3 east): see-through, behind real blocks, and leaving out every block already built there. In world
-     * space, the camera's offset already applied.
+     * space, the camera's offset already applied. Only its outside shows: see {@link #depth}.
      */
     public static void draw(final Ghost ghost, final int x, final int y, final int z, final int facing) {
+        depth(ghost, x, y, z, facing);
+        colour(ghost, x, y, z, facing);
+    }
+
+    /**
+     * Several ghosts' first pass: their nearest faces into the depth buffer and no colour, so that {@link #colour}
+     * then shows only the outside of each, not its insides through its walls, and a ghost in front hides one behind.
+     * Draw every ghost's depth before any's colour. The depth stays, as a real block's would.
+     */
+    public static void depth(final Ghost ghost, final int x, final int y, final int z, final int facing) {
         try {
-            StructureGhostBuilder.draw(ghost, x, y, z, facing);
+            StructureGhostBuilder.draw(ghost, x, y, z, facing, true);
+        } catch (final LinkageError | RuntimeException e) {
+            GtnhPlanner.LOG.warn("Could not draw a multiblock ghost", e);
+        }
+    }
+
+    /** A ghost's second pass, after {@link #depth}: its outside, see-through. */
+    public static void colour(final Ghost ghost, final int x, final int y, final int z, final int facing) {
+        try {
+            StructureGhostBuilder.draw(ghost, x, y, z, facing, false);
         } catch (final LinkageError | RuntimeException e) {
             GtnhPlanner.LOG.warn("Could not draw a multiblock ghost", e);
         }

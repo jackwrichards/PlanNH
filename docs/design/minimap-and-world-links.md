@@ -44,8 +44,10 @@ plan show what the machines are doing.
   removes a placement.
 - Every card has a place key (a map pin, between its menu key and gear; gold once placed). Left-click: the planner closes and the
   card's machine shows as a ghost on the spot in front of the face under the crosshair, its front toward you (a
-  GregTech multiblock as its whole structure, see section 5); a click places it there, facing that way, and you stay in
-  the world (`ui/world/LinkPicker`). A card of several machines places one a click ("Place X: 2 of 3", up to 64): the
+  GregTech multiblock as its whole structure, see section 5, standing on that spot: the structure's bottom goes there,
+  its controller as high above it as it is in the structure, and the whole structure is outlined); a click places it
+  there, facing that way, and you stay in the world (`ui/world/LinkPicker`). The crosshair reaches 48 blocks while
+  placing, past the game's own reach, to stand back from a big structure. A card of several machines places one a click ("Place X: 2 of 3", up to 64): the
   first click replaces where the card was, each later one adds a spot, and right-click or Esc stops there, keeping the
   ones placed. Right-click or Esc before the first click cancels. Right-click on the key removes the card from the world.
   The card's menu also has **Show in the world** and **Remove from the world**.
@@ -53,8 +55,8 @@ plan show what the machines are doing.
   from any other card, in any plan (`ui/world/WorldLinks`, `Node.worldLinks`: {dim, x, y, z, facing}, facing 0 south,
   1 west, 2 north, 3 east; placements saved before facing face south).
 - From the world: the Link key (L) opens the planner in link mode (`ui/world/LinkTarget`) for the placed spot under
-  the crosshair, or else the spot in front of the face looked at; clicking a card places it there alone, facing you,
-  clicking the card already there removes it, Esc cancels.
+  the crosshair, or else the spot in front of the face looked at; clicking a card places it there alone, facing you (a
+  multiblock standing on an empty spot, as above), clicking the card already there removes it, Esc cancels.
 - Placements are saved with the plan, never copied with it, and undo like any edit, but are not changes to the plan:
   nothing re-solves and the minimap stays current.
 
@@ -73,11 +75,15 @@ Nothing shows until a card of the plan last open is placed.
 - Each placed spot shows a ghost of the card's machine, see-through and behind real blocks. A GregTech multiblock shows
   its whole structure (`ui/gt/StructureGhosts`): built from its definition in BlockRenderer6343's fake world, as the
   card's picture is, once per machine and kept, then drawn block by block each frame against that world (so casings
-  join and only outside faces draw), turned to the spot's facing. A block of the structure already standing in the
-  world, the same block (and meta, but a machine's), is left out, so a structure half built shows what is left to
-  build. Anything else shows its own block model, not when the machine is built there already. Display lists do not
-  work here under Angelica (they come out invisible), hence drawing each frame.
-- The card sits on its spot, over the top of the structure for a multiblock, drawn as the board draws it
+  join and only outside faces draw), turned to the spot's facing. It is drawn in two passes: every structure's nearest
+  faces into the depth buffer first, then its colour where that depth is its own, so a structure shows as one solid
+  see-through shape, never its insides through its walls, and a ghost in front hides the one behind (the depth stays,
+  as a real block's would). Transparent texels are left out of both passes: GregTech draws a controller's front as
+  mostly transparent overlays over the casing, and the constant alpha would paint their hidden colour. A block of the
+  structure already standing in the world, the same block (and meta, but a machine's), is left out, so a structure
+  half built shows what is left to build. Anything else shows its own block model, not when the machine is built there
+  already. Display lists do not work here under Angelica (they come out invisible), hence drawing each frame.
+- The card sits in the middle of its spot, or of its structure for a multiblock, drawn as the board draws it
   (`ui/card/CleanCardView`), with nothing to press. A card placed on several spots shows the card and its wires at the
   first; the others show the ghost alone. A card is drawn at a little over half the board's size within ten blocks of
   you and shrinks with distance beyond (always the whole card).
@@ -86,10 +92,10 @@ Nothing shows until a card of the plan last open is placed.
   or down, which costs most), with a line from its nearest edge to the middle of its spot, ending in a small pin. A
   card goes home again once that is clear by a good margin, and moves in a quick ease, never a glide; where it was is
   kept, so turning away and back finds the same arrangement.
-- The crosshair is on a card when it is over the card itself or meets its spot (its ghost), through blocks: the card is
-  highlighted, drawn over the others, its spot outlined, and the minimap highlights it and glides to it.
+- The crosshair is on a card when it is over the card itself or meets its spot or structure (its ghost), through
+  blocks: the card is highlighted, drawn over the others, its spot or whole structure outlined, and the minimap highlights it and glides to it.
 - The plan's wires between placed cards are drawn flat on the screen as the board draws them, from where they leave
-  one spot to where they meet the other (cut short at the camera): a thick line in the resource's colour on a dark
+  one spot or structure to where they meet the other (cut short at the camera): a thick line in the resource's colour on a dark
   edge, with many small arrowheads drifting slowly towards the card fed (set out in the world, two fifths of a block apart at two
   thirds of a block a second, so their pace holds as you move; all the way from end to end, fading in and out over a
   third of a block at each; they stop growing early as you come close), faint where nothing flows yet. Several wires between

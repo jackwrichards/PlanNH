@@ -63,8 +63,10 @@ public final class PlanOverlay {
         final int x, y, z, facing;
         /** The card's first spot: the one its card stands over and its wires run from. */
         final boolean main;
-        /** Where the card stands: its spot's middle, or over the top of its structure. */
+        /** Where the card stands: the middle of its spot, or of its structure. */
         final double[] home;
+        /** What it fills in the world, its spot or its structure: {x0, y0, z0, x1, y1, z1}. */
+        final double[] box;
         double distance;
         /**
          * Where the card's centre would be on the screen, on its spot; its spot's centre; its scale and size there; and
@@ -79,13 +81,8 @@ public final class PlanOverlay {
             this.z = at[3];
             this.facing = WorldLinks.facing(at);
             this.main = main;
-            final com.gtnhplanner.ui.gt.StructureGhosts.Ghost g = com.gtnhplanner.ui.gt.StructureGhosts
-                .peek(card.machine());
-            if (g == null) home = new double[] { x + 0.5, y + 0.5, z + 0.5 };
-            else {
-                final double[] top = g.top(facing);
-                home = new double[] { x + 0.5 + top[0], y + top[1] + 0.4, z + 0.5 + top[2] };
-            }
+            box = WorldMarks.extent(card.machine(), x, y, z, facing);
+            home = new double[] { (box[0] + box[3]) / 2, (box[1] + box[4]) / 2, (box[2] + box[5]) / 2 };
         }
 
         boolean covers(final float px, final float py) {
@@ -154,7 +151,7 @@ public final class PlanOverlay {
         final EntityLivingBase eye = mc.renderViewEntity;
         final List<Placed> list = new ArrayList<>();
         for (final Placed p : all) {
-            final double dx = p.x + 0.5 - eye.posX, dy = p.y + 0.5 - eye.posY, dz = p.z + 0.5 - eye.posZ;
+            final double dx = p.home[0] - eye.posX, dy = p.home[1] - eye.posY, dz = p.home[2] - eye.posZ;
             p.distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
             if (p.distance <= range) list.add(p);
         }
@@ -173,7 +170,7 @@ public final class PlanOverlay {
         final net.minecraft.util.Vec3 from = mc.renderViewEntity.getPosition(1f), dir = mc.renderViewEntity.getLook(1f);
         double first = PlannerSettings.arRange();
         for (final Placed p : placed(mc)) {
-            final double t = WorldLinks.enter(from, dir, p.x, p.y, p.z);
+            final double t = WorldLinks.enter(from, dir, p.box);
             if (t >= 0 && t < first) {
                 first = t;
                 looked = p.card.id();
@@ -202,11 +199,14 @@ public final class PlanOverlay {
         if (placed.isEmpty()) return;
         WorldMarks.begin();
         // Each placed card's spot: the machine's ghost (unless the machine is built there); the one looked at outlined.
+        // Every multiblock's depth first, so each shows its outside alone and nearer ghosts hide farther ones.
+        for (final Placed p : placed)
+            if (p.card.machine() != null) WorldMarks.ghostDepth(p.card.machine(), p.x, p.y, p.z, p.facing);
         for (final Placed p : placed) {
             if (p.card.machine() != null)
                 WorldMarks.machineGhost(p.card.machine(), p.x, p.y, p.z, p.facing, built(mc, p));
             if (p.card.id()
-                .equals(lit)) WorldMarks.outline(p.x, p.y, p.z, Hyb.LIT & 0xFFFFFF, 0.012f, 1.5f, 0.6f);
+                .equals(lit)) WorldMarks.outline(p.box, Hyb.LIT & 0xFFFFFF, 0.012f, 1.5f, 0.6f);
         }
         WorldMarks.end();
     }
@@ -383,14 +383,13 @@ public final class PlanOverlay {
     @Nullable
     private Run run(final Conn c, final float lane, final double clock, final ScaledResolution sr, final Minecraft mc,
         final PlanSnapshot snap) {
-        final double[] from = { c.from.x + 0.5, c.from.y + 0.5, c.from.z + 0.5 },
-            to = { c.to.x + 0.5, c.to.y + 0.5, c.to.z + 0.5 };
+        final double[] from = c.from.home, to = c.to.home;
         final double dx = to[0] - from[0], dy = to[1] - from[1], dz = to[2] - from[2];
         final double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        // Shown from where it leaves the one block to where it meets the other, cut short at the camera.
-        final double edge = 0.5 / Math.max(Math.abs(dx), Math.max(Math.abs(dy), Math.abs(dz)));
-        if (edge >= 0.5) return null;
-        final double[] span = inFront(from, to, edge, 1 - edge);
+        // Shown from where it leaves the one spot or structure to where it meets the other, cut short at the camera.
+        final double leave = edge(c.from.box, dx, dy, dz), meet = edge(c.to.box, dx, dy, dz);
+        if (leave + meet >= 1) return null;
+        final double[] span = inFront(from, to, leave, 1 - meet);
         if (span == null) return null;
         final float[] sa = screen(along(from, to, span[0]), sr, mc), sb = screen(along(from, to, span[1]), sr, mc);
         final double[] middle = along(from, to, (span[0] + span[1]) / 2);
@@ -451,6 +450,15 @@ public final class PlanOverlay {
 
     private static double[] along(final double[] a, final double[] b, final double t) {
         return new double[] { a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t };
+    }
+
+    /** Where a wire from end to end by (dx, dy, dz) leaves a box centred on its end, as a share of the wire. */
+    private static double edge(final double[] box, final double dx, final double dy, final double dz) {
+        final double[] half = { (box[3] - box[0]) / 2, (box[4] - box[1]) / 2, (box[5] - box[2]) / 2 },
+            d = { Math.abs(dx), Math.abs(dy), Math.abs(dz) };
+        double t = Double.MAX_VALUE;
+        for (int k = 0; k < 3; k++) if (d[k] > 1e-9) t = Math.min(t, half[k] / d[k]);
+        return t;
     }
 
     /**

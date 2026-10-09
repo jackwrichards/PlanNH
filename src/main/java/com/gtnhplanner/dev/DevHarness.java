@@ -394,8 +394,11 @@ public final class DevHarness {
                 return onClient(() -> {
                     final net.minecraft.entity.player.EntityPlayer p = net.minecraft.client.Minecraft
                         .getMinecraft().thePlayer;
-                    p.rotationYaw = p.prevRotationYaw = Float.parseFloat(q.getOrDefault("yaw", "0"));
-                    p.rotationPitch = p.prevRotationPitch = Float.parseFloat(q.getOrDefault("pitch", "0"));
+                    // Neither given: only says where the player is and looks, to turn them back after.
+                    if (q.containsKey("yaw") || q.containsKey("pitch")) {
+                        p.rotationYaw = p.prevRotationYaw = Float.parseFloat(q.getOrDefault("yaw", "0"));
+                        p.rotationPitch = p.prevRotationPitch = Float.parseFloat(q.getOrDefault("pitch", "0"));
+                    }
                     return Map
                         .of("yaw", p.rotationYaw, "pitch", p.rotationPitch, "x", p.posX, "y", p.posY, "z", p.posZ);
                 });

@@ -126,13 +126,21 @@ public final class WorldView {
         if (picking == null && shown == null && looked == null) return;
         WorldMarks.begin();
         if (picking != null) {
-            // Where the card would go: the machine's ghost in front of the face looked at.
-            final MovingObjectPosition hit = mc.objectMouseOver;
-            if (hit != null && hit.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK) {
-                final int[] at = WorldLinks.inFront(hit);
-                if (LinkPicker.machine() != null)
-                    WorldMarks.machineGhost(LinkPicker.machine(), at[0], at[1], at[2], LinkPicker.facing(), false);
-                WorldMarks.outline(at[0], at[1], at[2], Hyb.LIT & 0xFFFFFF, 0.004f, 1.5f, 0.6f);
+            // Where the card would go: the machine's ghost in front of the face looked at, a multiblock standing on it.
+            final MovingObjectPosition hit = LinkPicker.aim();
+            if (hit != null) {
+                final int[] at = LinkPicker.spot(hit);
+                final net.minecraft.item.ItemStack machine = LinkPicker.machine();
+                if (machine != null) {
+                    WorldMarks.ghostDepth(machine, at[0], at[1], at[2], LinkPicker.facing());
+                    WorldMarks.machineGhost(machine, at[0], at[1], at[2], LinkPicker.facing(), false);
+                }
+                WorldMarks.outline(
+                    WorldMarks.extent(machine, at[0], at[1], at[2], LinkPicker.facing()),
+                    Hyb.LIT & 0xFFFFFF,
+                    0.004f,
+                    1.5f,
+                    0.6f);
             }
         }
         if (shown != null) {

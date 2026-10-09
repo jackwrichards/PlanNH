@@ -68,10 +68,15 @@ final class StructureGhostBuilder {
     }
 
     /**
-     * Draws a ghost with its controller on the block at (x, y, z), its front turned to {@code facing}: see-through by
-     * a constant alpha, behind real blocks, leaving out every block already built in the world.
+     * Draws a ghost with its controller on the block at (x, y, z), its front turned to {@code facing}, leaving out
+     * every
+     * block already built in the world. With {@code depthOnly}, only its depth (the first pass, see
+     * {@link StructureGhosts#depth}); otherwise its colour where that depth is its own: the outside alone, see-through
+     * by a constant alpha, behind real blocks. Transparent texels are left out of both: GregTech's overlays are mostly
+     * transparent, and the constant alpha would otherwise paint their hidden colour.
      */
-    static void draw(final StructureGhosts.Ghost ghost, final int x, final int y, final int z, final int facing) {
+    static void draw(final StructureGhosts.Ghost ghost, final int x, final int y, final int z, final int facing,
+        final boolean depthOnly) {
         final Built built = (Built) ghost.built();
         final World real = Minecraft.getMinecraft().theWorld;
         Minecraft.getMinecraft()
@@ -84,11 +89,18 @@ final class StructureGhostBuilder {
         GL11.glEnable(GL11.GL_CULL_FACE);
         GL11.glEnable(GL11.GL_DEPTH_TEST);
         GL11.glDepthFunc(GL11.GL_LEQUAL);
-        GL11.glDepthMask(false);
         GL11.glDisable(GL11.GL_LIGHTING);
-        GL11.glEnable(GL11.GL_BLEND);
-        org.lwjgl.opengl.GL14.glBlendColor(1, 1, 1, 0.5f);
-        GL11.glBlendFunc(0x8003, 0x8004); // GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA
+        GL11.glEnable(GL11.GL_ALPHA_TEST);
+        GL11.glAlphaFunc(GL11.GL_GREATER, 0.1f);
+        if (depthOnly) {
+            GL11.glColorMask(false, false, false, false);
+            GL11.glDepthMask(true);
+        } else {
+            GL11.glDepthMask(false);
+            GL11.glEnable(GL11.GL_BLEND);
+            org.lwjgl.opengl.GL14.glBlendColor(1, 1, 1, 0.5f);
+            GL11.glBlendFunc(0x8003, 0x8004); // GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA
+        }
         GL11.glColor4f(1, 1, 1, 1);
         final Tessellator t = Tessellator.instance;
         final TrackedDummyWorld world = built.world();
@@ -117,6 +129,9 @@ final class StructureGhostBuilder {
             }
         } finally {
             t.setTranslation(0, 0, 0);
+            GL11.glColorMask(true, true, true, true);
+            GL11.glDepthMask(false);
+            GL11.glDisable(GL11.GL_ALPHA_TEST);
             GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             GL11.glDisable(GL11.GL_CULL_FACE);
             GL11.glDisable(GL11.GL_TEXTURE_2D);

@@ -186,15 +186,20 @@ public final class WorldLinks {
     /** Where a ray enters a block's cube, as a distance along it, or -1 when it misses. */
     static double enter(final net.minecraft.util.Vec3 o, final net.minecraft.util.Vec3 d, final int x, final int y,
         final int z) {
+        return enter(o, d, new double[] { x, y, z, x + 1, y + 1, z + 1 });
+    }
+
+    /** Where a ray enters a box {x0, y0, z0, x1, y1, z1}, as a distance along it, or -1 when it misses. */
+    static double enter(final net.minecraft.util.Vec3 o, final net.minecraft.util.Vec3 d, final double[] box) {
         double near = 0, far = Double.MAX_VALUE;
         final double[] origin = { o.xCoord, o.yCoord, o.zCoord }, dir = { d.xCoord, d.yCoord, d.zCoord };
-        final int[] lo = { x, y, z };
         for (int k = 0; k < 3; k++) {
+            final double lo = box[k], hi = box[k + 3];
             if (Math.abs(dir[k]) < 1e-9) {
-                if (origin[k] < lo[k] || origin[k] > lo[k] + 1) return -1;
+                if (origin[k] < lo || origin[k] > hi) return -1;
                 continue;
             }
-            double t1 = (lo[k] - origin[k]) / dir[k], t2 = (lo[k] + 1 - origin[k]) / dir[k];
+            double t1 = (lo - origin[k]) / dir[k], t2 = (hi - origin[k]) / dir[k];
             if (t1 > t2) {
                 final double t = t1;
                 t1 = t2;

@@ -72,8 +72,13 @@ final class WorldMarks {
     /** {@link #outline} at a fraction of its strength. */
     static void outline(final int x, final int y, final int z, final int rgb, final float grow, final float width,
         final float strength) {
-        final double x0 = x - grow, y0 = y - grow, z0 = z - grow, x1 = x + 1 + grow, y1 = y + 1 + grow,
-            z1 = z + 1 + grow;
+        outline(new double[] { x, y, z, x + 1, y + 1, z + 1 }, rgb, grow, width, strength);
+    }
+
+    /** {@link #outline} of a box {x0, y0, z0, x1, y1, z1}: a whole structure's. */
+    static void outline(final double[] box, final int rgb, final float grow, final float width, final float strength) {
+        final double x0 = box[0] - grow, y0 = box[1] - grow, z0 = box[2] - grow, x1 = box[3] + grow, y1 = box[4] + grow,
+            z1 = box[5] + grow;
         GL11.glLineWidth(width);
         GL11.glDisable(GL11.GL_DEPTH_TEST);
         box(x0, y0, z0, x1, y1, z1, rgb, 0.06f * strength);
@@ -124,14 +129,38 @@ final class WorldMarks {
     }
 
     /**
+     * What a machine placed on (x, y, z) facing that way fills: its block, or its whole structure once its ghost is
+     * built. {x0, y0, z0, x1, y1, z1}.
+     */
+    static double[] extent(@javax.annotation.Nullable final net.minecraft.item.ItemStack machine, final int x,
+        final int y, final int z, final int facing) {
+        final com.gtnhplanner.ui.gt.StructureGhosts.Ghost structure = com.gtnhplanner.ui.gt.StructureGhosts
+            .peek(machine);
+        final double[] b = structure == null ? new double[] { 0, 0, 0, 1, 1, 1 } : structure.box(facing);
+        return new double[] { x + b[0], y + b[1], z + b[2], x + b[3], y + b[4], z + b[5] };
+    }
+
+    /**
+     * A machine's ghost's first pass: a multiblock's nearest faces into the depth buffer (see
+     * {@link com.gtnhplanner.ui.gt.StructureGhosts#depth}); nothing for a single block. Every ghost's before any's
+     * {@link #machineGhost}.
+     */
+    static void ghostDepth(final net.minecraft.item.ItemStack machine, final int x, final int y, final int z,
+        final int facing) {
+        final com.gtnhplanner.ui.gt.StructureGhosts.Ghost structure = com.gtnhplanner.ui.gt.StructureGhosts
+            .get(machine);
+        if (structure != null) com.gtnhplanner.ui.gt.StructureGhosts.depth(structure, x, y, z, facing);
+    }
+
+    /**
      * A placed machine's ghost: its whole structure, turned to {@code facing}, when it is a GregTech multiblock that
-     * can be ghosted; else its block, unless {@code builtHere}.
+     * can be ghosted (its outside, after {@link #ghostDepth}); else its block, unless {@code builtHere}.
      */
     static void machineGhost(final net.minecraft.item.ItemStack machine, final int x, final int y, final int z,
         final int facing, final boolean builtHere) {
         final com.gtnhplanner.ui.gt.StructureGhosts.Ghost structure = com.gtnhplanner.ui.gt.StructureGhosts
             .get(machine);
-        if (structure != null) com.gtnhplanner.ui.gt.StructureGhosts.draw(structure, x, y, z, facing);
+        if (structure != null) com.gtnhplanner.ui.gt.StructureGhosts.colour(structure, x, y, z, facing);
         else if (!builtHere) ghost(machine, x, y, z);
     }
 
