@@ -115,6 +115,15 @@ public final class StructureGhosts {
         return made;
     }
 
+    /** A ghost's blocks, each {dx, dy, dz} from the controller with its front to the south; empty if unknown. */
+    public static java.util.List<int[]> blocks(final Ghost ghost) {
+        try {
+            return StructureGhostBuilder.blocks(ghost);
+        } catch (final LinkageError | RuntimeException e) {
+            return java.util.List.of();
+        }
+    }
+
     /**
      * How far above a picked spot a machine's controller goes so the structure's bottom stands on it: 0 for anything
      * without a ghost built yet.

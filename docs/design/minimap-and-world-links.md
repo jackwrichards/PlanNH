@@ -128,8 +128,10 @@ Nothing shows until a card of the plan last open is placed.
   kept, so turning away and back finds the same arrangement.
 - The crosshair is on a card when it is over the card itself or meets its spot or structure (its ghost), through
   blocks: the card is highlighted, drawn over the others, its spot or whole structure outlined, and the minimap highlights it and glides to it.
-- The plan's wires between placed cards are drawn flat on the screen as the board draws them, from where they leave
-  one spot or structure to where they meet the other (cut short at the camera): a thick line in the resource's colour on a dark
+- The plan's wires between placed cards are drawn flat on the screen as the board draws them, between the block of
+  the one nearest the other and the block of the other nearest that (a structure's own blocks, so a wire leaves from
+  the side toward where it goes and meets the near side of where it arrives), from where it leaves the one block to
+  where it meets the other (cut short at the camera): a thick line in the resource's colour on a dark
   edge, with many small arrowheads drifting slowly towards the card fed (set out in the world, two fifths of a block apart at two
   thirds of a block a second, so their pace holds as you move; all the way from end to end, fading in and out over a
   third of a block at each; they stop growing early as you come close), faint where nothing flows yet. Several wires between

@@ -69,6 +69,11 @@ final class StructureGhostBuilder {
 
     private StructureGhostBuilder() {}
 
+    /** A built ghost's blocks, each {dx, dy, dz} from the controller, its front to the south. */
+    static List<int[]> blocks(final StructureGhosts.Ghost ghost) {
+        return ((Built) ghost.built()).blocks();
+    }
+
     @javax.annotation.Nullable
     private static Sizing sizing(final int meta) {
         final Object machine = GregTechAPI.METATILEENTITIES[meta];

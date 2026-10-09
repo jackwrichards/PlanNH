@@ -535,11 +535,13 @@ public final class PlanOverlay {
     @Nullable
     private Run run(final Conn c, final float lane, final double clock, final ScaledResolution sr, final Minecraft mc,
         final PlanSnapshot snap) {
-        final double[] from = c.from.home, to = c.to.home;
+        // From the block of the one nearest the other to the block of the other nearest that: a structure's wire
+        // leaves from its side toward where it goes, and meets the near side of where it arrives.
+        final double[] start = nearest(c.from, c.to.home), to = nearest(c.to, start), from = nearest(c.from, to);
         final double dx = to[0] - from[0], dy = to[1] - from[1], dz = to[2] - from[2];
         final double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        // Shown from where it leaves the one spot or structure to where it meets the other, cut short at the camera.
-        final double leave = edge(c.from.box, dx, dy, dz), meet = edge(c.to.box, dx, dy, dz);
+        // Shown from where it leaves the one block to where it meets the other, cut short at the camera.
+        final double leave = blockEdge(dx, dy, dz), meet = leave;
         if (leave + meet >= 1) return null;
         final double[] span = inFront(from, to, leave, 1 - meet);
         if (span == null) return null;
@@ -604,13 +606,51 @@ public final class PlanOverlay {
         return new double[] { a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t };
     }
 
-    /** Where a wire from end to end by (dx, dy, dz) leaves a box centred on its end, as a share of the wire. */
-    private static double edge(final double[] box, final double dx, final double dy, final double dz) {
-        final double[] half = { (box[3] - box[0]) / 2, (box[4] - box[1]) / 2, (box[5] - box[2]) / 2 },
-            d = { Math.abs(dx), Math.abs(dy), Math.abs(dz) };
-        double t = Double.MAX_VALUE;
-        for (int k = 0; k < 3; k++) if (d[k] > 1e-9) t = Math.min(t, half[k] / d[k]);
-        return t;
+    /** Where a wire from end to end by (dx, dy, dz) leaves a block centred on its end, as a share of the wire. */
+    private static double blockEdge(final double dx, final double dy, final double dz) {
+        return 0.5 / Math.max(1e-9, Math.max(Math.abs(dx), Math.max(Math.abs(dy), Math.abs(dz))));
+    }
+
+    /** Each placement's blocks' middles in the world, by its structure and where it is; kept from frame to frame. */
+    @Nullable
+    private Map<String, double[][]> cells;
+
+    /** The middle of a placement's block nearest a point: one of its structure's, or its own block. */
+    private double[] nearest(final Placed p, final double[] to) {
+        final double[][] all = cells(p);
+        double[] best = all[0];
+        double bestD = Double.MAX_VALUE;
+        for (final double[] c : all) {
+            final double dx = c[0] - to[0], dy = c[1] - to[1], dz = c[2] - to[2];
+            final double d = dx * dx + dy * dy + dz * dz;
+            if (d < bestD) {
+                bestD = d;
+                best = c;
+            }
+        }
+        return best;
+    }
+
+    private double[][] cells(final Placed p) {
+        if (cells == null || cells.size() > 512) cells = new HashMap<>();
+        final com.gtnhplanner.ui.gt.StructureGhosts.Ghost g = com.gtnhplanner.ui.gt.StructureGhosts
+            .peek(p.card.machine(), p.card.needs(), p.size);
+        final String key = System.identityHashCode(g) + " " + p.x + " " + p.y + " " + p.z + " " + p.facing;
+        final double[][] known = cells.get(key);
+        if (known != null) return known;
+        final List<int[]> blocks = g == null ? List.of() : com.gtnhplanner.ui.gt.StructureGhosts.blocks(g);
+        final double[][] out;
+        if (blocks.isEmpty()) out = new double[][] { { p.x + 0.5, p.y + 0.5, p.z + 0.5 } };
+        else {
+            out = new double[blocks.size()][];
+            for (int i = 0; i < out.length; i++) {
+                final int[] b = blocks.get(i);
+                final int[] at = com.gtnhplanner.ui.gt.StructureGhosts.turn(b[0], b[2], p.facing);
+                out[i] = new double[] { p.x + at[0] + 0.5, p.y + b[1] + 0.5, p.z + at[1] + 0.5 };
+            }
+        }
+        cells.put(key, out);
+        return out;
     }
 
     /**
