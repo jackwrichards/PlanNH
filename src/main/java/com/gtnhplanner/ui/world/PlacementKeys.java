@@ -164,86 +164,57 @@ public final class PlacementKeys {
         WorldMarks.end();
     }
 
-    /** One line of the keys list: the keys, and what they do. */
+    /** One line of the keys list: the keys, what they do, and whether they do anything now. */
     private record Item(String key, String what, boolean live) {}
 
     /**
-     * The keys, plainly, one to a line, under the minimap (or in its corner when it is off): always while the plan is
-     * over the world, else while a placed machine is looked at. The machine lit (or in hand) heads them; the lines that
-     * act on it are dim while there is none.
+     * The keys, one word each, in a strip joined to the minimap's edge and as wide as it (in its corner when it is
+     * off): always while the plan is over the world, else while a placed machine is looked at. The lines for the lit
+     * machine are dim while none is lit; Focus is gold while on.
      */
     @SubscribeEvent
     public void onOverlay(final RenderGameOverlayEvent.Post event) {
         if (event.type != RenderGameOverlayEvent.ElementType.ALL) return;
         final Minecraft mc = Minecraft.getMinecraft();
         if (mc.currentScreen != null || mc.gameSettings.hideGUI || LinkPicker.active()) return;
-        final boolean held = link != null && adjusting();
-        final WorldLinks.Spot spot = held ? null : target();
-        if (!held && spot == null && !PlanOverlay.on()) return;
-        final boolean some = held || spot != null;
-        String title = null;
-        if (some) {
-            final Node n = held ? node
-                : spot.hit()
-                    .node();
-            final Graph g = held ? graph
-                : spot.hit()
-                    .graph();
-            final PlanSnapshot snap = PlanSnapshot.latest();
-            final PlanSnapshot.Card card = snap == null || snap.graph() != g ? null : snap.cardOf(n.id);
-            final int[] at = held ? link : find(n, spot);
-            final StructureGhosts.Ghost ghost = card == null || at == null ? null
-                : StructureGhosts.peek(card.machine(), card.needs(), WorldLinks.size(at));
-            title = WorldView.cardName(n) + (ghost == null ? "" : "  " + LinkPicker.dimensions(ghost));
-        }
+        final boolean some = link != null && adjusting() || target() != null;
+        if (!some && !PlanOverlay.on()) return;
         final String shift = keyName(mc.gameSettings.keyBindSneak.getKeyCode()) + " + ";
+        final boolean focus = com.gtnhplanner.ui.PlannerSettings.arFocus();
         final java.util.List<Item> items = java.util.List.of(
-            new Item(shift + "R", "Turn the highlighted machine", some),
-            new Item(shift + "G", "Pick up and move it", some),
-            new Item(shift + "Del", "Remove it from the world", some),
-            new Item(
-                shift + "Y",
-                com.gtnhplanner.ui.PlannerSettings.arFocus() ? "Show every card" : "Show only cards you look at",
-                true));
+            new Item(shift + "R", "Rotate", some),
+            new Item(shift + "G", "Pick up", some),
+            new Item(shift + "Del", "Remove", some),
+            new Item(shift + "Y", "Focus", true));
 
         final ScaledResolution sr = event.resolution;
         final int[] map = Minimap.bounds(sr);
-        float keysW = 0, whatW = title == null ? 0 : Hyb.width(title);
-        for (final Item it : items) {
-            keysW = Math.max(keysW, Hyb.width(it.key()));
-            whatW = Math.max(whatW, Hyb.width(it.what()));
-        }
-        final int column = (int) keysW + 8;
-        final int w = Math.min(sr.getScaledWidth() - 12, (int) Math.max(column + whatW, whatW) + 10);
-        final int rowH = 10, h = (title == null ? 0 : rowH + 2) + items.size() * rowH + 6;
-        final boolean right = map == null || map[0] > sr.getScaledWidth() / 2;
+        final int rowH = 10, h = items.size() * rowH + 5;
+        final int w = map == null ? 110 : map[2];
         final boolean below = map == null || map[1] < sr.getScaledHeight() / 2;
-        final float x = map == null ? sr.getScaledWidth() - 6 - w : right ? map[0] + map[2] - w : map[0];
-        final float y = map == null ? 6 : below ? map[1] + map[3] + 14 : map[1] - h - 6;
+        final float x = map == null ? sr.getScaledWidth() - 6 - w : map[0];
+        final float y = map == null ? 6 : below ? map[1] + map[3] : map[1] - h;
+        float keysW = 0;
+        for (final Item it : items) keysW = Math.max(keysW, Hyb.width(it.key()));
         GL11.glPushMatrix();
         GL11.glDisable(GL11.GL_LIGHTING);
-        Hyb.rect(x, y, w, h, 0x70000000);
-        float ry = y + 3;
-        if (title != null) {
-            Hyb.text(Hyb.fit(title, w - 10), x + 5, ry, held ? Hyb.GOLD : 0xD0E8C878);
-            ry += rowH + 2;
-        }
+        // As the minimap's frame: its edge, a dark line, then the fill.
+        Hyb.rect(x, y, w, h, 0xFF3C3E45);
+        Hyb.rect(x + 1, below ? y : y + 1, w - 2, h - 1, 0xFF1D1F23);
+        Hyb.rect(x + 2, below ? y : y + 2, w - 4, h - 2, 0xE0141414);
+        float ry = y + (below ? 2 : 4);
         for (final Item it : items) {
-            final int key = it.live() ? 0xD0D8DADF : 0x60D8DADF, what = it.live() ? 0xC09A9CA4 : 0x509A9CA4;
-            Hyb.text(it.key(), x + 5, ry, key);
-            Hyb.text(Hyb.fit(it.what(), w - column - 10), x + 5 + column, ry, what);
+            final boolean on = focus && it.what()
+                .equals("Focus");
+            final int key = on ? Hyb.GOLD : it.live() ? 0xFFC8CAD0 : 0x70C8CAD0;
+            final int what = on ? Hyb.GOLD : it.live() ? Hyb.MUTED : 0x709A9CA4;
+            Hyb.text(it.key(), x + 6, ry, key);
+            Hyb.text(it.what(), x + 6 + keysW + 8, ry, what);
             ry += rowH;
         }
         GL11.glPopMatrix();
         GL11.glColor4f(1, 1, 1, 1);
         GL11.glEnable(GL11.GL_TEXTURE_2D);
-    }
-
-    /** The looked-at spot's placement, or null. */
-    @Nullable
-    private static int[] find(final Node n, final WorldLinks.Spot spot) {
-        for (final int[] l : n.worldLinks) if (l[1] == spot.x() && l[2] == spot.y() && l[3] == spot.z()) return l;
-        return null;
     }
 
     /** A key's name as people say it: Ctrl, Shift, Alt, else the game's. */

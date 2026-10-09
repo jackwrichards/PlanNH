@@ -63,10 +63,10 @@ plan show what the machines are doing.
   ghost (`PlanOverlay.highlighted`); with the overlay off, the placed block looked at. Moving is picking up and putting
   down only, so the minimap keeps its arrows and [ ]. Sneak rather than a binding of ours: in 1.7.10 a key drives one
   binding, so one on Shift would take it from sneaking; held is its binding pressed or its key down.
-- The keys are listed plainly under the minimap (in its corner when it is off), one to a line, always while the plan
-  is over the world and else while a placed machine is looked at: the lit machine's name and size, then "Shift + R
-  Turn the highlighted machine", "Shift + G Pick up and move it", "Shift + Del Remove it from the world", "Shift + Y
-  Show only cards you look at" (or "Show every card"). The lines for the lit machine are dim while none is lit.
+- The keys are listed in a strip joined to the minimap's edge, as wide as it and framed as it (in its corner when
+  it is off), always while the plan is over the world and else while a placed machine is looked at, one word each:
+  Shift + R Rotate, Shift + G Pick up, Shift + Del Remove, Shift + Y Focus. The first three are dim while no machine is
+  lit; Focus is gold while it is on.
 - While a machine is being placed or moved, the plan over the world stays: its card and wires go where it would be put
   down, following the crosshair as a card being dragged on the board, and the rest stay where they are; where it was
   is empty while it is in hand (all of a card's spots for its first placing, the one picked up for a move).
@@ -87,7 +87,7 @@ plan show what the machines are doing.
 ## 5. The plan over the world (AR)
 
 `ui/world/PlanOverlay`, toggled with Y and in the settings ("Show the plan over the world (AR)", "How far to show it").
-Shift+Y (or "Cards only where you look" in the settings) shows a card only while you look at or near its machine: whole
+Shift+Y, Focus (or "Cards only where you look" in the settings), shows a card only while you look at or near its machine: whole
 with the crosshair within 28 GUI pixels of the machine's outline on the screen, fading out smoothly to nothing at 150,
 easing in and out over a few frames; a wire shows as much as the more shown of its two cards. The card in hand and the
 card looked at always show. Cards are faded whole through `Hyb.fadeOut`, which every colour, text and picture `Hyb`
