@@ -1,6 +1,5 @@
 package com.gtnhplanner;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraftforge.client.ClientCommandHandler;
 import net.minecraftforge.common.MinecraftForge;
@@ -11,7 +10,6 @@ import com.gtnhplanner.client.ChatHandler;
 import com.gtnhplanner.client.ImportCommand;
 import com.gtnhplanner.client.WorldHandler;
 import com.gtnhplanner.dev.DevHarness;
-import com.gtnhplanner.layout.AutoLayout;
 
 import cpw.mods.fml.client.registry.ClientRegistry;
 import cpw.mods.fml.common.FMLCommonHandler;
@@ -68,9 +66,6 @@ public class ClientProxy extends CommonProxy {
         FMLCommonHandler.instance()
             .bus()
             .register(this);
-
-        Minecraft.getMinecraft()
-            .func_152344_a(AutoLayout::warmup);
 
         DevHarness.initIfDev();
     }

@@ -6,9 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.gtnhplanner.data.flowchart.Edge;
-import com.gtnhplanner.layout.AutoLayout;
-import com.gtnhplanner.layout.BoardArrange;
 import com.gtnhplanner.layout.RouteMetrics;
 import com.gtnhplanner.layout.WireRouter;
 
@@ -86,30 +83,83 @@ public final class BenchRun {
         return RouteMetrics.measure(boxes, wires);
     }
 
-    /** A board item for the layout: its size, its ports, and where on it each port sits (a card's rows). */
-    private record Node(UUID id, String machineName, int worldWidth, int worldHeight, int inputCount, int outputCount)
-        implements AutoLayout.LayoutNode {
+    private static final int[] STAGE = { -1 };
+    private static final String[] STAGE_NAME = { "" };
 
-        @Override
-        public int portY(final boolean output, final int index) {
-            return BenchBoard.RAILS_Y + index * BenchBoard.ROW + BenchBoard.ROW / 2;
+    /**
+     * The board as Arrange leaves it (layout/arrange, judged by the board's router), how long that took, and which
+     * candidate won. -Pstages prints when each stage starts.
+     */
+    public static BenchBoard arrangeNew(final BenchBoard board, final double[] millis, final String[] chosen) {
+        final List<com.gtnhplanner.layout.arrange.ArrangeCard> cards = new ArrayList<>();
+        final Map<UUID, BenchBoard.Item> byId = board.byId();
+        for (final BenchBoard.Item i : board.items()) cards.add(
+            new com.gtnhplanner.layout.arrange.ArrangeCard(
+                i.id()
+                    .toString(),
+                i.x(),
+                i.y(),
+                i.w(),
+                i.h(),
+                i.drawer()));
+        final List<com.gtnhplanner.layout.arrange.ArrangeWire> wires = new ArrayList<>();
+        for (final BenchBoard.Link l : board.links()) {
+            final BenchBoard.Item a = byId.get(l.from()), b = byId.get(l.to());
+            wires.add(
+                new com.gtnhplanner.layout.arrange.ArrangeWire(
+                    l.id()
+                        .toString(),
+                    l.from()
+                        .toString(),
+                    l.to()
+                        .toString(),
+                    a.drawer() ? null
+                        : (double) (BenchBoard.RAILS_Y + l.fromPort() * BenchBoard.ROW + BenchBoard.ROW / 2),
+                    b.drawer() ? null
+                        : (double) (BenchBoard.RAILS_Y + l.toPort() * BenchBoard.ROW + BenchBoard.ROW / 2),
+                    null,
+                    null));
         }
-    }
-
-    /** The board as Arrange leaves it (BoardCanvas.arrange), and how long that took. */
-    public static BenchBoard arrange(final BenchBoard board, final double[] millis) {
-        final List<BoardArrange.Box> boxes = new ArrayList<>();
-        for (final BenchBoard.Item i : board.items()) boxes.add(
-            new BoardArrange.Box(
-                new Node(i.id(), i.label(), i.w(), i.h(), i.ins(), i.outs()),
-                i.drawer(),
-                i.drawer() && i.supplies()));
-        final List<Edge> links = new ArrayList<>();
-        for (final BenchBoard.Link l : board.links())
-            links.add(new Edge(l.id(), l.from(), l.to(), l.fromPort(), l.toPort()));
+        final boolean stages = Boolean.getBoolean("gtnhplanner.stages");
         final long t0 = System.nanoTime();
-        final Map<UUID, int[]> at = BoardArrange.arrange(boxes, links);
+        final com.gtnhplanner.layout.arrange.Arrange.Result result = com.gtnhplanner.layout.arrange.Arrange.arrange(
+            new com.gtnhplanner.layout.arrange.Arrange.Input(
+                cards,
+                wires,
+                null,
+                System.getProperty("gtnhplanner.spacing", "compact"),
+                new com.gtnhplanner.layout.arrange.RouterJudge(cards, wires),
+                null,
+                null,
+                p -> {
+                    if (stages && (p.step() != STAGE[0] || !p.stage()
+                        .equals(STAGE_NAME[0]))) {
+                        STAGE[0] = p.step();
+                        STAGE_NAME[0] = p.stage();
+                        System.out.printf(
+                            java.util.Locale.ROOT,
+                            "[stage] %-40s step %d (%s) at %8.1f ms%n",
+                            board.name(),
+                            p.step(),
+                            p.stage(),
+                            (System.nanoTime() - t0) / 1e6);
+                    }
+                },
+                null));
+        STAGE[0] = -1;
         millis[0] = (System.nanoTime() - t0) / 1e6;
+        chosen[0] = result.chosen();
+        final Map<UUID, int[]> at = new HashMap<>();
+        for (final Map.Entry<String, com.gtnhplanner.layout.arrange.Point> e : result.positions()
+            .entrySet())
+            at.put(
+                UUID.fromString(e.getKey()),
+                new int[] { (int) Math.round(
+                    e.getValue()
+                        .x()),
+                    (int) Math.round(
+                        e.getValue()
+                            .y()) });
         return board.placed(at);
     }
 }

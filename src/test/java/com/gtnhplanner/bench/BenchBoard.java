@@ -60,6 +60,90 @@ public record BenchBoard(String name, List<Item> items, List<Link> links) {
         return UUID.nameUUIDFromBytes(s.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * A board as the game had it, from the dev harness's {@code call board} (cards and drawers with their world rects,
+     * and every wire with the boxes it joins): routed exactly as the board routes it.
+     */
+    public static BenchBoard fromDump(final String name, final String json) {
+        final com.google.gson.JsonObject b = new com.google.gson.JsonParser().parse(json)
+            .getAsJsonObject();
+        final List<Item> items = new ArrayList<>();
+        final Set<String> seen = new HashSet<>();
+        for (final com.google.gson.JsonElement e : b.getAsJsonArray("cards")) {
+            final com.google.gson.JsonObject c = e.getAsJsonObject();
+            final String card = c.has("card") && !c.get("card")
+                .isJsonNull() ? c.get("card")
+                    .getAsString()
+                    : c.get("id")
+                        .getAsString();
+            if (!seen.add(card)) continue;
+            items.add(
+                new Item(
+                    UUID.fromString(card),
+                    c.get("machine")
+                        .getAsString(),
+                    false,
+                    false,
+                    c.get("x")
+                        .getAsInt(),
+                    c.get("y")
+                        .getAsInt(),
+                    c.get("w")
+                        .getAsInt(),
+                    c.get("h")
+                        .getAsInt(),
+                    0,
+                    0));
+        }
+        for (final com.google.gson.JsonElement e : b.getAsJsonArray("drawers")) {
+            final com.google.gson.JsonObject d = e.getAsJsonObject();
+            items.add(
+                new Item(
+                    UUID.fromString(
+                        d.get("id")
+                            .getAsString()),
+                    d.get("label")
+                        .getAsString(),
+                    true,
+                    "SOURCE".equals(
+                        d.get("kind")
+                            .getAsString()),
+                    d.get("x")
+                        .getAsInt(),
+                    d.get("y")
+                        .getAsInt(),
+                    d.get("w")
+                        .getAsInt(),
+                    d.get("h")
+                        .getAsInt(),
+                    0,
+                    0));
+        }
+        final List<Link> links = new ArrayList<>();
+        for (final com.google.gson.JsonElement e : b.getAsJsonArray("wires")) {
+            final com.google.gson.JsonArray w = e.getAsJsonArray();
+            String from = null, to = null, key = null;
+            for (int i = 1; i < w.size(); i++) {
+                final String v = w.get(i)
+                    .getAsString();
+                if (v.startsWith("from=")) from = v.substring(5);
+                else if (v.startsWith("to=")) to = v.substring(3);
+                else if (v.startsWith("key=")) key = v.substring(4);
+            }
+            if (from == null || to == null || key == null || "?".equals(from) || "?".equals(to)) continue;
+            links.add(
+                new Link(
+                    UUID.fromString(key),
+                    UUID.fromString(from),
+                    0,
+                    UUID.fromString(to),
+                    0,
+                    w.get(0)
+                        .getAsString()));
+        }
+        return new BenchBoard(name, items, links);
+    }
+
     /** A plan's board as the website left it. */
     public static BenchBoard fromPlan(final String name, final FfPlan plan) {
         final Map<String, FfPlan.FfRecipe> recipes = plan.recipesById();

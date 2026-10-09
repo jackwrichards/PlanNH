@@ -38,8 +38,9 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   power panel's formulas). Our card is 320 wide to its 380 with chrome kept at 1 px; the clean card replaced its
   look (`docs/design/card-redesign.md`); `ui/card/CardLayout` holds the geometry. Board tooltips are `ui/popup/Tip` panels; a multiblock's power chips show `ui/card/PowerPanel`.
 - Wires are routed by `layout/WireRouter`: exact A* on a 10 px grid with planned docks, kept per board so a change
-  re-routes only what it touched. `docs/design/routing-and-arrange.md` is its design, the benchmark it is tuned
-  against, and the plan for the Arrange overhaul (next).
+  re-routes only what it touched. Arrange is `layout/arrange/`, a port of the website's arrange (column pass,
+  optimiser, free placement, polish) judged by that router, run in the background from the top bar's key.
+  `docs/design/routing-and-arrange.md` has both designs and the benchmark they are tuned against.
 - `importer/` converts Factory Flow plans (JSON, plan codes, links) to graphs: a pure core plus `importer/game/`,
   the NEI and GregTech side. The "+" plan tab pastes one from the clipboard; `call 'importff?file=<path>'` does it
   from the harness. Fixtures are in `src/test/resources/factory-flow/`.
@@ -90,7 +91,7 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 
 - Gradle provisions the JDKs (25 for the build, JetBrains Runtime 25 for `runClient25`). Keep the checkout at a
   short path: deep Windows paths break the clone and the Minecraft dev setup (MAX_PATH).
-- `./gradlew test`: 429 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
+- `./gradlew test`: 425 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
   many over gtnh-flow YAML charts in `src/test/resources/gtnh-flow/`. About 40s, no Minecraft. `addon.gradle`
   opts `test` out of the configuration cache; without that a clean build reports `:test NO-SOURCE` and silently
   runs nothing, so if you ever see NO-SOURCE, check the count in `build/test-results/test/*.xml`.

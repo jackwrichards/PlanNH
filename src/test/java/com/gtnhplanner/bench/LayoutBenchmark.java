@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Tag;
@@ -54,11 +55,28 @@ class LayoutBenchmark {
                 rows.add(row(board, "placed", r, 0));
                 BenchRender.render(r, board.name() + " - as placed", new File(out, slug(board.name()) + "-placed.png"));
             }
-            final double[] ms = new double[1];
-            final BenchBoard arranged = BenchRun.arrange(board, ms);
-            final BenchRun.Routed r = BenchRun.route(arranged);
-            rows.add(row(board, "arranged", r, ms[0]));
-            BenchRender.render(r, board.name() + " - arranged", new File(out, slug(board.name()) + "-arranged.png"));
+            final boolean newArrange = true;
+            if (newArrange) {
+                final double[] ms = new double[1];
+                final String[] chosen = new String[1];
+                final BenchBoard arranged = BenchRun.arrangeNew(board, ms, chosen);
+                final BenchRun.Routed r = BenchRun.route(arranged);
+                rows.add(row(board, "arranged2", r, ms[0]));
+                System.out.printf(
+                    java.util.Locale.ROOT,
+                    "[arrange] %-44s %8.1f ms  chose %-10s points %8.0f  crossings %d%n",
+                    board.name(),
+                    ms[0],
+                    chosen[0],
+                    r.metrics()
+                        .points(),
+                    r.metrics()
+                        .crossings());
+                BenchRender.render(
+                    r,
+                    board.name() + " - arranged (new, " + chosen[0] + ")",
+                    new File(out, slug(board.name()) + "-arranged2.png"));
+            }
         }
         final String table = table(rows);
         Files.writeString(new File(out, "summary.md").toPath(), table, StandardCharsets.UTF_8);
@@ -97,7 +115,7 @@ class LayoutBenchmark {
         s.append("\n|---|---|---|---|");
         for (int i = 0; i < COLS.length; i++) s.append("---|");
         s.append('\n');
-        final double[][] totals = new double[2][COLS.length + 1];
+        final Map<String, double[]> totals = new java.util.LinkedHashMap<>();
         for (final Row r : rows) {
             s.append(
                 String.format(
@@ -112,21 +130,15 @@ class LayoutBenchmark {
             for (int k = 0; k < v.length; k++)
                 s.append(String.format(Locale.ROOT, k == 12 || k == 13 ? " %.1f |" : " %.0f |", v[k]));
             s.append('\n');
-            final double[] t = totals[r.mode()
-                .equals("placed") ? 0 : 1];
+            final double[] t = totals.computeIfAbsent(r.mode(), k -> new double[COLS.length + 1]);
             for (int k = 0; k < v.length; k++) t[k] += v[k];
             t[COLS.length] += r.m()
                 .wires();
         }
-        for (int i = 0; i < 2; i++) {
-            s.append(
-                String.format(
-                    Locale.ROOT,
-                    "| **total** | %s | | %.0f |",
-                    i == 0 ? "placed" : "arranged",
-                    totals[i][COLS.length]));
+        for (final Map.Entry<String, double[]> e : totals.entrySet()) {
+            s.append(String.format(Locale.ROOT, "| **total** | %s | | %.0f |", e.getKey(), e.getValue()[COLS.length]));
             for (int k = 0; k < COLS.length; k++)
-                s.append(String.format(Locale.ROOT, k == 12 || k == 13 ? " %.1f |" : " %.0f |", totals[i][k]));
+                s.append(String.format(Locale.ROOT, k == 12 || k == 13 ? " %.1f |" : " %.0f |", e.getValue()[k]));
             s.append('\n');
         }
         return s.toString();
@@ -158,6 +170,16 @@ class LayoutBenchmark {
             }
         }
         for (final String chart : GtnhFlowLoader.CORPUS) boards.add(fromChart(chart));
+        // Boards dumped from a dev game (call board > build/bench/boards/<name>.json), exactly as the game had them.
+        final File[] dumps = new File("build/bench/boards").listFiles((d, n) -> n.endsWith(".json"));
+        if (dumps != null) {
+            java.util.Arrays.sort(dumps);
+            for (final File f : dumps) boards.add(
+                BenchBoard.fromDump(
+                    "game/" + f.getName()
+                        .replace(".json", ""),
+                    Files.readString(f.toPath(), StandardCharsets.UTF_8)));
+        }
         return boards;
     }
 

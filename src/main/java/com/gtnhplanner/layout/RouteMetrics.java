@@ -95,6 +95,11 @@ public final class RouteMetrics {
     private RouteMetrics() {}
 
     public static Result measure(final List<Box> boxes, final List<Wire> wires) {
+        return measure(boxes, wires, null);
+    }
+
+    /** As {@link #measure(List, List)}, also adding to {@code crossed} (when given) every crossing as its two wires. */
+    public static Result measure(final List<Box> boxes, final List<Wire> wires, final List<int[]> crossed) {
         int crossings = 0, b45 = 0, b90 = 0, sharp = 0, shared = 0, jogs = 0, wrong = 0;
         double overlap = 0, length = 0, excess = 0, backtrack = 0, hits = 0;
         final int n = wires.size();
@@ -163,8 +168,10 @@ public final class RouteMetrics {
                     .points();
                 for (int k = 0; k + 1 < p.size(); k++) for (int m = 0; m + 1 < q.size(); m++) {
                     final int[] a = p.get(k), b = p.get(k + 1), c = q.get(m), d = q.get(m + 1);
-                    if (crosses(a, b, c, d)) crossings++;
-                    else overlap += collinearOverlap(a, b, c, d);
+                    if (crosses(a, b, c, d)) {
+                        crossings++;
+                        if (crossed != null) crossed.add(new int[] { i, j });
+                    } else overlap += collinearOverlap(a, b, c, d);
                 }
                 if (sameEnd(w, wires.get(j))) shared++;
             }

@@ -123,17 +123,6 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         return layout.anchorY(Math.max(0, sectionOf(node)), output, port);
     }
 
-    /** Where a wire meets the card for a port counted across all its recipes, one after another (for Arrange). */
-    public int anchorYAcross(final boolean output, final int index) {
-        int i = index;
-        for (int s = 0; s < models.size(); s++) {
-            final int n = (output ? models.get(s).outputs : models.get(s).inputs).size();
-            if (i < n) return layout.anchorY(s, output, i);
-            i -= n;
-        }
-        return layout.anchorY(0, output, 0);
-    }
-
     public BoardSession session() {
         return session;
     }

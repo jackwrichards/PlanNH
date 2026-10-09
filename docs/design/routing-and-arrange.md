@@ -4,7 +4,8 @@ The overhaul of how the board draws its wires and lays itself out. The aim, in t
 "excellent", wires that read cleanly (no wiggles, hooks or splayed ends, no needless length; diagonals are fine),
 moving one thing re-routes instantly, and arranging a whole plan may take seconds behind a spinner.
 
-Routing is done (`layout/WireRouter`, on the board since 2026-10-08). Arrange is next; its plan is at the end.
+Both are on the board since 2026-10-08: routing in `layout/WireRouter`, Arrange in `layout/arrange/` (a port of the
+website's arrange, judged by this router).
 
 ## The yardstick
 
@@ -95,17 +96,44 @@ wires) in 13 to 45 ms (worst 89). After the drop the board measures the same as 
 Still to do on routing: lanes (parallel wires spread by their widths in shared corridors, as the website packs them),
 and Farm Power-sized boards (a full route there is about 2 s; most of it is long wires searched across wide windows).
 
-## Arrange (next)
+## Arrange
 
-The current Arrange (`layout/BoardArrange` over ELK's layered layout) is fast but scores far worse than the website's
-placements once routed. The plan is to port the website's arrange and judge it with this router:
+`layout/arrange/` is a port of the website's arrange (its `board-arrange*.ts`, `route-judge.ts` and the router
+tuning's arrange dials), judged by our router instead of the website's:
 
-- **Columns**: satellites (a drawer with one partner sits beside it), islands (connected parts laid out apart),
-  cycles broken (pairs, back edges, co-feeders), longest-path layers, slid toward their wires, pairs pulled together,
-  big cycles folded, shared storages relaxed, layers packed; bands along a spanning-tree trunk; rows ordered by
-  wish, sweeps and transposes to uncross, then straightened; column gaps grown by the crossings they carry.
-- **Challenger**: simulated annealing over moves of cards and groups, scored by a quick proxy of the routes plus
-  sprawl and air (strangers kept apart).
-- **Judge**: the real router's points plus air, with a polish pass that moves the cards blamed for crossings and
-  keeps a move only when the routed board scores better.
-- Runs in the background with a spinner; the cards glide to their places with their wires already routed.
+- **The column pass** (`ColumnArrange`, board-arrange.ts): satellites (a drawer whose every wire meets one machine
+  rides its side at the port it serves), islands (connected parts laid out apart, placed by the same engine as
+  meta-cards), cycles broken (two-card loops stacked, DFS back edges, co-feeders turned), longest-path layers slid
+  toward their wires, big recycle rings folded back over the top, shared storages between their partners, bands
+  along a spanning-tree trunk, rows settled by isotonic regression, sweeps and neighbour swaps to uncross, rows
+  straightened onto their heaviest wire, column gaps grown by the wires they carry; unwired cards on a shelf.
+- **The challenger** (`Optimize`, board-arrange-optimize.ts): the column pass, then simulated annealing over swaps,
+  column hops, moves to a partner's side and nudges, scored by a proxy of the routes (`Proxy`) plus sprawl and the
+  air owed between strangers (`Air`); the router judges the best few.
+- **The free placement** (`FreeArrange`, board-arrange-free.ts): stress layout, then legalised onto the grid and
+  annealed with drawers placed by pattern (one partner: beside it; two: between them).
+- **Choosing** (`Arrange`): the three candidates are routed by `RouterJudge` (our router and `RouteMetrics`' points,
+  plus the air), the best two are polished (cards on crossing wires tried beside their partners or swapped in their
+  column, a move kept when the routed board scores better; quick verdicts re-route only what a move touched), and the
+  better polished board wins. The challenger and the free placement search at once, and so do the two polishes.
+- **On the board** (`BoardCanvas.arrange`): it runs on its own thread, the Arrange key counts up and a second press
+  stops it; when it is done the cards glide to their places, one undoable step. The old ELK Arrange
+  (`BoardArrange`, `AutoLayout`) and the ELK dependency are gone.
+
+Against the old Arrange and the plans' own placements (the website's, or the owner's), routed by the new router
+(`build/bench/arr3`; points and crossings, lower better):
+
+| board | placed | old Arrange | new Arrange | new Arrange time |
+|---|---|---|---|---|
+| Titanium Line Chembath | 7,098 | 10,717 | 4,236 / 0 crossings | 1.3 s |
+| Titanium Line (tour) | 2,049 | 4,311 | 767 / 0 | 0.2 s |
+| Sulfuric Acid | 11,484 | 11,115 | 3,764 / 0 | 1.1 s |
+| HV Oil | 34,677 | 28,858 | 14,978 / 9 | 3.7 s |
+| Platline | 16,934 | 32,959 | 13,894 / 2 | 4.3 s |
+| the owner's plan (58 boxes, 79 wires) | 36,914 / 13 crossings | 136,637 / 144 | 24,295 / 5 | 4.6 s |
+| FULL PLATLINE | 118,900 | 80,653 | 19,730 / 1 | 13 s (before the last speed-ups) |
+| Farm Power (206 boxes, 292 wires) | 496,992 | 535,965 | 201,483 / 208 | 26 s |
+
+The free placement wins most boards, the challenger the rest; the plain column pass rarely. Still to do: speed on
+big boards (Farm Power takes 26 s, half of it the free placement's 300,000 trials), and the spacing tuned to our cards (320 wide to the
+website's 380) and our router's rings.

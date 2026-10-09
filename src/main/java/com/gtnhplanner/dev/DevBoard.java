@@ -53,6 +53,12 @@ final class DevBoard {
             c.put("index", i++);
             c.put("id", model.node.id.toString());
             c.put("machine", model.machineName);
+            // The card on the board, in world px (a shared machine: its card, under each of its recipes).
+            c.put("x", model.node.x);
+            c.put("y", model.node.y);
+            c.put("w", com.gtnhplanner.ui.card.CardLayout.W);
+            c.put("h", card == null || card.layout() == null ? 100 : card.layout().height);
+            c.put("card", card == null ? null : card.nodeId.toString());
             c.put("tier", model.tier);
             c.put("amps", model.amps);
             c.put("multiblock", model.multiblock);
@@ -115,6 +121,10 @@ final class DevBoard {
                     .toString());
             o.put("kind", model.kind.name());
             o.put("label", model.label);
+            o.put("x", model.drawer.getX());
+            o.put("y", model.drawer.getY());
+            o.put("w", com.gtnhplanner.ui.drawer.DrawerCard.W);
+            o.put("h", com.gtnhplanner.ui.drawer.DrawerCard.H);
             o.put("rule", model.rule.name());
             o.put("target", model.target);
             o.put("rate", model.rate);

@@ -122,8 +122,12 @@ public final class BoardScreen extends ModularScreen {
         topBar.child(iconKey(Arrow.UNDO, session::canUndo, "Undo (Ctrl+Z)", session::undo).marginLeft(GROUP_GAP));
         topBar.child(iconKey(Arrow.REDO, session::canRedo, "Redo (Ctrl+Shift+Z or Ctrl+Y)", session::redo));
         topBar.child(
-            key(() -> "Arrange", () -> true, "Auto-arrange the plan", fit("Arrange"), canvas::arrange)
-                .marginLeft(GROUP_GAP));
+            key(
+                canvas::arrangeLabel,
+                () -> true,
+                "Auto-arrange the plan (press again to stop)",
+                fit("Arrange", "Arranging 100%"),
+                canvas::arrange).marginLeft(GROUP_GAP));
         topBar.child(key(() -> "Fit", () -> true, "Zoom to fit the whole plan", fit("Fit"), canvas::frameAll));
         topBar.child(
             key(

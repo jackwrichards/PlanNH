@@ -27,7 +27,6 @@ import com.gtnhplanner.data.flowchart.Drawer;
 import com.gtnhplanner.data.flowchart.Edge;
 import com.gtnhplanner.data.flowchart.Graph;
 import com.gtnhplanner.data.flowchart.Node;
-import com.gtnhplanner.layout.AutoLayout;
 import com.gtnhplanner.ui.BoardSession;
 import com.gtnhplanner.ui.card.CardLayout;
 import com.gtnhplanner.ui.card.CardModel;
@@ -179,6 +178,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         stepMiddlePan();
         stepPanGlide();
         if (panning && !boxing || middlePan) samplePan();
+        collectArrange();
         stepGlide();
         session.setHoverKey(hoveredResource());
         final Area a = getArea();
@@ -499,6 +499,31 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         for (final WireLayer.Wire w : wires.wires(cards, drawers, false)) {
             final List<String> row = new ArrayList<>();
             row.add(w.resource());
+            // Which boxes it joins (a card by its first recipe, a drawer by its id), source first, and its width.
+            final RecipeCard from = w.edge() != null ? cards.get(w.edge().sourceNodeId)
+                : w.drawer() != null && !w.drawer()
+                    .getKind()
+                    .linksInputs() ? cards.get(
+                        w.link()
+                            .nodeId())
+                        : null;
+            final RecipeCard to = w.edge() != null ? cards.get(w.edge().targetNodeId)
+                : w.drawer() != null && w.drawer()
+                    .getKind()
+                    .linksInputs() ? cards.get(
+                        w.link()
+                            .nodeId())
+                        : null;
+            row.add(
+                "from=" + (from != null ? from.nodeId
+                    : w.drawer() != null ? w.drawer()
+                        .getId() : "?"));
+            row.add(
+                "to=" + (to != null ? to.nodeId
+                    : w.drawer() != null ? w.drawer()
+                        .getId() : "?"));
+            row.add("width=" + w.width());
+            row.add("key=" + w.key());
             for (final int[] p : w.path()) row.add(p[0] + "," + p[1]);
             out.add(row);
         }
@@ -732,121 +757,191 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
 
     // endregion
 
-    /** A card or drawer as the layered layout sees it; drawers have one port, at their anchor. */
-    private record LayoutItem(UUID id, String machineName, int worldWidth, int worldHeight, int inputCount,
-        int outputCount, RecipeCard card) implements AutoLayout.LayoutNode {
-
-        @Override
-        public int portY(final boolean output, final int index) {
-            return card == null ? DrawerCard.ANCHOR_Y : card.anchorYAcross(output, index);
-        }
-    }
-
     /**
-     * Lays the plan out left to right ({@link com.gtnhplanner.layout.BoardArrange}: the cards in flow columns, each
-     * with its own drawers lined up down its sides), keeps it where it was on the board, and frames it. One undoable
-     * step.
+     * Arranges the plan ({@link com.gtnhplanner.layout.arrange.Arrange}: the column pass, its optimiser and the free
+     * placement, each routed by the board's router, the best two polished), keeping it where it was on the board. It
+     * runs in the background, a second or two on most plans and longer on a big one; the key shows how far it has got
+     * and a second press stops it. When it is done everything glides to its place and the plan is framed: one
+     * undoable step.
      */
     public void arrange() {
+        if (arrangeJob != null) {
+            arrangeCancelled = true;
+            return;
+        }
         final Graph g = graph();
-        final List<LayoutItem> items = new ArrayList<>();
-        // A shared machine is one box: its recipes' ports numbered one after another, every wire on one of them
-        // moved onto the card.
-        final java.util.Map<UUID, int[]> base = new HashMap<>();
+        // A shared machine is one box: every recipe on it answers to its card.
+        final List<com.gtnhplanner.layout.arrange.ArrangeCard> boxes = new ArrayList<>();
         final java.util.Map<UUID, UUID> owner = new HashMap<>();
         for (final RecipeCard card : new java.util.LinkedHashSet<>(cards.values())) {
-            if (card.model() == null || card.layout() == null) continue;
-            int ins = 0, outs = 0;
+            final Node n = g.nodes.get(card.nodeId);
+            if (n == null || card.model() == null || card.layout() == null) continue;
             for (int s = 0; s < card.layout()
-                .sections(); s++) {
-                base.put(card.sectionId(s), new int[] { ins, outs });
-                owner.put(card.sectionId(s), card.nodeId);
-                ins += card.modelOf(s).inputs.size();
-                outs += card.modelOf(s).outputs.size();
-            }
-            items.add(
-                new LayoutItem(
-                    card.nodeId,
-                    card.model().machineName,
+                .sections(); s++) owner.put(card.sectionId(s), card.nodeId);
+            boxes.add(
+                new com.gtnhplanner.layout.arrange.ArrangeCard(
+                    card.nodeId.toString(),
+                    n.x,
+                    n.y,
                     CardLayout.W,
                     card.layout().height,
-                    ins,
-                    outs,
-                    card));
+                    false));
         }
-        final List<Edge> links = new ArrayList<>();
+        for (final Drawer d : g.getDrawers()) boxes.add(
+            new com.gtnhplanner.layout.arrange.ArrangeCard(
+                d.getId()
+                    .toString(),
+                d.getX(),
+                d.getY(),
+                DrawerCard.W,
+                DrawerCard.H,
+                true));
+        if (boxes.isEmpty()) return;
+        // The wires, with the ports they leave and enter at, weighed by the width they are drawn at.
+        final java.util.Map<UUID, Double> width = new HashMap<>();
+        for (final WireLayer.Wire w : wires.wires(cards, drawers, false)) width.put(w.key(), (double) w.width());
+        final List<com.gtnhplanner.layout.arrange.ArrangeWire> links = new ArrayList<>();
         for (final Edge e : g.getEdges()) {
-            final int[] from = base.get(e.sourceNodeId), to = base.get(e.targetNodeId);
+            final UUID from = owner.get(e.sourceNodeId), to = owner.get(e.targetNodeId);
             if (from == null || to == null) continue;
             links.add(
-                new Edge(
-                    e.id,
-                    owner.get(e.sourceNodeId),
-                    owner.get(e.targetNodeId),
-                    from[1] + e.sourceOutputIndex,
-                    to[0] + e.targetInputIndex));
+                new com.gtnhplanner.layout.arrange.ArrangeWire(
+                    e.id.toString(),
+                    from.toString(),
+                    to.toString(),
+                    (double) cards.get(e.sourceNodeId)
+                        .anchorY(e.sourceNodeId, true, e.sourceOutputIndex),
+                    (double) cards.get(e.targetNodeId)
+                        .anchorY(e.targetNodeId, false, e.targetInputIndex),
+                    null,
+                    width.get(e.id)));
         }
         for (final Drawer d : g.getDrawers()) {
             final boolean source = d.getKind()
                 .linksInputs();
-            items.add(
-                new LayoutItem(
-                    d.getId(),
-                    d.getResourceKey(),
-                    DrawerCard.W,
-                    DrawerCard.H,
-                    source ? 0 : 1,
-                    source ? 1 : 0,
-                    null));
             for (final Drawer.Link link : d.getLinks()) {
-                final int[] at = base.get(link.nodeId());
-                if (at == null) continue;
-                final UUID id = UUID.nameUUIDFromBytes(
+                final UUID card = owner.get(link.nodeId());
+                if (card == null) continue;
+                final UUID key = UUID.nameUUIDFromBytes(
                     (d.getId() + ":" + link.nodeId() + ":" + link.portIndex())
                         .getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                final UUID card = owner.get(link.nodeId());
+                final double port = cards.get(link.nodeId())
+                    .anchorY(link.nodeId(), !source, link.portIndex());
+                final String drawer = d.getId()
+                    .toString();
                 links.add(
-                    source ? new Edge(id, d.getId(), card, 0, at[0] + link.portIndex())
-                        : new Edge(id, card, d.getId(), at[1] + link.portIndex(), 0));
+                    source
+                        ? new com.gtnhplanner.layout.arrange.ArrangeWire(
+                            key.toString(),
+                            drawer,
+                            card.toString(),
+                            null,
+                            port,
+                            null,
+                            width.get(key))
+                        : new com.gtnhplanner.layout.arrange.ArrangeWire(
+                            key.toString(),
+                            card.toString(),
+                            drawer,
+                            port,
+                            null,
+                            null,
+                            width.get(key)));
             }
         }
-        if (items.isEmpty()) return;
-        final List<com.gtnhplanner.layout.BoardArrange.Box> boxes = new ArrayList<>();
-        for (final LayoutItem item : items) boxes.add(
-            new com.gtnhplanner.layout.BoardArrange.Box(
-                item,
-                item.card() == null,
-                item.outputCount() > 0 && item.inputCount() == 0));
-        final java.util.Map<UUID, int[]> placed = com.gtnhplanner.layout.BoardArrange.arrange(boxes, links);
-        if (placed.isEmpty()) return;
-        int x0 = Integer.MAX_VALUE, y0 = Integer.MAX_VALUE, px0 = Integer.MAX_VALUE, py0 = Integer.MAX_VALUE;
-        for (final Node n : g.getNodes()) {
-            x0 = Math.min(x0, n.x);
-            y0 = Math.min(y0, n.y);
+        arrangeCancelled = false;
+        arrangeProgress = null;
+        arrangeShown = 0;
+        arrangeGraph = g;
+        arrangeJob = ARRANGER.submit(
+            () -> com.gtnhplanner.layout.arrange.Arrange.arrange(
+                new com.gtnhplanner.layout.arrange.Arrange.Input(
+                    boxes,
+                    links,
+                    null,
+                    "compact",
+                    new com.gtnhplanner.layout.arrange.RouterJudge(boxes, links),
+                    null,
+                    null,
+                    progress -> arrangeProgress = progress,
+                    () -> arrangeCancelled)));
+    }
+
+    /**
+     * The arrange working in the background, if any, on which plan, where it has got to, and whether it was stopped.
+     */
+    @Nullable
+    private java.util.concurrent.Future<com.gtnhplanner.layout.arrange.Arrange.Result> arrangeJob;
+    @Nullable
+    private Graph arrangeGraph;
+    private volatile com.gtnhplanner.layout.arrange.Arrange.Progress arrangeProgress;
+    private volatile boolean arrangeCancelled;
+    /** How far the key says it has got (it never goes back, though the two polishes report in turn). */
+    private float arrangeShown;
+
+    private static final java.util.concurrent.ExecutorService ARRANGER = java.util.concurrent.Executors
+        .newSingleThreadExecutor(r -> {
+            final Thread t = new Thread(r, "GTNH Planner arrange");
+            t.setDaemon(true);
+            return t;
+        });
+
+    /** Whether an arrange is working. */
+    public boolean arranging() {
+        return arrangeJob != null;
+    }
+
+    /** The Arrange key's label: how far an arrange under way has got. */
+    public String arrangeLabel() {
+        if (arrangeJob == null) return "Arrange";
+        final com.gtnhplanner.layout.arrange.Arrange.Progress p = arrangeProgress;
+        if (p != null) {
+            final float within = p.total() > 0 ? Math.min(1, p.done() / (float) p.total()) : 0;
+            arrangeShown = Math.max(arrangeShown, (p.step() + within) / 6);
         }
-        for (final Drawer d : g.getDrawers()) {
-            x0 = Math.min(x0, d.getX());
-            y0 = Math.min(y0, d.getY());
+        return arrangeCancelled ? "Stopping" : "Arranging " + Math.round(arrangeShown * 100) + "%";
+    }
+
+    /** Takes an arrange that has finished: everything glides to its place, as one undoable step. */
+    private void collectArrange() {
+        if (arrangeJob == null || !arrangeJob.isDone()) return;
+        final java.util.concurrent.Future<com.gtnhplanner.layout.arrange.Arrange.Result> job = arrangeJob;
+        arrangeJob = null;
+        final com.gtnhplanner.layout.arrange.Arrange.Result result;
+        try {
+            result = job.get();
+        } catch (final java.util.concurrent.ExecutionException e) {
+            if (!(e.getCause() instanceof com.gtnhplanner.layout.arrange.Arrange.Cancelled))
+                com.gtnhplanner.GtnhPlanner.LOG.warn("[arrange] failed", e.getCause());
+            return;
+        } catch (final InterruptedException e) {
+            Thread.currentThread()
+                .interrupt();
+            return;
         }
-        for (final int[] p : placed.values()) {
-            px0 = Math.min(px0, p[0]);
-            py0 = Math.min(py0, p[1]);
-        }
-        final int dx = x0 - px0, dy = y0 - py0;
-        // Where everything is now, and where it goes.
+        // Another plan came up meanwhile: this one's places are not for it.
+        if (graph() != arrangeGraph) return;
+        com.gtnhplanner.GtnhPlanner.LOG
+            .info("[arrange] chose the {} layout, {} points", result.chosen(), Math.round(result.points()));
+        final Graph g = graph();
+        // Where everything is now, and where it goes (cards and drawers made since keep their places).
         final java.util.Map<UUID, int[]> from = new HashMap<>(), to = new HashMap<>();
-        for (final Node n : g.getNodes()) {
-            final int[] p = placed.get(n.id);
-            if (p == null) continue;
-            from.put(n.id, new int[] { n.x, n.y });
-            to.put(n.id, new int[] { p[0] + dx, p[1] + dy });
+        for (final java.util.Map.Entry<String, com.gtnhplanner.layout.arrange.Point> e : result.positions()
+            .entrySet()) {
+            final UUID id = UUID.fromString(e.getKey());
+            final int[] at = { (int) Math.round(
+                e.getValue()
+                    .x()),
+                (int) Math.round(
+                    e.getValue()
+                        .y()) };
+            final Node n = g.nodes.get(id);
+            final Drawer d = n == null ? g.getDrawer(id) : null;
+            if (n == null && d == null) continue;
+            from.put(id, n != null ? new int[] { n.x, n.y } : new int[] { d.getX(), d.getY() });
+            to.put(id, at);
         }
-        for (final Drawer d : g.getDrawers()) {
-            final int[] p = placed.get(d.getId());
-            if (p == null) continue;
-            from.put(d.getId(), new int[] { d.getX(), d.getY() });
-            to.put(d.getId(), new int[] { p[0] + dx, p[1] + dy });
-        }
+        if (to.isEmpty()) return;
         // One undoable step with the final places, then rewind and let everything glide there.
         session.editLayout(() -> place(to));
         place(from);
