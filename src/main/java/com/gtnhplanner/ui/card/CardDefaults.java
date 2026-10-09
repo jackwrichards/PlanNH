@@ -8,7 +8,7 @@ import net.minecraft.item.ItemStack;
 import com.gtnhplanner.data.MachineConfig;
 import com.gtnhplanner.data.SettingDef;
 import com.gtnhplanner.data.flowchart.Node;
-import com.gtnhplanner.data.provider.GTProvider;
+import com.gtnhplanner.data.provider.GTKeys;
 import com.gtnhplanner.ui.gt.GtCoils;
 import com.gtnhplanner.ui.gt.GtMachines;
 
@@ -36,14 +36,14 @@ public final class CardDefaults {
         final MachineConfig cfg = node.machineConfig;
         if (!CardModel.GT_PROFILE.equals(cfg.profileId)) return;
         if ("OFF".equals(stringSetting(cfg, "voltage"))) {
-            final Object eut = node.properties.get(GTProvider.EU_PER_TICK);
+            final Object eut = node.properties.get(GTKeys.EU_PER_TICK);
             cfg.setString("voltage", TIERS[recipeTier(eut instanceof Number n ? n.longValue() : 0)]);
         }
         final ItemStack machine = firstCatalyst(node);
         final GtMachines.Kind kind = GtMachines.of(machine);
         if (kind != null && kind.multiblock()) cfg.setBoolean("gt_multiblock", true);
         if (machine != null) node.machineName = itemKey(machine);
-        final Object heat = node.properties.get(GTProvider.COIL_HEAT);
+        final Object heat = node.properties.get(GTKeys.COIL_HEAT);
         if (heat instanceof final Number h && h.intValue() > 0 && intSetting(cfg, "machine_heat") <= 0) {
             for (final GtCoils.Coil coil : GtCoils.all()) {
                 if (coil.heat() >= h.intValue()) {

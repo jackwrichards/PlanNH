@@ -1,7 +1,7 @@
 package com.gtnhplanner.data.effect.steps;
 
-import static com.gtnhplanner.data.provider.GTProvider.EU_PER_TICK;
-import static com.gtnhplanner.data.provider.GTProvider.TOTAL_EU;
+import static com.gtnhplanner.data.provider.GTKeys.EU_PER_TICK;
+import static com.gtnhplanner.data.provider.GTKeys.TOTAL_EU;
 import static com.gtnhplanner.data.provider.GTSteamProvider.STEAM_EU_PERT;
 import static com.gtnhplanner.data.provider.GTSteamProvider.TOTAL_STEAM_EU;
 

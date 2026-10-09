@@ -29,13 +29,15 @@ import com.gtnhplanner.ui.theme.Hyb;
 /**
  * A sticky note on the board: coloured paper with its corner folded, the text wrapped on it. Drag it to move it (with
  * the selection), drag its folded corner or its right or bottom edge to resize it, double-click it to write on it.
- * Hovering shows two keys at its top right for smaller and bigger text; a right-click offers editing, the colour, the
- * text size and delete. Notes take no part in the solve or the wiring: they sit over the wires and under the cards.
+ * Hovering shows its keys: delete at its top left, smaller and bigger text at its top right; a right-click offers
+ * editing, the colour, the text size and delete. Notes take no part in the solve or the wiring: they sit over the wires
+ * and under the cards.
  */
 public final class NoteCard extends Widget<NoteCard> implements Interactable, IDraggable, IFocusedWidget {
 
     public enum Part {
         BODY,
+        DELETE,
         SMALLER,
         BIGGER,
         RESIZE
@@ -45,8 +47,12 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
     private static final int FOLD = 14;
     /** How deep the edges that resize reach in. */
     private static final int EDGE = 5;
-    /** The text size keys, in the glued strip's right end. */
-    private static final int KEY = 9, KEY_GAP = 2;
+    /**
+     * The keys (delete in the glued strip's left end, text size in its right end): their side, the gap between the
+     * two on the right and their inset from the edge, at the board's own scale. Zoomed out they keep that size on
+     * screen, so they can always be hit; they show whenever they fit on the note.
+     */
+    private static final int KEY = 9, KEY_GAP = 2, KEY_INSET = 3;
     /** The glued strip along the top, where the keys sit. */
     private static final int BAND = 11;
     /** The text's margin from the edges, and its first line's top. */
@@ -134,21 +140,44 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
         return c == null || n == null ? -1 : c.worldY(getContext().getAbsMouseY()) - n.getY();
     }
 
-    private static boolean in(final float x, final float y, final int rx, final int ry, final int rw, final int rh) {
-        return x >= rx && y >= ry && x < rx + rw && y < ry + rh;
-    }
-
     public Part partAt(final float x, final float y) {
         if (editing) return Part.BODY;
         final int w = w(), h = h(), f = fold();
         // The folded corner and the right and bottom edges resize.
         if (x >= w - f && y >= h - f && x - (w - f) + (y - (h - f)) >= f - 3) return Part.RESIZE;
         if (x >= w - EDGE || y >= h - EDGE) return Part.RESIZE;
-        if (keysShown()) {
-            if (in(x, y, w - 2 * KEY - KEY_GAP - 3, 1, KEY, KEY)) return Part.SMALLER;
-            if (in(x, y, w - KEY - 3, 1, KEY, KEY)) return Part.BIGGER;
+        if (keysShown()) for (final Part key : KEYS) {
+            final float[] r = keyRect(key);
+            if (x >= r[0] && y >= r[1] && x < r[0] + r[2] && y < r[1] + r[3]) return key;
         }
         return Part.BODY;
+    }
+
+    private static final Part[] KEYS = { Part.DELETE, Part.SMALLER, Part.BIGGER };
+
+    /** How many note units a screen pixel of a key takes: 1 at the board's own scale and closer, more zoomed out. */
+    private float keyUnit() {
+        return Math.max(
+            1f,
+            1f / session.graph()
+                .getZoom());
+    }
+
+    /** A key's note-local rectangle {x, y, w, h}. */
+    private float[] keyRect(final Part key) {
+        final float u = keyUnit(), k = KEY * u, inset = KEY_INSET * u;
+        return switch (key) {
+            case DELETE -> new float[] { inset, u, k, k };
+            case SMALLER -> new float[] { w() - 2 * k - KEY_GAP * u - inset, u, k, k };
+            case BIGGER -> new float[] { w() - k - inset, u, k, k };
+            default -> new float[] { 0, 0, 0, 0 };
+        };
+    }
+
+    /** Whether the three keys fit on the note at their size, with room between the left one and the right two. */
+    private boolean keysFit() {
+        final float u = keyUnit();
+        return w() >= (3 * KEY + 2 * KEY_GAP + 2 * KEY_INSET) * u && h() >= (2 * KEY + 1) * u;
     }
 
     /** Note-local rectangle of a part, for the dev harness and the tour. */
@@ -156,8 +185,10 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
         final int w = w(), h = h(), f = fold();
         return switch (part) {
             case BODY -> new int[] { 0, 0, w, h };
-            case SMALLER -> new int[] { w - 2 * KEY - KEY_GAP - 3, 1, KEY, KEY };
-            case BIGGER -> new int[] { w - KEY - 3, 1, KEY, KEY };
+            case DELETE, SMALLER, BIGGER -> {
+                final float[] r = keyRect(part);
+                yield new int[] { Math.round(r[0]), Math.round(r[1]), Math.round(r[2]), Math.round(r[3]) };
+            }
             case RESIZE -> new int[] { w - f, h - f, f, f };
         };
     }
@@ -167,11 +198,9 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
         return x < 0 || y < 0 || x >= w() || y >= h() ? null : partAt(x, y);
     }
 
-    /** The text size keys show while the mouse is on the note, and never far out, where they could not be hit. */
+    /** The keys show while the mouse is on the note, at any zoom, when they fit on it. */
     private boolean keysShown() {
-        return isHovering() && !editing
-            && session.graph()
-                .getZoom() > com.gtnhplanner.ui.card.RecipeCard.GLANCE_ZOOM;
+        return isHovering() && !editing && keysFit();
     }
 
     // endregion
@@ -284,19 +313,32 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
             if (y + 9 * s <= bottom) Hyb.rect(PAD + lay.xOf(caret) * s, y - 1, Math.max(1, s), 10 * s, ink);
         }
         if (keysShown()) {
-            drawKey(w - 2 * KEY - KEY_GAP - 3, 1, false, n.fontSizeOrDefault() > Note.MIN_FONT, ink);
-            drawKey(w - KEY - 3, 1, true, n.fontSizeOrDefault() < Note.MAX_FONT, ink);
+            drawKey(Part.DELETE, true);
+            drawKey(Part.SMALLER, n.fontSizeOrDefault() > Note.MIN_FONT);
+            drawKey(Part.BIGGER, n.fontSizeOrDefault() < Note.MAX_FONT);
         }
     }
 
-    /** A text size key: a small dark square with a minus or a plus. */
-    private void drawKey(final int x, final int y, final boolean plus, final boolean enabled, final int ink) {
-        final Part hover = partUnderMouse();
-        final boolean lit = hover == (plus ? Part.BIGGER : Part.SMALLER) && enabled;
-        Hyb.rect(x, y, KEY, KEY, lit ? 0xE0303238 : 0xB0303238);
+    /** A key: a small dark square with a cross, a minus or a plus, drawn in its own pixels however far out. */
+    private void drawKey(final Part key, final boolean enabled) {
+        final float[] r = keyRect(key);
+        final float x = r[0], y = r[1], u = keyUnit();
+        final boolean lit = partUnderMouse() == key && enabled;
+        Hyb.rect(x, y, r[2], r[3], lit ? 0xE0303238 : 0xB0303238);
         final int c = enabled ? 0xFFF2F3F7 : 0x80F2F3F7;
-        Hyb.rect(x + 2, y + 4, KEY - 4, 1, c);
-        if (plus) Hyb.rect(x + 4, y + 2, 1, KEY - 4, c);
+        switch (key) {
+            case DELETE -> {
+                for (int i = 0; i < KEY - 4; i++) {
+                    Hyb.rect(x + (2 + i) * u, y + (2 + i) * u, u, u, c);
+                    Hyb.rect(x + (KEY - 3 - i) * u, y + (2 + i) * u, u, u, c);
+                }
+            }
+            case SMALLER -> Hyb.rect(x + 2 * u, y + 4 * u, (KEY - 4) * u, u, c);
+            default -> {
+                Hyb.rect(x + 2 * u, y + 4 * u, (KEY - 4) * u, u, c);
+                Hyb.rect(x + 4 * u, y + 2 * u, u, (KEY - 4) * u, c);
+            }
+        }
     }
 
     /** The tip for the part under the mouse; the paper itself only explains itself after a moment. */
@@ -306,6 +348,7 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
         final Part part = partUnderMouse();
         if (part == null) return null;
         return switch (part) {
+            case DELETE -> Tip.of("Delete note");
             case SMALLER -> Tip.of("Smaller text");
             case BIGGER -> Tip.of("Bigger text");
             case RESIZE -> Tip.of("Resize")
@@ -338,6 +381,11 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
         }
         if (mouseButton != 0) return Result.IGNORE;
         switch (partAt(localX(), localY())) {
+            case DELETE -> {
+                Hyb.click();
+                session.deleteNote(noteId);
+                return Result.SUCCESS;
+            }
             case SMALLER -> {
                 stepFont(-1);
                 return Result.SUCCESS;

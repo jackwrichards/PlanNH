@@ -20,7 +20,7 @@ import com.gtnhplanner.GtnhPlanner;
 import com.gtnhplanner.data.MachineConfig;
 import com.gtnhplanner.data.SettingDef;
 import com.gtnhplanner.data.flowchart.Node;
-import com.gtnhplanner.data.provider.GTProvider;
+import com.gtnhplanner.data.provider.GTKeys;
 
 /**
  * The settings last changed on each machine, so the next card for it starts with them: change an Electric Blast
@@ -93,7 +93,7 @@ public final class SettingMemory {
     }
 
     private static int recipeHeat(final Node node) {
-        return node.properties.get(GTProvider.COIL_HEAT) instanceof final Number n ? n.intValue() : 0;
+        return node.properties.get(GTKeys.COIL_HEAT) instanceof final Number n ? n.intValue() : 0;
     }
 
     private static SettingDef<?> def(final MachineConfig cfg, final String key) {

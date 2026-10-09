@@ -8,7 +8,7 @@ import javax.annotation.Nullable;
 import net.minecraft.item.ItemStack;
 
 import com.gtnhplanner.data.flowchart.Node;
-import com.gtnhplanner.data.provider.GTProvider;
+import com.gtnhplanner.data.provider.GTKeys;
 import com.gtnhplanner.ui.gt.GtMachines;
 
 import codechicken.nei.recipe.IRecipeHandler;
@@ -106,7 +106,7 @@ public final class MachineChoices {
     }
 
     private static long euPerTick(final Node node) {
-        final Object eut = node.properties.get(GTProvider.EU_PER_TICK);
+        final Object eut = node.properties.get(GTKeys.EU_PER_TICK);
         return eut instanceof final Number n ? n.longValue() : 0;
     }
 }

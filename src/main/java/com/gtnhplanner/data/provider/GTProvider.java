@@ -26,7 +26,6 @@ import com.gtnhplanner.data.flowchart.Node;
 import com.gtnhplanner.data.flowchart.Port;
 import com.gtnhplanner.data.properties.PropertyProvider;
 import com.gtnhplanner.data.properties.RecipeProperty;
-import com.gtnhplanner.data.properties.SummaryProperty;
 
 import codechicken.nei.PositionedStack;
 import codechicken.nei.recipe.FurnaceRecipeHandler;
@@ -65,14 +64,10 @@ public class GTProvider implements PropertyProvider {
     public static final RecipeProperty<Integer> MASS = RecipeProperty.<Integer>builder("gt.bartworks.mass", 0)
         .build();
 
-    public static final RecipeProperty<Long> TOTAL_EU = SummaryProperty.<Long>builder("gt.total_eu", 0L)
-        .build();
-    public static final RecipeProperty<Long> EU_PER_TICK = SummaryProperty.<Long>builder("gt.eu_per_tick", 0L)
-        .perSec(true)
-        .build();
+    public static final RecipeProperty<Long> TOTAL_EU = GTKeys.TOTAL_EU;
+    public static final RecipeProperty<Long> EU_PER_TICK = GTKeys.EU_PER_TICK;
 
-    public static final RecipeProperty<Integer> COIL_HEAT = RecipeProperty.<Integer>builder("gt.coil_heat", 0)
-        .build();
+    public static final RecipeProperty<Integer> COIL_HEAT = GTKeys.COIL_HEAT;
     public static final RecipeProperty<Long> FUSION_THRESHOLD = RecipeProperty.<Long>builder("gt.fusion_threshold", 0L)
         .build();
 

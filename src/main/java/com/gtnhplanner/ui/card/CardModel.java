@@ -149,7 +149,7 @@ public final class CardModel {
 
     /** A GregTech recipe set below its own tier cannot run: its EU/t is more than the tier's voltage and amps. */
     public boolean tierTooLow() {
-        if (!gregtech || !(node.properties.get(com.gtnhplanner.data.provider.GTProvider.EU_PER_TICK) instanceof final Number eut))
+        if (!gregtech || !(node.properties.get(com.gtnhplanner.data.provider.GTKeys.EU_PER_TICK) instanceof final Number eut))
             return false;
         final int t = CardDefaults.tierIndex(tier);
         return t >= 0 && eut.longValue() > (8L << (2 * t)) * (multiblock ? Math.max(1, amps) : 1);
@@ -194,7 +194,7 @@ public final class CardModel {
             gregtech ? Math.max(1, CardDefaults.intSetting(cfg, "amp")) : 1,
             gregtech && CardDefaults.boolSetting(cfg, "gt_multiblock"),
             gregtech ? CardDefaults.intSetting(cfg, "machine_heat") : 0,
-            gregtech && (node.properties.containsKey(com.gtnhplanner.data.provider.GTProvider.COIL_HEAT)),
+            gregtech && (node.properties.containsKey(com.gtnhplanner.data.provider.GTKeys.COIL_HEAT)),
             gregtech ? Math.max(1, CardDefaults.intSetting(cfg, "parallels")) : 1,
             inputs,
             outputs,
@@ -203,7 +203,7 @@ public final class CardModel {
             machines,
             node.isMachineCountFixed(),
             circuit(ref),
-            node.properties.get(com.gtnhplanner.data.provider.GTProvider.COIL_HEAT) instanceof final Number h ? h.intValue() : 0,
+            node.properties.get(com.gtnhplanner.data.provider.GTKeys.COIL_HEAT) instanceof final Number h ? h.intValue() : 0,
             null);
     }
 

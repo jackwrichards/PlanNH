@@ -1,9 +1,9 @@
 package com.gtnhplanner.data.effect.steps;
 
-import static com.gtnhplanner.data.provider.GTProvider.COIL_HEAT;
-import static com.gtnhplanner.data.provider.GTProvider.EU_PER_TICK;
+import static com.gtnhplanner.data.provider.GTKeys.COIL_HEAT;
+import static com.gtnhplanner.data.provider.GTKeys.EU_PER_TICK;
+import static com.gtnhplanner.data.provider.GTKeys.TOTAL_EU;
 import static com.gtnhplanner.data.provider.GTProvider.RECIPE_MAP;
-import static com.gtnhplanner.data.provider.GTProvider.TOTAL_EU;
 
 import java.util.ArrayList;
 import java.util.HashMap;

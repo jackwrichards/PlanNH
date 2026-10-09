@@ -108,6 +108,21 @@ public final class DevHarness {
 
     @SubscribeEvent
     public void onGuiOpen(final GuiOpenEvent event) {
+        if (event.gui instanceof final cpw.mods.fml.client.GuiConfirmation question && worldRequested && !ready) {
+            // FML asking whether to open the test world without blocks and items it was saved with (a GregTech run's
+            // world opened by a plain run, or after a mod update): Yes, as the button does. It backs the world up
+            // first, and plans are kept outside the world. Left to wait, it blocks the start until mc.sh gives up.
+            final cpw.mods.fml.common.StartupQuery query = cpw.mods.fml.relauncher.ReflectionHelper
+                .getPrivateValue(cpw.mods.fml.client.GuiNotification.class, question, "query");
+            GtnhPlanner.LOG.info(
+                "[dev] Answering yes to: {}",
+                query.getText()
+                    .split("\n", 2)[0]);
+            event.gui = null;
+            query.setResult(true);
+            query.finish();
+            return;
+        }
         if (!(event.gui instanceof GuiMainMenu) || worldRequested) return;
         worldRequested = true;
         // The harness drives an unfocused window; a pause menu would steal every screen.

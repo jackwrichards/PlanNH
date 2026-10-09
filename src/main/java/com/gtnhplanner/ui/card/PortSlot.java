@@ -111,7 +111,10 @@ public final class PortSlot extends Widget<PortSlot>
     @Override
     public boolean onDragStart(final int button) {
         final BoardCanvas canvas = canvas();
-        if (button != 0 || canvas == null) return false;
+        // ModularUI starts drags on whatever is under the mouse, hovered or not: far out, where the ports are not
+        // drawn,
+        // a press on the card would start a wire here and end as a click on the port (its recipes in NEI).
+        if (button != 0 || canvas == null || !canHover()) return false;
         pressed = -1;
         canvas.beginPortDrag(node(), output, index);
         return true;

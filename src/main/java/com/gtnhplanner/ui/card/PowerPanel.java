@@ -5,7 +5,7 @@ import com.gtnhplanner.api.RecipePropertyAPI;
 import com.gtnhplanner.data.MachineConfig;
 import com.gtnhplanner.data.effect.EffectResult;
 import com.gtnhplanner.data.flowchart.Node;
-import com.gtnhplanner.data.provider.GTProvider;
+import com.gtnhplanner.data.provider.GTKeys;
 import com.gtnhplanner.ui.popup.Tip;
 import com.gtnhplanner.ui.theme.Fmt;
 import com.gtnhplanner.ui.theme.Hyb;
@@ -80,7 +80,7 @@ final class PowerPanel {
         }
         // How many overclocks: each one quadruples the draw; the ones that also quarter the time are perfect.
         int overclocks = 0, perfect = 0;
-        if (m.node.properties.get(GTProvider.EU_PER_TICK) instanceof final Number base && base.longValue() > 0
+        if (m.node.properties.get(GTKeys.EU_PER_TICK) instanceof final Number base && base.longValue() > 0
             && m.node.properties.get(RecipePropertyAPI.DURATION_TICKS) instanceof final Number baseDur) {
             final double perRun = (double) now.eut() / (base.doubleValue() * now.parallels());
             overclocks = Math.max(0, (int) Math.round(Math.log(perRun) / Math.log(4)));

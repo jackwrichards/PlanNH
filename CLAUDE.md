@@ -73,7 +73,8 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 - Plans work as on the website: a tab is an open plan (`Graph.open`); closing one keeps it, in the Library's My
   plans, where every plan is listed, most recently open first (`Plan.byRecency`, `lastOpen`). Deleting asks first.
 - Sticky notes (`ui/note/NoteCard`, a `Note` in `graph.notes`): right-click empty board to add one; drag to move,
-  drag the folded corner or an edge to resize, double-click to write, right-click for colour, text size and delete.
+  drag the folded corner or an edge to resize, double-click to write, right-click for colour, text size and delete;
+  hovering shows keys (delete top left, text size top right) at a fixed size on screen whenever they fit on the note.
   They are Factory Flow's text annotations (`kind: "text"`, its colour tags and font sizes), so they come in with an
   imported plan and go out with a posted one; they take no part in the solve, the wiring or Arrange.
 - The tour (`ui/tutorial/`, `docs/design/tutorial.md`): the "?" key's Take the tour, or the board's first-run offer.

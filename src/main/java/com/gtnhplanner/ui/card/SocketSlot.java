@@ -64,7 +64,8 @@ public final class SocketSlot extends Widget<SocketSlot> implements Interactable
     @Override
     public boolean onDragStart(final int button) {
         final BoardCanvas canvas = canvas();
-        if (button != 0 || canvas == null) return false;
+        // Far out it is not drawn; ModularUI offers it the drag anyway (see PortSlot#onDragStart).
+        if (button != 0 || canvas == null || !canHover()) return false;
         canvas.beginSocketDrag(card.nodeId, supply);
         return true;
     }

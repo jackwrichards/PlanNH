@@ -18,7 +18,7 @@ import com.cleanroommc.modularui.widget.sizer.Area;
 import com.gtnhplanner.data.MachineConfig;
 import com.gtnhplanner.data.SettingDef;
 import com.gtnhplanner.data.flowchart.Node;
-import com.gtnhplanner.data.provider.GTProvider;
+import com.gtnhplanner.data.provider.GTKeys;
 import com.gtnhplanner.ui.BoardSession;
 import com.gtnhplanner.ui.canvas.BoardCanvas;
 import com.gtnhplanner.ui.gt.GtCoils;
@@ -1322,7 +1322,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             case TIER -> {
                 final Tip tip = Tip.of("Voltage tier")
                     .row("Configured tier", m.tier);
-                if (m.node.properties.get(GTProvider.EU_PER_TICK) instanceof final Number eu && eu.longValue() > 0)
+                if (m.node.properties.get(GTKeys.EU_PER_TICK) instanceof final Number eu && eu.longValue() > 0)
                     tip.row("Recipe tier", CardDefaults.TIERS[CardDefaults.recipeTier(eu.longValue())]);
                 tip.row("Time per operation", Fmt.compact(m.durationTicks / 20.0) + " s")
                     .row("Draw per machine", Fmt.power(m.euPerTick) + " EU/t");
@@ -1685,7 +1685,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final List<ItemStack> all = machineChoices(), out = new ArrayList<>();
         ItemStack single = isSingle(model.machineStack) ? model.machineStack : null;
         if (single == null) {
-            final Object eut = model.node.properties.get(GTProvider.EU_PER_TICK);
+            final Object eut = model.node.properties.get(GTKeys.EU_PER_TICK);
             final int recipe = CardDefaults.recipeTier(eut instanceof final Number n ? n.longValue() : 0);
             int best = -1;
             for (final ItemStack m : all) {
