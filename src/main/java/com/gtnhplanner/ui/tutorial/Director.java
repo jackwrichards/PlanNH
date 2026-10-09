@@ -8,52 +8,41 @@ import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.inventory.GuiInventory;
 
-import org.lwjgl.opengl.Display;
-
 import com.gtnhplanner.GtnhPlanner;
 import com.gtnhplanner.ui.Planner;
 import com.gtnhplanner.ui.tutorial.Targets.Target;
 import com.gtnhplanner.ui.tutorial.Tour.Beat;
-import com.gtnhplanner.ui.tutorial.Tour.Chapter;
 
 /**
- * Plays the tour: a beat at a time, its steps a frame at a time, then its caption held long enough to read, then the
- * next. Next hurries the beat to its end; Back and the chapter list go to any beat by putting the tour's plans back
- * as they were at that chapter's start, opening its screen, and hurrying through the beats before it. Its clock only
- * runs while it plays, so a pause (or the game window losing focus) stops everything where it is.
+ * Plays the tour a beat at a time: the beat's steps a frame at a time, then it waits for Next. Next part way through a
+ * beat hurries it to its end. Back goes to the beat before by putting the tour's plans back as they were at its start
+ * and opening its screen; a beat whose start was not saved (it began on NEI's page, or with a menu open) is reached by
+ * hurrying on from the nearest one that was.
  */
 final class Director {
 
-    enum Mode {
-        /** The chapter list, before starting or between. */
-        MENU,
-        PLAY,
-        /** The last beat is done: the end card. */
-        END
-    }
-
-    final List<Chapter> chapters;
+    final List<Beat> beats;
     final Sandbox sandbox;
     final Ghost ghost = new Ghost();
     final Spotlight spotlight = new Spotlight();
 
-    Mode mode = Mode.MENU;
-    int chapter, beat;
-    boolean paused;
-    /** Hurrying to (fastChapter, fastBeat): every step at once, nothing held. */
+    int beat;
+    /** Hurrying to {@link #fastBeat}: every step at once. */
     private boolean fast;
-    private int fastChapter, fastBeat;
+    private int fastBeat;
     /** Only this beat hurries (Next pressed part way through it). */
     private boolean hurryBeat;
 
     private List<java.util.function.Supplier<Step>> steps = List.of();
     private final List<Step> made = new ArrayList<>();
     private int step;
-    private long beatDoneAt = -1;
-    private String caption = "";
-    private long captionAt;
     private Target spotTarget;
     private boolean spotDims;
+
+    /** The callout: what it says and what it points at (null: the middle of the screen); text null for none. */
+    private String noteText;
+    private Target noteTarget;
+    private long noteAt;
 
     private long clock, lastReal = -1;
     /** Until then no step runs: a screen just opened is still building its cards and finding its view. */
@@ -69,17 +58,10 @@ final class Director {
      */
     private record Saved(String plans, Tour.Scene scene, String search, boolean played) {}
 
-    private final Map<Long, Saved> saved = new HashMap<>();
+    private final Map<Integer, Saved> saved = new HashMap<>();
 
-    private static long key(final int chapter, final int beat) {
-        return (long) chapter << 16 | beat;
-    }
-
-    /** Chapters seen, for the list's marks. */
-    final java.util.Set<Integer> seen = new java.util.HashSet<>();
-
-    Director(final List<Chapter> chapters, final Sandbox sandbox) {
-        this.chapters = chapters;
+    Director(final List<Beat> beats, final Sandbox sandbox) {
+        this.beats = beats;
         this.sandbox = sandbox;
     }
 
@@ -130,49 +112,49 @@ final class Director {
         if (t == null) spotlight.off();
     }
 
-    void caption(final String text) {
-        caption = text;
-        captionAt = clock;
+    void note(final Target t, final String text) {
+        noteTarget = t;
+        noteText = text;
+        noteAt = System.currentTimeMillis();
     }
 
     /** A step that cannot go on: noted, and the beat carries on without it. */
     boolean gaveUp(final String why) {
-        GtnhPlanner.LOG.warn("[tutorial] chapter {} beat {}: {}", chapter + 1, beat + 1, why);
+        GtnhPlanner.LOG.warn("[tutorial] step {}: {}", beat + 1, why);
         return true;
     }
 
     // endregion
 
-    // region What the panel reads
+    // region What the callout reads
 
-    Chapter currentChapter() {
-        return chapters.get(Math.min(chapter, chapters.size() - 1));
+    String noteText() {
+        return fast ? null : noteText;
     }
 
-    String caption() {
-        return caption;
+    Target noteTarget() {
+        return noteTarget;
     }
 
-    /** How much of the caption shows yet, as it comes in. */
-    int captionShown() {
-        return fast ? caption.length() : (int) Math.min(caption.length(), (clock - captionAt) * 0.11f);
+    long noteAt() {
+        return noteAt;
+    }
+
+    /** The beat's steps are done: it waits for Next. */
+    boolean waiting() {
+        return !fast && step >= steps.size();
     }
 
     boolean catchingUp() {
         return fast;
     }
 
-    /** How far the beat's hold has run, 0 to 1, for the bar's progress line. */
-    float holdProgress() {
-        if (beatDoneAt < 0 || mode != Mode.PLAY) return 0;
-        return Math.min(
-            1,
-            (clock - beatDoneAt) / (float) beats().get(beat)
-                .holdMs());
+    boolean first() {
+        return beat == 0;
     }
 
-    private List<Beat> beats() {
-        return currentChapter().beats;
+    boolean last() {
+        return beat == beats.size() - 1;
     }
 
     // endregion
@@ -183,12 +165,10 @@ final class Director {
         final long real = System.currentTimeMillis();
         final long dt = lastReal < 0 ? 0 : Math.min(100, real - lastReal);
         lastReal = real;
-        // Paused, or the window in the background: time stands still.
-        final boolean running = mode == Mode.PLAY && (fast || !paused && Display.isActive());
-        if (running) clock += dt;
+        clock += dt;
         VirtualInput.frame();
         if (spotTarget != null) spotlight.on(spotTarget.rect(), spotDims);
-        if (!running || clock < settleUntil) return;
+        if (clock < settleUntil) return;
         for (int guard = 0; guard < 64 && step < steps.size(); guard++) {
             if (made.size() <= step) made.add(
                 steps.get(step)
@@ -205,73 +185,49 @@ final class Director {
             step++;
         }
         if (step < steps.size()) return;
-        if (beatDoneAt < 0) beatDoneAt = clock;
-        if (fast || hurryBeat
-            || clock - beatDoneAt >= beats().get(beat)
-                .holdMs())
-            advance();
+        hurryBeat = false;
+        if (fast) advance();
     }
 
     private void startBeat() {
-        final Beat b = beats().get(beat);
-        steps = new ArrayList<>(b.steps);
+        steps = new ArrayList<>(beats.get(beat).steps);
         made.clear();
         step = 0;
-        beatDoneAt = -1;
         spot(null);
-        caption(b.caption);
+        noteText = null;
+        noteTarget = null;
         // The cursor shows when a step moves it, and stays hidden while catching up.
         if (fast) ghost.show(false);
-        if (beat == 0) seen.add(chapter);
         final Tour.Scene scene = settledScene();
         if (scene != null) {
             final codechicken.nei.SearchField f = codechicken.nei.LayoutManager.searchField;
-            saved.put(
-                key(chapter, beat),
-                new Saved(sandbox.saveTourPlans(), scene, f == null ? "" : f.text(), !fast && !hurryBeat));
+            saved.put(beat, new Saved(sandbox.saveTourPlans(), scene, f == null ? "" : f.text(), !fast && !hurryBeat));
         }
     }
 
-    /** On to the next beat, the next chapter, or the end. */
     private void advance() {
         hurryBeat = false;
+        if (beat >= beats.size() - 1) return;
         beat++;
-        if (beat >= beats().size()) {
-            beat = 0;
-            chapter++;
-            if (chapter >= chapters.size()) {
-                chapter = chapters.size() - 1;
-                beat = beats().size() - 1;
-                end();
-                return;
-            }
-        }
-        if (fast && chapter == fastChapter && beat == fastBeat) {
+        if (fast && beat == fastBeat) {
             fast = false;
             ghost.show(true);
         }
-        steps = List.of();
-        step = 0;
-        beatDoneAt = -1;
         startBeat();
     }
 
-    private void end() {
-        mode = Mode.END;
-        fast = false;
-        spot(null);
-        release();
-        Minecraft.getMinecraft()
-            .displayGuiScreen(new TourScreen());
-    }
-
-    /** Writes the start of each chapter played (not hurried) this time, for {@link Starts} to ship. */
+    /** Writes the start of each beat played (not hurried) this time, for {@link Starts} to ship. */
     void exportStarts(final java.io.File file) throws java.io.IOException {
-        final Map<Integer, String> out = new java.util.TreeMap<>();
-        for (int c = 0; c < chapters.size(); c++) {
-            final Saved s = saved.get(key(c, 0));
-            if (s != null && s.played()) out.put(c, s.plans());
-        }
+        final Map<Integer, Starts.Entry> out = new java.util.TreeMap<>();
+        for (final Map.Entry<Integer, Saved> e : saved.entrySet()) if (e.getValue()
+            .played())
+            out.put(
+                e.getKey(),
+                new Starts.Entry(
+                    e.getValue()
+                        .plans(),
+                    e.getValue()
+                        .scene()));
         Starts.write(file, out);
     }
 
@@ -301,92 +257,66 @@ final class Director {
 
     // region The controls
 
-    void togglePause() {
-        if (mode == Mode.PLAY) paused = !paused;
-    }
-
-    /** Next: hurries the beat to its end and moves on. */
-    void next() {
-        if (mode != Mode.PLAY || fast) return;
-        paused = false;
-        if (step < steps.size()) hurryBeat = true;
-        else advance();
+    /**
+     * Next: part way through a beat, hurries it to its end (where it waits again); at its end, the next beat. Returns
+     * false at the end of the last beat: the tour is over.
+     */
+    boolean next() {
+        if (fast) return true;
+        if (step < steps.size()) {
+            hurryBeat = true;
+            return true;
+        }
+        if (last()) return false;
+        advance();
+        return true;
     }
 
     /** Back: the beat before this one, from its start. */
     void back() {
-        if (mode == Mode.END) {
-            goTo(chapters.size() - 1, chapters.get(chapters.size() - 1).beats.size() - 1);
-            return;
-        }
-        if (mode != Mode.PLAY || fast) return;
-        int c = chapter, b = beat - 1;
-        if (b < 0) {
-            if (c == 0) b = 0;
-            else {
-                c--;
-                b = chapters.get(c).beats.size() - 1;
-            }
-        }
-        goTo(c, b);
-    }
-
-    void menu() {
-        mode = Mode.MENU;
-        fast = false;
-        spot(null);
-        release();
+        if (fast || beat == 0) return;
+        goTo(beat - 1);
     }
 
     /**
      * Goes to a beat: back to how things stood at its start when that was saved, else at the nearest saved beat before
      * it (the plans put back, the screen opened), hurrying through the beats between.
      */
-    void goTo(final int toChapter, final int toBeat) {
-        int fromChapter = 0, fromBeat = 0;
-        Saved from = null;
-        search: for (int c = toChapter; c >= 0; c--) {
-            for (int b = c == toChapter ? toBeat : chapters.get(c).beats.size() - 1; b >= 0; b--) {
-                final Saved s = saved.get(key(c, b));
-                if (s != null) {
-                    from = s;
-                    fromChapter = c;
-                    fromBeat = b;
-                    break search;
-                }
+    void goTo(final int to) {
+        final int target = Math.max(0, Math.min(beats.size() - 1, to));
+        int from = 0;
+        Saved start = null;
+        for (int b = target; b >= 0; b--) {
+            final Saved s = saved.get(b);
+            if (s != null) {
+                start = s;
+                from = b;
+                break;
             }
         }
-        // A chapter not reached yet starts from the plans it ships with, when they read in this pack.
-        final int shipped = Starts.nearest(toChapter, from == null ? -1 : fromChapter);
+        // A beat not reached yet starts from the plans the tour ships with, when they read in this pack.
+        final int shipped = Starts.nearest(target, start == null ? -1 : from);
         if (shipped >= 0) {
             final String plans = Starts.plans(shipped);
             if (plans != null) {
-                from = new Saved(plans, chapters.get(shipped).scene, "", true);
-                fromChapter = shipped;
-                fromBeat = 0;
+                start = new Saved(plans, Starts.scene(shipped), "", true);
+                from = shipped;
             }
         }
         release();
         ghost.clear();
-        paused = false;
         hurryBeat = false;
         sandbox.clearSearch();
-        if (from != null) {
-            sandbox.loadTourPlans(from.plans());
-            openScene(from.scene());
+        if (start != null) {
+            sandbox.loadTourPlans(start.plans());
+            openScene(start.scene());
             if (codechicken.nei.LayoutManager.searchField != null)
-                codechicken.nei.LayoutManager.searchField.setText(from.search());
-        } else openScene(chapters.get(0).scene);
-        chapter = fromChapter;
-        beat = fromBeat;
-        mode = Mode.PLAY;
-        fast = fromChapter != toChapter || fromBeat != toBeat;
-        fastChapter = toChapter;
-        fastBeat = toBeat;
-        steps = List.of();
-        step = 0;
-        beatDoneAt = -1;
-        // A hurried first step would act on the screen before it has built itself (cards, their view, popups' places).
+                codechicken.nei.LayoutManager.searchField.setText(start.search());
+        } else openScene(Script.START);
+        beat = from;
+        fast = from != target;
+        fastBeat = target;
+        // A first step would act on the screen before it has built itself (cards, their view, popups' places).
         settleUntil = clock + 400;
         // The pointer starts from the middle of the screen.
         final net.minecraft.client.gui.ScaledResolution sr = Targets.resolution();
@@ -414,7 +344,7 @@ final class Director {
         mc.displayGuiScreen(new GuiInventory(mc.thePlayer));
     }
 
-    /** Opens a chapter's first screen afresh. */
+    /** Opens a beat's screen afresh. */
     static void openScene(final Tour.Scene scene) {
         final Minecraft mc = Minecraft.getMinecraft();
         switch (scene) {

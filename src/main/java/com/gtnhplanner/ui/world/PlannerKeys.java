@@ -36,6 +36,46 @@ public final class PlannerKeys {
 
     public PlannerKeys() {}
 
+    /**
+     * One of the minimap's keys as the player has it bound, written as people say it ("N", "]", "Up"), for text that
+     * says which to press: "show" (show or hide it), "in", "out" (zoom), "up", "down", "left", "right" (move).
+     */
+    public static String minimapKey(final String what) {
+        final KeyBinding k = switch (what) {
+            case "show" -> MINIMAP;
+            case "in" -> ZOOM_IN;
+            case "out" -> ZOOM_OUT;
+            case "up" -> PAN_UP;
+            case "down" -> PAN_DOWN;
+            case "left" -> PAN_LEFT;
+            case "right" -> PAN_RIGHT;
+            default -> null;
+        };
+        return k == null ? "?" : keyLabel(k.getKeyCode());
+    }
+
+    /** Whether the minimap moves with the arrow keys, as it does until they are bound to others. */
+    public static boolean minimapOnArrows() {
+        return PAN_UP.getKeyCode() == Keyboard.KEY_UP && PAN_DOWN.getKeyCode() == Keyboard.KEY_DOWN
+            && PAN_LEFT.getKeyCode() == Keyboard.KEY_LEFT
+            && PAN_RIGHT.getKeyCode() == Keyboard.KEY_RIGHT;
+    }
+
+    /** A key's name as people say it: [ and ] as themselves, Ctrl, Shift and Alt, else the game's. */
+    public static String keyLabel(final int code) {
+        return switch (code) {
+            case Keyboard.KEY_LBRACKET -> "[";
+            case Keyboard.KEY_RBRACKET -> "]";
+            case Keyboard.KEY_MINUS -> "-";
+            case Keyboard.KEY_EQUALS -> "=";
+            case Keyboard.KEY_COMMA -> ",";
+            case Keyboard.KEY_PERIOD -> ".";
+            case Keyboard.KEY_SLASH -> "/";
+            case Keyboard.KEY_NONE -> "(none)";
+            default -> PlacementKeys.keyName(code);
+        };
+    }
+
     public static void register() {
         for (final KeyBinding k : new KeyBinding[] { MINIMAP, ZOOM_IN, ZOOM_OUT, PAN_UP, PAN_DOWN, PAN_LEFT, PAN_RIGHT,
             RECENTRE, AR, LINK }) ClientRegistry.registerKeyBinding(k);

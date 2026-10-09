@@ -140,5 +140,6 @@ final class VirtualInput {
     /** Lets go of anything held, without a release reaching the screen: the tour is stopping. */
     static void reset() {
         held = -1;
+        Pointer.shift = false;
     }
 }

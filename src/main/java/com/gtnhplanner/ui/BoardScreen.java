@@ -246,6 +246,7 @@ public final class BoardScreen extends ModularScreen {
         parts.put("notices", notices);
         final SelectionBar selectionBar = new SelectionBar(session, canvas, notices);
         panel.child(selectionBar);
+        parts.put("selection", selectionBar);
         // The first time the planner opens: the tour, offered once along the bottom of the board.
         panel.child(
             new TourOffer()
@@ -288,6 +289,12 @@ public final class BoardScreen extends ModularScreen {
             return "picker:sheet".equals(id) ? p.sheetRect() : p.tileRect(id.substring(7));
         }
         if (id.startsWith("library:")) return library.open ? library.view.partRect(id.substring(8)) : null;
+        if ("selection".equals(id)) {
+            final IWidget s = parts.get("selection");
+            if (s == null || !s.canHover()) return null;
+            final com.cleanroommc.modularui.widget.sizer.Area a = s.getArea();
+            return new int[] { a.x, a.y, a.width, a.height };
+        }
         if ("notices".equals(id)) {
             final IWidget n = parts.get("notices");
             if (n == null || !n.isEnabled()) return null;
@@ -309,7 +316,7 @@ public final class BoardScreen extends ModularScreen {
             new com.gtnhplanner.ui.popup.PickList.Entry(
                 null,
                 "Take the tour",
-                "8 minutes",
+                "3 minutes",
                 Hyb.INK,
                 false,
                 com.gtnhplanner.ui.tutorial.Tutorial::start));

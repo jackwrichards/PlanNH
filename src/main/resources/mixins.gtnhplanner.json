@@ -9,6 +9,7 @@
         "LayoutManagerMixin",
         "GuiOverlayButtonMixin",
         "EntityRendererMixin",
-        "GuiDrawMixin"
+        "GuiDrawMixin",
+        "GuiScreenShiftMixin"
     ]
 }

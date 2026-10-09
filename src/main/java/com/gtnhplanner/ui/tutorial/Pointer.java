@@ -16,6 +16,8 @@ public final class Pointer {
     private static volatile boolean driving;
     /** Set while the tour types a key, so a key reader that drops a doubled event takes it. */
     public static volatile boolean typing;
+    /** Set while the tour holds Shift (a Shift-click): the game's "is Shift down" says yes (a mixin reads it). */
+    public static volatile boolean shift;
     /** Where it is, in GUI pixels. */
     private static volatile float x, y;
 

@@ -7,7 +7,6 @@ import java.util.Locale;
 import java.util.function.Predicate;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.item.ItemStack;
 
 import com.gtnhplanner.data.flowchart.Node;
@@ -21,59 +20,52 @@ import com.gtnhplanner.ui.drawer.DrawerCard;
 import com.gtnhplanner.ui.drawer.DrawerModel;
 import com.gtnhplanner.ui.note.NoteCard;
 import com.gtnhplanner.ui.tutorial.Targets.Target;
-import com.gtnhplanner.ui.tutorial.Tour.Chapter;
+import com.gtnhplanner.ui.tutorial.Tour.Beat;
 import com.gtnhplanner.ui.tutorial.Tour.Scene;
 import com.gtnhplanner.ui.world.Minimap;
+import com.gtnhplanner.ui.world.PlannerKeys;
 
 import codechicken.nei.recipe.GuiCraftingRecipe;
 
 /**
- * What the tour shows, in order: from opening the planner to the minimap, one chapter per thing a new player needs.
- * Captions are short and plain, as a person says them; each beat's steps act out its caption. The design and the
- * reasons for the order are in docs/design/tutorial.md.
+ * What the tour shows, in order, from the planner's button to the minimap. Each beat does the clicking first, at a
+ * brisk pace, then one note says what it showed. Notes are plain and short: what the thing is, and how to use it.
+ * docs/design/tutorial.md has the design.
  */
 final class Script {
 
     private Script() {}
 
-    static List<Chapter> chapters() {
-        final List<Chapter> out = new ArrayList<>();
-        openingThePlanner(out);
-        firstRecipe(out);
-        readingACard(out);
-        wiring(out);
-        target(out);
-        settings(out);
-        actions(out);
+    /** The screen the first beat starts on. */
+    static final Scene START = Scene.INVENTORY;
+
+    static List<Beat> beats() {
+        final List<Beat> out = new ArrayList<>();
+        recipe(out);
+        board(out);
+        machine(out);
+        cards(out);
         overview(out);
-        units(out);
-        fromTheList(out);
+        fromNei(out);
         power(out);
-        arrange(out);
-        notes(out);
+        tidying(out);
         plans(out);
-        library(out);
         minimap(out);
         return out;
     }
 
-    private static Chapter chapter(final List<Chapter> out, final String title, final Scene scene) {
-        final Chapter c = new Chapter(title, scene);
-        out.add(c);
-        return c;
+    private static Beat beat(final List<Beat> out) {
+        final Beat b = new Beat();
+        out.add(b);
+        return b;
     }
 
-    // region What the chapters point at
+    // region What the beats point at
 
     private static final Target PLANNER_KEY = Targets.plannerButton();
 
     private static boolean boardOpen() {
         return Targets.board() != null;
-    }
-
-    private static boolean inventoryOpen() {
-        final net.minecraft.client.gui.GuiScreen s = Minecraft.getMinecraft().currentScreen;
-        return s instanceof GuiContainer && !Planner.isPlanner(s) && !(s instanceof codechicken.nei.recipe.GuiRecipe);
     }
 
     private static boolean popupOpen() {
@@ -129,6 +121,28 @@ final class Script {
                 .equals(n.id)) return false;
         return true;
     };
+
+    /** The card the clone was made from: the acid card with its drawers. */
+    private static final Predicate<Node> ORIGINAL = n -> ACID.test(n) && !CLONE.test(n);
+
+    /** The acid recipes share one machine. */
+    private static boolean merged() {
+        final BoardScreen b = Targets.board();
+        if (b == null) return false;
+        for (final Node n : acids()) if (b.session()
+            .sharedOf(n.id) != null) return true;
+        return false;
+    }
+
+    /** One of NEI's keys as the player has it bound ("gui.recipe": R, "gui.usage": U). */
+    private static String neiKey(final String binding, final String fallback) {
+        try {
+            final String k = codechicken.nei.NEIClientConfig.getKeyName(binding);
+            return k == null || k.isEmpty() ? fallback : k;
+        } catch (final RuntimeException | LinkageError e) {
+            return fallback;
+        }
+    }
 
     private static boolean hasCard(final Predicate<Node> which) {
         return Targets.card(which) != null;
@@ -219,543 +233,347 @@ final class Script {
         return Targets.card(which, part);
     }
 
-    // endregion
+    private static Target drawerPart(final String label, final DrawerCard.Part part) {
+        return Targets.drawer(label, part);
+    }
 
-    // region 1. Opening the planner
-
-    private static void openingThePlanner(final List<Chapter> out) {
-        final Chapter c = chapter(out, "Opening the planner", Scene.INVENTORY);
-        c.beat("This button opens GTNH Planner. It sits at the bottom left of any inventory, beside NEI's search.")
-            .pause(300)
-            .ring(PLANNER_KEY)
-            .hover(PLANNER_KEY, 1600);
-        c.beat("Click it to open the planner. Click it again to go back.")
-            .ring(PLANNER_KEY)
-            .click(PLANNER_KEY)
-            .until(Script::boardOpen, 4000)
-            .pause(1600)
-            .ring(PLANNER_KEY)
-            .click(PLANNER_KEY)
-            .until(Script::inventoryOpen, 4000)
-            .ring(null);
+    /** Sets a number box: opens it, types, and presses Enter. */
+    private static Beat setNumber(final Beat b, final Target box, final String value) {
+        return b.opens(box)
+            .type(Steps::focusedField, value)
+            .pause(150)
+            .commit();
     }
 
     // endregion
 
-    // region 2. Your first recipe
+    // region From NEI to a card
 
-    private static void firstRecipe(final List<Chapter> out) {
-        final Chapter c = chapter(out, "Your first recipe", Scene.INVENTORY);
-        c.beat("Everything starts in NEI. Search for what you want to make: hydrochloric acid.")
-            .ring(Targets.neiSearch())
-            .click(Targets.neiSearch())
-            .type(Steps::neiSearch, "hydrochloric acid")
-            .ring(null)
-            .pause(500);
-        c.beat("Point at it and press R to see the recipes that make it.")
-            .hover(fluidItem("hydrochloric acid"), 1100)
-            .key("R", () -> recipesFor("hydrochloric acid"))
-            .until(() -> Targets.recipePage() != null, 4000)
-            .pause(600);
+    private static void recipe(final List<Beat> out) {
+        beat(out).pause(250)
+            .note(PLANNER_KEY, "This button opens *GTNH Planner*.");
+
         // The reactor's tab is clicked when it shows on the tab strip; the page then turns to the acid's recipe either
-        // way (a strip with many tabs may have it on a later page of tabs, where it shows once chosen).
+        // way (a strip with many tabs may have it on a later page of tabs).
         final Target lcrTab = Targets.recipeTab(
             h -> h.getRecipeName()
                 .toLowerCase(Locale.ROOT)
                 .contains("large chemical"));
-        c.beat("Pick the Large Chemical Reactor's tab. Hydrogen and chlorine go in, hydrochloric acid comes out.")
-            .pause(400)
-            .when(() -> lcrTab.rect() != null, Steps.seq(Steps.ring(lcrTab), Steps.click(lcrTab)))
+        beat(out).click(Targets.neiSearch())
+            .type(Steps::neiSearch, "hydrochloric acid")
+            .pause(200)
+            .hover(fluidItem("hydrochloric acid"), 200)
+            .key(neiKey("gui.recipe", "R"), () -> recipesFor("hydrochloric acid"))
+            .until(() -> Targets.recipePage() != null, 4000)
+            .pause(200)
+            .when(() -> lcrTab.rect() != null, Steps.click(lcrTab))
             .run(() -> TourRecipes.open(acidRecipe()))
             .until(() -> ACID_PLAN_BUTTON.rect() != null, 3000)
-            .ring(lcrTab)
-            .hover(lcrTab, 700)
-            .ring(null);
-        c.beat("This button adds a recipe to a plan.")
-            .ring(ACID_PLAN_BUTTON)
-            .hover(ACID_PLAN_BUTTON, 1800);
-        c.beat("Click it, then pick a plan: a new one, or one you already have.")
-            .click(ACID_PLAN_BUTTON)
+            .note(ACID_PLAN_BUTTON, "This button *adds a recipe to a plan*.");
+
+        final Target lcrRow = Targets.planMenuRow("Large Chemical");
+        beat(out).click(ACID_PLAN_BUTTON)
             .until(PlanMenu.INSTANCE::isOpen, 2000)
-            .ring(Targets.planMenuRow("New plan"))
-            .hover(Targets.planMenuRow("New plan"), 800)
-            .click(Targets.planMenuRow("New plan"));
-        c.beat("Then the machine that runs it.")
-            .until(
-                () -> Targets.planMenuRow("Large Chemical")
-                    .rect() != null || boardOpen(),
-                2000)
-            .when(
-                () -> Targets.planMenuRow("Large Chemical")
-                    .rect() != null,
-                Steps.seq(
-                    Steps.ring(Targets.planMenuRow("Large Chemical")),
-                    Steps.hover(Targets.planMenuRow("Large Chemical"), 900),
-                    Steps.click(Targets.planMenuRow("Large Chemical"))))
+            .hover(Targets.planMenuRow("New plan"), 200)
+            .click(Targets.planMenuRow("New plan"))
+            .until(() -> lcrRow.rect() != null || boardOpen(), 2000)
+            .when(() -> lcrRow.rect() != null, Steps.seq(Steps.hover(lcrRow, 200), Steps.click(lcrRow)))
             .until(() -> hasCard(ACID), 5000)
-            .ring(null);
-        c.beat("There it is: the recipe as a card, in a plan of its own.")
-            .until(() -> hasCard(ACID), 3000)
             .rest()
-            .spot(card(ACID, RecipeCard.Part.BODY))
-            .pause(800);
-        c.beat("Shift-click the plan button to skip both menus. It remembers the machine you picked.")
-            .spot(null);
+            .note(
+                card(ACID, RecipeCard.Part.BODY),
+                "This is a *recipe in a plan*. Right now it isn't working because it isn't wired up.");
     }
 
     // endregion
 
-    // region 3. Reading a card
+    // region Wiring and targets
 
-    private static void readingACard(final List<Chapter> out) {
-        final Chapter c = chapter(out, "Reading a card", Scene.BOARD);
-        c.beat("A card is one recipe, running on one kind of machine. This one runs in a Large Chemical Reactor.")
-            .rest()
-            .spot(card(ACID, RecipeCard.Part.BODY));
-        c.beat("What it takes is on the left: hydrogen and chlorine.")
-            .spot(Targets.around(Targets.port(ACID, false, "Hydrogen"), Targets.port(ACID, false, "Chlorine")));
-        c.beat("What it makes is on the right: hydrochloric acid.")
-            .spot(Targets.port(ACID, true, "Hydrochloric"));
-        c.beat("This says how many machines it needs. Nothing is wired yet, so it can't tell.")
-            .spot(card(ACID, RecipeCard.Part.MACHINES));
-    }
-
-    // endregion
-
-    // region 4. Wiring it up
-
-    private static void wiring(final List<Chapter> out) {
-        final Chapter c = chapter(out, "Wiring it up", Scene.BOARD);
+    private static void board(final List<Beat> out) {
         final Target hydrogen = Targets.port(ACID, false, "Hydrogen"), chlorine = Targets.port(ACID, false, "Chlorine"),
             acid = Targets.port(ACID, true, "Hydrochloric");
-        c.beat("First, some room: scroll to zoom out. Drag empty board to move around.")
-            .wheel(Targets.canvasArea(), -3)
-            .pause(400)
+        beat(out).wheel(Targets.canvasArea(), -3)
+            .pause(150)
             .pan(Targets.emptyBoard(60, 60), 0, 30)
-            .rest();
-        c.beat("Nothing happens until things are wired up. Drag a port out onto empty board to make a drawer.")
-            .ring(hydrogen)
             .drag(hydrogen, Targets.shift(hydrogen, -130, -40))
             .until(() -> hasDrawer("Hydrogen"), 3000)
-            .ring(null)
-            .rest();
-        c.beat("That drawer brings in hydrogen. The same for chlorine.")
-            .ring(chlorine)
             .drag(chlorine, Targets.shift(chlorine, -130, 50))
             .until(() -> hasDrawer("Chlorine"), 3000)
-            .ring(null)
-            .rest();
-        c.beat("And a drawer on the right takes the acid away.")
-            .ring(acid)
             .drag(acid, Targets.shift(acid, 130, 0))
             .until(() -> hasDrawer("Hydrochloric"), 3000)
-            .ring(null)
-            .rest();
-        c.beat("Wired up, and still nothing: the plan has nothing to aim for yet.")
             .rest()
-            .spot(card(ACID, RecipeCard.Part.MACHINES))
-            .pause(1800)
-            .spot(Targets.boardPart("notices"));
-    }
+            .note(
+                Targets.around(
+                    drawerPart("Hydrogen", DrawerCard.Part.BODY),
+                    drawerPart("Chlorine", DrawerCard.Part.BODY),
+                    drawerPart("Hydrochloric", DrawerCard.Part.BODY)),
+                "Drag out inputs and outputs so things can enter and leave the plan. *Notice nothing runs yet.*");
 
-    // endregion
-
-    // region 5. Giving it a target
-
-    private static void target(final List<Chapter> out) {
-        final Chapter c = chapter(out, "Giving it a target", Scene.BOARD);
         final Target count = card(ACID, RecipeCard.Part.MACHINES);
-        c.beat("One way to give it a target: click the machine count and pin it, say to one machine.")
-            .ring(count)
-            .opens(count)
-            .type(Steps::focusedField, "1")
-            .pause(300)
-            .commit()
-            .until(() -> model(ACID) != null && model(ACID).pinned, 3000)
-            .ring(null);
-        c.beat("Now every number fills in: what it takes and what it makes, all from that one machine.")
+        setNumber(beat(out), count, "1").until(() -> model(ACID) != null && model(ACID).pinned, 3000)
             .until(Script::solved, 3000)
             .rest()
-            .spot(
-                Targets.around(
-                    Targets.drawer("Hydrogen", DrawerCard.Part.BODY),
-                    Targets.drawer("Chlorine", DrawerCard.Part.BODY),
-                    Targets.drawer("Hydrochloric", DrawerCard.Part.BODY)));
-        c.beat("The other way: clear the pin, and ask for an amount of product instead.")
-            .ring(count)
-            .opens(count)
-            .type(Steps::focusedField, "")
-            .pause(300)
-            .commit()
-            .until(() -> model(ACID) != null && !model(ACID).pinned, 3000)
-            .ring(Targets.drawer("Hydrochloric", DrawerCard.Part.RATE))
-            .opens(Targets.drawer("Hydrochloric", DrawerCard.Part.RATE))
+            .note(count, "*Pin a recipe's machine count* so the plan can solve. Everything else is worked out.");
+
+        setNumber(beat(out), count, "").until(() -> model(ACID) != null && !model(ACID).pinned, 3000)
+            .opens(drawerPart("Hydrochloric", DrawerCard.Part.RATE))
             .type(Steps::focusedField, "1000")
-            .pause(300)
+            .pause(150)
             .commit()
             .until(() -> model(ACID) != null && model(ACID).machines > 0, 4000)
-            .ring(null);
-        c.beat("It works out how many machines that takes, and what goes in.")
             .until(Script::solved, 3000)
             .rest()
-            .spot(count);
-        c.beat("Pin what you know, and the planner solves the rest.")
-            .spot(null);
+            .note(
+                drawerPart("Hydrochloric", DrawerCard.Part.RATE),
+                "Or *pin an output*. This plan now solves for 1k hydrochloric acid per second, and the unpinned machine count shows how many machines that takes.");
     }
 
     // endregion
 
-    // region 6. Machine settings
+    // region The machine
 
-    private static void settings(final List<Chapter> out) {
-        final Chapter c = chapter(out, "Machine settings", Scene.BOARD);
-        final Target tier = card(ACID, RecipeCard.Part.TIER), count = card(ACID, RecipeCard.Part.MACHINES);
-        c.beat(
-            "The tier: click to step it up, right-click to step it down. Higher tiers overclock, so fewer machines do the job.")
-            .ring(tier)
-            .click(tier)
-            .pause(900)
-            .click(tier)
-            .pause(700)
-            .until(Script::solved, 3000)
-            .ring(count)
-            .pause(1200);
-        c.beat("The amps are the multiblock's energy hatches. More amps leave room to overclock further.")
-            .ring(card(ACID, RecipeCard.Part.AMPS))
-            .opens(card(ACID, RecipeCard.Part.AMPS))
-            .type(Steps::focusedField, "2")
-            .pause(300)
-            .commit()
-            .ring(null);
-        c.beat("Power is shown, never wired: you don't supply it on the board.")
-            .ring(card(ACID, RecipeCard.Part.POWER))
-            .hover(card(ACID, RecipeCard.Part.POWER), 2200);
-        c.beat("This is the programmed circuit the recipe needs. It isn't used up.")
-            .ring(card(ACID, RecipeCard.Part.CIRCUIT))
-            .hover(card(ACID, RecipeCard.Part.CIRCUIT), 2200);
-        c.beat("More settings live under the gear. Pin one there to show it on the card.")
-            .ring(card(ACID, RecipeCard.Part.SETTINGS))
-            .opens(card(ACID, RecipeCard.Part.SETTINGS))
-            .spot(Targets.popup())
-            .pause(2600)
-            .escIf(Script::popupOpen)
-            .spot(null);
+    private static void machine(final List<Beat> out) {
+        final Target tier = card(ACID, RecipeCard.Part.TIER), amps = card(ACID, RecipeCard.Part.AMPS);
+        setNumber(
+            beat(out).click(tier)
+                .pause(200)
+                .click(tier)
+                .until(Script::solved, 3000),
+            amps,
+            "2").until(Script::solved, 3000)
+                .rest()
+                .note(Targets.around(tier, amps), "Set the *tier* and *amps* here.");
+
+        beat(out).pause(150)
+            .note(
+                Targets.around(card(ACID, RecipeCard.Part.POWER), card(ACID, RecipeCard.Part.CIRCUIT)),
+                "Power use is shown here, but machines *don't need to be wired to power*. The circuit is also shown.");
+
+        beat(out).opens(card(ACID, RecipeCard.Part.SETTINGS))
+            .note(
+                Targets.popup(),
+                "This is the *settings panel*. Pin settings to show them on the card, so you don't have to open this menu.");
     }
 
     // endregion
 
-    // region 7. Card actions
+    // region Cards
 
-    private static void actions(final List<Chapter> out) {
-        final Chapter c = chapter(out, "Card actions", Scene.BOARD);
-        c.beat("This key holds the card's actions. Clone makes a copy, settings and all.")
-            .ring(card(ACID, RecipeCard.Part.ACTIONS))
+    private static void cards(final List<Beat> out) {
+        beat(out).escIf(Script::popupOpen)
             .opens(card(ACID, RecipeCard.Part.ACTIONS))
-            .hover(Targets.popupRow("Clone"), 700)
+            .hover(Targets.popupRow("Clone"), 200)
             .click(Targets.popupRow("Clone"))
             .until(() -> acids().size() == 2, 3000)
-            .ring(null);
-        c.beat("Drag a card by its body to move it somewhere else.")
             .drag(
                 Targets.point(card(CLONE, RecipeCard.Part.BODY), 0.96f, 0.95f),
                 Targets.emptyBoard(330, 230, 0.96f, 0.95f))
-            .rest();
-        c.beat("Delete takes it away again.")
-            .ring(card(CLONE, RecipeCard.Part.ACTIONS))
-            .opens(card(CLONE, RecipeCard.Part.ACTIONS))
-            .hover(Targets.popupRow("Delete"), 700)
-            .click(Targets.popupRow("Delete"))
-            .until(() -> acids().size() == 1, 3000)
-            .ring(null);
-        c.beat("Made a mistake? Undo and redo are up here, or Ctrl+Z.")
-            .ring(Targets.topKey("undo"))
-            .click(Targets.topKey("undo"))
-            .until(() -> acids().size() == 2, 2000)
-            .pause(700)
-            .ring(Targets.topKey("redo"))
-            .click(Targets.topKey("redo"))
-            .until(() -> acids().size() == 1, 2000)
-            .ring(null);
-    }
-
-    // endregion
-
-    // region 8. The overview
-
-    private static void overview(final List<Chapter> out) {
-        final Chapter c = chapter(out, "The overview", Scene.BOARD);
-        c.beat("The overview on the left adds up the whole plan.")
             .rest()
-            .spot(rail("all"));
-        c.beat("What the plan needs from outside, and what comes out of it.")
-            .spot(Targets.around(rail("section:INPUTS"), rail("resource:Hydrochloric")));
-        c.beat("Every machine to build, and the power they draw.")
-            .spot(Targets.around(rail("section:MACHINES"), rail("group:Large Chemical")));
-        c.beat("Click a machine to go to its card.")
-            .ring(rail("group:Large Chemical"))
-            .click(rail("group:Large Chemical"))
-            .pause(900)
-            .ring(null);
-        c.beat("Point at an item for more. A right-click finds public plans that make it.")
-            .ring(rail("resource:Hydrochloric"))
-            .hover(rail("resource:Hydrochloric"), 2400);
+            .note(card(CLONE, RecipeCard.Part.BODY), "You can *clone* machines easily.");
+
+        // A card clicked without moving it is selected; Shift adds the next to it; two that one machine can run
+        // offer to combine.
+        final Target selection = Targets.boardPart("selection");
+        beat(out).click(Targets.point(card(ORIGINAL, RecipeCard.Part.BODY), 0.9f, 0.85f))
+            .pause(150)
+            .shiftClick(Targets.point(card(CLONE, RecipeCard.Part.BODY), 0.9f, 0.85f))
+            .until(() -> selection.rect() != null, 2000)
+            .hover(selection, 250)
+            .click(selection)
+            .until(Script::merged, 3000)
+            .rest()
+            .note(
+                card(ACID, RecipeCard.Part.BODY),
+                "Select both and *merge* them. Now two recipes run on one machine.");
+
+        // Undone back to the one card: the merge, the move and the clone.
+        beat(out).clickUntil(Targets.topKey("undo"), () -> acids().size() == 1, 5)
+            .rest()
+            .note(Targets.around(Targets.topKey("undo"), Targets.topKey("redo")), "*Undo* and *redo* are up here.");
     }
 
     // endregion
 
-    // region 9. Units and power
+    // region The overview
 
-    private static void units(final List<Chapter> out) {
-        final Chapter c = chapter(out, "Rates and power", Scene.BOARD);
+    private static void overview(final List<Beat> out) {
+        beat(out).note(
+            rail("all"),
+            "This is the *overview* of everything in the plan. Click something to go to it, and set pinned rates at a glance.");
+
+        // Each key is turned all the way round, back to where it was.
         final Target rate = Targets.topKey("rate"), power = Targets.topKey("power"), peak = Targets.topKey("peak");
-        c.beat("Rates show per tick, second, minute or hour.")
-            .ring(rate)
-            .click(rate)
-            .pause(800)
-            .click(rate)
-            .pause(800)
-            .click(rate)
-            .pause(800)
-            .click(rate)
-            .ring(null);
-        c.beat("Power shows in EU/t, or in amps at each machine's tier.")
-            .ring(power)
+        final Beat units = beat(out);
+        for (int i = 0; i < 4; i++) units.click(rate)
+            .pause(120);
+        units.click(power)
+            .pause(250)
             .click(power)
-            .pause(1400)
-            .click(power)
-            .ring(null);
-        c.beat("Average power, or peak: every machine running at once.")
-            .ring(peak)
+            .pause(120)
             .click(peak)
-            .pause(1400)
+            .pause(250)
             .click(peak)
-            .ring(null);
+            .rest()
+            .note(Targets.around(rate, power, peak), "These buttons change *the way numbers are shown*.");
     }
 
     // endregion
 
-    // region 10. From NEI's list
+    // region From NEI's list
 
-    private static void fromTheList(final List<Chapter> out) {
-        final Chapter c = chapter(out, "Items from NEI's list", Scene.BOARD);
+    private static void fromNei(final List<Beat> out) {
         final Target spot = Targets.emptyBoard(200, 90);
-        c.beat("NEI's list works here too. Search for something: benzene.")
-            .ring(Targets.neiSearch())
-            .click(Targets.neiSearch())
+        beat(out).click(Targets.neiSearch())
             .type(Steps::neiSearch, "benzene")
-            .ring(null)
-            .pause(500);
-        c.beat("Drag it onto the board, and click where it goes.")
-            .drag(fluidItem("benzene"), spot)
             .pause(200)
+            .drag(fluidItem("benzene"), spot)
+            .pause(150)
             .when(() -> codechicken.nei.ItemPanels.itemPanel.draggedStack != null, Steps.click(spot))
-            .until(Script::popupOpen, 2500);
-        c.beat("Add it as a product, something you want. A source is something you already have.")
-            .ring(Targets.popupRow("Add as a product"))
-            .hover(Targets.popupRow("Add as a product"), 900)
+            .until(Script::popupOpen, 2500)
+            .hover(Targets.popupRow("Add as a product"), 200)
             .click(Targets.popupRow("Add as a product"))
             .until(() -> hasDrawer("Benzene"), 3000)
-            .ring(null);
-        c.beat("Point at it and press R to see what makes it.")
-            .hover(Targets.drawer("Benzene", DrawerCard.Part.BODY), 900)
-            .key("R", () -> {
+            .rest()
+            .note(drawerPart("Benzene", DrawerCard.Part.BODY), "You can also *drag things in from NEI*.");
+
+        final String recipeKey = neiKey("gui.recipe", "R"), usesKey = neiKey("gui.usage", "U");
+        beat(out).hover(drawerPart("Benzene", DrawerCard.Part.BODY), 200)
+            .key(recipeKey, () -> {
                 final DrawerModel d = drawer("Benzene");
                 if (d != null) Planner.lookUp(com.gtnhplanner.ui.Resources.lookupStack(d.item, d.fluid), false);
             })
             .until(() -> Targets.recipePage() != null, 4000)
-            .pause(500);
-        c.beat("This one distills it out of wood tar. Add it to this plan.")
+            .pause(200)
             .run(() -> TourRecipes.open(benzeneRecipe()))
             .until(() -> BENZENE_PLAN_BUTTON.rect() != null, 3000)
-            .ring(BENZENE_PLAN_BUTTON)
             .click(BENZENE_PLAN_BUTTON)
             .until(PlanMenu.INSTANCE::isOpen, 2000)
-            .hover(Targets.planMenuRow("Plan 2"), 700)
+            .hover(Targets.planMenuRow("Plan 2"), 200)
             .click(Targets.planMenuRow("Plan 2"))
             .until(() -> PlanMenu.INSTANCE.isOpen() || hasCard(BENZENE), 2000)
             .when(PlanMenu.INSTANCE::isOpen, Steps.click(Targets.planMenuRow("")))
             .until(() -> hasCard(BENZENE), 5000)
-            .ring(null);
-        c.beat("Drag its benzene onto the drawer to wire them.")
-            .rest()
-            .drag(Targets.port(BENZENE, true, "Benzene"), Targets.drawer("Benzene", DrawerCard.Part.BODY))
+            .drag(Targets.port(BENZENE, true, "Benzene"), drawerPart("Benzene", DrawerCard.Part.BODY))
             .until(() -> drawer("Benzene") != null && drawer("Benzene").linked, 3000)
-            .rest();
+            .rest()
+            .note(
+                card(BENZENE, RecipeCard.Part.BODY),
+                "Treat this planner *just like NEI*: press " + recipeKey + " or " + usesKey + " on things.");
     }
 
     // endregion
 
-    // region 11. Planning power
+    // region Power
 
-    private static void power(final List<Chapter> out) {
-        final Chapter c = chapter(out, "Planning power", Scene.BOARD);
-        c.beat("Generators, turbines, boilers and reactors are under Non-recipe machines.")
-            .ring(Targets.topKey("nonrecipe"))
-            .click(Targets.topKey("nonrecipe"))
+    private static void power(final List<Beat> out) {
+        beat(out).click(Targets.topKey("nonrecipe"))
             .until(
                 () -> Targets.boardPart("picker:sheet")
                     .rect() != null,
                 2000)
-            .spot(Targets.boardPart("picker:sheet"))
-            .pause(1200);
-        c.beat("The gas turbine burns benzene.")
-            .ring(Targets.boardPart("picker:Gas Turbine"))
-            .hover(Targets.boardPart("picker:Gas Turbine"), 1200)
+            .note(
+                Targets.boardPart("picker:sheet"),
+                "This section is for *non-recipe machines*, mostly power generation.");
+
+        // The turbine at HV burns the tower's benzene; everything else the tower takes and makes gets a drawer, and the
+        // turbine's power one too, so the whole plan runs. The tower pinned to one says how many turbines that feeds.
+        final Target turbineTier = card(TURBINE, RecipeCard.Part.TIER);
+        final Beat b = beat(out).hover(Targets.boardPart("picker:Gas Turbine"), 200)
             .click(Targets.boardPart("picker:Gas Turbine"))
             .until(() -> hasCard(TURBINE), 3000)
-            .ring(null);
-        c.beat("Set it to HV.")
-            .ring(card(TURBINE, RecipeCard.Part.TIER))
-            .click(card(TURBINE, RecipeCard.Part.TIER))
-            .pause(700)
-            .click(card(TURBINE, RecipeCard.Part.TIER))
-            .ring(null);
-        c.beat("Send the benzene to the turbine instead: delete the drawer, and drag the port onto the turbine.")
-            .ring(Targets.drawer("Benzene", DrawerCard.Part.DELETE))
-            .click(Targets.drawer("Benzene", DrawerCard.Part.DELETE))
+            .click(turbineTier)
+            .pause(200)
+            .click(turbineTier)
+            .click(drawerPart("Benzene", DrawerCard.Part.DELETE))
             .until(() -> !hasDrawer("Benzene"), 2000)
-            .ring(null)
             .drag(Targets.port(BENZENE, true, "Benzene"), card(TURBINE, RecipeCard.Part.BODY))
-            .pause(400);
-        c.beat("Pin the benzene machine to one...")
-            .ring(card(BENZENE, RecipeCard.Part.MACHINES))
-            .opens(card(BENZENE, RecipeCard.Part.MACHINES))
-            .type(Steps::focusedField, "1")
-            .pause(300)
-            .commit()
+            .pause(200);
+        drawerFor(b, Targets.port(TURBINE, true, "EU"), true, "EU");
+        for (final String made : new String[] { "Creosote", "Phenol", "Toluene", "Dimethylbenzene" })
+            drawerFor(b, Targets.port(BENZENE, true, made), true, made);
+        drawerFor(b, Targets.port(BENZENE, false, "Wood Tar"), false, "Wood Tar");
+        setNumber(b, card(BENZENE, RecipeCard.Part.MACHINES), "1")
             .until(() -> model(BENZENE) != null && model(BENZENE).pinned, 3000)
-            .ring(null);
-        c.beat("...and you can see how many turbines it feeds, and the power they make.")
             .until(Script::solved, 3000)
             .rest()
-            .spot(card(TURBINE, RecipeCard.Part.BODY))
-            .pause(2000)
-            .spot(rail("section:MACHINES"));
+            .note(
+                card(TURBINE, RecipeCard.Part.BODY),
+                "You can also *plan power*. This distillation tower makes enough benzene to run this many HV gas turbines.");
+    }
+
+    /** Drags a port out to a drawer of its own, on empty board beside it. */
+    private static void drawerFor(final Beat b, final Target port, final boolean output, final String label) {
+        b.drag(port, Targets.freeNear(port, output, output ? 70 : -70, 0))
+            .until(() -> hasDrawer(label), 2500);
     }
 
     // endregion
 
-    // region 12. Arrange
+    // region Arrange and notes
 
-    private static void arrange(final List<Chapter> out) {
-        final Chapter c = chapter(out, "Arrange", Scene.BOARD);
-        c.beat("Cards land wherever there's room, and the board gets untidy.")
-            .ring(Targets.topKey("fit"))
-            .click(Targets.topKey("fit"))
-            .pause(700)
-            .rest()
-            .spot(Targets.canvasArea());
-        c.beat("Arrange tidies the whole plan. On a big plan it takes a moment.")
-            .ring(Targets.topKey("arrange"))
-            .click(Targets.topKey("arrange"))
+    private static void tidying(final List<Beat> out) {
+        beat(out).click(Targets.topKey("arrange"))
             .until(
                 () -> Targets.board() != null && !Targets.board()
                     .canvas()
                     .arranging(),
                 20000)
-            .pause(900)
-            .ring(null);
-        c.beat("Fit shows all of it.")
-            .ring(Targets.topKey("fit"))
+            .pause(200)
             .click(Targets.topKey("fit"))
-            .pause(800)
-            .ring(null);
-    }
+            .pause(300)
+            .rest()
+            .note(
+                Targets.around(Targets.topKey("arrange"), Targets.topKey("fit")),
+                "You can *auto-arrange* a plan and *focus the camera* on it.");
 
-    // endregion
-
-    // region 13. Sticky notes
-
-    private static void notes(final List<Chapter> out) {
-        final Chapter c = chapter(out, "Sticky notes", Scene.BOARD);
         final Target empty = Targets.emptyBoard(200, 140);
         final Target note = Targets.note(null, NoteCard.Part.BODY);
         final Target grip = Targets.note(null, NoteCard.Part.RESIZE);
-        c.beat("Leave yourself a note: right-click empty board and add a sticky note.")
-            .wheel(Targets.emptyBoard(200, 140), 3)
-            .pause(300)
+        final Target bigger = Targets.note(null, NoteCard.Part.BIGGER);
+        beat(out).wheel(empty, 3)
+            .pause(150)
             .opensMenu(empty)
             .click(Targets.popupRow("Add a sticky note"))
-            .until(() -> note.rect() != null, 2000);
-        c.beat("Type on it. Press Esc or click away when you're done.")
+            .until(() -> note.rect() != null, 2000)
             .until(Script::writingNote, 1500)
             .when(Script::writingNote, Steps.keys("Hydrogen comes from the electrolyzers by the door."))
-            .pause(500)
+            .pause(200)
             .escIf(Script::writingNote)
-            .pause(300);
-        c.beat("Drag it to move it. Drag its folded corner to resize it.")
+            .pause(150)
             .drag(Targets.point(note, 0.4f, 0.3f), Targets.shift(Targets.point(note, 0.4f, 0.3f), 30, 20))
-            .pause(300)
-            .drag(Targets.point(grip, 0.7f, 0.7f), Targets.shift(Targets.point(grip, 0.7f, 0.7f), 40, 10));
-        c.beat("Right-click it for its colour and text size.")
+            .drag(Targets.point(grip, 0.7f, 0.7f), Targets.shift(Targets.point(grip, 0.7f, 0.7f), 40, 10))
             .opensMenu(Targets.point(note, 0.5f, 0.6f))
             .click(Targets.popupRow("Colour"))
             .until(
                 () -> Targets.popupRow("Lime")
                     .rect() != null,
                 2000)
-            .hover(Targets.popupRow("Lime"), 500)
             .click(Targets.popupRow("Lime"))
-            .rest();
-        final Target bigger = Targets.note(null, NoteCard.Part.BIGGER);
-        c.beat("The + and - keys in its top corner change the text size too.")
-            .ring(bigger)
             .click(bigger)
-            .pause(350)
+            .pause(150)
             .click(bigger)
-            .pause(350)
+            .pause(150)
             .click(bigger)
-            .pause(500)
-            .ring(null);
-    }
-
-    // endregion
-
-    // region 14. Plans
-
-    private static void plans(final List<Chapter> out) {
-        final Chapter c = chapter(out, "Plans", Scene.BOARD);
-        c.beat("Each tab along the top is an open plan.")
             .rest()
-            .spot(Targets.topKey("tabs"));
-        c.beat("The + starts a new plan, opens one you closed, or pastes one from Factory Flow.")
-            .ring(Targets.boardPart("tab:+"))
-            .opens(Targets.boardPart("tab:+"))
-            .spot(Targets.popup())
-            .pause(2400)
-            .escIf(Script::popupOpen)
-            .spot(null);
-        c.beat(
-            "Right-click a tab to rename it, copy its code, post it, or close it. A closed plan is kept in My plans.")
-            .opensMenu(Targets.boardPart("tab:Plan 2"))
-            .spot(Targets.popup())
-            .pause(2600)
-            .escIf(Script::popupOpen)
-            .spot(null);
+            .note(note, "Annotations are possible with *sticky notes*. Right-click anywhere to make one.");
     }
 
     // endregion
 
-    // region 15. The Library
+    // region Plans and the Library
 
-    private static void library(final List<Chapter> out) {
-        final Chapter c = chapter(out, "The Library", Scene.BOARD);
-        c.beat("The Library holds plans: yours, and public setups from gtnhplanner.com.")
-            .ring(Targets.topKey("library"))
+    private static void plans(final List<Beat> out) {
+        beat(out).opens(Targets.boardPart("tab:+"))
+            .note(Targets.around(Targets.topKey("tabs"), Targets.popup()), "Here's how you make a *new plan*.");
+
+        beat(out).escIf(Script::popupOpen)
             .click(Targets.topKey("library"))
             .until(
                 () -> Targets.board() != null && Targets.board()
                     .libraryOpen(),
                 2000)
-            .ring(Targets.boardPart("library:shelf:public"))
             .click(Targets.boardPart("library:shelf:public"))
             .until(Script::publicLoaded, 8000)
-            .ring(null);
-        c.beat("Looking for something? Someone has probably built it already.")
-            .rest()
-            .spot(Targets.boardPart("library:all"))
-            .pause(600)
-            .ring(Targets.boardPart("library:search"))
             .click(Targets.boardPart("library:search"))
             .type(() -> text -> {
                 final BoardScreen b = Targets.board();
@@ -763,16 +581,21 @@ final class Script {
                     v.searchField()
                         .setText(text);
             }, "oil")
-            .pause(1500)
-            .ring(null);
-        c.beat("Open one, and it becomes a plan of your own. Back to the board.")
-            .ring(Targets.topKey("library"))
-            .click(Targets.topKey("library"))
+            .pause(400)
+            .rest()
+            .note(
+                Targets.boardPart("library:all"),
+                "The *Library* is where people upload plans. You can browse them here.");
+
+        beat(out).click(Targets.topKey("library"))
             .until(
                 () -> Targets.board() != null && !Targets.board()
                     .libraryOpen(),
                 2000)
-            .ring(null);
+            .rest()
+            .note(
+                Targets.topKey("feedback"),
+                "Report bugs and share ideas in GTNH Planner's thread on the *GT New Horizons Discord*.");
     }
 
     private static boolean publicLoaded() {
@@ -783,48 +606,54 @@ final class Script {
 
     // endregion
 
-    // region 16. Settings and the minimap
+    // region The minimap
 
-    private static void minimap(final List<Chapter> out) {
-        final Chapter c = chapter(out, "Settings and the minimap", Scene.BOARD);
-        c.beat("Bugs and ideas go here, to GTNH Planner's thread on the GT New Horizons Discord.")
-            .ring(Targets.topKey("feedback"))
-            .hover(Targets.topKey("feedback"), 2200);
-        c.beat("The gear holds the settings. The minimap shows a plan while you play.")
-            .ring(Targets.topKey("settings"))
-            .opens(Targets.topKey("settings"))
-            .spot(Targets.popup())
-            .clickUntil(
-                Targets.popupRow("Show the minimap"),
-                () -> "On".equals(Targets.setting("Show the minimap")),
-                2);
-        c.beat("Make it large and square, in the top right.")
+    private static void minimap(final List<Beat> out) {
+        // The keys as the player has them bound.
+        final boolean arrows = PlannerKeys.minimapOnArrows();
+        final String move = arrows ? "The arrow keys move it"
+            : PlannerKeys.minimapKey("up") + ", "
+                + PlannerKeys.minimapKey("left")
+                + ", "
+                + PlannerKeys.minimapKey("down")
+                + " and "
+                + PlannerKeys.minimapKey("right")
+                + " move it";
+        final String in = PlannerKeys.minimapKey("in"), outKey = PlannerKeys.minimapKey("out");
+        beat(out).opens(Targets.topKey("settings"))
+            .clickUntil(Targets.popupRow("Show the minimap"), () -> "On".equals(Targets.setting("Show the minimap")), 2)
             .clickUntil(Targets.popupRow("Size"), () -> "Large".equals(Targets.setting("Size")), 4)
             .clickUntil(Targets.popupRow("Shape"), () -> "Square".equals(Targets.setting("Shape")), 2)
             .clickUntil(Targets.popupRow("Position"), () -> "Top right".equals(Targets.setting("Position")), 4)
-            .pause(600);
-        c.beat("Close the planner, and there it is: the plan you just built.")
+            .pause(200)
             .esc()
-            .spot(null)
             .rest()
             .key(
                 "Esc",
                 () -> Minecraft.getMinecraft()
                     .displayGuiScreen(new TourScreen()))
             .until(() -> Minecraft.getMinecraft().currentScreen instanceof TourScreen, 2000)
-            .spot(Targets.minimap());
-        c.beat("The arrow keys move it, and [ and ] zoom it.")
-            .holdKey("→", 450, () -> Minimap.INSTANCE.pan(1, 0))
-            .pause(300)
-            .holdKey("←", 450, () -> Minimap.INSTANCE.pan(-1, 0))
-            .pause(300)
-            .key("]", () -> PlannerSettings.setMinimapZoomIndex(PlannerSettings.minimapZoomIndex() + 1))
-            .pause(700)
-            .key("[", () -> PlannerSettings.setMinimapZoomIndex(PlannerSettings.minimapZoomIndex() - 1))
-            .pause(300)
+            .note(
+                Targets.minimap(),
+                "The *minimap* shows your plan while you play. Set it up under the gear. " + move
+                    + ", "
+                    + outKey
+                    + " and "
+                    + in
+                    + " zoom, and "
+                    + PlannerKeys.minimapKey("show")
+                    + " hides it.")
+            .holdKey(arrows ? "→" : PlannerKeys.minimapKey("right"), 450, () -> Minimap.INSTANCE.pan(1, 0))
+            .pause(200)
+            .holdKey(arrows ? "←" : PlannerKeys.minimapKey("left"), 450, () -> Minimap.INSTANCE.pan(-1, 0))
+            .pause(200)
+            .key(in, () -> PlannerSettings.setMinimapZoomIndex(PlannerSettings.minimapZoomIndex() + 1))
+            .pause(400)
+            .key(outKey, () -> PlannerSettings.setMinimapZoomIndex(PlannerSettings.minimapZoomIndex() - 1))
+            .pause(200)
             .run(Minimap.INSTANCE::recentre);
-        c.beat("N shows and hides it. Every key can be changed in the game's Controls.")
-            .spot(Targets.minimap());
+
+        beat(out).note(null, "That's everything.");
     }
 
     // endregion

@@ -78,7 +78,7 @@ final class Steps {
                     // Hurrying, a move jumps, except with a button held: a drag that jumps is one drag event, and the
                     // board takes no drop from it.
                     dur = d.hurrying() ? (VirtualInput.holding() ? 90 : 0)
-                        : (long) (Math.min(950, 240 + dist * 1.1f) / speed);
+                        : (long) (Math.min(620, 170 + dist * 0.75f) / speed);
                 }
                 final float t = dur <= 0 ? 1 : Math.min(1, (d.now() - t0) / (float) dur);
                 final float e = t < 0.5f ? 4 * t * t * t : 1 - (float) Math.pow(-2 * t + 2, 3) / 2;
@@ -144,11 +144,21 @@ final class Steps {
     }
 
     static Supplier<Step> click(final Target t, final int button) {
-        return seq(move(t), press(button), pause(80), release(), pause(160));
+        return seq(move(t), press(button), pause(70), release(), pause(110));
     }
 
     static Supplier<Step> click(final Target t) {
         return click(t, 0);
+    }
+
+    /** Clicks with Shift held (adding a card to the selection, say): a Shift cap shows by the pointer meanwhile. */
+    static Supplier<Step> shiftClick(final Target t) {
+        return seq(move(t), () -> d -> {
+            Pointer.shift = true;
+            if (!d.hurrying()) d.ghost()
+                .key("Shift", 520);
+            return true;
+        }, pause(120), press(0), pause(70), release(), run(() -> Pointer.shift = false), pause(110));
     }
 
     /** Clicks a target and waits for the popup it opens: a new one, not one still closing from before. */
@@ -184,11 +194,11 @@ final class Steps {
         return seq(
             move(from),
             press(0),
-            pause(140),
-            move(to, 0.5f, 0.5f, 0.55f, true),
-            pause(120),
+            pause(100),
+            move(to, 0.5f, 0.5f, 0.7f, true),
+            pause(90),
             release(),
-            pause(160));
+            pause(120));
     }
 
     /**
@@ -209,14 +219,8 @@ final class Steps {
                 }
                 return new Rect(to[0], to[1], 0, 0);
             };
-            return seq(
-                move(from),
-                press(0),
-                pause(120),
-                move(dest, 0.5f, 0.5f, 0.6f),
-                pause(100),
-                release(),
-                pause(150)).get();
+            return seq(move(from), press(0), pause(90), move(dest, 0.5f, 0.5f, 0.75f), pause(80), release(), pause(110))
+                .get();
         };
     }
 
@@ -235,7 +239,7 @@ final class Steps {
                     .wheel(notches);
                 return true;
             });
-            parts.add(pause(230));
+            parts.add(pause(150));
         }
         return seq(parts);
     }
@@ -256,13 +260,13 @@ final class Steps {
                 if (t0 < 0) {
                     t0 = d.now();
                     if (!d.hurrying()) d.ghost()
-                        .key(label, 650);
+                        .key(label, 560);
                 }
-                if (!done && (d.hurrying() || d.now() - t0 >= 170)) {
+                if (!done && (d.hurrying() || d.now() - t0 >= 140)) {
                     done = true;
                     act(action);
                 }
-                return done && (d.hurrying() || d.now() - t0 >= 520);
+                return done && (d.hurrying() || d.now() - t0 >= 400);
             }
         };
     }
@@ -280,7 +284,7 @@ final class Steps {
                 while (n < text.length() && (d.hurrying() || d.now() >= next)) {
                     final char c = text.charAt(n++);
                     VirtualInput.key(c == '\n' ? '\r' : c, VirtualInput.codeOf(c));
-                    next += c == ' ' ? 75 : 38 + (long) (Math.abs(Math.sin(n * 12.9898) * 43758.5453) % 1 * 40);
+                    next += c == ' ' ? 50 : 24 + (long) (Math.abs(Math.sin(n * 12.9898) * 43758.5453) % 1 * 22);
                 }
                 return n >= text.length();
             }
@@ -379,7 +383,7 @@ final class Steps {
             public boolean frame(final Director d) {
                 if (click == null) {
                     if (test(done) || clicks >= max) return true;
-                    click = seq(click(t), pause(380)).get();
+                    click = seq(click(t), pause(260)).get();
                     clicks++;
                 }
                 if (click.frame(d)) click = null;
@@ -415,7 +419,7 @@ final class Steps {
                     n++;
                     s.set(text.substring(0, n));
                     final char c = text.charAt(n - 1);
-                    next += c == ' ' ? 75 : 38 + (long) (Math.abs(Math.sin(n * 12.9898) * 43758.5453) % 1 * 40);
+                    next += c == ' ' ? 50 : 24 + (long) (Math.abs(Math.sin(n * 12.9898) * 43758.5453) % 1 * 22);
                 }
                 return n >= text.length();
             }
@@ -493,25 +497,20 @@ final class Steps {
             return board != null ? new Rect(board.x() + 14, board.bottom() - 14, 0, 0)
                 : new Rect(sr.getScaledWidth() / 2f, sr.getScaledHeight() * 0.12f, 0, 0);
         };
-        return seq(move(spot, 0.5f, 0.5f, 1.3f), () -> d -> {
+        return seq(move(spot, 0.5f, 0.5f, 1.6f), () -> d -> {
             d.ghost()
                 .show(false);
             return true;
         });
     }
 
-    static Supplier<Step> cursor(final boolean shown) {
+    /**
+     * Shows the callout: {@code text} beside {@code t} (null: the middle of the screen), with a gold frame round it.
+     */
+    static Supplier<Step> note(final Target t, final String text) {
         return () -> d -> {
-            d.ghost()
-                .show(shown);
-            return true;
-        };
-    }
-
-    /** Changes the caption part way through a beat. */
-    static Supplier<Step> say(final String caption) {
-        return () -> d -> {
-            d.caption(caption);
+            d.note(t, text);
+            d.spot(t, false);
             return true;
         };
     }

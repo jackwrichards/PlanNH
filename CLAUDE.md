@@ -70,16 +70,17 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   They are Factory Flow's text annotations (`kind: "text"`, its colour tags and font sizes), so they come in with an
   imported plan and go out with a posted one; they take no part in the solve, the wiring or Arrange.
 - The tour (`ui/tutorial/`, `docs/design/tutorial.md`): the "?" key's Take the tour, or the board's first-run offer.
-  It drives the real UI with a cursor of its own (`Pointer`, through two mixins on the mouse position screens and NEI
-  read; `VirtualInput` delivers presses, drags and keys to the open screen), in plans of its own (`Plan.enterSandbox`,
-  never saved; `Sandbox` puts everything back). `Script` is the sixteen chapters, `Targets` finds what they point at
-  by name, `Director` plays them (Back and the chapter list restore each beat's saved start). The player's input works
-  only its bar meanwhile. `call 'tutorial?chapter=N&beat=M'` jumps to a beat; `call tutorial` says where it is. A
-  chapter not watched yet starts from the plans it ships with (`Starts`, `assets/gtnhplanner/tutorial/starts.json`;
-  `call 'tutorial?export=1'` after a full run rewrites them, needed when a script change alters a chapter's start).
-  Next and Back hurry, and hurrying must never outrun the game: the pointer settles on screen draws, not frames (the
-  GUI does not draw every frame, and hover is found as it draws). After a script change, jump to each chapter's last
-  beat and check the log for `[tutorial]` warnings.
+  Twenty-five steps: each acts something out on the real UI, then a note (`Callout`) beside what it did says what it
+  is (gold words between asterisks in `Script`) and waits for next; no autoplay, no chapters. It drives the UI with
+  a cursor of its own (`Pointer`, through mixins on the mouse position screens and NEI read and on Shift;
+  `VirtualInput` delivers presses, drags and keys to the open screen), in plans of its own (`Plan.enterSandbox`,
+  never saved; `Sandbox` puts everything back). `Targets` finds what steps point at by name, `Director` plays them
+  (Back restores a step's saved start). Text that names a key reads the player's bindings. `call 'tutorial?step=N'`
+  starts or jumps to a step, `call tutorial` says where it is; every step's start ships in
+  `assets/gtnhplanner/tutorial/starts.json` (`call 'tutorial?export=1'` after a full run rewrites it, needed when a
+  script change alters a step's start). Hurrying must never outrun the game: the pointer settles on screen draws, not
+  frames (the GUI does not draw every frame, and hover is found as it draws). After a script change, walk every step
+  and check the log for `[tutorial]` warnings.
 - The Library (top bar; the + tab menu; right-click on an overview row: setups that make it) has two shelves: My
   plans, and Factory Flow's public setups from gtnhplanner.com (`library/CommunityApi`, `LibraryFeed`;
   `ui/library/LibraryView`), opened through the importer as a new plan. Signing in uses the website's own username

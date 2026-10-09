@@ -1,33 +1,36 @@
 # The tour
 
-A guided tour you watch, not a video: the planner drives itself in your game while a caption bar says what is
-happening. Placing machines in the world is not in it (that is a recorded video, linked from the end card). It is
-built (`ui/tutorial/`, 2026-10-09); this file is what it does and how.
+A guided tour, not a video: the planner drives itself in your game, a step at a time, and a note beside what it did
+says what it is. Placing machines in the world is not in it (that will be a video). Built in `ui/tutorial/`
+(2026-10-09); this file is what it does and how.
 
 ## How it looks and feels
 
-- **The tour's cursor** does everything: a gold arrow (so it never passes for the player's) that glides on gentle arcs,
-  dips and leaves a ring when it clicks, holds still on a hover so the real tip shows, and fades when it steps aside.
-  Keys it presses show as key caps beside it (R, Esc, the arrows), a wheel turn as a small arrow.
-- **The spotlight** dims everything but what is being talked about, with a soft edge and a thin gold frame, and glides
-  from one thing to the next. Where a tip opens beside the thing, only the frame shows (no dimming), so the tip stays
-  bright.
-- **The caption bar** sits at the bottom (at the top when what the tour shows is down there): the chapter and its
-  number, a dot per beat, the caption coming in, and Chapters, Back, Pause, Next and Leave; a thin gold line along its
-  bottom is the time left on the caption. It plays on at reading pace. Right arrow, Space or Enter is Next, Left is
-  Back, P pauses, Esc pauses and Esc again leaves. The function keys stay the game's (F2 still screenshots).
-- **Hands off while it plays**: the player's mouse and keys work only the bar; a click elsewhere says so. The game
-  window losing focus stops the tour's clock.
-- **The chapter list** opens first and from the bar's Chapters key: pick any chapter, or start over.
-- **The end card**: the world video and the "?" key pointed out, and whether to keep the minimap as the tour set it.
+- **Steps, not a show.** Each step acts something out at a brisk pace (the cursor clicks, drags, types), then stops on
+  a note and waits. Nothing moves on until the player says so. Twenty-five steps, about a minute and a half of action
+  in all; the rest is the player's reading.
+- **The note** (`Callout`): a small dark box with a gold edge beside the thing it is about, a tip pointing at it, and
+  the thing framed in gold. Its words are short and plain; the words that matter most are gold (written between
+  asterisks in the script). It sits where it covers least of the board's cards, drawers, notes, popups and the
+  overview: below the thing if there is room, else above, right or left, slid along that side, and off the tour's
+  cursor. The note fades and slides in.
+- **The keys** are in the note: × (leave) on the left, ◀ (back) and ▶ (next) on the right. ▶ turns gold when the step
+  is done; on the last step it is a tick. The right arrow, Space or Enter is next, the left arrow back, Esc leaves.
+  While a step plays, next (or a click anywhere) hurries it to its note. The function keys stay the game's.
+- **No chapters, no titles, no counts.** The tour starts at once from the "?" key.
+- **The tour's cursor**: a gold arrow (so it never passes for the player's) that glides on gentle arcs, dips and
+  leaves a ring when it clicks, and fades when it steps aside. Keys it presses show as key caps beside it (R, Shift,
+  Esc, the minimap's keys), a wheel turn as a small arrow. Key names come from the player's own bindings (NEI's R and
+  U, the minimap's keys).
 
 ## Where it starts
 
-- The "?" key on the top bar: a small menu with **Take the tour** and **Controls and shortcuts**.
+- The "?" key on the top bar: **Take the tour** and **Controls and shortcuts**.
 - The first time the planner opens, an offer along the bottom of the board: **Take the tour** or **Not now** (either
   puts it away for good; `tour.offered` in the settings file).
-- Dev harness: `call 'tutorial?start=1'`, `call 'tutorial?chapter=N&beat=M'`, `call 'tutorial?next=1'`,
-  `call 'tutorial?stop=1'`; every call returns where the tour is.
+- Dev harness: `call 'tutorial?start=1'`, `call 'tutorial?step=N'` (start or jump there), `call 'tutorial?next=1'`,
+  `call 'tutorial?stop=1'`, `call 'tutorial?export=1'`; every call returns where the tour is ("step 5 of 25 waiting:
+  ...").
 
 ## Safe to run
 
@@ -36,8 +39,7 @@ built (`ui/tutorial/`, 2026-10-09); this file is what it does and how.
 - **Plans**: the player's are put aside (`Plan.enterSandbox`) for plans of the tour's own, which `PlanAPI.save`
   never writes. Leaving puts the player's back exactly as they were, and a world closing mid-tour does too.
 - **What else it touches** is copied first and put back: the machine picked per NEI tab, the settings remembered per
-  machine, NEI's search, the minimap's picture of the plan and its view, the minimap's settings (unless the player
-  keeps them at the end).
+  machine, NEI's search, the minimap's picture of the plan and its view, the minimap's settings.
 - **Where the player was**: the planner opens again if it was open, else the tour leaves them in the world.
 - **The Library** is only browsed; nothing is signed into, posted or opened into My plans.
 
@@ -45,7 +47,8 @@ built (`ui/tutorial/`, 2026-10-09); this file is what it does and how.
 
 - **`Pointer`**: while the tour drives, the mouse position every screen is drawn with is the tour's (a mixin on
   `EntityRenderer.updateCameraAndRender`), and so is NEI's own reading of it (a mixin on `GuiDraw.getMousePosition`).
-  Hover, highlights and tips all follow the tour's cursor; the player's real cursor is never moved.
+  Hover, highlights and tips all follow the tour's cursor; the player's real cursor is never moved. A third mixin
+  makes `GuiScreen.isShiftKeyDown` say yes while the tour Shift-clicks (adding a card to the selection).
 - **`VirtualInput`**: presses, drags, releases, wheel turns and keys go to the open screen the way the game sends the
   player's: ModularUI's screen first, then the screen itself and NEI's hooks. Nothing goes through the operating
   system, so it works the same on Java 8 and under lwjgl3ify.
@@ -54,51 +57,55 @@ built (`ui/tutorial/`, 2026-10-09); this file is what it does and how.
   search); a sticky note takes typed keys directly.
 - **`Targets`**: everything is pointed at by name, looked up afresh each frame: NEI's planner button, its search, an
   item in its list, a recipe tab, a recipe's plan button and its menus; the top bar's keys, a card's parts and ports,
-  drawers, notes, overview rows, plan tabs, popup rows, the settings rows, the non-recipe machines, the Library's
-  parts, the minimap. A board target off the visible board pans the board to it first, so the cursor never clicks
-  what cannot be seen.
-- **`Director`**: plays beats a frame at a time (steps: move, click, drag, wheel, key, type, wait for the board or a
-  popup), then holds the caption long enough to read. Next hurries the beat to its end. The tour's plans are saved at
-  the start of every beat that starts on a settled screen; Back and the chapter list put those back (plans, screen,
-  NEI's search) and play on, or hurry through the beats from the nearest saved one before.
-- **Hurrying** (Next, Back, a chapter picked) runs a beat's steps without their glides and holds, but never faster
-  than the game takes them: the pointer still rests until the screen has drawn twice with it there (what is under the
-  mouse is found as the screen draws, and the screen does not draw on every frame), on a target that has stopped
-  moving and a board at rest (no zoom easing, no fling gliding, no cards being built afresh); a drag still glides
-  (ModularUI takes no drop from a single jump, nor from one let go within 100 ms); a pause is still a game tick; and
-  after a jump nothing runs for 400 ms while the screen builds itself. Checked by jumping to every chapter's last beat
-  from its start (`call 'tutorial?chapter=N&beat=last'`): all sixteen hurry through with no warnings.
+  drawers, notes, overview rows, plan tabs, popup rows, the settings rows, the selection bar, the non-recipe machines,
+  the Library's parts, the minimap; and free board beside a port for a new drawer. A board target off the visible
+  board pans the board to it first, so the cursor never clicks what cannot be seen.
+- **`Director`**: plays a step's actions a frame at a time, then waits. The tour's plans are saved at the start of
+  every step that starts on a settled screen; Back puts those back (plans, screen, NEI's search) and plays the step
+  again, or hurries from the nearest saved step before it.
+- **Hurrying** (next part way through a step, Back to a step whose start was not saved, the harness's jumps) runs the
+  actions without their glides, but never faster than the game takes them: the pointer still rests until the screen
+  has drawn twice with it there (what is under the mouse is found as the screen draws, and the screen does not draw
+  on every frame), on a target that has stopped moving and a board at rest (no zoom easing, no fling gliding, no cards
+  being built afresh); a drag still glides (ModularUI takes no drop from a single jump, nor from one let go within
+  100 ms); a pause is still a game tick; and after a jump nothing runs for 400 ms while the screen builds itself.
+- **Starts**: the plans at the start of every step, from a full run (`call 'tutorial?export=1'` writes
+  `assets/gtnhplanner/tutorial/starts.json`), so the harness starts any step at once. Re-export after a script change
+  that changes what a step starts from.
 - **Recipes** are found the way a player finds them: by name in NEI's list (this pack lists fluids by their cells; a
   cell dropped on the board is its fluid), and on NEI's page by what goes in and comes out, so a pack that moved a
-  recipe still finds it, or the beat carries on without it.
+  recipe still finds it, or the step carries on without it.
 
-## The script (`Script`)
+## The steps (`Script`)
 
-Sixteen chapters, about seventy beats, seven to eight minutes end to end.
-
-1. **Opening the planner**: the button at the bottom left of any inventory; open, and back.
-2. **Your first recipe**: search NEI for hydrochloric acid, R for its recipes, the Large Chemical Reactor's tab, the
-   plan button, a new plan, the machine; the card on its new plan. Shift-click skips the menus.
-3. **Reading a card**: inputs, outputs, the machine count.
-4. **Wiring it up**: zoom out and pan; drag ports out into drawers (hydrogen, chlorine, the acid); still nothing.
-5. **Giving it a target**: pin one machine and the numbers fill in; unpin and ask for 1000 L/s instead.
-6. **Machine settings**: the tier, the amps, power (shown, never wired), the circuit, the gear's settings.
-7. **Card actions**: clone, delete, undo and redo.
-8. **The overview**: inputs and outputs, machines and power, a machine row goes to its card, an item's row.
-9. **Rates and power**: per tick, second, minute or hour; EU/t or amps; average or peak.
-10. **Items from NEI's list**: search benzene, drag it onto the board, add it as a product; R on the drawer, the
-    distillation tower's recipe added to this plan, its benzene wired to the drawer.
-11. **Planning power**: Non-recipe machines, the gas turbine at HV, the benzene sent to it, the benzene machine
-    pinned to one; the turbines it feeds and the power they make.
-12. **Arrange** and Fit.
-13. **Sticky notes**: add one with a right-click, type on it, move it, resize it, colour it, its text bigger.
-14. **Plans**: the tabs, the + menu, a tab's own menu.
-15. **The Library**: the public setups, searched.
-16. **Settings and the minimap**: feedback, the settings, the minimap large, square, top right; then over the world,
-    panned and zoomed with its keys.
+1. The planner's button on the inventory.
+2. NEI: hydrochloric acid searched, R, the Large Chemical Reactor's page: the plan button.
+3. A new plan, the reactor: the card, not running (nothing wired).
+4. Drawers dragged out of its ports: still nothing runs.
+5. The machine count pinned to 1: everything else worked out.
+6. The pin cleared, 1000 L/s asked of the acid's drawer: the machine count follows.
+7. The tier stepped to MV and 2 amps.
+8. Power (shown, never wired) and the circuit.
+9. The settings panel; pinned settings show on the card.
+10. Clone.
+11. The card and its clone selected (a click, a Shift-click) and merged: two recipes on one machine.
+12. Undo, back to the one card; redo beside it.
+13. The overview.
+14. The rate, power and average keys turned round: how numbers are shown.
+15. Benzene dragged in from NEI's list as a product.
+16. R on its drawer, the distillation tower added and wired: the planner works like NEI.
+17. Non-recipe machines.
+18. A gas turbine at HV on the tower's benzene, every other flow given a drawer (wood tar in, creosote, phenol,
+    toluene, dimethylbenzene and the turbine's EU out), the tower pinned to one: how many turbines it runs.
+19. Arrange and Fit.
+20. A sticky note: added, written on, moved, resized, coloured, its text bigger.
+21. The + menu: a new plan.
+22. The Library's public setups, searched.
+23. The Discord key.
+24. The minimap set up large, square, top right; over the world, moved and zoomed with its keys.
+25. That's everything.
 
 ## Open
 
-- Voice: every beat's caption could carry a clip (`assets/gtnhplanner/sounds/tutorial/`), the hold then the clip's
-  length.
-- The world-placement video, and the end card's link to it.
+- Voice: each step's note could carry a clip (`assets/gtnhplanner/sounds/tutorial/`).
+- The world-placement video.

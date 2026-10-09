@@ -17,14 +17,13 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.gtnhplanner.GtnhPlanner;
-import com.gtnhplanner.data.flowchart.Plan;
 import com.gtnhplanner.data.flowchart.Serializer;
 
 /**
- * The tour's plans as they stand at the start of each chapter, shipped with the mod: picking a chapter not watched
- * yet starts there at once instead of hurrying through every chapter before it. Captured from a run of the tour in
- * the dev game ({@code call 'tutorial?export=1'}); a start whose recipes this pack does not have reads short and is
- * not used (the tour then hurries there as before).
+ * The tour's plans as they stand at the start of its beats, shipped with the mod: the dev harness starts any beat at
+ * once from these instead of hurrying through every beat before it. Captured from a run of the tour in the dev game
+ * ({@code call 'tutorial?export=1'}); a start whose recipes this pack does not have reads short and is not used (the
+ * tour then hurries there as before).
  */
 final class Starts {
 
@@ -32,8 +31,11 @@ final class Starts {
 
     private static final String RESOURCE = "/assets/gtnhplanner/tutorial/starts.json";
 
-    /** Chapter to {plans, how many cards they hold}. */
-    private record Start(String plans, int cards) {}
+    /** A beat's start: the tour's plans, as saved, and the screen it starts on. */
+    record Entry(String plans, Tour.Scene scene) {}
+
+    /** Beat to {plans, how many cards they hold, its screen}. */
+    private record Start(String plans, int cards, Tour.Scene scene) {}
 
     private static Map<Integer, Start> starts;
 
@@ -55,47 +57,68 @@ final class Starts {
                             s.get("plans")
                                 .getAsString(),
                             s.get("cards")
-                                .getAsInt()));
+                                .getAsInt(),
+                            Tour.Scene.valueOf(
+                                s.get("scene")
+                                    .getAsString())));
                 }
             }
         } catch (final IOException | RuntimeException e) {
-            GtnhPlanner.LOG.warn("[tutorial] could not read the chapters' starts", e);
+            GtnhPlanner.LOG.warn("[tutorial] could not read the beats' starts", e);
         }
         return starts;
     }
 
-    /** The shipped chapter nearest at or before {@code chapter} and after {@code after}; -1 for none. */
-    static int nearest(final int chapter, final int after) {
-        for (int c = chapter; c > after; c--) if (load().containsKey(c)) return c;
+    /** The shipped beat nearest at or before {@code beat} and after {@code after}; -1 for none. */
+    static int nearest(final int beat, final int after) {
+        for (int b = beat; b > after; b--) if (load().containsKey(b)) return b;
         return -1;
     }
 
-    /** A chapter's shipped plans, when they read whole in this pack; else null. */
-    static String plans(final int chapter) {
-        final Start s = load().get(chapter);
+    /** A beat's shipped plans, when they read whole in this pack; else null. */
+    static String plans(final int beat) {
+        final Start s = load().get(beat);
         if (s == null) return null;
         try {
-            final Plan plan = Serializer.decodePlan(s.plans());
-            int cards = 0;
-            for (final com.gtnhplanner.data.flowchart.Graph g : plan.getGraphs()) cards += g.nodes.size();
-            return cards == s.cards() ? s.plans() : null;
+            return cards(s.plans()) == s.cards() ? s.plans() : null;
         } catch (final RuntimeException e) {
             return null;
         }
     }
 
-    /** Writes chapter starts (their plans, as saved) for shipping. */
-    static void write(final File file, final Map<Integer, String> plans) throws IOException {
+    static Tour.Scene scene(final int beat) {
+        final Start s = load().get(beat);
+        return s == null ? Script.START : s.scene();
+    }
+
+    private static int cards(final String plans) {
+        int cards = 0;
+        for (final com.gtnhplanner.data.flowchart.Graph g : Serializer.decodePlan(plans)
+            .getGraphs()) cards += g.nodes.size();
+        return cards;
+    }
+
+    /** Writes beats' starts for shipping. */
+    static void write(final File file, final Map<Integer, Entry> entries) throws IOException {
         final JsonObject out = new JsonObject();
-        out.addProperty("about", "The tour's plans at the start of each chapter; written by call 'tutorial?export=1'.");
+        out.addProperty("about", "The tour's plans at the start of each beat; written by call 'tutorial?export=1'.");
         final JsonObject all = new JsonObject();
-        for (final Map.Entry<Integer, String> e : new TreeMap<>(plans).entrySet()) {
-            final Plan plan = Serializer.decodePlan(e.getValue());
-            int cards = 0;
-            for (final com.gtnhplanner.data.flowchart.Graph g : plan.getGraphs()) cards += g.nodes.size();
+        for (final Map.Entry<Integer, Entry> e : new TreeMap<>(entries).entrySet()) {
             final JsonObject s = new JsonObject();
-            s.addProperty("cards", cards);
-            s.addProperty("plans", e.getValue());
+            s.addProperty(
+                "scene",
+                e.getValue()
+                    .scene()
+                    .name());
+            s.addProperty(
+                "cards",
+                cards(
+                    e.getValue()
+                        .plans()));
+            s.addProperty(
+                "plans",
+                e.getValue()
+                    .plans());
             all.add(Integer.toString(e.getKey()), s);
         }
         out.add("starts", all);

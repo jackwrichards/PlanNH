@@ -243,12 +243,54 @@ public final class Targets {
         return null;
     }
 
-    /** Whether a rectangle sits on the visible board, clear of its edges and of the tour's bar at the bottom. */
+    /** Whether a rectangle sits on the visible board, clear of its edges. */
     private static boolean inView(final BoardCanvas c, final Rect r) {
         final Area a = c.getArea();
         return r.x() >= a.x + 4 && r.y() >= a.y + 4
             && r.right() <= a.x + a.width - 4
-            && r.bottom() <= a.y + a.height - 64;
+            && r.bottom() <= a.y + a.height - 4;
+    }
+
+    /**
+     * What a callout should keep off, as screen rectangles: the board's cards, drawers and notes, its open popups, and
+     * the overview.
+     */
+    static List<Rect> content() {
+        final List<Rect> out = new java.util.ArrayList<>();
+        final BoardCanvas c = canvas();
+        if (c == null) return out;
+        for (final RecipeCard card : c.cards()
+            .values()) {
+            if (card.model() == null || card.layout() == null) continue;
+            final int[] r = card.partRect(RecipeCard.Part.BODY);
+            if (r != null) out.add(onScreen(c, card.model().node.x + r[0], card.model().node.y + r[1], r[2], r[3]));
+        }
+        for (final DrawerCard d : c.drawers()
+            .values()) {
+            if (d.model() == null) continue;
+            final int[] r = d.partRect(DrawerCard.Part.BODY);
+            final Drawer dr = d.model().drawer;
+            if (r != null) out.add(onScreen(c, dr.getX() + r[0], dr.getY() + r[1], r[2], r[3]));
+        }
+        for (final NoteCard n : c.notes()
+            .values()) {
+            final Note note = n.note();
+            if (note == null) continue;
+            final int[] r = n.partRect(NoteCard.Part.BODY);
+            out.add(onScreen(c, note.getX() + r[0], note.getY() + r[1], r[2], r[3]));
+        }
+        for (final ModularPanel p : popups()) {
+            final Rect r = area(p);
+            if (r != null) out.add(r);
+        }
+        final Rect rail = boardPart("rail:all").rect();
+        if (rail != null) out.add(rail);
+        return out;
+    }
+
+    private static Rect onScreen(final BoardCanvas c, final float x, final float y, final float w, final float h) {
+        final int x0 = c.screenX(x), y0 = c.screenY(y);
+        return new Rect(x0, y0, c.screenX(x + w) - x0, c.screenY(y + h) - y0);
     }
 
     /** The first card whose node {@code which} accepts. */
@@ -382,6 +424,64 @@ public final class Targets {
             if (best == Float.MAX_VALUE) return null;
             if (fx < 0) return new Rect(c.screenX(bestX + 10), c.screenY(bestY + 10), 0, 0);
             return new Rect(c.screenX(bestX + fx * w), c.screenY(bestY + fy * h), 0, 0);
+        };
+    }
+
+    /**
+     * Where to drop a port so its new drawer lands on empty board as near as there is to {@code dx, dy} board units
+     * from the port: an output's drawer goes right of the drop point, an input's left of it.
+     */
+    public static Target freeNear(final Target port, final boolean output, final float dx, final float dy) {
+        return () -> {
+            final BoardScreen b = board();
+            final BoardCanvas c = canvas();
+            final Rect p = port.rect();
+            if (b == null || c == null || p == null) return null;
+            final com.gtnhplanner.data.flowchart.Graph g = b.session()
+                .graph();
+            final List<float[]> boxes = new java.util.ArrayList<>();
+            for (final RecipeCard card : c.cards()
+                .values()) {
+                if (card.model() == null || card.layout() == null) continue;
+                final Node n = card.model().node;
+                boxes.add(new float[] { n.x, n.y, CardLayout.W, card.layout().height });
+            }
+            for (final Drawer d : g.getDrawers())
+                boxes.add(new float[] { d.getX(), d.getY(), DrawerCard.W, DrawerCard.H });
+            for (final Note n : g.getNotes())
+                boxes.add(new float[] { n.getX(), n.getY(), n.getWidth(), n.getHeight() });
+            final float wx = c.worldX(Math.round(p.cx())) + dx, wy = c.worldY(Math.round(p.cy())) + dy;
+            float bestX = 0, bestY = 0, best = Float.MAX_VALUE;
+            for (float x = wx - 400; x <= wx + 400; x += 10) {
+                for (float y = wy - 300; y <= wy + 300; y += 10) {
+                    final float left = output ? x : x - DrawerCard.W, top = y - DrawerCard.ANCHOR_Y;
+                    boolean clear = true;
+                    for (final float[] o : boxes) {
+                        if (left - 16 < o[0] + o[2] && o[0] < left + DrawerCard.W + 16
+                            && top - 16 < o[1] + o[3]
+                            && o[1] < top + DrawerCard.H + 16) {
+                            clear = false;
+                            break;
+                        }
+                    }
+                    if (!clear) continue;
+                    final float dist = (float) Math.hypot(x - wx, y - wy);
+                    if (dist < best) {
+                        best = dist;
+                        bestX = x;
+                        bestY = y;
+                    }
+                }
+            }
+            if (best == Float.MAX_VALUE) return null;
+            final Rect at = new Rect(c.screenX(bestX), c.screenY(bestY), 0, 0);
+            if (quiet > 0 || inView(c, at.grow(12))) return at;
+            c.bringIntoView(
+                Math.round(bestX) - 60,
+                Math.round(bestY) - 40,
+                Math.round(bestX) + 60,
+                Math.round(bestY) + 40);
+            return null;
         };
     }
 

@@ -21,10 +21,12 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
 
 /**
- * The tour: GTNH Planner showing itself, in the player's game, while they watch. It starts from the "?" key on the
- * board (or the first-run notice), runs in plans of its own ({@link Sandbox}) and drives the screens with a pointer of
- * its own ({@link Pointer}, {@link VirtualInput}); the player's mouse and keys work only its bar meanwhile, and Esc
- * twice leaves. {@link Script} is what it shows; {@link Director} plays it; {@link Panel} is the bar.
+ * The tour: GTNH Planner showing itself, in the player's game. It starts from the "?" key on the board (or the
+ * first-run notice), runs in plans of its own ({@link Sandbox}) and drives the screens with a pointer of its own
+ * ({@link Pointer}, {@link VirtualInput}). Each beat acts something out, then a {@link Callout} beside it says what it
+ * showed and waits for Next. The player's mouse works only the callout meanwhile (a click elsewhere hurries the beat
+ * along); the right arrow, Space or Enter is Next, the left arrow Back, Esc leaves. {@link Script} is what it shows;
+ * {@link Director} plays it.
  */
 public final class Tutorial {
 
@@ -32,13 +34,12 @@ public final class Tutorial {
 
     private final Sandbox sandbox = new Sandbox();
     private final Director director;
-    private final Panel panel;
+    private final Callout callout;
     private long lastDraw = -1;
-    private long escAt = -1;
 
     private Tutorial() {
-        director = new Director(Script.chapters(), sandbox);
-        panel = new Panel(director, Tutorial::stop);
+        director = new Director(Script.beats(), sandbox);
+        callout = new Callout(director, Tutorial::stop);
     }
 
     /** Whether the tour is running. */
@@ -46,26 +47,29 @@ public final class Tutorial {
         return current != null;
     }
 
-    /** Starts the tour on its chapter list (in a world only). */
+    /** Starts the tour from the top (in a world only). */
     public static void start() {
+        if (current == null) startAt(0);
+    }
+
+    /** Starts the tour at a beat (the dev harness), or goes there when it is running. */
+    public static void startAt(final int beat) {
         final Minecraft mc = Minecraft.getMinecraft();
-        if (current != null || mc.theWorld == null) return;
+        if (mc.theWorld == null) return;
+        if (current != null) {
+            current.director.goTo(beat);
+            return;
+        }
         try {
             com.gtnhplanner.ui.PlannerSettings.setTourOffered(true);
             current = new Tutorial();
             current.sandbox.enter();
-            mc.displayGuiScreen(new TourScreen());
             GtnhPlanner.LOG.info("[tutorial] started");
+            current.director.goTo(beat);
         } catch (final RuntimeException | LinkageError e) {
             GtnhPlanner.LOG.error("[tutorial] could not start", e);
             stop();
         }
-    }
-
-    /** Starts the tour straight at a chapter and beat (the dev harness). */
-    public static void startAt(final int chapter, final int beat) {
-        start();
-        if (current != null) current.director.goTo(chapter, beat);
     }
 
     /** Ends the tour: everything put back, the player where they were. */
@@ -89,14 +93,12 @@ public final class Tutorial {
         final codechicken.nei.SearchField f = codechicken.nei.LayoutManager.searchField;
         final String search = f == null ? "none"
             : "[" + f.text() + "]" + (f.focused() ? " focused" : "") + " at " + f.x + "," + f.y + " " + f.w + "x" + f.h;
-        return t.director.mode + " chapter "
-            + (t.director.chapter + 1)
-            + " beat "
-            + (t.director.beat + 1)
-            + (t.director.catchingUp() ? " (catching up)" : "")
-            + (t.director.paused ? " (paused)" : "")
+        return "step " + (t.director.beat + 1)
+            + " of "
+            + t.director.beats.size()
+            + (t.director.catchingUp() ? " catching up" : t.director.waiting() ? " waiting" : " playing")
             + ": "
-            + t.director.caption()
+            + t.director.noteText()
             + " | search "
             + search
             + " | screen "
@@ -106,8 +108,8 @@ public final class Tutorial {
     }
 
     /**
-     * Writes the start of every chapter played this time into the mod's resources (the dev harness), for picking a
-     * chapter not watched yet to start there at once. Returns the file, or null when the tour is not running.
+     * Writes the start of every beat played this time into the mod's resources (the dev harness), for starting at any
+     * beat at once. Returns the file, or null when the tour is not running.
      */
     public static java.io.File exportStarts() throws java.io.IOException {
         final Tutorial t = current;
@@ -120,9 +122,9 @@ public final class Tutorial {
         return file;
     }
 
-    /** Plays on at once (the dev harness): the current beat hurried and the next begun. */
+    /** Next, as the player presses it (the dev harness). */
     public static void nextBeat() {
-        if (current != null) current.director.next();
+        if (current != null && !current.director.next()) stop();
     }
 
     // region Events
@@ -161,7 +163,7 @@ public final class Tutorial {
             t.draw();
         }
 
-        /** The player's mouse works the bar only; everything else waits until the tour ends. */
+        /** The player's mouse works the callout only; a click elsewhere hurries the beat to its callout. */
         @SubscribeEvent(priority = EventPriority.HIGHEST)
         public void onMouse(final MouseInputEvent.Pre e) {
             final Tutorial t = current;
@@ -173,8 +175,7 @@ public final class Tutorial {
             final float x = Mouse.getEventX() * sr.getScaledWidth() / (float) mc.displayWidth;
             final float y = sr.getScaledHeight() - Mouse.getEventY() * sr.getScaledHeight() / (float) mc.displayHeight
                 - 1;
-            if (!t.panel.click(x, y) && t.director.mode == Director.Mode.PLAY)
-                t.panel.flash("The tour has the mouse: use its bar below, or press Esc twice to leave.");
+            if (!t.callout.click(x, y) && !t.director.waiting()) t.director.next();
         }
 
         @SubscribeEvent(priority = EventPriority.HIGHEST)
@@ -205,18 +206,11 @@ public final class Tutorial {
 
     private void key(final int key) {
         switch (key) {
-            case Keyboard.KEY_ESCAPE -> {
-                final long now = System.currentTimeMillis();
-                if (director.mode != Director.Mode.PLAY || now - escAt < 3000) stop();
-                else {
-                    escAt = now;
-                    if (!director.paused) director.togglePause();
-                    panel.flash("Paused. Esc again leaves the tour.");
-                }
+            case Keyboard.KEY_ESCAPE -> stop();
+            case Keyboard.KEY_RIGHT, Keyboard.KEY_SPACE, Keyboard.KEY_RETURN -> {
+                if (!director.next()) stop();
             }
-            case Keyboard.KEY_RIGHT, Keyboard.KEY_SPACE, Keyboard.KEY_RETURN -> director.next();
             case Keyboard.KEY_LEFT -> director.back();
-            case Keyboard.KEY_P -> director.togglePause();
             default -> {}
         }
     }
@@ -238,8 +232,8 @@ public final class Tutorial {
         GL11.glEnable(GL11.GL_BLEND);
         try {
             director.spotlight.draw(sw, sh, dt);
+            callout.draw(sw, sh, mx, my);
             director.ghost.draw(director.px(), director.py(), dt);
-            panel.draw(sw, sh, mx, my, dt);
         } catch (final RuntimeException | LinkageError e) {
             GtnhPlanner.LOG.warn("[tutorial] drawing failed", e);
         } finally {

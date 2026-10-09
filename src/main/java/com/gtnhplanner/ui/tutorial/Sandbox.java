@@ -34,8 +34,6 @@ final class Sandbox {
     private boolean minimap, circle, follows;
     private int size, zoom;
     private PlannerSettings.Corner corner;
-    /** Whether the player asked to keep the minimap as the tour set it. */
-    boolean keepMinimap;
 
     void enter() {
         if (active) return;
@@ -58,7 +56,6 @@ final class Sandbox {
         size = PlannerSettings.minimapSizeIndex();
         zoom = PlannerSettings.minimapZoomIndex();
         corner = PlannerSettings.minimapCorner();
-        keepMinimap = false;
         Plan.enterSandbox();
     }
 
@@ -90,14 +87,12 @@ final class Sandbox {
         PlanSnapshot.publish(snapshot);
         PlanSnapshot.setView(viewX, viewY);
         clearSearch();
-        if (!keepMinimap) {
-            PlannerSettings.setMinimap(minimap);
-            PlannerSettings.setMinimapCircle(circle);
-            PlannerSettings.setMinimapFollows(follows);
-            PlannerSettings.setMinimapSizeIndex(size);
-            PlannerSettings.setMinimapZoomIndex(zoom);
-            PlannerSettings.setMinimapCorner(corner);
-        }
+        PlannerSettings.setMinimap(minimap);
+        PlannerSettings.setMinimapCircle(circle);
+        PlannerSettings.setMinimapFollows(follows);
+        PlannerSettings.setMinimapSizeIndex(size);
+        PlannerSettings.setMinimapZoomIndex(zoom);
+        PlannerSettings.setMinimapCorner(corner);
         if (plannerWasOpen && mc.theWorld != null) Planner.open();
     }
 

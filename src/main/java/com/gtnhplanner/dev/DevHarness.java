@@ -363,9 +363,8 @@ public final class DevHarness {
                 return onClient(() -> {
                     if ("1".equals(q.get("stop"))) com.gtnhplanner.ui.tutorial.Tutorial.stop();
                     else if ("1".equals(q.get("next"))) com.gtnhplanner.ui.tutorial.Tutorial.nextBeat();
-                    else if (q.containsKey("chapter")) com.gtnhplanner.ui.tutorial.Tutorial.startAt(
-                        Integer.parseInt(q.get("chapter")) - 1,
-                        Integer.parseInt(q.getOrDefault("beat", "1")) - 1);
+                    else if (q.containsKey("step"))
+                        com.gtnhplanner.ui.tutorial.Tutorial.startAt(Integer.parseInt(q.get("step")) - 1);
                     else if ("1".equals(q.get("start"))) com.gtnhplanner.ui.tutorial.Tutorial.start();
                     final Map<String, Object> r = new LinkedHashMap<>();
                     if (q.containsKey("neitype")) {

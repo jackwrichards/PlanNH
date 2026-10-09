@@ -7,12 +7,15 @@ import java.util.function.Supplier;
 
 import com.gtnhplanner.ui.tutorial.Targets.Target;
 
-/** The tour's shape: chapters of beats, each beat a caption and the steps that act it out. */
+/**
+ * The tour's shape: a list of beats, one per press of Next. A beat acts something out, then notes what it showed in a
+ * callout beside it and waits.
+ */
 final class Tour {
 
     private Tour() {}
 
-    /** Where a chapter starts, so it can be started on its own (the chapter list, going back). */
+    /** A screen the tour can open afresh, to start a beat there. */
     enum Scene {
         /** In the world, no inventory: the tour's own see-through screen. */
         WORLD,
@@ -22,49 +25,19 @@ final class Tour {
         BOARD
     }
 
-    static final class Chapter {
-
-        final String title;
-        final Scene scene;
-        final List<Beat> beats = new ArrayList<>();
-
-        Chapter(final String title, final Scene scene) {
-            this.title = title;
-            this.scene = scene;
-        }
-
-        Beat beat(final String caption) {
-            final Beat b = new Beat(caption);
-            beats.add(b);
-            return b;
-        }
-    }
-
-    /** One caption and what happens under it. Each method adds a step and returns the beat, to chain. */
+    /** What happens before the player presses Next. Each method adds a step and returns the beat, to chain. */
     static final class Beat {
 
-        final String caption;
         final List<Supplier<Step>> steps = new ArrayList<>();
-        /** How long the caption stays once the steps are done, in ms; -1 for as long as it takes to read. */
-        long hold = -1;
-
-        Beat(final String caption) {
-            this.caption = caption;
-        }
-
-        long holdMs() {
-            if (hold >= 0) return hold;
-            return Math.max(1700, Math.min(7000, 500 + 48L * caption.length()));
-        }
-
-        Beat hold(final long ms) {
-            hold = ms;
-            return this;
-        }
 
         Beat add(final Supplier<Step> step) {
             steps.add(step);
             return this;
+        }
+
+        /** The callout: {@code text} beside {@code t} (null: the middle of the screen), framed in gold. */
+        Beat note(final Target t, final String text) {
+            return add(Steps.note(t, text));
         }
 
         Beat spot(final Target t) {
@@ -79,16 +52,16 @@ final class Tour {
             return add(Steps.move(t));
         }
 
-        Beat move(final Target t, final float fx, final float fy) {
-            return add(Steps.move(t, fx, fy, 1));
-        }
-
         Beat hover(final Target t, final long ms) {
             return add(Steps.hover(t, ms));
         }
 
         Beat click(final Target t) {
             return add(Steps.click(t));
+        }
+
+        Beat shiftClick(final Target t) {
+            return add(Steps.shiftClick(t));
         }
 
         /** Clicks and waits for the popup the click opens. */
@@ -104,14 +77,6 @@ final class Tour {
         /** Enter in a number box, waiting for it to close. */
         Beat commit() {
             return add(Steps.enterCloses());
-        }
-
-        Beat rightClick(final Target t) {
-            return add(Steps.click(t, 1));
-        }
-
-        Beat doubleClick(final Target t) {
-            return add(Steps.doubleClick(t));
         }
 
         Beat drag(final Target from, final Target to) {
@@ -136,10 +101,6 @@ final class Tour {
 
         Beat keys(final String text) {
             return add(Steps.keys(text));
-        }
-
-        Beat enter() {
-            return add(Steps.enter());
         }
 
         Beat pause(final long ms) {
@@ -178,14 +139,6 @@ final class Tour {
 
         Beat when(final BooleanSupplier cond, final Supplier<Step> then) {
             return add(Steps.when(cond, then));
-        }
-
-        Beat cursor(final boolean shown) {
-            return add(Steps.cursor(shown));
-        }
-
-        Beat say(final String caption) {
-            return add(Steps.say(caption));
         }
     }
 }
