@@ -169,11 +169,14 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
         lastHits.addAll(hits);
     }
 
+    /** Tips (a tile's preview too) wait until the mouse has rested on their thing a moment. */
+    private final com.gtnhplanner.ui.popup.Tip.Wait tipWait = new com.gtnhplanner.ui.popup.Tip.Wait();
+
     @Override
     public void drawOverlay(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
         super.drawOverlay(context, widgetTheme);
         final Hit hover = hitAt(lastHits);
-        if (hover == null) return;
+        if (!tipWait.ready(hover)) return;
         if (hover.kind() == Kind.TILE) {
             drawPreview((PowerSearch.Hit) hover.data(), hover);
             return;

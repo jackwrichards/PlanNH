@@ -210,6 +210,7 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         collectArrange();
         stepGlide();
         stepMoveGlide();
+        tickArrange();
         session.setHover(hoveredScope());
         final Area a = getArea();
         Hyb.rect(0, 0, a.width, a.height, Hyb.seeThrough(Hyb.CANVAS));
@@ -754,6 +755,12 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         return out;
     }
 
+    /** The wire under the mouse, by its key, or null: what a wire's tip waits on. */
+    public Object wireKeyUnderMouse() {
+        final WireLayer.Wire wire = wires.hit(worldX(getContext().getAbsMouseX()), worldY(getContext().getAbsMouseY()));
+        return wire == null ? null : wire.key();
+    }
+
     public List<String> wireLines() {
         final WireLayer.Wire wire = wires.hit(worldX(getContext().getAbsMouseX()), worldY(getContext().getAbsMouseY()));
         if (wire == null) return null;
@@ -1296,13 +1303,42 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     /** The Arrange key's label: how far an arrange under way has got. */
     public String arrangeLabel() {
         if (arrangeJob == null) return "Arrange";
+        return arrangeCancelled ? "Stopping" : "Arranging " + Math.round(arrangeDone() * 100) + "%";
+    }
+
+    /** How far an arrange under way has got, 0 to 1, never going back. */
+    private float arrangeDone() {
         final com.gtnhplanner.layout.arrange.Arrange.Progress p = arrangeProgress;
         if (p != null) {
             final float within = p.total() > 0 ? Math.min(1, p.done() / (float) p.total()) : 0;
             arrangeShown = Math.max(arrangeShown, (p.step() + within) / 6);
         }
-        return arrangeCancelled ? "Stopping" : "Arranging " + Math.round(arrangeShown * 100) + "%";
+        return arrangeShown;
     }
+
+    /** The arrange's progress in tenths that have ticked, and when the last did. */
+    private int arrangeTicked;
+    private long arrangeTickAt;
+
+    /**
+     * A tick for every tenth an arrange gets along, a note higher each time (silent while it is stuck); spaced out so
+     * a quick one does not rattle. Landing has its own sound.
+     */
+    private void tickArrange() {
+        if (arrangeJob == null || arrangeCancelled) {
+            arrangeTicked = 0;
+            return;
+        }
+        final int step = (int) (arrangeDone() * 10);
+        final long now = System.currentTimeMillis();
+        if (step <= arrangeTicked || now - arrangeTickAt < ARRANGE_TICK_MS) return;
+        arrangeTicked = step;
+        arrangeTickAt = now;
+        // Up the scale a note a tenth: from a little low at 10% to the top of what the game plays at 90%.
+        Sfx.TICK.playDegree(0.8f, step - 4);
+    }
+
+    private static final long ARRANGE_TICK_MS = 90;
 
     /** Takes an arrange that has finished: everything glides to its place, as one undoable step. */
     private void collectArrange() {

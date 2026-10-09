@@ -263,11 +263,14 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         if (!mine && contentH - scroll < (h - top) * 2) feed.more();
     }
 
+    /** Tips wait until the mouse has rested on their thing a moment. */
+    private final Tip.Wait tipWait = new Tip.Wait();
+
     @Override
     public void drawOverlay(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
         super.drawOverlay(context, widgetTheme);
         final Hit hover = hitAt(lastHits);
-        if (hover == null) return;
+        if (!tipWait.ready(hover)) return;
         final List<String> lines = tip(hover);
         if (lines.isEmpty()) return;
         final Tip tip = Tip.ofLines(lines);

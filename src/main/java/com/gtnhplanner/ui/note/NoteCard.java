@@ -142,14 +142,15 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
 
     public Part partAt(final float x, final float y) {
         final int w = w(), h = h(), f = fold();
-        // The folded corner (and a margin round it) and a wide band along the right and bottom edges resize.
-        final float edge = EDGE * keyUnit(), corner = f + edge;
-        if (x >= w - corner && y >= h - corner) return Part.RESIZE;
-        if (x >= w - edge || y >= h - edge) return Part.RESIZE;
+        // The keys first: the text size key sits at the right edge, in the band that resizes.
         if (keysShown()) for (final Part key : KEYS) {
             final float[] r = keyRect(key);
             if (x >= r[0] && y >= r[1] && x < r[0] + r[2] && y < r[1] + r[3]) return key;
         }
+        // The folded corner (and a margin round it) and a wide band along the right and bottom edges resize.
+        final float edge = EDGE * keyUnit(), corner = f + edge;
+        if (x >= w - corner && y >= h - corner) return Part.RESIZE;
+        if (x >= w - edge || y >= h - edge) return Part.RESIZE;
         return Part.BODY;
     }
 
@@ -343,7 +344,7 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
 
     /** The tip for the part under the mouse; the paper itself only explains itself after a moment. */
     @Nullable
-    public Tip tip(final long hoveredFor) {
+    public Tip tip() {
         if (editing) return null;
         final Part part = partUnderMouse();
         if (part == null) return null;
@@ -353,11 +354,10 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
             case BIGGER -> Tip.of("Bigger text");
             case RESIZE -> Tip.of("Resize")
                 .action(Tip.Input.DRAG, "Drag the corner or an edge");
-            case BODY -> hoveredFor < 700 ? null
-                : Tip.of("Sticky note")
-                    .action(Tip.Input.LEFT, "Double-click: write")
-                    .action(Tip.Input.DRAG, "Move")
-                    .action(Tip.Input.RIGHT, "Colour, text size, delete");
+            case BODY -> Tip.of("Sticky note")
+                .action(Tip.Input.LEFT, "Click: write")
+                .action(Tip.Input.DRAG, "Move")
+                .action(Tip.Input.RIGHT, "Colour, text size, delete");
         };
     }
 
@@ -524,6 +524,9 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
             if (n != null && (liveW != startW || liveH != startH)) {
                 n.setWidth(liveW);
                 n.setHeight(liveH);
+                // Written on, it stays the size it was dragged to.
+                editW = liveW;
+                editH = liveH;
                 com.gtnhplanner.api.PlanAPI.undoHistory(session.graph())
                     .commitEdit(resizeUndo, session.graph());
                 session.graph()
@@ -600,7 +603,8 @@ public final class NoteCard extends Widget<NoteCard> implements Interactable, ID
         final Note n = note();
         if (n == null) return;
         final int needed = neededHeight(n, draft);
-        if (!draft.equals(n.joined()) || needed > n.getHeight()) {
+        // New words grow the note to show them; the same words leave it the size it was made.
+        if (!draft.equals(n.joined())) {
             final String text = draft;
             session.editLayout(() -> {
                 n.setJoined(text);

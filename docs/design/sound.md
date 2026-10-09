@@ -78,7 +78,7 @@ Off, Quiet, Normal, Loud), under the game's master volume. So the balance lives 
 | `ui.toggle_on` / `_off` | a setting switched on or off (gear rows, card toggles, the minimap and overlay keys) |
 | `ui.open` / `ui.close` | a menu or box opening; dismissed (Esc, a click off it), the non-recipe picker, a tab closed |
 | `ui.deny` | refused: a wire dropped where nothing takes it, two cards that cannot share a machine, nothing to undo, a paste with no plan, a placement blocked |
-| `ui.tick` | one wheel step on a value (amps, count, a drawer's rate, note text size, section order), pitched up or down |
+| `ui.tick` | one wheel step on a value (amps, count, a drawer's rate, note text size, section order), pitched up or down; Arrange under way, a note higher up the scale every tenth it gets along (`Sfx.playDegree`: no random step, no quieting of repeats) |
 | `ui.page` | a plan tab switched or added, the Library opened or closed, NEI's recipe pages turned from the board, the tour's Next and Back |
 | `board.place` | a card added (from NEI, the picker, custom rate), one card pasted |
 | `board.remove` | cards or drawers deleted, a recipe taken off a shared machine |

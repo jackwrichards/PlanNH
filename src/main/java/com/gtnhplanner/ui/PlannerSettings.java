@@ -74,7 +74,7 @@ public final class PlannerSettings {
     }
 
     public static boolean zoomedOutNames() {
-        return bool("board.zoomedOutNames", false);
+        return bool("board.zoomedOutNames", true);
     }
 
     public static void setZoomedOutNames(final boolean on) {
@@ -111,7 +111,7 @@ public final class PlannerSettings {
 
     public static Corner minimapCorner() {
         try {
-            return Corner.valueOf(load().getProperty("minimap.corner", Corner.TOP_RIGHT.name()));
+            return Corner.valueOf(load().getProperty("minimap.corner", Corner.BOTTOM_RIGHT.name()));
         } catch (final IllegalArgumentException e) {
             return Corner.TOP_RIGHT;
         }
@@ -141,7 +141,7 @@ public final class PlannerSettings {
 
     /** The plan overlaid on the world: its placed cards over their blocks, with their wires. */
     public static boolean arLens() {
-        return bool("world.ar", false);
+        return bool("world.ar", true);
     }
 
     public static void setArLens(final boolean on) {
@@ -161,7 +161,7 @@ public final class PlannerSettings {
     }
 
     public static int arRangeIndex() {
-        return clamp(integer("world.arRange", 2), AR_RANGES.length);
+        return clamp(integer("world.arRange", 1), AR_RANGES.length);
     }
 
     public static void setArRangeIndex(final int i) {
@@ -176,8 +176,8 @@ public final class PlannerSettings {
 
     // region Background
 
-    /** The see-through slider's step, in percent. */
-    public static final int SEE_THROUGH_STEP = 5;
+    /** The see-through slider's step, in percent, and where it starts. */
+    public static final int SEE_THROUGH_STEP = 5, DEFAULT_SEE_THROUGH = 30;
     /**
      * The old four steps (Solid, Mostly solid, Half, See-through), read once into the percent that replaced them;
      * See-through comes over as all the way, as it was meant to show the game behind.
@@ -189,7 +189,7 @@ public final class PlannerSettings {
      * behind the planner (its cards and text stay solid).
      */
     public static int seeThrough() {
-        final int fallback = load().getProperty("board.background") == null ? 0
+        final int fallback = load().getProperty("board.background") == null ? DEFAULT_SEE_THROUGH
             : OLD_SEE_THROUGH[clamp(integer("board.background", 0), OLD_SEE_THROUGH.length)];
         return Math.max(0, Math.min(100, integer("board.seeThrough", fallback)));
     }

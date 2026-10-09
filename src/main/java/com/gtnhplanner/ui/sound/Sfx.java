@@ -125,6 +125,20 @@ public enum Sfx {
      * Plays it, {@code volume} times its own level (1 as balanced), at {@code pitch} (0.5 to 2, as the game allows).
      */
     public void play(final float volume, final float pitch) {
+        play(volume, pitch, true);
+    }
+
+    /**
+     * A note of a run climbing the sounds' scale: {@code degree} notes up from the plain pitch (down when negative),
+     * without the step either way or the quieting of repeats every other play takes.
+     */
+    public void playDegree(final float volume, final int degree) {
+        final int notes = SCALE.length - 1;
+        final int semis = 12 * Math.floorDiv(degree, notes) + SCALE[Math.floorMod(degree, notes)];
+        play(volume, (float) Math.pow(2, semis / 12.0), false);
+    }
+
+    private void play(final float volume, final float pitch, final boolean vary) {
         final float gain = PlannerSettings.soundGain();
         if (gain <= 0 || quiet()) return;
         final long now = now();
@@ -139,11 +153,11 @@ public enum Sfx {
             }
         }
         if (lastAt >= 0 && now - lastAt < SAME_MS) return;
-        streak = lastAt >= 0 && now - lastAt < REPEAT_MS ? streak + 1 : 0;
+        streak = vary && lastAt >= 0 && now - lastAt < REPEAT_MS ? streak + 1 : 0;
         lastAt = now;
         final float duck = (float) Math.pow(DUCK, Math.min(streak, DUCK_FLOOR));
         // A few cents either way, so a sound played over and over is never stamped out.
-        final float step = (float) Math.pow(2, PITCH_STEPS[RANDOM.nextInt(PITCH_STEPS.length)] / 12.0);
+        final float step = vary ? (float) Math.pow(2, PITCH_STEPS[RANDOM.nextInt(PITCH_STEPS.length)] / 12.0) : 1f;
         final float p = Math.max(0.5f, Math.min(2f, onScale(pitch * step)));
         final float loud = (float) Math.pow(10, (RANDOM.nextFloat() * 2 - 1) * LOUDNESS_DB / 20);
         final ResourceLocation take = deal();

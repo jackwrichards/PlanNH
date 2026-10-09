@@ -66,6 +66,33 @@ public final class Tip {
      * The old way, a list of lines: the first is the title, lines starting {@code §7} become muted notes, the rest
      * notes in the body colour.
      */
+    /** How long the mouse rests on a thing before its tip shows, in ms. */
+    public static final long WAIT_MS = 800;
+
+    /**
+     * Whether a tip may show: once the mouse has been on the same thing ({@code target}, compared by equals) for
+     * {@link #WAIT_MS}. Moving about on it keeps the wait; leaving it, or nothing under the mouse, starts it again.
+     */
+    public static final class Wait {
+
+        private Object on;
+        private long since;
+
+        public boolean ready(final Object target) {
+            final long now = System.currentTimeMillis();
+            if (!java.util.Objects.equals(target, on)) {
+                on = target;
+                since = now;
+            }
+            return target != null && now - since >= WAIT_MS;
+        }
+
+        /** How long the mouse has been on the thing it is on now, in ms. */
+        public long held() {
+            return System.currentTimeMillis() - since;
+        }
+    }
+
     public static Tip ofLines(final List<String> lines) {
         if (lines == null || lines.isEmpty()) return null;
         final Tip tip = new Tip(lines.get(0));

@@ -779,18 +779,18 @@ public final class BoardScreen extends ModularScreen {
      * hovered, so the board draws them in the foreground pass. A multiblock's power chips answer with the power panel,
      * and a card far out with its reveal.
      */
-    /** What the mouse was over last frame, and since when: tips that wait a moment need it. */
-    private Object tipTarget;
-    private long tipSince;
+    /** Every tip waits until the mouse has rested on its thing a moment ({@link Tip#WAIT_MS}). */
+    private final Tip.Wait tipWait = new Tip.Wait();
 
     private void drawPortTooltip() {
         final Object hovered = getContext().getHovered();
         // While a popup is open, only it explains itself: a tip from the board would cover it.
         final ModularPanel top = getPanelManager().getTopMostPanel();
-        if (hovered != tipTarget) {
-            tipTarget = hovered;
-            tipSince = System.currentTimeMillis();
-        }
+        // The thing the tip is about: a widget, an overview row or a tab (by what they say), a wire on the board.
+        final Object target = hovered == null || hovered == canvas ? canvas.wireKeyUnderMouse()
+            : hovered instanceof final OverviewRail overview ? overview.hoverLines()
+                : hovered instanceof final PlanTabs tabs ? tabs.hoverLines() : hovered;
+        if (!tipWait.ready(target)) return;
         if (top instanceof Popup && !(hovered instanceof final IWidget w && w.getPanel() == top)) return;
         final int mx = getContext().getAbsMouseX(), my = getContext().getAbsMouseY();
         // NEI's item list draws over anything past the planner's right edge: tips stay left of it.
@@ -805,7 +805,7 @@ public final class BoardScreen extends ModularScreen {
         } else if (hovered instanceof final DrawerCard drawer) {
             tip = drawer.tip();
         } else if (hovered instanceof final com.gtnhplanner.ui.note.NoteCard note) {
-            tip = note.tip(System.currentTimeMillis() - tipSince);
+            tip = note.tip();
         } else if (hovered instanceof final PlanTabs tabs) {
             tip = Tip.ofLines(tabs.hoverLines());
         } else if (hovered instanceof final OverviewRail overview) {
@@ -831,8 +831,6 @@ public final class BoardScreen extends ModularScreen {
                     .muted("Request side: wire a machine output (or a drawer) here, and this card drains it at the rate you set.")
                     .action(Tip.Input.LEFT, "Drag to a machine's output");
         } else if (hovered instanceof final IWidget w && KEY_TIPS.containsKey(w)) {
-            // The keys wait a moment, so passing over the bar does not flash tips.
-            if (System.currentTimeMillis() - tipSince < 350) return;
             tip = Tip.ofLines(java.util.Arrays.asList(KEY_TIPS.get(w).split("\n")));
         } else {
             return;

@@ -84,7 +84,9 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   wires and what they reach (`ui/HoverScope`, the website's flow scope); an overview row lights its resource
   everywhere. A wire in hand outlines green every card and drawer that would take it, snaps onto the port it would
   be wired to, and is green where letting go wires or makes a drawer, red where it does nothing (a port has one
-  drawer at most: "Drawer already exists"). While the plan has nothing set,
+  drawer at most: "Drawer already exists"). Every tooltip (board, overview, tabs, top bar, Library, the non-recipe
+  picker) waits until the mouse has rested on its thing for 0.8 s (`Tip.Wait`); moving about on it keeps the wait,
+  leaving resets it. While the plan has nothing set,
   every unpinned count says "(set count)" and every empty drawer "Set rate", pulsing gold together (`CardPaint.prompt`);
   the count keeps its place, a line kept under it. Scrolling a pinned count below one unpins it. The gear's See-through slider (0 to 100%) fades
   the board, its dots and the overview (`Hyb.seeThrough`) down to nothing; cards and text stay solid. The gear opens
