@@ -37,6 +37,9 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 - `docs/design/ff-card-spec.md` is Factory Flow's card measured from its source (sizes, colours, tooltips, the
   power panel's formulas). Our card is 320 wide to its 380 with chrome kept at 1 px; the clean card replaced its
   look (`docs/design/card-redesign.md`); `ui/card/CardLayout` holds the geometry. Board tooltips are `ui/popup/Tip` panels; a multiblock's power chips show `ui/card/PowerPanel`.
+- Wires are routed by `layout/WireRouter`: exact A* on a 10 px grid with planned docks, kept per board so a change
+  re-routes only what it touched. `docs/design/routing-and-arrange.md` is its design, the benchmark it is tuned
+  against, and the plan for the Arrange overhaul (next).
 - `importer/` converts Factory Flow plans (JSON, plan codes, links) to graphs: a pure core plus `importer/game/`,
   the NEI and GregTech side. The "+" plan tab pastes one from the clipboard; `call 'importff?file=<path>'` does it
   from the harness. Fixtures are in `src/test/resources/factory-flow/`.
@@ -87,11 +90,15 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 
 - Gradle provisions the JDKs (25 for the build, JetBrains Runtime 25 for `runClient25`). Keep the checkout at a
   short path: deep Windows paths break the clone and the Minecraft dev setup (MAX_PATH).
-- `./gradlew test`: 437 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
+- `./gradlew test`: 429 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
   many over gtnh-flow YAML charts in `src/test/resources/gtnh-flow/`. About 40s, no Minecraft. `addon.gradle`
   opts `test` out of the configuration cache; without that a clean build reports `:test NO-SOURCE` and silently
   runs nothing, so if you ever see NO-SOURCE, check the count in `build/test-results/test/*.xml`.
 - `./gradlew spotlessApply` before committing; CI checks formatting.
+- The layout benchmark (`./gradlew test -Pbench=<label> --tests '*LayoutBenchmark*'`, tagged `bench`, left out of the
+  normal run) routes and arranges every plan in the corpus, measures it (`layout/RouteMetrics`) and draws it to
+  `build/bench/<label>/`; `DragBench`, `RouterTrace` and `RouterProfile` look at dragging, single searches and
+  profiles. Usage and the numbers so far: `docs/design/routing-and-arrange.md`.
 
 ## Running and seeing the game
 
@@ -127,8 +134,9 @@ tools/dev/board-check.sh  # GT runs: end-to-end board check (recipe, port drag, 
 - The user can press F2 in game to screenshot what they see; when they refer to "this" or "my screenshot", Read
   the newest file in `run/client/screenshots/`. Harness screenshots land there too, under the names you gave them.
 - Performance: `call 'perf?start=1'`, do something (drag, pan, open a plan), then `call perf` for FPS, frame-time
-  percentiles and per-part timings (cards, drawers, wires, overview, routing, solve). Wires route on their own thread
-  on big boards and are drawn from a display list; keep per-frame drawing batched (`Hyb.beginBatch`). Dev runs keep
+  percentiles and per-part timings (cards, drawers, wires, overview, routing, solve). Wires route on the router's
+  thread (`layout/WireRouter`), incrementally: a drag, a new wire or a new card re-routes only what it touched, and
+  the frame waits for a route expected back within 10 ms. They are drawn from a display list; keep per-frame drawing batched (`Hyb.beginBatch`). Dev runs keep
   each plan opened from the Library in `run/client/library-downloads/` for `call 'importff?file=...'`.
 - UI feedback loop: change code, `swap --reopen`, check with a cropped `shot`, then tell the user it's live in
   their window. They can interact with the game at the same time; just don't send synthetic input while they are

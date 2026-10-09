@@ -1,7 +1,17 @@
 // Applied by gtnhgradle's AddonScriptModule alongside the standard convention scripts.
 
 test {
-    useJUnitPlatform()
+    // The layout benchmark (tag bench) runs only when asked: ./gradlew test -Pbench=<label> --tests '*LayoutBenchmark*'
+    useJUnitPlatform {
+        if (!project.hasProperty('bench')) excludeTags 'bench'
+    }
+    systemProperty 'gtnhplanner.bench', project.findProperty('bench') ?: ''
+    for (String k : ['near', 'wide', 'run', 'turn45', 'turn90', 'cross', 'nearCost', 'rounds']) if (project.hasProperty('router.' + k)) systemProperty 'gtnhplanner.router.' + k, project.property('router.' + k)
+    systemProperty 'java.awt.headless', 'true'
+    if (project.hasProperty('crop')) systemProperty 'gtnhplanner.crop', project.property('crop')
+    if (project.hasProperty('benchOnly')) systemProperty 'gtnhplanner.bench.only', project.property('benchOnly')
+    if (project.hasProperty('profileBoard')) systemProperty 'gtnhplanner.profile.board', project.property('profileBoard')
+    if (project.hasProperty('jfr')) jvmArgs '-XX:StartFlightRecording=filename=build/bench/profile.jfr,settings=profile'
     // GTNHGradle points this task at the downgraded test classes. On a clean build the configuration cache
     // captures that directory while it is still empty, and the task then reports NO-SOURCE and runs nothing.
     notCompatibleWithConfigurationCache('downgraded test classes are captured empty on clean builds')

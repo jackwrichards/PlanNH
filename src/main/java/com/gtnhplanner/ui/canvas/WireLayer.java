@@ -16,8 +16,8 @@ import com.gtnhplanner.data.flowchart.Node;
 import com.gtnhplanner.data.flowchart.Port;
 import com.gtnhplanner.data.flowchart.balancer.BalanceResult;
 import com.gtnhplanner.data.flowchart.balancer.Balancer;
-import com.gtnhplanner.layout.ArrowRouter;
 import com.gtnhplanner.layout.WireHops;
+import com.gtnhplanner.layout.WireRouter;
 import com.gtnhplanner.ui.BoardSession;
 import com.gtnhplanner.ui.Resources;
 import com.gtnhplanner.ui.card.CardLayout;
@@ -26,8 +26,8 @@ import com.gtnhplanner.ui.drawer.DrawerCard;
 import com.gtnhplanner.ui.theme.Hyb;
 
 /**
- * The board's wires, Factory Flow style: one per resource between two objects, routed on a grid with right angles
- * around cards and drawers, drawn in the resource's colour, thicker with more flow, with arrowheads along the run.
+ * The board's wires, Factory Flow style: one per resource between two objects, routed around cards and drawers
+ * ({@link WireRouter}), drawn in the resource's colour, thicker with more flow, with arrowheads along the run.
  * Everything is in world space; the canvas draws this under the cards with its pan and zoom applied.
  */
 final class WireLayer {
@@ -45,22 +45,25 @@ final class WireLayer {
     record Wire(UUID key, Kind kind, @Nullable Edge edge, @Nullable Drawer drawer, @Nullable Drawer.Link link,
         int color, float width, double perSecond, List<int[]> path, String resource) {}
 
-    /** Ten-unit cells: parallel wires sit a cell apart, and routing a busy board stays quick. */
-    private static final ArrowRouter ROUTER = new ArrowRouter(10, 12);
-
     private final BoardSession session;
     private List<Wire> wires = List.of();
     private long builtSignature = Long.MIN_VALUE, builtGeometry = Long.MIN_VALUE;
+
+    /**
+     * This board's router, used on the router's thread only: it keeps the board between routes, so a move, a new
+     * wire or a new card routes again only what it touched.
+     */
+    private final WireRouter router = new WireRouter();
 
     WireLayer(final BoardSession session) {
         this.session = session;
     }
 
     /**
-     * The wires, routed again when anything they depend on moved. {@code moving}: a card or drawer is being dragged, so
-     * route quickly (no rip-up pass), and thoroughly once it lands. A board that routes in a few milliseconds routes on
-     * the spot; a big one routes on its own thread, and until the route comes back a wire whose card or drawer moved
-     * goes straight while the rest keep their routes, so the board never waits for the router.
+     * The wires, routed again when anything they depend on moved. {@code moving}: a card or drawer is being dragged,
+     * so route quickly, and thoroughly once it lands. Routing happens on the router's thread; a route that comes back
+     * within the frame is waited for, so a board that routes quickly never shows a wire out of place, and until a
+     * slower one comes back a wire whose card or drawer moved stretches to follow it.
      */
     List<Wire> wires(final Map<UUID, RecipeCard> cards, final Map<UUID, DrawerCard> drawers, final boolean moving) {
         final boolean arrived = collect();
@@ -71,23 +74,34 @@ final class WireLayer {
         final long signature = signature();
         if (!arrived && routeKey == builtGeometry && signature == builtSignature) return wires;
         final Plan p = plan(cards, drawers);
-        if (routeKey != routedGeometry) {
-            if (lastRouteMillis >= 0 ? lastRouteMillis <= SYNC_MILLIS
-                : p.requests()
-                    .size() <= SYNC_WIRES) {
+        if (routeKey != routedGeometry && job == null) {
+            final long routing = routeKey;
+            final boolean thorough = !moving;
+            job = WORKER.submit(() -> {
                 final long started = System.nanoTime();
-                final Map<UUID, List<int[]>> routed = ROUTER
-                    .route(p.obstacles(), List.of(), p.requests(), null, !moving);
-                took(new Routed(routeKey, routed, endsOf(p), (System.nanoTime() - started) / 1_000_000));
-            } else if (job == null) {
-                final long routing = routeKey;
-                final boolean thorough = !moving;
-                job = WORKER.submit(() -> {
-                    final long started = System.nanoTime();
-                    final Map<UUID, List<int[]>> routed = WORKER_ROUTER
-                        .route(p.obstacles(), List.of(), p.requests(), null, thorough);
-                    return new Routed(routing, routed, endsOf(p), (System.nanoTime() - started) / 1_000_000);
-                });
+                final Map<UUID, List<int[]>> routed = router.reroute(p.boxes(), p.keys(), p.requests(), null, thorough);
+                return new Routed(
+                    routing,
+                    routed,
+                    endsOf(p),
+                    (System.nanoTime() - started) / 1_000_000,
+                    router.statRouted);
+            });
+            if (lastRouteMillis >= 0 ? lastRouteMillis <= WAIT_MILLIS
+                : p.requests()
+                    .size() <= WAIT_WIRES) {
+                try {
+                    took(job.get(WAIT_MILLIS, java.util.concurrent.TimeUnit.MILLISECONDS));
+                    job = null;
+                } catch (final java.util.concurrent.TimeoutException e) {
+                    // It comes back on a later frame.
+                } catch (final InterruptedException e) {
+                    Thread.currentThread()
+                        .interrupt();
+                } catch (final java.util.concurrent.ExecutionException e) {
+                    com.gtnhplanner.GtnhPlanner.LOG.warn("[wires] routing failed", e);
+                    job = null;
+                }
             }
         }
         wires = assemble(p);
@@ -96,31 +110,30 @@ final class WireLayer {
         return wires;
     }
 
-    /** Routes this many milliseconds long or shorter are worked out on the spot; longer ones on the router's thread. */
-    private static final long SYNC_MILLIS = 25;
-    /** Before any route has been timed: up to this many wires route on the spot. */
-    private static final int SYNC_WIRES = 40;
+    /** A route expected back this soon is waited for on the spot; longer ones are picked up on a later frame. */
+    private static final long WAIT_MILLIS = 10;
+    /** Before any route has been timed: up to this many wires are waited for. */
+    private static final int WAIT_WIRES = 60;
 
     /** A route the router's thread works on, if any. */
     @Nullable
     private java.util.concurrent.Future<Routed> job;
     /** The latest routes by wire key, where each wire's two ends stood when it was routed, and for which geometry. */
     private Map<UUID, List<int[]>> routes = Map.of();
-    private Map<UUID, ArrowRouter.Rect[]> routedEnds = Map.of();
+    private Map<UUID, int[]> routedEnds = Map.of();
     private long routedGeometry = Long.MIN_VALUE, lastRouteMillis = -1;
 
-    /** One route's answer. */
-    private record Routed(long geometry, Map<UUID, List<int[]>> routes, Map<UUID, ArrowRouter.Rect[]> ends,
-        long millis) {}
+    /** One route's answer, and how many wires it routed again. */
+    private record Routed(long geometry, Map<UUID, List<int[]>> routes, Map<UUID, int[]> ends, long millis,
+        int routed) {}
 
-    /** The router's thread and its own router: a router keeps scratch state, so each thread needs its own. */
+    /** The router's thread: each board's router keeps scratch state, so they all route on this one thread. */
     private static final java.util.concurrent.ExecutorService WORKER = java.util.concurrent.Executors
         .newSingleThreadExecutor(r -> {
             final Thread t = new Thread(r, "GTNH Planner wires");
             t.setDaemon(true);
             return t;
         });
-    private static final ArrowRouter WORKER_ROUTER = new ArrowRouter(10, 12);
 
     /** Takes a route the router's thread has finished; true when one came back. */
     private boolean collect() {
@@ -140,14 +153,15 @@ final class WireLayer {
         routedGeometry = r.geometry();
         lastRouteMillis = r.millis();
         if (r.millis() > 8) com.gtnhplanner.GtnhPlanner.LOG.info(
-            "[wires] routed {} wires in {} ms",
+            "[wires] routed {} of {} wires in {} ms",
+            r.routed(),
             r.routes()
                 .size(),
             r.millis());
     }
 
-    private static Map<UUID, ArrowRouter.Rect[]> endsOf(final Plan p) {
-        final Map<UUID, ArrowRouter.Rect[]> ends = new HashMap<>();
+    private static Map<UUID, int[]> endsOf(final Plan p) {
+        final Map<UUID, int[]> ends = new HashMap<>();
         for (int i = 0; i < p.wires()
             .size(); i++)
             ends.put(
@@ -187,92 +201,118 @@ final class WireLayer {
     }
 
     /**
-     * What a route works from, taken on the client thread: the obstacles, one request per wire weighted by its width,
-     * the wires themselves (no path yet), and the boxes at each wire's two ends. Plain data, so another thread can
-     * route it.
+     * What a route works from, taken on the client thread: the boxes (every card once, then every drawer) and their
+     * keys, one router wire per wire weighted by its width, the wires themselves (no path yet), and the two boxes at
+     * each wire's ends (x, y, w, h each). Plain data, so the router's thread can route it.
      */
-    private record Plan(List<ArrowRouter.Rect> obstacles, List<ArrowRouter.Request> requests, List<Wire> wires,
-        List<ArrowRouter.Rect[]> ends) {}
+    private record Plan(List<WireRouter.Box> boxes, List<UUID> keys, List<WireRouter.Wire> requests, List<Wire> wires,
+        List<int[]> ends) {}
 
     private Plan plan(final Map<UUID, RecipeCard> cards, final Map<UUID, DrawerCard> drawers) {
         final Graph graph = session.graph();
-        final List<ArrowRouter.Rect> obstacles = new ArrayList<>();
+        final List<WireRouter.Box> boxes = new ArrayList<>();
+        final List<UUID> keys = new ArrayList<>();
+        final Map<RecipeCard, Integer> cardBox = new java.util.IdentityHashMap<>();
         // Once per card: a shared machine's recipes all find the same one.
         for (final RecipeCard card : new java.util.LinkedHashSet<>(cards.values())) {
-            if (card.model() == null || card.layout() == null) continue;
-            final Node n = card.model().node;
-            obstacles.add(new ArrowRouter.Rect(n.x, n.y, CardLayout.W, card.layout().height));
+            final Node n = graph.nodes.get(card.nodeId);
+            if (n == null) continue;
+            cardBox.put(card, boxes.size());
+            keys.add(card.nodeId);
+            boxes.add(new WireRouter.Box(n.x, n.y, CardLayout.W, card.layout() == null ? 100 : card.layout().height));
         }
+        final Map<UUID, Integer> drawerBox = new HashMap<>();
         for (final Drawer d : graph.getDrawers()) {
-            obstacles.add(new ArrowRouter.Rect(d.getX(), d.getY(), DrawerCard.W, DrawerCard.H));
+            drawerBox.put(d.getId(), boxes.size());
+            keys.add(d.getId());
+            boxes.add(new WireRouter.Box(d.getX(), d.getY(), DrawerCard.W, DrawerCard.H));
         }
 
-        final List<ArrowRouter.Request> requests = new ArrayList<>();
+        // Each wire's two boxes, source first, and whether it loops.
+        final List<int[]> between = new ArrayList<>();
         final List<Wire> pending = new ArrayList<>();
-        final List<ArrowRouter.Rect[]> ends = new ArrayList<>();
         final BalanceResult result = session.result();
         for (final Edge e : graph.getEdges()) {
             final Node src = graph.nodes.get(e.sourceNodeId), dst = graph.nodes.get(e.targetNodeId);
             if (src == null || dst == null
                 || e.sourceOutputIndex >= src.outputs.size()
                 || e.targetInputIndex >= dst.inputs.size()) continue;
+            final Integer a = cardBox.get(cards.get(src.id)), b = cardBox.get(cards.get(dst.id));
+            if (a == null || b == null) continue;
             final Port<?> port = src.outputs.get(e.sourceOutputIndex);
-            final double flow = edgeFlow(result, e);
-            // Anywhere on either card's edge, as on the website; a wire from a card back to itself (two recipes on one
-            // shared machine) leaves its right side and comes round into its left, so it reads as a loop.
-            final boolean loop = cards.get(src.id) != null && cards.get(src.id) == cards.get(dst.id);
-            requests.add(
-                ArrowRouter.Request.docked(
+            between.add(new int[] { a, b });
+            pending.add(
+                new Wire(
                     e.id,
-                    docks(cardRect(cards, src), loop ? ArrowRouter.Side.RIGHT : null),
-                    docks(cardRect(cards, dst), loop ? ArrowRouter.Side.LEFT : null),
-                    0));
-            pending.add(new Wire(e.id, Kind.EDGE, e, null, null, colorOf(port), 0, flow, null, Resources.key(port)));
-            ends.add(new ArrowRouter.Rect[] { cardRect(cards, src), cardRect(cards, dst) });
+                    Kind.EDGE,
+                    e,
+                    null,
+                    null,
+                    colorOf(port),
+                    0,
+                    edgeFlow(result, e),
+                    null,
+                    Resources.key(port)));
         }
         for (final Drawer d : graph.getDrawers()) {
             final boolean source = d.getKind()
                 .linksInputs();
+            final int drawer = drawerBox.get(d.getId());
             for (final Drawer.Link link : d.getLinks()) {
                 final Node n = graph.nodes.get(link.nodeId());
                 if (n == null) continue;
                 final List<Port<?>> ports = source ? n.inputs : n.outputs;
                 if (link.portIndex() >= ports.size()) continue;
+                final Integer card = cardBox.get(cards.get(n.id));
+                if (card == null) continue;
                 final Port<?> port = ports.get(link.portIndex());
                 final UUID key = UUID.nameUUIDFromBytes(
                     (d.getId() + ":" + link.nodeId() + ":" + link.portIndex()).getBytes(StandardCharsets.UTF_8));
-                final List<ArrowRouter.Dock> drawerDocks = docks(
-                    new ArrowRouter.Rect(d.getX(), d.getY(), DrawerCard.W, DrawerCard.H),
-                    null), cardDocks = docks(cardRect(cards, n), null);
-                requests.add(
-                    source ? ArrowRouter.Request.docked(key, drawerDocks, cardDocks, 0)
-                        : ArrowRouter.Request.docked(key, cardDocks, drawerDocks, 0));
-                final double flow = linkFlow(result, n, source, link.portIndex());
-                pending.add(new Wire(key, Kind.LINK, null, d, link, colorOf(port), 0, flow, null, Resources.key(port)));
-                ends.add(
-                    new ArrowRouter.Rect[] { new ArrowRouter.Rect(d.getX(), d.getY(), DrawerCard.W, DrawerCard.H),
-                        cardRect(cards, n) });
+                between.add(source ? new int[] { drawer, card } : new int[] { card, drawer });
+                pending.add(
+                    new Wire(
+                        key,
+                        Kind.LINK,
+                        null,
+                        d,
+                        link,
+                        colorOf(port),
+                        0,
+                        linkFlow(result, n, source, link.portIndex()),
+                        null,
+                        Resources.key(port)));
             }
         }
 
-        // Weighted by width: the router routes the busiest wires first, so they get the cleanest lines.
+        // Weighted by width: the router routes the busiest wires first, so they get the cleanest lines. Anywhere on
+        // either box's edge, as on the website; a wire from a card back to itself (two recipes on one shared machine)
+        // leaves its right side and comes round into its left, so it reads as a loop.
         final List<Wire> sized = withWidths(pending);
-        final List<ArrowRouter.Request> weighted = new ArrayList<>(requests.size());
-        for (int i = 0; i < requests.size(); i++) {
-            final ArrowRouter.Request r = requests.get(i);
-            weighted.add(
-                new ArrowRouter.Request(
-                    r.key(),
-                    r.sx(),
-                    r.sy(),
-                    r.dx(),
-                    r.dy(),
+        final List<WireRouter.Wire> requests = new ArrayList<>(sized.size());
+        final List<int[]> ends = new ArrayList<>(sized.size());
+        for (int i = 0; i < sized.size(); i++) {
+            final int a = between.get(i)[0], b = between.get(i)[1];
+            final double weight = sized.get(i)
+                .width();
+            requests.add(
+                a == b ? new WireRouter.Wire(
                     sized.get(i)
-                        .width(),
-                    r.sources(),
-                    r.targets()));
+                        .key(),
+                    a,
+                    b,
+                    WireRouter.RIGHT,
+                    WireRouter.LEFT,
+                    weight)
+                    : new WireRouter.Wire(
+                        sized.get(i)
+                            .key(),
+                        a,
+                        b,
+                        weight));
+            final WireRouter.Box from = boxes.get(a), to = boxes.get(b);
+            ends.add(new int[] { from.x(), from.y(), from.w(), from.h(), to.x(), to.y(), to.w(), to.h() });
         }
-        return new Plan(obstacles, weighted, sized, ends);
+        return new Plan(List.copyOf(boxes), List.copyOf(keys), List.copyOf(requests), sized, ends);
     }
 
     /** The plan's wires along the latest routes. */
@@ -284,16 +324,12 @@ final class WireLayer {
             .size(); i++) {
             final Wire w = p.wires()
                 .get(i);
+            final int[] now = p.ends()
+                .get(i), then = routedEnds.get(w.key());
             List<int[]> path = routes.get(w.key());
-            // A wire whose card or drawer moved since it was routed goes straight for now; its route is on the way.
-            if (path == null || path.size() < 2
-                || !java.util.Arrays.equals(
-                    routedEnds.get(w.key()),
-                    p.ends()
-                        .get(i)))
-                path = elbow(
-                    p.requests()
-                        .get(i));
+            // A wire whose card or drawer moved since it was routed follows it for now; its route is on the way.
+            if (path == null || path.size() < 2 || then == null) path = elbow(now);
+            else if (!java.util.Arrays.equals(then, now)) path = stretched(path, then, now);
             built.add(
                 new Wire(
                     w.key(),
@@ -310,36 +346,41 @@ final class WireLayer {
         return withWidths(built);
     }
 
-    /** A card's box on the board: a shared machine's recipes all have their card's. */
-    private static ArrowRouter.Rect cardRect(final Map<UUID, RecipeCard> cards, final Node n) {
-        final RecipeCard card = cards.get(n.id);
-        final int h = card == null || card.layout() == null ? 100 : card.layout().height;
-        return new ArrowRouter.Rect(n.x, n.y, CardLayout.W, h);
-    }
-
-    /** Where a wire may meet a box: anywhere on its edge, or only on {@code side} when given. */
-    private static List<ArrowRouter.Dock> docks(final ArrowRouter.Rect box, final ArrowRouter.Side side) {
-        final List<ArrowRouter.Dock> all = ArrowRouter.perimeterDocks(box);
-        if (side == null) return all;
-        final List<ArrowRouter.Dock> out = new ArrayList<>();
-        for (final ArrowRouter.Dock d : all) if (d.side() == side) out.add(d);
+    /**
+     * A route whose boxes moved since, made to follow them until its new route comes: moved whole when both moved
+     * alike, else each end that moved carried along with the corner next to it, the run between stretching.
+     */
+    private static List<int[]> stretched(final List<int[]> path, final int[] then, final int[] now) {
+        final int sdx = now[0] - then[0], sdy = now[1] - then[1], tdx = now[4] - then[4], tdy = now[5] - then[5];
+        final List<int[]> out = new ArrayList<>(path.size());
+        for (final int[] p : path) out.add(new int[] { p[0], p[1] });
+        final int last = out.size() - 1;
+        if (sdx == tdx && sdy == tdy) {
+            for (final int[] p : out) {
+                p[0] += sdx;
+                p[1] += sdy;
+            }
+            return out;
+        }
+        for (int k = 0; k <= Math.min(1, last - 1); k++) {
+            out.get(k)[0] += sdx;
+            out.get(k)[1] += sdy;
+        }
+        for (int k = Math.max(last - 1, 1); k <= last; k++) {
+            out.get(k)[0] += tdx;
+            out.get(k)[1] += tdy;
+        }
         return out;
     }
 
-    /** A port's anchor on its card, from the card's own layout (rows grow when a name takes two lines). */
-    private static int anchorY(final Map<UUID, RecipeCard> cards, final Node n, final boolean output, final int port) {
-        final RecipeCard card = cards.get(n.id);
-        return card == null || card.layout() == null ? CardLayout.RAILS_Y + CardLayout.ROW / 2
-            : card.anchorY(n.id, output, port);
-    }
-
-    private static List<int[]> elbow(final ArrowRouter.Request r) {
-        final int mid = (r.sx() + r.dx()) / 2;
-        return List.of(
-            new int[] { r.sx(), r.sy() },
-            new int[] { mid, r.sy() },
-            new int[] { mid, r.dy() },
-            new int[] { r.dx(), r.dy() });
+    /** A wire not routed yet: square out of its source's side facing the target, across, and into the target. */
+    private static List<int[]> elbow(final int[] ends) {
+        final int sx = ends[0], sy = ends[1], sw = ends[2], sh = ends[3];
+        final int tx = ends[4], ty = ends[5], tw = ends[6], th = ends[7];
+        final boolean right = tx + tw / 2 >= sx + sw / 2;
+        final int ax = right ? sx + sw : sx, ay = sy + sh / 2, bx = right ? tx : tx + tw, by = ty + th / 2;
+        final int mid = (ax + bx) / 2;
+        return List.of(new int[] { ax, ay }, new int[] { mid, ay }, new int[] { mid, by }, new int[] { bx, by });
     }
 
     private static double edgeFlow(@Nullable final BalanceResult result, final Edge e) {

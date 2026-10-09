@@ -30,7 +30,7 @@ class AutoLayoutTest {
 
     private static final int W = 160;
     private static final int H = 120;
-    /** Clearance the wire router keeps around a card (WireLayer's ArrowRouter margin). */
+    /** Clearance kept around a card, as the old wire router kept it. */
     private static final int ROUTER_MARGIN = 12;
 
     private record N(UUID id, String machineName, int worldWidth, int worldHeight, int inputCount, int outputCount)

@@ -79,7 +79,7 @@ Don't send synthetic input while the owner is using it.
 Engine (keep, extend): `data/` model (`Graph`, `Node`, `Port`, `Edge`, `Plan`), per-mod recipe providers and
 machine profiles (`data/provider`, `MachineProfile`, `SettingDef`, `MachineConfig`), GregTech's real overclock
 calculator (`GTOverclockStep`), the ojAlgo balancer (`data/flowchart/balancer`, ~180 tests), `Serializer`,
-`PlanAPI` (save, share, clipboard), `AutoLayout` (ELK), `ArrowRouter` (grid A*), and the NEI glue in `nei/`
+`PlanAPI` (save, share, clipboard), `AutoLayout` (ELK), `WireRouter` (grid A*; it replaced `ArrowRouter` on 2026-10-08), and the NEI glue in `nei/`
 (the "+" overlay on NEI recipe pages, R/U lookup context, NEI layout so its item list sits on the right).
 
 UI (replace): everything in `gui/`. Its mechanics are worth reading (pan/zoom canvas, NEI integration), its look
@@ -181,7 +181,7 @@ Rules for the UI code:
    through `BoardSession` (undo + touch + save) and re-solves.
 3. **Drawers, wires, solving.** Drawer widgets with rule button and rate box and the product reading; drag from
    an unwired port to empty board creates a drawer; right-click board menu; wires drawn Factory Flow style
-   (resource colour, width by flow, arrowheads, hops, routed with `ArrowRouter`); auto-wiring on add; solve in the
+   (resource colour, width by flow, arrowheads, hops, routed with `WireRouter`); auto-wiring on add; solve in the
    background with a "working" indicator; notices with Show me.
 4. **Getting recipes in.** NEI "+" (existing overlay, pointed at the new screen), P over any item to start a plan,
    R/U on ports, and the in-planner "what makes / uses this?" picker (machine filter, tier ceiling, add wires only
