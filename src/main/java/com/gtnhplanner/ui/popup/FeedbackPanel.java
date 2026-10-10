@@ -318,16 +318,15 @@ public final class FeedbackPanel extends ParentWidget<FeedbackPanel> implements 
     }
 
     /**
-     * A face for a mood (happy, okay, sad), {@code scale} times 14 pixels, always in its colour: a shine at its top
-     * left, and a touch of its own (a happy face's pink cheeks, a sad one's tear). Softer until it is hovered or
-     * picked,
-     * a white ring once picked.
+     * A face for a mood (happy, okay, sad), {@code scale} times 14 pixels, always in its colour with a slight shade at
+     * its bottom right. Softer until it is hovered or picked, a white ring once picked.
      */
     private static void face(final int mood, final int x, final int y, final boolean picked, final boolean hot,
         final int scale) {
         final int ink = MOOD_INK[mood], dark = 0xFF15171A;
         final boolean soft = !picked && !hot;
         final int fill = soft ? Hyb.mix(ink, CardPaint.SURFACE, 0.7f) : ink;
+        final int shade = Hyb.mix(fill, dark, 0.85f);
         final int feature = soft ? Hyb.mix(dark, fill, 0.85f) : dark;
         GL11.glPushMatrix();
         GL11.glTranslatef(x, y, 0);
@@ -338,13 +337,16 @@ public final class FeedbackPanel extends ParentWidget<FeedbackPanel> implements 
             Hyb.rect(0, 0, FACE, FACE, 0xFFFFFFFF);
             Hyb.rect(-1, 2, FACE + 2, FACE - 4, 0xFFFFFFFF);
         }
-        // A disc: the corners cut.
-        Hyb.rect(3, 0, FACE - 6, FACE, fill);
-        Hyb.rect(1, 1, FACE - 2, FACE - 2, fill);
-        Hyb.rect(0, 3, FACE, FACE - 6, fill);
-        final int shine = Hyb.mix(0xFFFFFFFF, fill, 0.45f);
-        Hyb.rect(3, 2, 1, 1, shine);
-        Hyb.rect(2, 3, 1, 1, shine);
+        // A disc, the corners cut (where each row starts), in the shade; then in its colour but for a crescent at the
+        // bottom right: each row as far as the next row reaches, a pixel to the left.
+        final int[] from = { 3, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 3 };
+        for (int row = 0; row < FACE; row++) {
+            Hyb.rect(from[row], row, FACE - 2 * from[row], 1, shade);
+            if (row + 1 == FACE) continue;
+            final int a = Math.max(from[row], from[row + 1] - 1),
+                b = Math.min(FACE - from[row], FACE - from[row + 1] - 1);
+            if (b > a) Hyb.rect(a, row, b - a, 1, fill);
+        }
         Hyb.rect(4, 4, 2, 2, feature);
         Hyb.rect(8, 4, 2, 2, feature);
         switch (mood) {
@@ -352,16 +354,12 @@ public final class FeedbackPanel extends ParentWidget<FeedbackPanel> implements 
                 Hyb.rect(3, 8, 1, 1, feature);
                 Hyb.rect(4, 9, 6, 1, feature);
                 Hyb.rect(10, 8, 1, 1, feature);
-                final int cheek = Hyb.mix(0xFFFF6F9C, fill, soft ? 0.55f : 0.8f);
-                Hyb.rect(2, 7, 1, 1, cheek);
-                Hyb.rect(11, 7, 1, 1, cheek);
             }
             case 1 -> Hyb.rect(4, 9, 6, 1, feature);
             default -> {
                 Hyb.rect(3, 10, 1, 1, feature);
                 Hyb.rect(4, 9, 6, 1, feature);
                 Hyb.rect(10, 10, 1, 1, feature);
-                Hyb.rect(4, 6, 1, 2, soft ? Hyb.mix(0xFF7CC4FF, fill, 0.7f) : 0xFF7CC4FF);
             }
         }
         GL11.glPopMatrix();
