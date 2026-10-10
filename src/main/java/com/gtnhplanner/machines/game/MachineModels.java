@@ -302,9 +302,15 @@ public final class MachineModels {
             final BacterialVat.Needs needs = needs(node);
             final BacterialVat.Setup setup = BacterialVat.setup(cfg.settings, needs, fluidOut, materials());
             final BacterialVat.Fill fill = BacterialVat.fill(setup, fluidOut);
-            final boolean runs = fill.fits() || setup.voidExcess();
-            if (in >= 0 && runs) cfg.inputConsumption.put(in, (float) fill.multiplier());
-            if (out >= 0 && fluidOut > 0) cfg.outputProductivity.put(out, (float) fill.keptOut() / fluidOut);
+            if (BacterialVat.gate(needs, setup, fluidOut) != null) {
+                // Glass too low, radiation not met, or a run that never fits: the vat holds, as on the website (its
+                // recipe gate). Its radio hatch still burns, below.
+                for (int i = 0; i < node.inputs.size(); i++) cfg.inputConsumption.put(i, 0f);
+                for (int i = 0; i < node.outputs.size(); i++) cfg.outputProductivity.put(i, 0f);
+            } else {
+                if (in >= 0) cfg.inputConsumption.put(in, (float) fill.multiplier());
+                if (out >= 0 && fluidOut > 0) cfg.outputProductivity.put(out, (float) fill.keptOut() / fluidOut);
+            }
             if (needs.sievert() > 0 && setup.radio() != null) {
                 final ItemStack stack = materialStack(
                     setup.radio()
