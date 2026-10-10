@@ -36,7 +36,7 @@ public class WebCheck {
 }
 JAVA
 SRC=$(find "$ROOT/src/main/java/com/gtnhplanner/machines/web" "$ROOT/src/test/java/com/gtnhplanner/machines/web" \
-  -name '*.java' 2>/dev/null; echo "$OUT/launcher/WebCheck.java")
+  -name '*.java' 2>/dev/null; echo "$ROOT/src/main/java/com/gtnhplanner/machines/FormulaLine.java"; echo "$OUT/launcher/WebCheck.java")
 "$JDK/javac.exe" -nowarn -encoding UTF-8 -d "$(cygpath -w "$OUT/classes")" -cp "$CP" $(for f in $SRC; do cygpath -w "$f"; done)
 RUNCP="$(cygpath -w "$OUT/classes");$(cygpath -w "$ROOT/src/main/resources");$(cygpath -w "$ROOT/src/test/resources");$CP"
 # Package scanning finds nothing here on Windows, so every test class is named.

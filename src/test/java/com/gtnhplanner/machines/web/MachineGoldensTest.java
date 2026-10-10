@@ -25,9 +25,10 @@ import com.google.gson.JsonPrimitive;
 
 /**
  * The website's own functions run over real dataset recipes and a spread of nodes (machine-goldens.jsonl.gz, written
- * by its {@code tools/audits/export-mod-machine-data.mjs}): the port must give every number the same. Runtime-variant
- * cases are checked against the generic path the website also records, and the Tree Growth Simulator and Bacterial
- * Vat against nothing here (the mod's own models in machines/ are matched to the website on their own).
+ * by its {@code tools/audits/export-mod-machine-data.mjs}): the port must give every number the same, the runtime
+ * variants the recipes carry included (the game computes its own in play, machines/game/RuntimeVariants). The Tree
+ * Growth Simulator and Bacterial Vat are checked against nothing here: the mod's own models in machines/ are matched to
+ * the website on their own.
  */
 class MachineGoldensTest {
 
@@ -80,9 +81,8 @@ class MachineGoldensTest {
     private void check(final JsonObject c, final Web.Recipe recipe, final String group) {
         cases++;
         final Web.Node node = gson.fromJson(c.get("node"), Web.Node.class);
+        // The expected numbers are the website's with its runtime variants, which the recipe carries.
         final JsonObject expected = c.getAsJsonObject("expected");
-        if (c.has("generic")) for (final Map.Entry<String, JsonElement> e : c.getAsJsonObject("generic")
-            .entrySet()) expected.add(e.getKey(), e.getValue());
         final String where = "#" + c.get("case")
             .getAsInt()
             + " "
@@ -106,7 +106,13 @@ class MachineGoldensTest {
             near(diffs, expected, "eut", s.eut());
 
             final Web.Recipe effective = RecipeRules.applyHandler(recipe, node);
-            near(diffs, expected, "parallels", MachineEffects.parallelMultiplier(effective, node));
+            final Web.RuntimeVariant runtime = RuntimeCalculation.select(effective, node);
+            near(
+                diffs,
+                expected,
+                "parallels",
+                runtime != null && runtime.parallel != null ? runtime.parallel
+                    : MachineEffects.parallelMultiplier(effective, node));
             near(diffs, expected, "structuralParallels", MachineEffects.structuralParallels(effective, node));
             near(diffs, expected, "durationMultiplier", MachineEffects.durationMultiplier(effective, node));
             near(diffs, expected, "eutMultiplier", MachineEffects.eutMultiplier(effective, node));
@@ -116,6 +122,12 @@ class MachineGoldensTest {
                 chances.add(out.chance != null ? out.chance : 1);
             }
             nearList(diffs, expected, "outputMultipliers", multipliers);
+            final List<Web.Resource> runtimeOutputs = RuntimeCalculation.outputs(effective, node);
+            final List<Double> amounts = new ArrayList<>();
+            if (runtimeOutputs != null) for (final Web.Resource out : runtimeOutputs) amounts.add(out.amount);
+            else for (int i = 0; i < effective.outputs.size(); i++)
+                amounts.add(effective.outputs.get(i).amount * multipliers.get(i));
+            nearList(diffs, expected, "outputAmounts", amounts);
             nearList(diffs, expected, "chances", chances);
             same(diffs, expected, "machineType", effective.machineType);
             same(diffs, expected, "multiblock", Power.isMultiblock(effective));

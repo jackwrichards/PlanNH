@@ -337,10 +337,19 @@ public final class MachineModels {
 
     // region The card
 
-    /** The node's worked formulas; empty for any other machine. */
+    /**
+     * The node's worked formulas: the modelled machines' own, any other GregTech card's power working from the
+     * website's machine maths (machines/web Working); empty for any other machine.
+     */
     public static List<FormulaLine> formulas(final Node node) {
         if (node.isPower() || node.machineConfig == null) return Collections.emptyList();
         final MachineConfig cfg = node.machineConfig;
+        if (!isTgs(node.properties) && !isVat(node.properties)) {
+            final com.gtnhplanner.machines.web.NodeMath.Result r = WebEffect.result(node, cfg);
+            final com.gtnhplanner.machines.web.Web.Recipe recipe = WebEffect.recipe(node);
+            return r == null || recipe == null ? Collections.emptyList()
+                : com.gtnhplanner.machines.web.Working.lines(recipe, WebCards.node(node, cfg, recipe), r);
+        }
         if (isTgs(node.properties)) {
             final TreeGrowthSimulator.Tree tree = tree(node);
             final long[] p = power(cfg);

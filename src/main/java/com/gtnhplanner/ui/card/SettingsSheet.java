@@ -109,6 +109,8 @@ public final class SettingsSheet extends Popup {
                 0);
             final int fw = Body.formulasWidth(formulas);
             final int formulasH = HEADING + formulas.size() * FORMULA + 4;
+            // A machine with nothing to set (most single blocks): its working alone.
+            if (controls.isEmpty()) return new Sheet(lines, fw, HEAD + formulasH + 4, 1, formulas, 0, fw);
             return new Sheet(
                 lines,
                 COL + 1 + fw,
@@ -194,6 +196,8 @@ public final class SettingsSheet extends Popup {
                 } else row(m, l, l == hot, mx - l.x());
             }
             if (!sheet.formulas.isEmpty()) formulas(sheet.formulas, sheet.formulasX, HEAD, sheet.formulasW);
+            // Nothing to set, nothing to say about setting it.
+            if (sheet.lines.isEmpty() && !sheet.formulas.isEmpty()) return;
             Hyb.rect(1, fy, sheet.w - 2, 1, CardPaint.HAIR);
             if (sheet.columns == 1) {
                 Hyb.text("Pinned settings show on the card.", 8, fy + 5, 0xFF6E7179);
@@ -211,6 +215,7 @@ public final class SettingsSheet extends Popup {
         private static final java.util.Map<String, Integer> KNOB_COLORS = java.util.Map.ofEntries(
             java.util.Map.entry("tier", 0xFF5AA7D9),
             java.util.Map.entry("amps", 0xFF5AA7D9),
+            java.util.Map.entry("coil", 0xFFE0904A),
             java.util.Map.entry("tgsLogTool", 0xFFC9A24A),
             java.util.Map.entry("tgsSaplingTool", 0xFF6FBF50),
             java.util.Map.entry("tgsLeavesTool", 0xFF3FB08A),
