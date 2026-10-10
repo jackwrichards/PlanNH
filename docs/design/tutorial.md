@@ -7,7 +7,7 @@ says what it is. Placing machines in the world is not in it (that will be a vide
 ## How it looks and feels
 
 - **Steps, not a show.** Each step acts something out at a brisk pace (the cursor clicks, drags, types), then stops on
-  a note and waits. Nothing moves on until the player says so. Twenty-four steps, about a minute and a half of action
+  a note and waits. Nothing moves on until the player says so. Twenty-six steps, about a minute and a half of action
   in all; the rest is the player's reading.
 - **The note** (`Callout`): a small dark box with a gold edge beside the thing it is about, a tip pointing at it, and
   the thing framed in gold. Its words are short and plain; the words that matter most are gold (written between
@@ -94,15 +94,19 @@ says what it is. Placing machines in the world is not in it (that will be a vide
 14. The rate, power and average keys turned round: how numbers are shown.
 15. Benzene dragged in from NEI's list as a product.
 16. R on its drawer, the distillation tower added and wired: the planner works like NEI.
-17. Non-recipe machines.
-18. A gas turbine at HV on the tower's benzene, every other flow given a drawer (wood tar in, creosote, phenol,
-    toluene, dimethylbenzene and the turbine's EU out), the tower pinned to one: how many turbines it runs.
-19. Arrange and Fit.
-20. A sticky note: added, written on, moved, resized, coloured, its text bigger.
-21. The + menu: a new plan.
-22. The Library's public setups, searched.
-23. The minimap set up large, square, top right; over the world, moved and zoomed with its keys.
-24. Back on the board at the Discord key: that's everything, and where issues, feedback and ideas go.
+17. The tower's first other output (creosote) dragged out to a product drawer and switched with its kind key to a
+    byproduct: surplus, never calculated for.
+18. Switched again, to trash: it voids what comes in and leaves the overview's outputs.
+19. Non-recipe machines.
+20. A gas turbine at HV on the tower's benzene, every other flow given a drawer (wood tar in, phenol, toluene,
+    dimethylbenzene and the turbine's EU out; the trashed output keeps its bin), the tower pinned to one: how many
+    turbines it runs.
+21. Arrange and Fit.
+22. A sticky note: added, written on, moved, resized, coloured, its text bigger.
+23. The + menu: a new plan.
+24. The Library's public setups, searched.
+25. The minimap set up large, square, top right; over the world, moved and zoomed with its keys.
+26. Back on the board at the Discord key: that's everything, and where issues, feedback and ideas go.
 
 ## Open
 

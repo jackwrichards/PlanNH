@@ -1,6 +1,5 @@
 package com.gtnhplanner.ui.card;
 
-import com.cleanroommc.modularui.drawable.GuiDraw;
 import com.gtnhplanner.api.RecipePropertyAPI;
 import com.gtnhplanner.data.MachineConfig;
 import com.gtnhplanner.data.effect.EffectResult;
@@ -105,13 +104,7 @@ final class PowerPanel {
 
     /** A tier in its colours, inline in a sentence: returns how wide it was. */
     private static int badge(final String tier, final float x, final float y) {
-        final Hyb.Tier t = Hyb.tier(tier);
-        final int w = Hyb.width(t.name()) + 4;
-        Hyb.rect(x, y - 1, w, 10, t.border());
-        Hyb.rect(x + 1, y, w - 2, 8, t.bg());
-        GuiDraw.drawText(t.name(), x + 2.5f, y + 0.5f, 1f, t.border(), false);
-        GuiDraw.drawText(t.name(), x + 2, y, 1f, t.text(), false);
-        return w;
+        return Hyb.tierTag(tier, null, x, y);
     }
 
     /** Text pieces and tier badges along a line; a piece starting with "@" is a tier. Returns the end x. */

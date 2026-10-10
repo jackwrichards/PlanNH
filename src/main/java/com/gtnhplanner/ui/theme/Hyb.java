@@ -100,6 +100,47 @@ public final class Hyb {
         com.gtnhplanner.ui.sound.Sfx.CLICK.play();
     }
 
+    /**
+     * A voltage tier as the card's chips at the game font's size, for lists (the overview's machines, the non-recipe
+     * picker, the Library, the power panel): {@code extra} (amps) and the tier, each a raised face in the tier's
+     * colours with its label shadowed in the tier's dark, UV and up underlined. The labels sit at {@code textY}, the
+     * chips from 2 above to 4 below the line. Returns their width.
+     */
+    public static int tierTag(final String tier, @org.jetbrains.annotations.Nullable final String extra, final float x,
+        final float textY) {
+        final Tier t = tier(tier);
+        float cx = x;
+        if (extra != null && !extra.isEmpty()) cx += smallChip(extra, t, false, cx, textY) + TAG_GAP;
+        cx += smallChip(t.name(), t, t.underline(), cx, textY);
+        return Math.round(cx - x);
+    }
+
+    public static int tierTagWidth(final String tier, @org.jetbrains.annotations.Nullable final String extra) {
+        final int tierW = width(tier(tier).name()) + 6;
+        return extra == null || extra.isEmpty() ? tierW : width(extra) + 6 + TAG_GAP + tierW;
+    }
+
+    private static final int TAG_GAP = 2;
+
+    /** One chip of a tier tag: the card's chip, small. Returns its width. */
+    private static int smallChip(final String label, final Tier t, final boolean underline, final float x,
+        final float textY) {
+        final int w = width(label) + 6, h = 12;
+        final float y = textY - 2;
+        rect(x, y, w, h, t.border());
+        rect(x + 1, y + 1, w - 2, h - 2, t.bg());
+        final int ink = contrastInk(t.bg());
+        text(label, x + 3, textY, 1f, ink, false);
+        if (underline) rect(x + 3, textY + 7, width(label) - 1, 1, ink);
+        return w;
+    }
+
+    /** Black or white, whichever reads on {@code bg}: a tier chip's label, with no shadow to blur it. */
+    public static int contrastInk(final int bg) {
+        final float l = (0.2126f * (bg >> 16 & 0xFF) + 0.7152f * (bg >> 8 & 0xFF) + 0.0722f * (bg & 0xFF)) / 255f;
+        return l > 0.5f ? 0xFF111111 : 0xFFFFFFFF;
+    }
+
     public static Tier tier(final String name) {
         for (final Tier t : TIERS) if (t.name.equalsIgnoreCase(name)) return t;
         return NO_TIER;

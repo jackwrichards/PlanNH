@@ -41,7 +41,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
     static final int W_FOLDED = 14;
 
     private static final int HEAD_H = 18, FILTER_Y = 20, FILTER_H = 14, LIST_Y = 38;
-    private static final int SECTION_H = 16, ROW_H = 18, DRAWER_H = 16, GROUP_H = 16, LINE_H = 14, GAP = 4;
+    private static final int SECTION_H = 16, ROW_H = 18, DRAWER_H = 16, GROUP_H = 18, LINE_H = 14, GAP = 4;
     private static final int TOGGLE_W = 34;
     private static final int INTERNAL_INK = 0xFFD4D4D4;
 
@@ -55,6 +55,8 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         PEAK,
         GROUP,
         MACHINE,
+        /** A machine line's count: wheel it, or click to type a pinned count, as on the card. */
+        COUNT,
         /** The list's scroll bar: drag the thumb, or click the track to jump. */
         SCROLLBAR
     }
@@ -492,14 +494,18 @@ final class OverviewRail extends ParentWidget<OverviewRail>
                 0xFF6A6C74);
             return y + LINE_H + GAP;
         }
+        // One block per machine, as the resources have a row each: a faint band, the machine and how many to build,
+        // then under its name a line for each tier it runs at, the tier as a tag in its colour.
+        final int band = Hyb.seeThrough(0x0DE8E9EE);
         for (final Map.Entry<String, List<BoardSession.MachineLine>> g : groups.entrySet()) {
             final List<BoardSession.MachineLine> lines = g.getValue();
             // A group scrolled out of the list: skip its drawing, keep its room.
-            final int groupH = GROUP_H + lines.size() * LINE_H;
+            final int groupH = GROUP_H + lines.size() * LINE_H + 1;
             if (y + groupH <= LIST_Y || y >= getArea().height) {
                 y += groupH;
                 continue;
             }
+            Hyb.rect(0, y, w - 1, groupH - 1, band);
             final boolean groupHot = hover != null && hover.kind() == Kind.GROUP
                 && g.getKey()
                     .equals(hover.data());
@@ -508,32 +514,29 @@ final class OverviewRail extends ParentWidget<OverviewRail>
                 lines.get(0)
                     .stack(),
                 4,
-                y,
+                y + 1,
                 16,
                 z);
-            int count = 0;
-            for (final BoardSession.MachineLine m : lines) count += (int) Math.ceil(m.machines() - 1e-9);
-            final String total = "×" + count;
-            Hyb.text(Hyb.fit(g.getKey(), w - 30 - Hyb.width(total) - 8), 23, y + 4, Hyb.INK);
-            Hyb.textRight(total, w - 6, y + 4, Hyb.INK);
+            Hyb.text(Hyb.fit(g.getKey(), w - 30), 23, y + 5, Hyb.INK);
             hits.add(new Hit(Kind.GROUP, 0, y, w - 1, y + GROUP_H, g.getKey()));
             y += GROUP_H;
             for (final BoardSession.MachineLine m : lines) {
                 final boolean hot = hover != null && hover.kind() == Kind.MACHINE && hover.data() == m;
                 if (hot) Hyb.rect(0, y, w - 1, LINE_H, 0x1A22D3EE);
-                Hyb.rect(9, y, 1, LINE_H / 2, Hyb.MUTED);
-                Hyb.rect(9, y + LINE_H / 2, 5, 1, Hyb.MUTED);
-                final String n = Fmt.machines(m.machines()) + "x";
-                Hyb.text(n, 16, y + 3, m.pinned() ? Hyb.GOLD : Hyb.INK);
-                int cx = 16 + Hyb.width(n) + 4;
-                if (m.gregtech()) {
-                    final Hyb.Tier tier = Hyb.tier(m.tier());
-                    final String chip = (m.multiblock() && m.amps() > 1 ? m.amps() + "A " : "") + tier.name();
-                    final int cw = Hyb.width(chip) + 4;
-                    Hyb.rect(cx, y + 2, cw, 10, tier.bg());
-                    Hyb.text(chip, cx + 2, y + 3, tier.text());
-                    cx += cw + 4;
-                }
+                int cx = 23;
+                if (m.gregtech())
+                    cx += Hyb.tierTag(m.tier(), m.multiblock() && m.amps() > 1 ? m.amps() + "A" : null, cx, y + 3) + 5;
+                // How many: as the card's count, the wheel and a click set it here too; a count being wheeled shows.
+                final com.gtnhplanner.ui.card.RecipeCard card = cardOf(m.nodeId());
+                final long wheeled = card == null ? -1 : card.wheeledCount();
+                final String count = "×" + (wheeled > 0 ? Long.toString(wheeled) : Fmt.machines(m.machines()));
+                final boolean countHot = hover != null && hover.kind() == Kind.COUNT && hover.data() == m;
+                // Gold while pinned, or about to be; plain while unpinned, or about to be.
+                final boolean gold = wheeled > 0 || wheeled < 0 && m.pinned();
+                Hyb.text(count, cx, y + 3, gold ? Hyb.GOLD : Hyb.INK);
+                if (countHot)
+                    for (int dx = 0; dx < Hyb.width(count); dx += 3) Hyb.rect(cx + dx, y + 11, 1, 1, Hyb.MUTED);
+                if (card != null) hits.add(new Hit(Kind.COUNT, cx - 2, y, cx + Hyb.width(count) + 2, y + LINE_H, m));
                 if (m.tooLow()) Hyb.textRight("TIER!", w - 6, y + 3, Hyb.RED_INK);
                 else if (m.madeEuPerTick() > 0)
                     Hyb.textRight("+" + Fmt.power(m.madeEuPerTick()) + " EU/t", w - 6, y + 3, 0xFFE0B04A);
@@ -541,6 +544,7 @@ final class OverviewRail extends ParentWidget<OverviewRail>
                 hits.add(new Hit(Kind.MACHINE, 0, y, w - 1, y + LINE_H, m));
                 y += LINE_H;
             }
+            y += 1;
         }
         return y + GAP;
     }
@@ -638,8 +642,24 @@ final class OverviewRail extends ParentWidget<OverviewRail>
             case PEAK -> session.togglePeakPower();
             case GROUP -> flyToGroup((String) hit.data());
             case MACHINE -> canvas.frame(List.of(((BoardSession.MachineLine) hit.data()).nodeId()));
+            case COUNT -> {
+                final com.gtnhplanner.ui.card.RecipeCard card = cardOf(
+                    ((BoardSession.MachineLine) hit.data()).nodeId());
+                if (card != null) card.openPin(sx, sy);
+            }
         }
         return Result.SUCCESS;
+    }
+
+    /** The card a recipe is on: its own, or the shared machine it is a recipe of. */
+    @org.jetbrains.annotations.Nullable
+    private com.gtnhplanner.ui.card.RecipeCard cardOf(final java.util.UUID node) {
+        final com.gtnhplanner.ui.card.RecipeCard own = canvas.cards()
+            .get(node);
+        if (own != null) return own;
+        for (final com.gtnhplanner.ui.card.RecipeCard card : canvas.cards()
+            .values()) if (card.sectionOf(node) >= 0) return card;
+        return null;
     }
 
     /** Frames the next card that makes or uses a resource, cycling on each double-click. */
@@ -682,6 +702,11 @@ final class OverviewRail extends ParentWidget<OverviewRail>
         }
         if (hit != null && hit.kind() == Kind.RATE) {
             DrawerCard.stepRate(session, (DrawerModel) hit.data(), step);
+            return true;
+        }
+        if (hit != null && hit.kind() == Kind.COUNT) {
+            final com.gtnhplanner.ui.card.RecipeCard card = cardOf(((BoardSession.MachineLine) hit.data()).nodeId());
+            if (card != null) card.wheelCount(step);
             return true;
         }
         final int max = Math.max(0, contentH - (getArea().height - LIST_Y));
@@ -736,6 +761,8 @@ final class OverviewRail extends ParentWidget<OverviewRail>
                 session.peakPower() ? "Peak power: every machine running at once"
                     : "Average power: machines running only as much as the plan needs");
             case GROUP -> List.of((String) hit.data(), hint + "Click: go to its cards one by one");
+            case COUNT -> List
+                .of("Machine count", hint + "Click: type a pinned count  Wheel: one more or fewer (below one unpins)");
             case MACHINE -> {
                 final BoardSession.MachineLine m = (BoardSession.MachineLine) hit.data();
                 yield List.of(

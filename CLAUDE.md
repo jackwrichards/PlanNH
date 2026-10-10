@@ -86,7 +86,10 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   be wired to, and is green where letting go wires or makes a drawer, red where it does nothing (a port has one
   drawer at most: "Drawer already exists"). Every tooltip (board, overview, tabs, top bar, Library, the non-recipe
   picker) waits until the mouse has rested on its thing for 0.8 s (`Tip.Wait`); moving about on it keeps the wait,
-  leaving resets it. While the plan has nothing set,
+  leaving resets it. Tier chips everywhere (the card's header, the overview's machine lines, the non-recipe picker,
+  the Library, the power panel) are flat in the tier's colours with a black or white label and no shadow
+  (`RecipeCard.chip`, `Hyb.tierTag`); the card's label is sized to whole screen pixels at any zoom. The overview's
+  machine lines take the wheel and a click on their count as the card's count does; trash leaves its outputs. While the plan has nothing set,
   every unpinned count says "(set count)" and every empty drawer "Set rate", pulsing gold together (`CardPaint.prompt`);
   the count keeps its place, a line kept under it. Scrolling a pinned count below one unpins it. The gear's See-through slider (0 to 100%) fades
   the board, its dots and the overview (`Hyb.seeThrough`) down to nothing; cards and text stay solid. The gear opens
@@ -95,7 +98,7 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   They are Factory Flow's text annotations (`kind: "text"`, its colour tags and font sizes), so they come in with an
   imported plan and go out with a posted one; they take no part in the solve, the wiring or Arrange.
 - The tour (`ui/tutorial/`, `docs/design/tutorial.md`): the "?" key's Take the tour, or the first-run offer (`TourOffer`:
-  a note over the dimmed board the first time the planner opens, asked once). Twenty-four steps: each acts something out on the real UI, then a note (`Callout`) beside what it did says what it
+  a note over the dimmed board the first time the planner opens, asked once). Twenty-six steps: each acts something out on the real UI, then a note (`Callout`) beside what it did says what it
   is (gold words between asterisks in `Script`) and waits for next; no autoplay, no chapters. It drives the UI with
   a cursor of its own (`Pointer`, through mixins on the mouse position screens and NEI read and on Shift;
   `VirtualInput` delivers presses, drags and keys to the open screen), in plans of its own (`Plan.enterSandbox`,

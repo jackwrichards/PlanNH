@@ -1812,12 +1812,17 @@ public final class BoardSession {
                     card.tierTooLow(),
                     card.madeEuPerTick()));
         }
+        // What trash voids leaves the plan without being an output of it.
+        final Map<String, Double> trashed = new HashMap<>();
+        for (final DrawerModel d : drawerModels.values())
+            if (d.kind == Drawer.Kind.TRASH) trashed.merge(d.drawer.getResourceKey(), Math.max(0, d.rate), Double::sum);
         final List<TotalLine> in = new ArrayList<>(), out = new ArrayList<>(), internal = new ArrayList<>();
         for (final Map.Entry<String, double[]> e : flow.entrySet()) {
             final double made = e.getValue()[0], used = e.getValue()[1];
             final Look look = looks.get(e.getKey());
+            final double leaves = made - used - trashed.getOrDefault(e.getKey(), 0.0);
             if (used - made > EPS) in.add(line(e.getKey(), look, used - made));
-            if (made - used > EPS) out.add(line(e.getKey(), look, made - used));
+            if (leaves > EPS) out.add(line(e.getKey(), look, leaves));
             if (Math.min(made, used) > EPS) internal.add(line(e.getKey(), look, Math.min(made, used)));
         }
         sortByAmount(in);
@@ -1825,6 +1830,7 @@ public final class BoardSession {
         sortByAmount(internal);
         // A resource with a drawer stays listed at 0, so its rule and rate can be set from here.
         for (final DrawerModel d : drawerModels.values()) {
+            if (d.kind == Drawer.Kind.TRASH) continue;
             final String key = d.drawer.getResourceKey();
             final List<TotalLine> side = d.kind == Drawer.Kind.SOURCE ? in : out;
             if (side.stream()

@@ -273,7 +273,7 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
         Hyb.rect(x + 1, y + 1, PIC_W, ROW_H - 2, ART_BG);
         drawPicture(source, x + 2, y + 2, PIC_W - 2, ROW_H - 4, z);
         final String tier = source.unlock();
-        final int badgeW = tier == null ? 0 : Hyb.width(tier) + 6;
+        final int badgeW = tier == null ? 0 : Hyb.tierTagWidth(tier, null);
         final int tx = x + PIC_W + 5, room = w - PIC_W - 8;
         // The name on two lines when it needs them; the badge on the line it leaves room on.
         final List<String> lines = Hyb.font()
@@ -372,13 +372,9 @@ public final class PowerPicker extends ParentWidget<PowerPicker> implements Inte
             CYAN);
     }
 
-    /** The unlock tier in its voltage colours, as the card's tier chip wears them. */
+    /** The unlock tier as a tier tag, its top at {@code y}. */
     private static void badge(final String tier, final int x, final int y, final int w) {
-        final Hyb.Tier t = Hyb.tier(tier);
-        Hyb.rect(x, y, w, 10, t.border());
-        Hyb.rect(x + 1, y + 1, w - 2, 8, t.bg());
-        Hyb.text(tier, x + 3, y + 1.5f, t.text());
-        if (t.underline()) Hyb.rect(x + 3, y + 9, w - 6, 1, t.text());
+        Hyb.tierTag(tier, null, x, y + 2);
     }
 
     private int key(final int right, final int y, final String label, final Kind kind, final Hit hover) {

@@ -518,12 +518,8 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
 
     /** A tier in its colours; right-aligned at {@code x} when {@code fromRight}. Returns its width. */
     private static int badge(final String tier, final int x, final int y, final boolean fromRight) {
-        final Hyb.Tier t = Hyb.tier(tier);
-        final int w = Hyb.width(t.name()) + 6, bx = fromRight ? x - w : x;
-        Hyb.rect(bx, y - 1, w, 10, t.border());
-        Hyb.rect(bx + 1, y, w - 2, 8, t.bg());
-        com.cleanroommc.modularui.drawable.GuiDraw.drawText(t.name(), bx + 3, y, 1f, t.text(), false);
-        return w;
+        final int w = Hyb.tierTagWidth(tier, null);
+        return Hyb.tierTag(tier, null, fromRight ? x - w : x, y);
     }
 
     /** A setup's face, or a resource's icon: the game's own item or fluid, else a quiet placeholder. */

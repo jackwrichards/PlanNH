@@ -47,6 +47,7 @@ final class Script {
         cards(out);
         overview(out);
         fromNei(out);
+        kinds(out);
         power(out);
         tidying(out);
         plans(out);
@@ -463,6 +464,66 @@ final class Script {
 
     // endregion
 
+    // region Byproducts and trash
+
+    /** The benzene recipe's other output the next beats drag out, fixed when they start: its name. */
+    private static String side;
+
+    /** The benzene recipe's first output that is neither benzene nor wired yet; null for none. */
+    private static String sideOutput() {
+        final CardModel m = model(BENZENE);
+        if (m == null) return null;
+        for (final CardModel.PortView p : m.outputs) if (!p.wired() && !p.name()
+            .toLowerCase(Locale.ROOT)
+            .contains("benzene")) return p.name();
+        return null;
+    }
+
+    private static Target sidePart(final DrawerCard.Part part) {
+        return () -> side == null ? null
+            : Targets.drawer(side, part)
+                .rect();
+    }
+
+    /** The byproduct drawer on the board, by its name: the side output, for a beat started where the last left it. */
+    private static String byproduct() {
+        final BoardScreen b = Targets.board();
+        if (b == null) return null;
+        for (final DrawerModel d : b.session()
+            .drawerModels()
+            .values()) if (d.kind == com.gtnhplanner.data.flowchart.Drawer.Kind.BYPRODUCT) return d.label;
+        return null;
+    }
+
+    private static boolean sideIs(final com.gtnhplanner.data.flowchart.Drawer.Kind kind) {
+        final DrawerModel d = side == null ? null : drawer(side);
+        return d != null && d.kind == kind;
+    }
+
+    private static void kinds(final List<Beat> out) {
+        final Target port = () -> side == null ? null
+            : Targets.port(BENZENE, true, side)
+                .rect();
+        beat(out).run(() -> side = sideOutput())
+            .drag(port, Targets.emptyBoard(130, 70))
+            .until(() -> side != null && hasDrawer(side), 3000)
+            .pause(200)
+            .click(sidePart(DrawerCard.Part.CYCLE))
+            .until(() -> sideIs(com.gtnhplanner.data.flowchart.Drawer.Kind.BYPRODUCT), 2000)
+            .rest()
+            .note(
+                sidePart(DrawerCard.Part.CYCLE),
+                "This key switches a product drawer to a *byproduct*: surplus, never calculated for.");
+        beat(out).run(() -> { if (side == null || !hasDrawer(side)) side = byproduct(); })
+            .click(sidePart(DrawerCard.Part.CYCLE))
+            .until(() -> sideIs(com.gtnhplanner.data.flowchart.Drawer.Kind.TRASH), 2000)
+            .until(Script::solved, 3000)
+            .rest()
+            .note(sidePart(DrawerCard.Part.BODY), "Or to *trash*: it voids what comes in, and leaves your outputs.");
+    }
+
+    // endregion
+
     // region Power
 
     private static void power(final List<Beat> out) {
@@ -501,10 +562,16 @@ final class Script {
                 "You can also *plan power*. This distillation tower makes enough benzene to run this many HV gas turbines.");
     }
 
-    /** Drags a port out to a drawer of its own, on empty board beside it. */
+    /**
+     * Drags a port out to a drawer of its own, on empty board beside it; a port with one already (the output the
+     * byproduct and trash beats used) keeps it, as a second would be refused.
+     */
     private static void drawerFor(final Beat b, final Target port, final boolean output, final String label) {
-        b.drag(port, Targets.freeNear(port, output, output ? 70 : -70, 0))
-            .until(() -> hasDrawer(label), 2500);
+        b.when(
+            () -> !hasDrawer(label),
+            Steps.seq(
+                Steps.drag(port, Targets.freeNear(port, output, output ? 70 : -70, 0)),
+                Steps.until(() -> hasDrawer(label), 2500)));
     }
 
     // endregion

@@ -732,37 +732,33 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     }
 
     /**
-     * A chip; {@code heavy} draws its label a hair heavier (one screen pixel wider, at any zoom), short of the game's
-     * bold.
+     * A chip; {@code snapped} sets its label on the screen's own pixels at a size where every font pixel is a whole
+     * number of them (up to the usual 1.5 board pixels), so every stroke is as wide as every other at any zoom.
      */
     static void chip(final int x, final int y, final int w, final int h, final Hyb.Tier tier, final String label,
-        final boolean underline, final boolean hover, final boolean heavy) {
+        final boolean underline, final boolean hover, final boolean snapped) {
+        // Flat, in the tier's colours: a darker edge, the face, the label in black or white (whichever reads on it),
+        // and no shadow to double it.
         Hyb.rect(x, y, w, h, tier.border());
         Hyb.rect(x + 1, y + 1, w - 2, h - 2, hover ? Hyb.mix(tier.bg(), 0xFFFFFF, 0.88f) : tier.bg());
-        Hyb.rect(x + 1, y + 1, w - 2, 1, 0x8CFFFFFF);
-        Hyb.rect(x + 1, y + 1, 1, h - 2, 0x8CFFFFFF);
-        Hyb.rect(x + 1, y + h - 2, w - 2, 1, 0x73000000);
-        Hyb.rect(x + w - 2, y + 1, 1, h - 2, 0x73000000);
-        final float s = 1.5f;
+        final int ink = Hyb.contrastInk(tier.bg());
+        float s = 1.5f;
+        float[] g = null;
+        if (snapped) {
+            g = screenGrid();
+            // The nearest whole number of screen pixels a font pixel to the usual 1.5, short of overflowing the chip.
+            final float perUnit = g[0] * g[4];
+            final float most = Math.min((w - 6f) / Math.max(1, Hyb.width(label) - 1), (h - 4f) / 7f);
+            s = Math.max(1, Math.min(Math.round(1.5f * perUnit), (int) Math.floor(most * perUnit + 1e-3f))) / perUnit;
+        }
         final float tw = (Hyb.width(label) - 1) * s;
-        float tx = crisp(x + (w - tw) / 2f), ty = crisp(y + (h - 7 * s) / 2f), pixel = 0.5f;
-        if (heavy) {
-            // On the screen's own pixels, so every chip's letters round alike at any zoom, one pixel heavier.
-            final float[] g = screenGrid();
+        float tx = crisp(x + (w - tw) / 2f), ty = crisp(y + (h - 7 * s) / 2f);
+        if (g != null) {
             tx = snap(tx, g[0], g[1], g[4]);
             ty = snap(ty, g[2], g[3], g[4]);
-            pixel = 1 / (g[0] * g[4]);
         }
-        Hyb.text(label, tx + 1, ty + 1, s, tier.border(), false);
-        Hyb.text(label, tx, ty, s, tier.text(), false);
-        if (heavy) {
-            // Moved by the drawing, not the text's position, which the text drawing rounds to whole GUI pixels.
-            org.lwjgl.opengl.GL11.glPushMatrix();
-            org.lwjgl.opengl.GL11.glTranslatef(pixel, 0, 0);
-            Hyb.text(label, tx, ty, s, tier.text(), false);
-            org.lwjgl.opengl.GL11.glPopMatrix();
-        }
-        if (underline) Hyb.rect(tx, ty + 8 * s, tw, 1, tier.text());
+        Hyb.text(label, tx, ty, s, ink, false);
+        if (underline) Hyb.rect(tx, ty + 8 * s, tw, 1, ink);
     }
 
     private static final java.nio.FloatBuffer MATRIX = org.lwjgl.BufferUtils.createFloatBuffer(16);
@@ -1640,25 +1636,36 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 committedOver = null;
             }
             case MACHINE -> stepMachine(step);
-            case MACHINES -> {
-                com.gtnhplanner.ui.sound.Sfx.TICK.play(step > 0 ? 1.12f : 0.9f);
-                // Down from one unpins, as a drawer's rate wheeled to nothing clears it.
-                final long from = pendingUnpin ? 0 : pendingCount > 0 ? pendingCount : Math.round(machinesTotal());
-                if (from + step <= 0) {
-                    pendingUnpin = pinned() || pendingCount > 0;
-                    pendingCount = 0;
-                } else {
-                    pendingUnpin = false;
-                    pendingCount = Math.max(1, from + step);
-                }
-                wheelAt = System.currentTimeMillis();
-                committedOver = null;
-            }
+            case MACHINES -> wheelCount(step);
             default -> {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * The wheel on the machine count (the card's, or its line in the overview): a machine more or fewer than it shows,
+     * pinned once the wheel goes still; down from one unpins, as a drawer's rate wheeled to nothing clears it.
+     */
+    public void wheelCount(final int step) {
+        if (model == null) return;
+        com.gtnhplanner.ui.sound.Sfx.TICK.play(step > 0 ? 1.12f : 0.9f);
+        final long from = pendingUnpin ? 0 : pendingCount > 0 ? pendingCount : Math.round(machinesTotal());
+        if (from + step <= 0) {
+            pendingUnpin = pinned() || pendingCount > 0;
+            pendingCount = 0;
+        } else {
+            pendingUnpin = false;
+            pendingCount = Math.max(1, from + step);
+        }
+        wheelAt = System.currentTimeMillis();
+        committedOver = null;
+    }
+
+    /** A count being wheeled and not set yet, to show at once: the count, 0 when it will unpin; -1 for none. */
+    public long wheeledCount() {
+        return pendingUnpin ? 0 : pendingCount > 0 ? pendingCount : -1;
     }
 
     /**
@@ -1905,6 +1912,14 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
     }
 
     private void openPin() {
+        openPin(
+            screenX(partRect(Part.MACHINES)[0]),
+            screenY(partRect(Part.MACHINES)[1] + partRect(Part.MACHINES)[3] + 2));
+    }
+
+    /** The box to type a pinned count in, at a screen point (the overview's count line opens it too). */
+    public void openPin(final int screenX, final int screenY) {
+        if (model == null) return;
         Popup.open(
             getPanel(),
             NumberPopup.create(
@@ -1914,8 +1929,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 0,
                 100_000,
                 v -> session.pin(model.node, v)),
-            screenX(partRect(Part.MACHINES)[0]),
-            screenY(partRect(Part.MACHINES)[1] + partRect(Part.MACHINES)[3] + 2));
+            screenX,
+            screenY);
     }
 
     /** Every setting the machine's profile offers, as rows: toggles flip, lists step, numbers ask. */
