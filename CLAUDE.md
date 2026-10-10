@@ -174,6 +174,21 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   carry them both ways (`FfSettings`, `PlanExport`); the sheet ends in their worked formulas, as the website's cards
   show them (read-only, never pinned). `call 'machinedata?dir=...'` in the full pack writes the website's side files
   (its `tools/audits/import-machine-side-data.mjs` reads them).
+- Every other GregTech card runs on the website's machine maths (`docs/design/machine-table-port.md`): `machines/web/` is
+  a pure port named after its files (machine table with its 96 entries, overclocks, hatches and power, heat, parallels,
+  power report, fusion, the special machines, runtime variants), checked by `MachineGoldensTest` against goldens the
+  website writes with its own functions (`src/test/resources/machine-goldens.jsonl.gz`, 0 mismatches over 42,250
+  cases). Its data comes from the website, never hand-edited: `assets/gtnhplanner/machines/handlers.json` (each recipe
+  map's machines and settings, with their item ids) and `fusion-startups.json`; regenerate both files with the
+  website's `node tools/audits/export-mod-machine-data.mjs`. The game side is `machines/game/`: `WebCards` (a card as
+  the website's recipe and node: GT++ maps are gtpp.recipe.* in its data, gt.recipe.* here; a machine matched by item
+  id, then name), `RuntimeVariants` (GT's OverclockCalculator per tier, as the website's oracle runs it), `WebEffect`
+  (through `MachineConfig.nodeEffect`: exact duration and EU/t, parallels, per-output multipliers, the stall) and
+  `WebSettings`. A card's settings are the website's: `voltage`, `amp` (to 16,777,216), `coil`,
+  `energy_hatch_type` and `machine:<id>` for each machine option; the engine's old knobs are gone and an old
+  `machine_heat` becomes a coil on load. Every GT card's gear sheet is its settings beside its working
+  (`machines/web/Working`). `tools/dev/webcheck.sh <dir> [regex]` compiles and tests the port with javac alone;
+  `call machinemath` lists every card's maths (`maps=1`: the game's recipe maps the data lacks).
 - Multiblock pictures in `assets/gtnhplanner/textures/structures/` are Factory Flow's renders (`public/power-art`: the
   owner's processing multiblocks and the Power Planner workbook's power plants), scaled to 320 px palette PNGs with
   transparency. `ui/card/StructureArt` maps in-game machine names to them; `call 'gtmachines?art=1'` checks coverage.
@@ -182,7 +197,7 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 
 - Gradle provisions the JDKs (25 for the build, JetBrains Runtime 25 for `runClient25`). Keep the checkout at a
   short path: deep Windows paths break the clone and the Minecraft dev setup (MAX_PATH).
-- `./gradlew test`: 468 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
+- `./gradlew test`: 541 headless JUnit tests (the machine maths and power sources against the website, drawers, solve service, routing, layout, serialization),
   many over gtnh-flow YAML charts in `src/test/resources/gtnh-flow/`. About 40s, no Minecraft. `addon.gradle`
   opts `test` out of the configuration cache; without that a clean build reports `:test NO-SOURCE` and silently
   runs nothing, so if you ever see NO-SOURCE, check the count in `build/test-results/test/*.xml`.

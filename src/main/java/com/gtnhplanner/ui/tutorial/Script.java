@@ -353,7 +353,7 @@ final class Script {
         beat(out).opens(card(ACID, RecipeCard.Part.SETTINGS))
             .note(
                 Targets.popup(),
-                "This is the *settings panel*. Pin settings to show them on the card, so you don't have to open this menu.");
+                "This is the *settings panel*: the machine's settings, if it has any, and its *working*. Pin a setting to show it on the card.");
     }
 
     // endregion
