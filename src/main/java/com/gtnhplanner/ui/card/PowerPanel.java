@@ -153,9 +153,9 @@ final class PowerPanel {
         ty += 4;
         final Run now = f.now();
         final String[][] stats = { { "Overclocks", overclockText(f) },
-            { "Parallels", Integer.toString(now.parallels()) }, { "Time / run", seconds(now.duration()) },
-            { "Runs / second", Fmt.compact(now.runsPerSecond()) },
-            { "EU / run", Fmt.power(now.eut() * now.duration()) }, { "Draw", Fmt.power(now.eut()) + " EU/t" } };
+            { "Parallels", Integer.toString(now.parallels()) }, { "Time / recipe", seconds(now.duration()) },
+            { "Recipes / second", Fmt.compact(now.runsPerSecond()) },
+            { "EU / recipe", Fmt.power(now.eut() * now.duration()) }, { "Draw", Fmt.power(now.eut()) + " EU/t" } };
         final int colW = (cw - 12) / 2;
         for (int i = 0; i < stats.length; i++) {
             final int cx = left + (i % 2) * (colW + 12), cy = ty + (i / 2) * 11;
@@ -183,10 +183,10 @@ final class PowerPanel {
                 ty,
                 boxW,
                 "Output",
-                "runs/s",
+                "recipes/s",
                 Fmt.compact(now.runsPerSecond()),
                 Fmt.compact(next.runsPerSecond()));
-            box(left + boxW + 4, ty, boxW, "Time", "per run", seconds(now.duration()), seconds(next.duration()));
+            box(left + boxW + 4, ty, boxW, "Time", "per recipe", seconds(now.duration()), seconds(next.duration()));
             box(
                 left + 2 * (boxW + 4),
                 ty,

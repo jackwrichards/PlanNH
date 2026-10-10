@@ -103,7 +103,7 @@ public final class SettingControls {
             out.add(
                 new Control(
                     MACHINE_PREFIX + s.key(),
-                    "SETUP",
+                    "SETTINGS",
                     s.label(),
                     s.value(),
                     s.icon(),

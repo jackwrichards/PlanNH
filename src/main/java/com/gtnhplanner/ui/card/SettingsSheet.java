@@ -12,14 +12,19 @@ import com.gtnhplanner.ui.popup.Popup;
 import com.gtnhplanner.ui.theme.Hyb;
 
 /**
- * A card's settings (its gear key), in the clean card's look: "Settings" faint at the top, then the settings by
- * section in one column, or two side by side when there are many, each a row with a pin, its name and its control (a
+ * A card's settings (its gear key), in the clean card's look: the settings by section, each under its title, in one
+ * column, or two side by side when there are many (a machine with worked formulas has them as the second, titled
+ * Formulas; one with nothing to set says so), each a row with a pin, its name and its control (a
  * switch, a number with arrows, or a list), and a line on how it works. Pinned settings show on the card as chips, on
  * every card of the machine. It stays open while settings change, and reads them afresh every frame.
  */
 public final class SettingsSheet extends Popup {
 
-    static final int COL = 236, HEAD = 18, HEADING = 16, ROW = 18, FOOT = 16;
+    static final int COL = 236, HEAD = 4, HEADING = 16, ROW = 18, FOOT = 16;
+    /** A section's title: the same for every section, settings or formulas. */
+    static final int TITLE = 0xFF8A8D96;
+    /** What a machine with nothing to set shows in place of its settings. */
+    static final String NONE = "No settings for this machine.";
     /** At most this many settings in one column; more go in two. */
     private static final int ONE_COLUMN = 7;
 
@@ -109,8 +114,18 @@ public final class SettingsSheet extends Popup {
                 0);
             final int fw = Body.formulasWidth(formulas);
             final int formulasH = HEADING + formulas.size() * FORMULA + 4;
-            // A machine with nothing to set (most single blocks): its working alone.
-            if (controls.isEmpty()) return new Sheet(lines, fw, HEAD + formulasH + 4, 1, formulas, 0, fw);
+            // A machine with nothing to set (most single blocks): says so beside its working.
+            if (controls.isEmpty()) {
+                final int left = Hyb.width(NONE) + 16;
+                return new Sheet(
+                    lines,
+                    left + 1 + fw,
+                    HEAD + Math.max(HEADING + ROW, formulasH) + 4,
+                    2,
+                    formulas,
+                    left + 1,
+                    fw);
+            }
             return new Sheet(
                 lines,
                 COL + 1 + fw,
@@ -184,20 +199,25 @@ public final class SettingsSheet extends Popup {
         public void draw(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
             final CardModel m = card.model();
             if (m == null) return;
-            Hyb.text("Settings", 8, 6, Hyb.MUTED);
             final Line hot = lineAtMouse();
             final int mx = mouseX();
-            final int fy = sheet.h - Sheet.foot(sheet.columns) - 2;
-            if (sheet.columns > 1) Hyb.rect(COL, HEAD + 2, 1, fy - HEAD - 4, CardPaint.HAIR);
+            final boolean none = sheet.lines.isEmpty() && !sheet.formulas.isEmpty();
+            final int fy = none ? sheet.h - 2 : sheet.h - Sheet.foot(sheet.columns) - 2;
+            if (sheet.columns > 1) {
+                final int divider = sheet.formulas.isEmpty() ? COL : sheet.formulasX - 1;
+                Hyb.rect(divider, HEAD + 2, 1, fy - HEAD - 4, CardPaint.HAIR);
+            }
             for (final Line l : sheet.lines) {
-                if (l.control() == null) {
-                    Hyb.rect(l.x() + 8, l.y() + 1, COL - 16, 1, CardPaint.HAIR);
-                    Hyb.text(l.heading(), l.x() + 8, l.y() + 5, 0xFF6E7179);
-                } else row(m, l, l == hot, mx - l.x());
+                if (l.control() == null) title(l.heading(), l.x(), l.y(), COL);
+                else row(m, l, l == hot, mx - l.x());
             }
             if (!sheet.formulas.isEmpty()) formulas(sheet.formulas, sheet.formulasX, HEAD, sheet.formulasW);
-            // Nothing to set, nothing to say about setting it.
-            if (sheet.lines.isEmpty() && !sheet.formulas.isEmpty()) return;
+            if (none) {
+                // Nothing to set: the section says so, and there is nothing to say about setting it.
+                title("Settings", 0, HEAD, sheet.formulasX);
+                Hyb.text(NONE, 8, HEAD + HEADING + 3, Hyb.MUTED);
+                return;
+            }
             Hyb.rect(1, fy, sheet.w - 2, 1, CardPaint.HAIR);
             if (sheet.columns == 1) {
                 Hyb.text("Pinned settings show on the card.", 8, fy + 5, 0xFF6E7179);
@@ -228,7 +248,21 @@ public final class SettingsSheet extends Popup {
             java.util.Map.entry("bioVatGlass", 0xFF9FD3E6),
             java.util.Map.entry("bioVatRadio", 0xFF7FD94A),
             java.util.Map.entry("bioVatShutter", 0xFFE0A060));
-        private static final int FORMULA_TEXT = 0xFF8A8D96, LABEL_W = 52;
+        private static final int FORMULA_TEXT = 0xFF8A8D96, LABEL_W = 62;
+
+        /**
+         * A section's title at the top of its column (a hairline above it when it sits under another section), in
+         * sentence case: "Settings", "Formulas", "Readings".
+         */
+        private static void title(final String text, final int x, final int y, final int w) {
+            if (y > HEAD) Hyb.rect(x + 8, y + 1, w - 16, 1, CardPaint.HAIR);
+            final String lower = text.toLowerCase(java.util.Locale.ROOT);
+            Hyb.text(
+                lower.isEmpty() ? lower : Character.toUpperCase(lower.charAt(0)) + lower.substring(1),
+                x + 8,
+                y + 5,
+                TITLE);
+        }
 
         /**
          * The worked formulas, a column of their own: a heading, then each line's label, its working right-aligned into
@@ -237,8 +271,7 @@ public final class SettingsSheet extends Popup {
          */
         private void formulas(final List<com.gtnhplanner.machines.FormulaLine> lines, final int x, final int y,
             final int w) {
-            Hyb.rect(x + 8, y + 1, w - 16, 1, CardPaint.HAIR);
-            Hyb.text("FORMULAS", x + 8, y + 5, 0xFF6E7179);
+            title("Formulas", x, y, w);
             final int answerX = x + w - 8 - answersWidth(lines);
             for (int i = 0; i < lines.size(); i++) {
                 final com.gtnhplanner.machines.FormulaLine l = lines.get(i);
@@ -254,7 +287,9 @@ public final class SettingsSheet extends Popup {
                     case BAD -> 0xFFE06060;
                     default -> Hyb.INK;
                 };
-                Hyb.text("=", answerX, ly, FORMULA_TEXT);
+                // A line with no working (a count) shows its answer alone, in the answers' column.
+                if (!l.math()
+                    .isEmpty()) Hyb.text("=", answerX, ly, FORMULA_TEXT);
                 Hyb.text(l.result(), answerX + Hyb.width("= "), ly, answer);
             }
         }

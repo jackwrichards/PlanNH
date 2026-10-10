@@ -1937,9 +1937,6 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final Node node = model.node;
         final List<PickList.Entry> rows = new ArrayList<>();
         rows.add(PickList.Entry.of("Clone node", () -> session.cloneNode(node)));
-        if (!model.isPower()) {
-            rows.add(PickList.Entry.of("Add another recipe", () -> session.addRecipeTo(node.id)));
-        }
         // Its place in the world, once it has one.
         if (placed()) {
             rows.add(
@@ -1976,15 +1973,6 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 }
             }));
         }
-        // The machine menu's last row: another recipe for this machine, as on the website.
-        rows.add(
-            new PickList.Entry(
-                null,
-                "+  Add another recipe to this machine",
-                "",
-                Hyb.MUTED,
-                false,
-                () -> session.addRecipeTo(nodeId)));
         Popup.open(
             getPanel(),
             PickList.popup(

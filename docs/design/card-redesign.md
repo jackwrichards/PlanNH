@@ -48,7 +48,7 @@ proposal, to settle before building it on the board:
 
 | Today | Proposed home |
 |---|---|
-| Actions key (≡): clone, add another recipe, machine settings, show in / remove from the world, delete | A small key at the left of the header, before the name |
+| Actions key (≡): clone, machine settings, show in / remove from the world, delete (adding a recipe to a machine was taken out: merging two cards does it) | A small key at the left of the header, before the name |
 | Place key (map pin), gold once placed | Beside the actions key |
 | Machine (name bar with chevron): pick the machine; wheel steps machines | The name itself: click opens the machine list, wheel steps; a small chevron after it |
 | Amps chip (GT multiblocks): click a number box, right click -1, wheel ±1 / Ctrl ±10 / Shift ×4 | The amps chip, as now |

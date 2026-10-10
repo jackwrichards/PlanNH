@@ -198,7 +198,7 @@ public final class BoardSession {
     private boolean disarmOnTick;
 
     /**
-     * Forgets every armed lookup (a port's, or a card's "Add another recipe") on the tick after the board is back. NEI
+     * Forgets an armed lookup (a port's) on the tick after the board is back. NEI
      * shows the board again and then hands it the recipe picked with "+", in the same click, so that add still finds
      * its lookup; anything armed after it was for a page closed without one.
      */
@@ -242,24 +242,16 @@ public final class BoardSession {
 
     /**
      * Puts a card on the board. Only a card from NEI ({@code fromNei}: its + or the plan button) takes what was armed
-     * there: the port it was looked up from (it lands beside it, wired to it alone) or the card it joins. Anything else
-     * (a non-recipe machine, a custom rate card) never wires itself.
+     * there: the port it was looked up from (it lands beside it, wired to it alone). Anything else (a non-recipe
+     * machine, a custom rate card) never wires itself.
      */
     private Node add(final Node node, final boolean focus, final boolean fromNei) {
         focusAdded = focus;
         final NodeLookupContext origin = fromNei ? pendingLookup : null;
         pendingLookup = null;
-        final UUID joinTo = fromNei ? addSectionTo : null;
-        addSectionTo = null;
-        justAdded = joinTo != null && graph.nodes.containsKey(joinTo) ? joinTo : node.id;
-        final boolean[] joined = { false };
+        justAdded = node.id;
         edit(() -> {
             graph.addNode(node);
-            // "Add another recipe" on a card: it joins that machine.
-            if (joinTo != null && joinArmedCard(node, joinTo)) {
-                joined[0] = true;
-                return;
-            }
             final Node from = origin == null ? null : graph.nodes.get(origin.nodeId());
             if (from != null && wireToOrigin(node, from, origin)) {
                 node.x = origin.output() ? from.x + CardLayout.W + NewCards.GAP : from.x - CardLayout.W - NewCards.GAP;
@@ -267,7 +259,7 @@ public final class BoardSession {
                 for (int tries = 0; tries < 50 && NewCards.overlapsAnything(graph, node); tries++) node.y += 40;
             } else NewCards.place(graph, node);
         });
-        (joined[0] ? Sfx.MERGE : Sfx.PLACE).play();
+        Sfx.PLACE.play();
         return node;
     }
 
@@ -1403,64 +1395,6 @@ public final class BoardSession {
         });
     }
 
-    /** The shared card the next recipe added from NEI joins, armed by its "Add another recipe". */
-    private UUID addSectionTo;
-
-    /**
-     * Opens NEI on the card's machine and arms the card, so the recipe picked there with "+" joins it as another
-     * section: the machine's whole recipe list when NEI has one (as its progress arrow opens it), else the machine's
-     * uses. False when NEI shows neither.
-     */
-    public boolean addRecipeTo(final UUID nodeId) {
-        final CardModel m = models.get(hostOf(nodeId));
-        if (m == null) return false;
-        addSectionTo = hostOf(nodeId);
-        final RecipeHandlerRef ref = RecipeHandlerRef.of(m.node.recipeId);
-        if (ref != null && com.gtnhplanner.ui.Planner.browse(ref.handler.getOverlayIdentifier())) return true;
-        if (m.machineStack != null && com.gtnhplanner.ui.Planner.lookUp(m.machineStack.copy(), true)) return true;
-        addSectionTo = null;
-        return false;
-    }
-
-    /**
-     * Makes a just-added recipe a section of the armed card, when one machine runs it and everything already there.
-     * Inside the add's edit, so it is one undo step with it. False (with a notice) when no machine runs both.
-     */
-    private boolean joinArmedCard(final Node node, final UUID hostId) {
-        final Node host = graph.nodes.get(hostId);
-        if (host == null) return false;
-        final List<UUID> sections = new ArrayList<>(sectionsOf(hostId));
-        final List<ItemStack> machines = new ArrayList<>(commonMachines(sections));
-        final List<ItemStack> mine = CardModel.catalystsOf(node);
-        machines.removeIf(
-            c -> mine.stream()
-                .noneMatch(o -> ItemStack.areItemStacksEqual(o, c)));
-        if (machines.isEmpty()) {
-            flash(
-                Severity.WARN,
-                "No machine runs this recipe and what the " + models.get(hostId).machineName
-                    + " already has: added as its own card");
-            return false;
-        }
-        com.gtnhplanner.data.flowchart.MachineGroup g = sharedOf(hostId);
-        if (g == null) {
-            g = new com.gtnhplanner.data.flowchart.MachineGroup();
-            g.setHeader("Shared machine");
-            g.addSection(hostId);
-            if (host.isMachineCountFixed()) {
-                g.setMachineCapacity(host.machineConfig.getMachineCount());
-                g.setPinned(true);
-                host.setMachineCountFixed(false);
-            }
-            graph.groups.put(g.getId(), g);
-        }
-        g.addSection(node.id);
-        node.x = host.x;
-        node.y = host.y;
-        copyMachineSettings(host, List.of(node.id));
-        return true;
-    }
-
     // endregion
 
     // region Card edits (each one undoable, saved, re-solved)
@@ -1668,7 +1602,6 @@ public final class BoardSession {
         if (disarmOnTick) {
             disarmOnTick = false;
             pendingLookup = null;
-            addSectionTo = null;
         }
         follow();
         try {

@@ -9,7 +9,8 @@ import com.gtnhplanner.machines.FormulaLine.Tone;
 /**
  * A GregTech card's working, as lines for its gear sheet (the website's power working, power-working.ts, in the
  * formula style of its crop and tree cards): the supply, the coil's heat, the discount, the parallels it pays for, the
- * overclocks the rest buys, and what they make of the time, the draw and the runs a second. Only the lines that apply;
+ * overclocks the rest buys, and what they make of the time, the draw and the recipes a second. Only the lines that
+ * apply;
  * every number from the same functions the card runs on, so the sheet never disagrees with the board.
  */
 public final class Working {
@@ -48,14 +49,25 @@ public final class Working {
         final Web.RuntimeVariant runtime = RuntimeCalculation.select(e, node);
         final double base = Math.abs(e.eut), baseTicks = e.durationTicks;
         if (runtime != null) {
-            // The game's own ladder: GT's calculator at this tier.
+            // GT's own overclock calculator gave these: normal steps, shown as such where they come out so.
+            final int steps = s.overclockSteps();
+            out.add(FormulaLine.of("overclocks", steps == 0 ? "none" : Integer.toString(steps)));
+            final double halved = Math.max(1, Math.floor(baseTicks / Math.pow(2, steps)));
             out.add(
-                FormulaLine.of(
-                    "ladder",
-                    FormulaLine.number(s.durationTicks()) + " t, " + FormulaLine.number(Math.abs(s.eut())) + " EU/t",
-                    "the game's own at ",
-                    FormulaLine.knob(tier, TIER)));
-            runs(out, r, s);
+                halved == s.durationTicks() && steps > 0 ? FormulaLine.of(
+                    "time",
+                    ticks(s.durationTicks()),
+                    FormulaLine.number(baseTicks) + " / 2",
+                    FormulaLine.sup(Integer.toString(steps))) : FormulaLine.of("time", ticks(s.durationTicks())));
+            out.add(
+                base * Math.pow(4, steps) == Math.abs(s.eut()) && steps > 0
+                    ? FormulaLine.of(
+                        "draw",
+                        FormulaLine.number(Math.abs(s.eut())) + " EU/t",
+                        FormulaLine.number(base) + " · 4",
+                        FormulaLine.sup(Integer.toString(steps)))
+                    : FormulaLine.of("draw", FormulaLine.number(Math.abs(s.eut())) + " EU/t"));
+            recipes(out, r, s);
             return out;
         }
 
@@ -118,7 +130,7 @@ public final class Working {
         final int perfect = s.perfectOverclockSteps(), normal = s.overclockSteps() - perfect;
         out.add(
             FormulaLine.of(
-                "OCs",
+                "overclocks",
                 s.overclockSteps() == 0 ? "none"
                     : s.overclockSteps() + (perfect > 0 ? " (" + perfect + " perfect)" : ""),
                 "⌊log4(" + FormulaLine.number(pool) + " / " + FormulaLine.number(draw) + ")⌋"));
@@ -136,7 +148,10 @@ public final class Working {
         }
         final double durationMultiplier = MachineEffects.durationMultiplier(e, node);
         if (durationMultiplier != 1) time.add(" · " + FormulaLine.number(durationMultiplier));
-        out.add(FormulaLine.of("time", ticks(s.durationTicks()), time.toArray()));
+        // Nothing to work out (no overclock, no speed): the time alone.
+        out.add(
+            time.size() == 1 ? FormulaLine.of("time", ticks(s.durationTicks()))
+                : FormulaLine.of("time", ticks(s.durationTicks()), time.toArray()));
 
         // Power: the recipe's draw, discounted, times the steps' factor, for each parallel.
         final List<Object> power = new ArrayList<>();
@@ -158,15 +173,15 @@ public final class Working {
                 FormulaLine.number(Math.abs(s.eut()) * r.machineParallels()) + " EU/t",
                 r.stalled() ? Tone.BAD : Tone.PLAIN,
                 power.toArray()));
-        runs(out, r, s);
+        recipes(out, r, s);
         return out;
     }
 
-    /** Runs a second: parallels over the time. */
-    private static void runs(final List<FormulaLine> out, final NodeMath.Result r, final Overclock.Stats s) {
+    /** Recipes a second: the parallels over the time. */
+    private static void recipes(final List<FormulaLine> out, final NodeMath.Result r, final Overclock.Stats s) {
         out.add(
             FormulaLine.of(
-                "runs",
+                "recipes",
                 FormulaLine.number(r.machineParallels() * 20 / s.durationTicks()) + "/s",
                 FormulaLine.number(r.machineParallels()) + " · 20 / " + ticks(s.durationTicks())));
     }
