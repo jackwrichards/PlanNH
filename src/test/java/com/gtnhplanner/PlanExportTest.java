@@ -174,6 +174,36 @@ class PlanExportTest {
         "pocketId");
 
     @Test
+    void thePlanWearsItsFace() throws IOException {
+        final Graph g = GtnhFlowLoader.load("mk1")
+            .graph();
+        final JsonObject bare = PlanExport.project(g, "Test plan", WORLD);
+        assertFalse(bare.has("description"), "no description, none sent");
+        assertFalse(bare.has("icon"), "no icon, none sent");
+        g.setDescription("Steel, the slow way");
+        g.setIcon("steel");
+        final JsonObject p = PlanExport.project(g, "Test plan", WORLD);
+        assertEquals(
+            "Steel, the slow way",
+            p.get("description")
+                .getAsString());
+        final JsonObject icon = p.getAsJsonObject("icon");
+        assertEquals(
+            "item",
+            icon.get("kind")
+                .getAsString());
+        assertEquals(
+            "test:steel",
+            icon.get("resourceId")
+                .getAsString(),
+            "the site's EntryIcon: kind, resourceId, displayName");
+        assertEquals(
+            "steel",
+            icon.get("displayName")
+                .getAsString());
+    }
+
+    @Test
     void notesBecomeTextAnnotations() throws IOException {
         final Graph g = GtnhFlowLoader.load("mk1")
             .graph();

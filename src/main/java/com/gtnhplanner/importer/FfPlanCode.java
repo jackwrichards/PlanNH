@@ -39,9 +39,9 @@ public final class FfPlanCode {
         final int hash = compact.indexOf('#');
         if (hash >= 0 && compact.startsWith("p=", hash + 1)) code = compact.substring(hash + 3);
         if (!code.startsWith(PREFIX)) {
-            if (compact.contains("?plan=")) throw new FfImportException(
-                "That is a link to a shared post. Open it in Factory Flow and use Copy plan to get a plan link.");
-            throw new FfImportException("That is not a Factory Flow plan. Use Copy plan on Factory Flow's plan bar.");
+            if (compact.contains("?plan="))
+                throw new FfImportException("That is a link to a shared post, not a plan link.");
+            throw new FfImportException("That is not a plan link or code.");
         }
         final String body = code.substring(PREFIX.length());
         if (!body.matches("[A-Za-z0-9_-]*")) throw damaged(null);

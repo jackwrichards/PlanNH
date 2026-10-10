@@ -267,7 +267,7 @@ public final class FfConverter {
             if (match.grade() == RecipeMatcher.Grade.SAME_RESOURCES)
                 report.add(Kind.FUZZY, name, "the in-game recipe differs: " + match.detail());
             if (recipe.isPlannerTank())
-                report.add(Kind.CONVERTED, name, "Factory Flow's free, instant Tank is a Canner recipe in game");
+                report.add(Kind.CONVERTED, name, "the free, instant Tank is a Canner recipe in game");
 
             final long eut = game.euPerTick() != null ? game.euPerTick() : Math.round(recipe.eut());
             final FfSettings.Mapped mapped = FfSettings.map(card, recipe, eut, plan.solveMode(), section == 0);

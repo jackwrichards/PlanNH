@@ -49,11 +49,11 @@ public final class FfPlanParser {
         try {
             root = GSON.fromJson(json, JsonObject.class);
         } catch (final RuntimeException e) {
-            throw new FfImportException("That is not a Factory Flow plan: the JSON does not read.", e);
+            throw new FfImportException("That is not a plan: the JSON does not read.", e);
         }
-        if (root == null) throw new FfImportException("That is not a Factory Flow plan: it is empty.");
+        if (root == null) throw new FfImportException("That is not a plan: it is empty.");
         if (!root.has("recipes") || !root.has("nodes"))
-            throw new FfImportException("That is not a Factory Flow plan: it has no recipes or cards.");
+            throw new FfImportException("That is not a plan: it has no recipes or cards.");
         return read(root);
     }
 
@@ -111,7 +111,7 @@ public final class FfPlanParser {
         final JsonObject target = obj(root, "targetRate");
         final FfTarget targetRate = target == null ? null : target(target);
 
-        final String name = str(root, "name", "Factory Flow plan");
+        final String name = str(root, "name", "Imported plan");
         final FfPlan plan = new FfPlan(
             name,
             solve,

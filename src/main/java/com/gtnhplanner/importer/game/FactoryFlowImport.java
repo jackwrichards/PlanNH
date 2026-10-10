@@ -81,7 +81,7 @@ public final class FactoryFlowImport {
     public static void addAsSlot(final Graph graph) {
         final Plan plan = Plan.getInstance();
         final String base = graph.getName() == null || graph.getName()
-            .isBlank() ? "Factory Flow plan"
+            .isBlank() ? "Imported plan"
                 : graph.getName()
                     .trim();
         String name = base;

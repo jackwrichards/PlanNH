@@ -73,6 +73,26 @@ public class Graph {
     private boolean open = true;
 
     /**
+     * The post on gtnhplanner.com this plan went up as (its id there), so posting it again updates that post; null when
+     * it has none. Saved with the slot, never in a plan code.
+     */
+    @Getter
+    @Setter
+    @Nullable
+    private String postId;
+
+    /** A line or two about the plan: its post's description. Saved with the slot. */
+    @Getter
+    @Setter
+    private String description = "";
+
+    /** The plan's face: a resource key ({@code Resources}), shown on its tile and its post; null for none. */
+    @Getter
+    @Setter
+    @Nullable
+    private String icon;
+
+    /**
      * A slot that could not be read when the plans were loaded: its saved data, written back as it was while the slot
      * stays empty (so a failed read never costs the plan), and read again when the slot is opened. Null otherwise.
      */
@@ -144,6 +164,9 @@ public class Graph {
         this.slot = replaced.slot;
         this.lastOpen = replaced.lastOpen;
         this.open = replaced.open;
+        this.postId = replaced.postId;
+        this.description = replaced.description;
+        this.icon = replaced.icon;
     }
 
     private void bumpVersion() {

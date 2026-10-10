@@ -57,14 +57,28 @@ public final class ZoomedOutLabels {
      * Places and draws the names in world space, the transform already applied ({@code zoom} GUI pixels to a world
      * unit).
      */
-    public void draw(final float zoom) {
-        if (requests.isEmpty()) return;
-        // A screen pixel per font pixel (two at large GUI scales), in world units.
+    /** A font pixel in world units at {@code zoom}: a screen pixel (two at large GUI scales). */
+    private static float font(final float zoom) {
         final int gui = new net.minecraft.client.gui.ScaledResolution(
             net.minecraft.client.Minecraft.getMinecraft(),
             net.minecraft.client.Minecraft.getMinecraft().displayWidth,
             net.minecraft.client.Minecraft.getMinecraft().displayHeight).getScaleFactor();
-        final float font = Math.max(1, Math.round(gui / 2f)) / (float) gui / zoom;
+        return Math.max(1, Math.round(gui / 2f)) / (float) gui / zoom;
+    }
+
+    /**
+     * A name's label at {@code zoom}, in world units: {its width, its height, the gap it keeps from its box}. No wider
+     * than {@code widest} allows.
+     */
+    static float[] size(final String text, final float widest, final float zoom) {
+        final float font = font(zoom), pad = 2 * font;
+        final String fitted = Hyb.fit(text, (int) ((widest - 2 * pad) / font));
+        return new float[] { Hyb.width(fitted) * font + 2 * pad, 8 * font + 2 * pad, 3 / zoom };
+    }
+
+    public void draw(final float zoom) {
+        if (requests.isEmpty()) return;
+        final float font = font(zoom);
         final float s = 1 / zoom, gap = 3 * s, pad = 2 * font, lh = 8 * font + 2 * pad;
         // Room kept between two names side by side, so they never read as one.
         final float apart = 6 * s;

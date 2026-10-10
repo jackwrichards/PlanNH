@@ -173,6 +173,8 @@ public final class CardPaint {
 
     /** Gold on the beat the drawers' Set rate pulses on, grey off it: the next thing to do, while nothing is set. */
     public static int prompt() {
+        // A picture of the plan holds still, at rest.
+        if (com.gtnhplanner.ui.canvas.PlanPicture.drawing()) return 0xFF6F737C;
         return (System.currentTimeMillis() / 500) % 2 == 0 ? Hyb.GOLD : 0xFF6F737C;
     }
 

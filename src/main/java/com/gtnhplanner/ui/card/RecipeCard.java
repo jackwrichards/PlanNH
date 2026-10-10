@@ -408,7 +408,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         } else Hyb.dropShadow(0, 0, w, h);
         boolean unwired = false;
         for (final CardModel each : models) unwired |= anyUnwired(each);
-        if (unwired) drawUnwiredRing();
+        if (unwired && !com.gtnhplanner.ui.canvas.PlanPicture.drawing()) drawUnwiredRing();
         if (session.showsSelected(nodeId)) Hyb.ring(-2, -2, w + 4, h + 4, 2, Hyb.SELECTION);
         // While a wire is in hand, a card that would take it is outlined green; brighter where it would go now.
         final BoardCanvas board = canvas();
@@ -555,6 +555,8 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
 
     /** Factory Flow's breathing: 0 to 1 and back over 1.9 s, for what wants attention (an unwired port). */
     private static float breathe() {
+        // A picture of the plan holds still.
+        if (com.gtnhplanner.ui.canvas.PlanPicture.drawing()) return 0;
         final double t = (System.currentTimeMillis() % 1900L) / 1900.0;
         return (float) (0.5 - 0.5 * Math.cos(2 * Math.PI * t));
     }

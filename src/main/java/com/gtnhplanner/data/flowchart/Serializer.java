@@ -113,6 +113,10 @@ public final class Serializer {
             slotObj.addProperty("name", graph.getName());
             if (graph.getLastOpen() > 0) slotObj.addProperty("lastOpen", graph.getLastOpen());
             if (!graph.isOpen()) slotObj.addProperty("open", false);
+            if (graph.getPostId() != null) slotObj.addProperty("postId", graph.getPostId());
+            if (!graph.getDescription()
+                .isEmpty()) slotObj.addProperty("description", graph.getDescription());
+            if (graph.getIcon() != null) slotObj.addProperty("icon", graph.getIcon());
             // A slot that could not be read is written back as it was, unless it has been used since.
             final boolean keep = graph.getUnreadable() != null && graph.nodes.isEmpty()
                 && graph.getDrawers()
@@ -163,6 +167,15 @@ public final class Serializer {
                 if (obj.has("lastOpen")) graph.setLastOpen(
                     obj.get("lastOpen")
                         .getAsLong());
+                if (obj.has("postId")) graph.setPostId(
+                    obj.get("postId")
+                        .getAsString());
+                if (obj.has("description")) graph.setDescription(
+                    obj.get("description")
+                        .getAsString());
+                if (obj.has("icon")) graph.setIcon(
+                    obj.get("icon")
+                        .getAsString());
                 plan.getGraphs()
                     .add(graph);
             }

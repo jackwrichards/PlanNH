@@ -102,6 +102,35 @@ class SerializerTest {
     }
 
     @Test
+    void aPlanRemembersItsPostAndFaceThroughASave() {
+        final Plan plan = Serializer.decodePlan("{}");
+        final Graph posted = new Graph("posted"), plain = new Graph("plain");
+        posted.setPostId("3f1c-post");
+        posted.setDescription("Makes steel");
+        posted.setIcon("item:minecraft:iron_ingot:0");
+        plan.getGraphs()
+            .add(posted);
+        plan.getGraphs()
+            .add(plain);
+        final Plan again = Serializer.decodePlan(Serializer.encodePlan(plan));
+        final Graph back = again.getGraphs()
+            .get(0);
+        assertEquals("3f1c-post", back.getPostId());
+        assertEquals("Makes steel", back.getDescription());
+        assertEquals("item:minecraft:iron_ingot:0", back.getIcon());
+        final Graph other = again.getGraphs()
+            .get(1);
+        assertEquals(null, other.getPostId(), "a plan never posted has no post");
+        assertEquals("", other.getDescription());
+        assertEquals(null, other.getIcon());
+        assertEquals(
+            null,
+            Serializer.decode(Serializer.encode(posted))
+                .getPostId(),
+            "a plan code (copied to share) carries no post");
+    }
+
+    @Test
     void aPlanWithOneDamagedSlotKeepsTheOthers() {
         final LoadedChart chart = GtnhFlowLoader.load("mk1");
         final JsonObject root = new JsonObject();

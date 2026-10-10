@@ -43,8 +43,7 @@ public final class NeiRecipeIndex implements RecipeIndex {
         }
         final String kind = (recipe.kind()
             .isEmpty() ? recipe.category() : recipe.kind()).replace('_', ' ');
-        return Lookup
-            .none("Factory Flow's " + (kind.isEmpty() ? recipe.machineType() : kind) + " cards have no recipe in game");
+        return Lookup.none("its " + (kind.isEmpty() ? recipe.machineType() : kind) + " cards have no recipe in game");
     }
 
     /** Every recipe on NEI's crafting (or smelting) pages that makes the recipe's first output. */

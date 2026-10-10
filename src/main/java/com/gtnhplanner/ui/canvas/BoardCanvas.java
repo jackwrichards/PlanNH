@@ -203,6 +203,13 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
     }
 
     private void drawCanvas(final ModularGuiContext context, final WidgetThemeEntry<?> widgetTheme) {
+        if (PlanPicture.drawing()) {
+            // A picture of the plan: the board as it is, solid whatever the see-through, nothing moving or lit.
+            final Area a = getArea();
+            Hyb.rect(0, 0, a.width, a.height, Hyb.CANVAS);
+            drawDots(a, Hyb.CANVAS_DOT);
+            return;
+        }
         stepCamera();
         stepMiddlePan();
         stepPanGlide();
@@ -228,15 +235,18 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
                 a.height / 2f + 11,
                 0xFF6A6C74);
         }
+        drawDots(a, Hyb.seeThrough(Hyb.CANVAS_DOT));
+    }
+
+    /** The board's dot grid, a dot every grid step once they are far enough apart to read as a grid. */
+    private void drawDots(final Area a, final int dotColor) {
         final float zoom = graph().getZoom();
         final float step = GRID * zoom;
-        if (step >= 6) {
-            final float ox = mod(graph().getPanX(), step), oy = mod(graph().getPanY(), step);
-            final float dot = zoom >= 1 ? 2 : 1;
-            final int dotColor = Hyb.seeThrough(Hyb.CANVAS_DOT);
-            for (float x = ox; x < a.width; x += step) {
-                for (float y = oy; y < a.height; y += step) Hyb.rect(x, y, dot, dot, dotColor);
-            }
+        if (step < 6) return;
+        final float ox = mod(graph().getPanX(), step), oy = mod(graph().getPanY(), step);
+        final float dot = zoom >= 1 ? 2 : 1;
+        for (float x = ox; x < a.width; x += step) {
+            for (float y = oy; y < a.height; y += step) Hyb.rect(x, y, dot, dot, dotColor);
         }
     }
 
@@ -297,9 +307,14 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         }
         // World space, under the cards.
         labels.clear();
+        if (PlanPicture.drawing()) {
+            routed = wires.wires(cards, drawers, false);
+            wires.draw(routed, com.gtnhplanner.ui.HoverScope.NONE);
+            return;
+        }
         final boolean timed = com.gtnhplanner.dev.DevPerf.on();
         final long started = timed ? System.nanoTime() : 0;
-        final List<WireLayer.Wire> routed = wires.wires(cards, drawers, moveStart != null || glideStart >= 0);
+        routed = wires.wires(cards, drawers, moveStart != null || glideStart >= 0);
         final long drawing = timed ? System.nanoTime() : 0;
         wires.draw(routed, session.lit());
         publishSnapshot(routed);
@@ -314,9 +329,68 @@ public final class BoardCanvas extends ParentWidget<BoardCanvas> implements Inte
         if (transformed) {
             // Over the cards: the names when zoomed out, the wire in hand and the selection box.
             if (com.gtnhplanner.ui.PlannerSettings.zoomedOutNames()) labels.draw(graph().getZoom());
+            if (PlanPicture.drawing()) return;
             if (portDrag != null) drawPortDrag();
             drawBox();
         } else Stencil.remove();
+    }
+
+    /** The wires as last drawn. */
+    private List<WireLayer.Wire> routed = List.of();
+
+    BoardSession session() {
+        return session;
+    }
+
+    /**
+     * Where the plan is on the board at {@code zoom}, in board units {min x, min y, max x, max y}: its cards, drawers
+     * and notes as they stand, its wires as last routed, and room for the names the zoomed-out board puts beside them;
+     * null when the board is empty.
+     */
+    @javax.annotation.Nullable
+    float[] planBounds(final float zoom) {
+        final float[] b = { Float.MAX_VALUE, Float.MAX_VALUE, -Float.MAX_VALUE, -Float.MAX_VALUE };
+        final List<com.cleanroommc.modularui.api.widget.IWidget> items = new ArrayList<>(
+            new java.util.LinkedHashSet<>(cards.values()));
+        items.addAll(drawers.values());
+        items.addAll(notes.values());
+        for (final com.cleanroommc.modularui.api.widget.IWidget w : items) {
+            final Area a = w.getArea();
+            grow(b, a.rx, a.ry);
+            grow(b, a.rx + a.width, a.ry + a.height);
+        }
+        if (b[0] > b[2]) return null;
+        for (final WireLayer.Wire w : routed) for (final int[] p : w.path()) grow(b, p[0], p[1]);
+        if (zoom <= com.gtnhplanner.ui.card.RecipeCard.GLANCE_ZOOM
+            && com.gtnhplanner.ui.PlannerSettings.zoomedOutNames()) {
+            // A card's name sits above or below it, no wider; a drawer's beside it (a source's left, a product's
+            // right), or above or below as wide as two of it.
+            for (final RecipeCard card : new java.util.LinkedHashSet<>(cards.values())) {
+                final Area a = card.getArea();
+                final float[] l = ZoomedOutLabels.size("", a.width, zoom);
+                grow(b, a.rx, a.ry - l[2] - l[1]);
+                grow(b, a.rx, a.ry + a.height + l[2] + l[1]);
+            }
+            for (final DrawerCard drawer : drawers.values()) {
+                final DrawerModel m = drawer.model();
+                if (m == null) continue;
+                final Area a = drawer.getArea();
+                final float[] l = ZoomedOutLabels.size(m.label, 2 * a.width, zoom);
+                if (m.kind == Drawer.Kind.SOURCE) grow(b, a.rx - l[2] - l[0], a.ry);
+                else grow(b, a.rx + a.width + l[2] + l[0], a.ry);
+                final float over = Math.max(0, l[0] - a.width) / 2;
+                grow(b, a.rx - over, a.ry - l[2] - l[1]);
+                grow(b, a.rx + a.width + over, a.ry + a.height + l[2] + l[1]);
+            }
+        }
+        return b;
+    }
+
+    private static void grow(final float[] b, final float x, final float y) {
+        b[0] = Math.min(b[0], x);
+        b[1] = Math.min(b[1], y);
+        b[2] = Math.max(b[2], x);
+        b[3] = Math.max(b[3], y);
     }
 
     // endregion

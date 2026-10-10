@@ -909,7 +909,8 @@ public final class BoardSession {
      * outline says what a move or a delete takes. One thing alone is just the thing clicked.
      */
     public boolean showsSelected(final UUID id) {
-        return selection.size() > 1 && selection.contains(id);
+        // A picture of the plan shows no selection.
+        return selection.size() > 1 && selection.contains(id) && !com.gtnhplanner.ui.canvas.PlanPicture.drawing();
     }
 
     public Set<UUID> selection() {
@@ -1911,7 +1912,7 @@ public final class BoardSession {
     public void pastePlan() {
         final String text = net.minecraft.client.gui.GuiScreen.getClipboardString();
         if (text == null || text.isBlank()) {
-            flash(Severity.WARN, "The clipboard is empty: copy a Factory Flow plan link or code first");
+            flash(Severity.WARN, "The clipboard is empty: copy a plan link or code first");
             Sfx.DENY.play();
             return;
         }
@@ -1933,9 +1934,7 @@ public final class BoardSession {
             flash(missing == 0 ? Severity.INFO : Severity.WARN, "Imported '" + name + "': " + report.summary());
             Sfx.SWEEP.play();
         } catch (final RuntimeException e) {
-            flash(
-                Severity.WARN,
-                "The clipboard does not hold a plan (a Factory Flow link or code, or a GTNH Planner code)");
+            flash(Severity.WARN, "The clipboard does not hold a plan link or code");
             Sfx.DENY.play();
             com.gtnhplanner.GtnhPlanner.LOG.info("Paste plan failed", e);
         }

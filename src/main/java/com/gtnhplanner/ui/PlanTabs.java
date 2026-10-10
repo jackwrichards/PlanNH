@@ -291,14 +291,7 @@ final class PlanTabs extends Widget<PlanTabs> implements Interactable {
             final List<PickList.Entry> rows = new ArrayList<>();
             rows.add(new PickList.Entry(null, "New plan", "", Hyb.INK, false, session::addSlot));
             rows.add(new PickList.Entry(null, "Open a plan...", "My plans", Hyb.INK, false, session::openMyPlans));
-            rows.add(
-                new PickList.Entry(
-                    null,
-                    "Paste plan",
-                    "Factory Flow link or code",
-                    Hyb.INK,
-                    false,
-                    session::pastePlan));
+            rows.add(new PickList.Entry(null, "Paste plan", "a plan link or code", Hyb.INK, false, session::pastePlan));
             rows.add(new PickList.Entry(null, "Browse library", "public plans", Hyb.INK, false, session::openLibrary));
             Popup.open(getPanel(), PickList.popup("gtnhplanner_new_plan", null, rows, false, 190), sx, sy);
             return Result.SUCCESS;
@@ -331,14 +324,7 @@ final class PlanTabs extends Widget<PlanTabs> implements Interactable {
                 Hyb.INK,
                 false,
                 () -> session.copyPlan(slot)));
-        rows.add(
-            new PickList.Entry(
-                null,
-                "Post to library...",
-                "share it",
-                Hyb.INK,
-                false,
-                () -> com.gtnhplanner.ui.library.AccountForms.post(getPanel(), session, g)));
+        rows.add(com.gtnhplanner.ui.library.AccountForms.shareRow(getPanel(), session, g));
         if (canClose()) {
             rows.add(
                 new PickList.Entry(

@@ -68,6 +68,12 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
     private String opening;
     @Nullable
     private String openError;
+    /** The post of the player's own being taken down, if any. */
+    @Nullable
+    private String deleting;
+    /** Who was signed in when the list was fetched: the site marks their posts, so a new sign-in fetches again. */
+    @Nullable
+    private String listedFor = com.gtnhplanner.library.Account.username();
     private int scroll, contentH;
     private final com.gtnhplanner.ui.theme.ScrollBar bar = new com.gtnhplanner.ui.theme.ScrollBar();
     private long lastClick;
@@ -81,7 +87,6 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         CLOSE,
         TILE,
         OPEN,
-        WEB,
         RETRY,
         TAG,
         AUTHOR,
@@ -92,7 +97,9 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         MY_TILE,
         NEW_TILE,
         ACCOUNT,
-        MINE_CLEAR
+        MINE_CLEAR,
+        EDIT,
+        DELETE
     }
 
     private record Hit(Kind kind, int x0, int y0, int x1, int y1, @Nullable Object data) {
@@ -211,6 +218,19 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
     public void onUpdate() {
         super.onUpdate();
         feed.poll();
+        final String who = com.gtnhplanner.library.Account.username();
+        if (!java.util.Objects.equals(who, listedFor)) {
+            listedFor = who;
+            if (feed.started()) feed.restart();
+        }
+        // The pane follows the list: a fetch after signing in says which posts are the player's own.
+        if (picked != null) for (final CommunityApi.Setup s : feed.setups()) {
+            if (s.id()
+                .equals(picked.id())) {
+                picked = s;
+                break;
+            }
+        }
         final String live = searchField.getText();
         if (live == null) return;
         if (mine) {
@@ -378,7 +398,7 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
                 () -> AccountForms.signOut(text -> session.flash(Severity.INFO, text))));
         Popup.open(
             getPanel(),
-            PickList.popup("gtnhplanner_account", "gtnhplanner.com", rows, false, hit.x1() - hit.x0()),
+            PickList.popup("gtnhplanner_account", "Your account", rows, false, hit.x1() - hit.x0()),
             getArea().x + hit.x0(),
             getArea().y + hit.y1() + 2);
     }
@@ -417,8 +437,8 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         final int cols = columns(), tw = tileW();
         int y = top + PAD - scroll;
         if (setups.isEmpty()) {
-            final String msg = feed.error() != null ? "Couldn't reach gtnhplanner.com: " + feed.error()
-                : feed.loading() || !feed.started() ? "Loading setups from gtnhplanner.com..." : "No setups match.";
+            final String msg = feed.error() != null ? "Couldn't reach the library: " + feed.error()
+                : feed.loading() || !feed.started() ? "Loading shared plans..." : "No setups match.";
             final float cx = (PAD + gridRight()) / 2f, cy = top + (h - top) / 2f - 10;
             Hyb.textCentered(msg, cx, cy, feed.error() != null ? Hyb.AMBER_INK : Hyb.MUTED);
             if (feed.error() != null) retryKey(cx, cy + 14, hover);
@@ -632,27 +652,14 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         Hyb.text(Hyb.fit(size, x + w - 6 - nameX), nameX, y + 17, 0xFF8A8C94);
         final String when = g.getLastOpen() > 0 ? "last open " + agoMs(g.getLastOpen()) : "not opened yet";
         Hyb.text(when, x + 6, y + TILE_H - 13, Hyb.MUTED);
+        if (g.getPostId() != null) Hyb.textRight("posted", x + w - 6, y + TILE_H - 13, 0xFF9FD9E6);
         hits.add(new Hit(Kind.MY_TILE, x, y, x + w, y + TILE_H, slot));
     }
 
-    /** A plan's face: the first thing it makes into a drawer, else the first output of its first card. */
+    /** A plan's face: its icon, else the first thing it makes into a drawer, else what its cards make. */
     @Nullable
     private Object planFace(final Graph g) {
-        String key = null;
-        for (final com.gtnhplanner.data.flowchart.Drawer d : g.getDrawers()) {
-            if (d.getKind() == com.gtnhplanner.data.flowchart.Drawer.Kind.PRODUCT) {
-                key = d.getResourceKey();
-                break;
-            }
-        }
-        if (key == null) {
-            for (final com.gtnhplanner.data.flowchart.Node n : g.getNodes()) {
-                if (!n.outputs.isEmpty()) {
-                    key = com.gtnhplanner.ui.Resources.key(n.outputs.get(0));
-                    break;
-                }
-            }
-        }
+        final String key = AccountForms.faceKey(g);
         if (key == null || key.isEmpty()) return null;
         final String cacheKey = "plan:" + key;
         if (icons.containsKey(cacheKey)) return icons.get(cacheKey);
@@ -692,14 +699,7 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
                 Hyb.INK,
                 false,
                 () -> session.copyPlan(slot)));
-        rows.add(
-            new PickList.Entry(
-                null,
-                "Post to library...",
-                "share it",
-                Hyb.INK,
-                false,
-                () -> AccountForms.post(getPanel(), session, g)));
+        rows.add(AccountForms.shareRow(getPanel(), session, g));
         rows.add(
             new PickList.Entry(
                 null,
@@ -773,24 +773,35 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         final boolean busy = s.id()
             .equals(opening);
         final String openLabel = busy ? "Opening..." : "Open as new plan";
-        final int ow = Math.max(110, Hyb.width(openLabel) + 16);
+        final int ow = pw - 16;
         final boolean openHot = hover != null && hover.kind() == Kind.OPEN;
         Hyb.rect(px + 8, by, ow, 18, openHot && !busy ? 0xFF38E1F5 : CYAN);
         Hyb.rect(px + 8, by, ow, 1, 0x66FFFFFF);
         com.cleanroommc.modularui.drawable.GuiDraw
             .drawText(openLabel, px + 8 + (ow - Hyb.width(openLabel)) / 2f, by + 5, 1f, 0xFF0B1A1E, false);
         hits.add(new Hit(Kind.OPEN, px + 8, by, px + 8 + ow, by + 18, s));
-        final String web = "On the website";
-        final int ww = Hyb.width(web) + 14, wx = px + 8 + ow + 6;
-        final boolean webHot = hover != null && hover.kind() == Kind.WEB;
-        Hyb.bevel(wx, by + 1, ww, 16, webHot ? Hyb.KEY_HOVER : Hyb.KEY, Hyb.KEY_HI, Hyb.KEY_LO, 0, 1);
-        Hyb.text(web, wx + 7, by + 5, Hyb.INK);
-        hits.add(new Hit(Kind.WEB, wx, by + 1, wx + ww, by + 17, s));
+        // The player's own post: Edit and Delete, on a row above.
+        int rowTop = by;
+        if (s.mine()) {
+            rowTop = by - 21;
+            Hyb.text("Your post", px + 8, rowTop + 4, Hyb.MUTED);
+            final boolean takingDown = s.id()
+                .equals(deleting);
+            final int kx = paneKey(
+                px + pw - 8,
+                rowTop,
+                takingDown ? "Deleting..." : "Delete",
+                Kind.DELETE,
+                s,
+                hover,
+                Hyb.RED_INK) - 4;
+            paneKey(kx, rowTop, "Edit", Kind.EDIT, s, hover, Hyb.INK);
+        }
         if (openError != null) {
-            Hyb.text(Hyb.fit(openError, pw - 16), px + 8, by - 12, Hyb.AMBER_INK);
+            Hyb.text(Hyb.fit(openError, pw - 16), px + 8, rowTop - 12, Hyb.AMBER_INK);
         }
         // What it makes and needs, then the description, in what room is left above the buttons.
-        final int bottom = by - (openError != null ? 16 : 6);
+        final int bottom = rowTop - (openError != null ? 16 : 6);
         y = resources("MAKES", s.outputs(), px + 8, y, pw - 16, bottom, z, Hyb.PRODUCT_INK);
         y = resources("NEEDS", s.needs(), px + 8, y, pw - 16, bottom, z, Hyb.SOURCE_INK);
         if (!s.description()
@@ -800,6 +811,17 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
                 y += 10;
             }
         }
+    }
+
+    /** A small key in the pane, right-aligned at {@code right}; returns its left edge. */
+    private int paneKey(final int right, final int y, final String label, final Kind kind, final CommunityApi.Setup s,
+        final Hit hover, final int ink) {
+        final int kw = Hyb.width(label) + 12, x = right - kw;
+        final boolean hot = hover != null && hover.kind() == kind;
+        Hyb.bevel(x, y, kw, 16, hot ? Hyb.KEY_HOVER : Hyb.KEY, Hyb.KEY_HI, Hyb.KEY_LO, 0, 1);
+        Hyb.text(label, x + 6, y + 4, ink);
+        hits.add(new Hit(kind, x, y, right, y + 16, s));
+        return x;
     }
 
     /** EU/t, machines, cards, votes, downloads: a label over each number, side by side. */
@@ -852,6 +874,11 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         if (mouseButton == 1 && hit.kind() == Kind.MY_TILE) {
             Hyb.click();
             planMenu((Integer) hit.data(), hit);
+            return Result.SUCCESS;
+        }
+        if (mouseButton == 1 && hit.kind() == Kind.TILE) {
+            Hyb.click();
+            setupMenu((CommunityApi.Setup) hit.data(), hit);
             return Result.SUCCESS;
         }
         if (mouseButton != 0) return Result.SUCCESS;
@@ -937,12 +964,87 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
                 lastClickId = s.id();
             }
             case OPEN -> open((CommunityApi.Setup) hit.data());
-            case WEB -> openInBrowser(((CommunityApi.Setup) hit.data()).link());
+            case EDIT -> editPost((CommunityApi.Setup) hit.data());
+            case DELETE -> confirmDeletePost(
+                (CommunityApi.Setup) hit.data(),
+                getArea().x + hit.x0() - 60,
+                getArea().y + hit.y1() + 2);
             case TAG -> search("#" + hit.data());
             case AUTHOR -> search("@" + hit.data());
             case TIER_BADGE -> refilter(q.withMaxTier((Integer) hit.data()));
         }
         return Result.SUCCESS;
+    }
+
+    /** A setup's right-click menu: open it, and for the player's own, edit or delete it. */
+    private void setupMenu(final CommunityApi.Setup s, final Hit hit) {
+        final int sx = getArea().x + hit.x0() + 8, sy = getArea().y + hit.y0() + 20;
+        final List<PickList.Entry> rows = new ArrayList<>();
+        rows.add(PickList.Entry.of("Open as new plan", () -> open(s)));
+        if (s.mine()) {
+            rows.add(new PickList.Entry(null, "Edit...", "title, about, icon", Hyb.INK, false, () -> editPost(s)));
+            rows.add(new PickList.Entry(null, "Delete...", "", Hyb.RED_INK, false, () -> confirmDeletePost(s, sx, sy)));
+        }
+        Popup.open(getPanel(), PickList.popup("gtnhplanner_setup", null, rows, false, 150), sx, sy);
+    }
+
+    /**
+     * Changes a post of the player's own: its title, description and icon. The icon is picked from what it makes and
+     * needs, and from the plans here that went up as it.
+     */
+    private void editPost(final CommunityApi.Setup s) {
+        final Map<String, CommunityApi.Resource> choices = new java.util.LinkedHashMap<>();
+        final List<CommunityApi.Resource> from = new ArrayList<>();
+        if (s.icon() != null) from.add(s.icon());
+        from.addAll(s.outputs());
+        for (final Graph g : Plan.getInstance()
+            .getGraphs())
+            if (s.id()
+                .equals(g.getPostId())) from.addAll(AccountForms.choices(g));
+        from.addAll(s.needs());
+        for (final CommunityApi.Resource r : from) {
+            if (!"power".equals(r.kind()) && stackOf(r) != null) choices.putIfAbsent(r.kind() + ":" + r.id(), r);
+        }
+        AccountForms.edit(getPanel(), s, new ArrayList<>(choices.values()), edited -> {
+            feed.replace(edited);
+            if (picked != null && picked.id()
+                .equals(edited.id())) picked = edited;
+            session.flash(Severity.INFO, "Saved '" + edited.name() + "'");
+        });
+    }
+
+    /** Asks before taking a post of the player's own down. */
+    private void confirmDeletePost(final CommunityApi.Setup s, final int x, final int y) {
+        final List<PickList.Entry> rows = List.of(
+            new PickList.Entry(null, "Delete it", "", Hyb.RED_INK, false, () -> deletePost(s)),
+            PickList.Entry.of("Keep it", () -> {}));
+        Popup.open(
+            getPanel(),
+            PickList.popup(
+                "gtnhplanner_delete_post",
+                "Take '" + Hyb.fit(s.name(), 150) + "' out of the library?",
+                rows,
+                false,
+                150),
+            x,
+            y);
+    }
+
+    /** Takes a post of the player's own down; plans here that went up as it are kept, and post anew next time. */
+    private void deletePost(final CommunityApi.Setup s) {
+        if (deleting != null) return;
+        pick(s);
+        deleting = s.id();
+        com.gtnhplanner.library.Posting.delete(s, () -> {
+            deleting = null;
+            feed.remove(s.id());
+            if (picked != null && picked.id()
+                .equals(s.id())) pick(null);
+            session.flash(Severity.INFO, "Took '" + s.name() + "' out of the library");
+        }, why -> {
+            deleting = null;
+            openError = "Couldn't delete it: " + why;
+        });
     }
 
     private void search(final String text) {
@@ -1002,6 +1104,12 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
             }
             try {
                 final FfConverter.Result r = FactoryFlowImport.importAsSlot(d.planJson());
+                // It wears the setup's face; the player's own post stays its post, so posting it again updates it.
+                final Graph g = r.graph();
+                g.setDescription(s.description());
+                g.setIcon(com.gtnhplanner.library.Posting.keyOf(s.icon()));
+                if (s.mine()) g.setPostId(s.id());
+                com.gtnhplanner.api.PlanAPI.save();
                 final int missing = r.report()
                     .entries(ImportReport.Kind.UNMATCHED)
                     .size();
@@ -1021,15 +1129,6 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
             opening = null;
             openError = "Couldn't download it: " + why;
         });
-    }
-
-    static void openInBrowser(final String url) {
-        try {
-            java.awt.Desktop.getDesktop()
-                .browse(java.net.URI.create(url));
-        } catch (final Exception | LinkageError e) {
-            org.lwjgl.Sys.openURL(url);
-        }
     }
 
     @Override
@@ -1055,10 +1154,13 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
         return switch (hit.kind()) {
             case TILE -> {
                 final CommunityApi.Setup s = (CommunityApi.Setup) hit.data();
-                yield List.of(s.name(), "§7Double-click to open as a new plan");
+                yield s.mine()
+                    ? List.of(s.name(), "§7Double-click to open as a new plan", "§7Right-click to edit or delete it")
+                    : List.of(s.name(), "§7Double-click to open as a new plan");
             }
             case OPEN -> List.of("Open as a new plan");
-            case WEB -> List.of("Open on gtnhplanner.com (comments and votes)");
+            case EDIT -> List.of("Change its title, description and icon");
+            case DELETE -> List.of("Take it out of the library for good");
             case TAG -> List.of("Show plans tagged #" + hit.data());
             case AUTHOR -> List.of("Show plans by " + hit.data());
             case TIER_BADGE -> List.of("Show plans up to this tier");
@@ -1068,16 +1170,16 @@ public final class LibraryView extends ParentWidget<LibraryView> implements Inte
             case VERSION -> List.of("Filter by pack version");
             case MAKES_CLEAR -> List.of("Clear this filter");
             case SHELF -> (Boolean) hit.data() ? List.of("My plans: every plan you have, open or closed")
-                : List.of("Public plans from gtnhplanner.com");
+                : List.of("Plans other players shared");
             case MY_TILE -> List.of(
                 Plan.getInstance()
                     .getGraphs()
                     .get((Integer) hit.data())
                     .getName(),
-                "§7Right-click to rename, copy or delete");
+                "§7Right-click to rename, copy, post or delete");
             case NEW_TILE -> List.of("New plan");
-            case ACCOUNT -> com.gtnhplanner.library.Account.signedIn() ? List.of("Your gtnhplanner.com account")
-                : List.of("Sign in to gtnhplanner.com to post plans");
+            case ACCOUNT -> com.gtnhplanner.library.Account.signedIn() ? List.of("Your library account")
+                : List.of("Sign in to share plans");
             case MINE_CLEAR -> List.of("Clear this filter");
             default -> List.of();
         };

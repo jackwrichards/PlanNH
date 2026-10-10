@@ -115,9 +115,26 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   plans, and Factory Flow's public setups from gtnhplanner.com (`library/CommunityApi`, `LibraryFeed`;
   `ui/library/LibraryView`), opened through the importer as a new plan. Signing in uses the website's own username
   and password accounts; the session (never the password) is kept in `config/gtnhplanner-account.properties`
-  (`library/Account`). "Post to library..." (a tab's or a plan tile's menu) sends the plan as Factory Flow project
-  JSON (`library/PlanExport`, checked against the website's own schema). Test it all against
+  (`library/Account`). The top bar's Share key (`BoardScreen.openShare`) offers the open plan to the library, its plan
+  code to the clipboard, and Screenshot... (`ui/popup/ScreenshotPanel`, rendered by `ui/canvas/PlanPicture`): the board
+  drawn by itself into a raw GL framebuffer at a render tick's end (`WidgetTree.drawTree` on the canvas, resized to the
+  plan and framed on it, at the GUI scale; nothing lit, selected, breathing or pulsing while `PlanPicture.drawing()`),
+  cards Detailed or Simple (the zoomed-out glance view, with room for the names), an optional footer as the website's
+  export bar (a title row: icon, name, machines and EU/t; Inputs and Outputs as tinted panels in even columns, from the
+  overview's totals) and a small "GTNH Planner" mark; previewed in a box nearly the screen's size, then saved as a PNG
+  in `screenshots/` or copied. "Share
+  to library..." (`AccountForms.shareRow`, also in a tab's or a plan tile's menu) sends the plan as Factory Flow
+  project JSON (`library/PlanExport`, checked against the website's own schema) with a title, a description and an
+  icon (picked from the plan's items; `library/Posting` looks up the website's picture of it by name in its item list,
+  as the site draws an item from nothing else). A plan remembers its post (`Graph.postId`, `description`, `icon`, saved
+  with the slot, never in a plan code), so sharing it again updates that post ("Update in library...", the website's
+  PUT: votes, downloads and comments stay); a post gone from the site (404, or 403) is forgotten and shared anew. The
+  player's own posts (the site's `isMine`) have Edit (title, description, icon) and Delete in the Library's pane and a
+  tile's right-click menu; opening one links the new plan to it. Test it all against
   `node tools/dev/mock-library.mjs` (a local stand-in; `call 'library?url=http://127.0.0.1:8789'`), never the real site.
+- Players never see the website (the owner, 2026-10-09): no links or keys to it, and no text naming gtnhplanner.com or
+  Factory Flow in the UI, its messages, the config files it writes or `mcmod.info`. The library is "the library";
+  pasted plans are "a plan link or code". Code comments and docs may still name the website as the design's source.
 - While playing (`ui/world/`, `docs/design/minimap-and-world-links.md`): the minimap of the plan last open
   (`Minimap`, from the board's `PlanSnapshot`), and the plan over the world: a card's place key (or L on a block)
   places it on a spot, the imaginary block in front of the face looked at (`LinkPicker`, `LinkTarget`,
@@ -143,7 +160,7 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 
 - Gradle provisions the JDKs (25 for the build, JetBrains Runtime 25 for `runClient25`). Keep the checkout at a
   short path: deep Windows paths break the clone and the Minecraft dev setup (MAX_PATH).
-- `./gradlew test`: 442 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
+- `./gradlew test`: 449 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
   many over gtnh-flow YAML charts in `src/test/resources/gtnh-flow/`. About 40s, no Minecraft. `addon.gradle`
   opts `test` out of the configuration cache; without that a clean build reports `:test NO-SOURCE` and silently
   runs nothing, so if you ever see NO-SOURCE, check the count in `build/test-results/test/*.xml`.

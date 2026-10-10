@@ -19,8 +19,9 @@ import com.google.gson.JsonParser;
 import com.gtnhplanner.Tags;
 
 /**
- * Factory Flow's public setups (gtnhplanner.com's community hub), read the way the website reads them: the list, and
- * a setup's whole plan. Nothing here needs an account. Blocking calls: run them off the client thread.
+ * Factory Flow's public setups (gtnhplanner.com's community hub), as the website uses them: the list and a setup's
+ * whole plan, which need no account; signing in, and posting, changing and deleting the player's own posts, which do.
+ * Blocking calls: run them off the client thread.
  * {@code -Dgtnhplanner.library.url} points it at another copy of the site, a local one for testing.
  */
 public final class CommunityApi {
@@ -49,15 +50,39 @@ public final class CommunityApi {
         }
     }
 
-    /** A shared setup as the list shows it: who, what, how big, and how it was received. */
+    /**
+     * A shared setup as the list shows it: who, what, how big, and how it was received. {@code mine} when the signed-in
+     * player posted it (the site says so), so they may edit or delete it.
+     */
     public record Setup(String id, String name, String description, String author, String gameVersion,
         List<String> tags, @Nullable Resource icon, List<Resource> needs, List<Resource> outputs, double euPerTick,
         int machines, int nodes, String tier, int tierIndex, int upvotes, int downvotes, int downloads, int comments,
-        String created, String active) {
+        String created, String active, boolean mine) {
 
-        /** The website's own page for it. */
-        public String link() {
-            return site + "/?plan=" + id;
+        /** The same setup with a new name, description and icon, as an edit leaves it. */
+        public Setup withFace(final String newName, final String newDescription, @Nullable final Resource newIcon) {
+            return new Setup(
+                id,
+                newName,
+                newDescription,
+                author,
+                gameVersion,
+                tags,
+                newIcon,
+                needs,
+                outputs,
+                euPerTick,
+                machines,
+                nodes,
+                tier,
+                tierIndex,
+                upvotes,
+                downvotes,
+                downloads,
+                comments,
+                created,
+                active,
+                mine);
         }
     }
 
@@ -101,7 +126,12 @@ public final class CommunityApi {
     /** A setup's plan: Factory Flow's project JSON, as the importer reads it. */
     public record Download(String name, String planJson) {}
 
-    public static Page list(final Query q, final int page, final int pageSize) throws IOException {
+    /**
+     * One page of setups. {@code token} is the signed-in player's session, or null: with it the site marks their own
+     * posts ({@link Setup#mine()}); "mine" lists need it.
+     */
+    public static Page list(final Query q, final int page, final int pageSize, @Nullable final String token)
+        throws IOException {
         final StringBuilder url = new StringBuilder(site).append("/api/community/plans?sort=")
             .append(enc(q.sort()))
             .append("&page=")
@@ -123,7 +153,7 @@ public final class CommunityApi {
             url.append("&makes=")
                 .append(enc(String.join(",", q.makes())));
         if (q.mine()) url.append("&mine=1");
-        final JsonObject root = json(request("GET", url.toString(), null, q.mine() ? Account.token() : null));
+        final JsonObject root = json(request("GET", url.toString(), null, token));
         final List<Setup> setups = new ArrayList<>();
         for (final JsonElement e : array(root, "plans")) setups.add(setup(e.getAsJsonObject()));
         final List<String> versions = new ArrayList<>();
@@ -136,7 +166,7 @@ public final class CommunityApi {
         final JsonObject root = json(
             request("POST", site + "/api/community/plans/" + enc(id) + "/download", null, null));
         final JsonElement plan = root.get("plan");
-        if (plan == null || !plan.isJsonObject()) throw new IOException("the site sent no plan");
+        if (plan == null || !plan.isJsonObject()) throw new IOException("the library sent no plan");
         return new Download(string(root, "name"), plan.toString());
     }
 
@@ -164,7 +194,7 @@ public final class CommunityApi {
         body.addProperty("password", password);
         final Response r = send("POST", site + path, body.toString(), null);
         final String token = r.cookie(SESSION_COOKIE);
-        if (token == null || token.isEmpty()) throw new IOException("the site did not sign you in");
+        if (token == null || token.isEmpty()) throw new IOException("the library did not sign you in");
         return new SignedIn(string(json(r.body()), "username"), token);
     }
 
@@ -175,8 +205,11 @@ public final class CommunityApi {
         return user != null && user.isJsonObject() ? string(user.getAsJsonObject(), "username") : null;
     }
 
-    /** What a post needs: its title and the plan, and where it came from. */
-    public record Post(String name, String description, String gameVersion, String deviceId, JsonObject plan) {}
+    /**
+     * What a post needs: its title, the plan, and where it came from; its icon ({@link #icon}) when it has one.
+     */
+    public record Post(String name, String description, @Nullable JsonObject icon, String gameVersion, String deviceId,
+        JsonObject plan) {}
 
     /** Posts a plan to the public setups; its id on the site. */
     public static String post(final String token, final Post p) throws IOException {
@@ -186,8 +219,108 @@ public final class CommunityApi {
         body.addProperty("gameVersion", p.gameVersion());
         body.addProperty("datasetVersionId", "");
         body.addProperty("deviceId", p.deviceId());
+        if (p.icon() != null) body.add("icon", p.icon());
         body.add("plan", p.plan());
         return string(json(request("POST", site + "/api/community/plans", body.toString(), token)), "id");
+    }
+
+    /**
+     * Changes a post of the signed-in player's in place; its votes, downloads and comments stay. Only the fields in
+     * {@code fields} change, as the site takes them: {@code name}, {@code description}, {@code icon} (null clears it),
+     * {@code plan} (the site works its numbers out again), {@code gameVersion}.
+     */
+    public static void update(final String token, final String id, final JsonObject fields) throws IOException {
+        request("PUT", site + "/api/community/plans/" + enc(id), fields.toString(), token);
+    }
+
+    /** Takes a post of the signed-in player's down, for good. */
+    public static void delete(final String token, final String id) throws IOException {
+        request("DELETE", site + "/api/community/plans/" + enc(id), null, token);
+    }
+
+    /** Thrown when the site says no; {@link #status} says how, so a gone post (404) can be told from the rest. */
+    public static final class Refused extends IOException {
+
+        public final int status;
+
+        Refused(final int status, final String reason) {
+            super(reason);
+            this.status = status;
+        }
+
+        /** The post is gone, or was never this player's: forget the link to it. */
+        public boolean postGone() {
+            return status == 404 || status == 403;
+        }
+    }
+
+    /**
+     * A post's icon as the site keeps it ({@code kind}, {@code resourceId}, {@code displayName}), with the website's
+     * own
+     * picture of it when its item list has one: the site draws an item only from that. The picture is looked up by name
+     * in the pack version's list, closest to {@code packVersion}; without it the icon still goes, the game shows it.
+     */
+    public static JsonObject icon(final String kind, final String id, final String name, final String packVersion) {
+        final JsonObject icon = new JsonObject();
+        icon.addProperty("kind", kind);
+        icon.addProperty("resourceId", id);
+        if (!name.isEmpty()) icon.addProperty("displayName", name);
+        try {
+            final String version = datasetVersion(packVersion);
+            if (version == null || name.isEmpty()) return icon;
+            final JsonObject found = json(
+                request(
+                    "GET",
+                    site + "/api/datasets/"
+                        + enc(version)
+                        + "/resources?kind="
+                        + enc(kind)
+                        + "&limit=40&query="
+                        + enc(name),
+                    null,
+                    null));
+            for (final JsonElement e : array(found, "resources")) {
+                if (!e.isJsonObject()) continue;
+                final JsonObject r = e.getAsJsonObject();
+                if (!id.equals(string(r, "id"))) continue;
+                for (final String key : new String[] { "iconPath", "iconAtlas", "dominantColor" }) {
+                    if (r.has(key) && !r.get(key)
+                        .isJsonNull()) icon.add(key, r.get(key));
+                }
+                break;
+            }
+        } catch (final IOException | RuntimeException e) {
+            // No picture: the icon goes without one.
+        }
+        return icon;
+    }
+
+    /** The site's item lists by pack version, read once per site. */
+    @Nullable
+    private static volatile String versionsFor;
+    private static volatile List<String[]> versions = List.of();
+
+    /** The item list for a pack version: the same version, else the same major one, else the newest. */
+    @Nullable
+    private static String datasetVersion(final String packVersion) throws IOException {
+        if (!site.equals(versionsFor)) {
+            final List<String[]> read = new ArrayList<>();
+            for (final JsonElement e : array(
+                json(request("GET", site + "/datasets/gtnh/datasets.manifest.json", null, null)),
+                "versions")) {
+                if (e.isJsonObject()) read.add(
+                    new String[] { string(e.getAsJsonObject(), "id"), string(e.getAsJsonObject(), "gtnhVersion") });
+            }
+            versions = read;
+            versionsFor = site;
+        }
+        final List<String[]> all = versions;
+        if (all.isEmpty()) return null;
+        for (final String[] v : all) if (v[1].equals(packVersion)) return v[0];
+        final int dot = packVersion.indexOf('.', packVersion.indexOf('.') + 1);
+        final String major = dot > 0 ? packVersion.substring(0, dot + 1) : packVersion;
+        if (!major.isEmpty()) for (final String[] v : all) if (v[1].startsWith(major)) return v[0];
+        return all.get(0)[0];
     }
 
     // endregion
@@ -218,7 +351,11 @@ public final class CommunityApi {
             integer(o, "downloads"),
             integer(o, "commentCount"),
             string(o, "createdAt"),
-            o.has("lastActivityAt") ? string(o, "lastActivityAt") : string(o, "createdAt"));
+            o.has("lastActivityAt") ? string(o, "lastActivityAt") : string(o, "createdAt"),
+            o.has("isMine") && o.get("isMine")
+                .isJsonPrimitive()
+                && o.get("isMine")
+                    .getAsBoolean());
     }
 
     private static List<Resource> resources(final JsonObject o, final String key) {
@@ -259,7 +396,7 @@ public final class CommunityApi {
             return new JsonParser().parse(body)
                 .getAsJsonObject();
         } catch (final RuntimeException e) {
-            throw new IOException("the site sent something that is not JSON", e);
+            throw new IOException("the library sent something unreadable", e);
         }
     }
 
@@ -295,7 +432,7 @@ public final class CommunityApi {
         c.setRequestProperty("User-Agent", "GTNH Planner/" + Tags.VERSION + " (GT New Horizons planner mod)");
         if (token != null) c.setRequestProperty("Cookie", SESSION_COOKIE + "=" + token);
         final byte[] out = json == null ? new byte[0] : json.getBytes(StandardCharsets.UTF_8);
-        if ("POST".equals(method)) {
+        if (json != null || "POST".equals(method)) {
             c.setDoOutput(true);
             if (json != null) c.setRequestProperty("Content-Type", "application/json");
             c.setFixedLengthStreamingMode(out.length);
@@ -307,7 +444,7 @@ public final class CommunityApi {
             final int status = c.getResponseCode();
             final InputStream in = status >= 400 ? c.getErrorStream() : c.getInputStream();
             final String body = in == null ? "" : read(in);
-            if (status >= 400) throw new IOException(reason(status, body));
+            if (status >= 400) throw new Refused(status, reason(status, body));
             final List<String> cookies = new ArrayList<>();
             for (final java.util.Map.Entry<String, List<String>> h : c.getHeaderFields()
                 .entrySet()) {
@@ -335,9 +472,10 @@ public final class CommunityApi {
         }
         return switch (status) {
             case 401 -> "not signed in";
+            case 403 -> "that isn't yours";
             case 404 -> "not found";
             case 429 -> "too many tries; wait a little";
-            default -> "the site answered " + status;
+            default -> "the library answered " + status;
         };
     }
 

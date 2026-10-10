@@ -3,10 +3,9 @@
 	"modList": [{
 		"modid": "${modId}",
 		"name": "${modName}",
-		"description": "Plan GT New Horizons factories in game: an NEI flowchart planner that balances itself, sharing its library with gtnhplanner.com.",
+		"description": "Plan GT New Horizons factories in game: an NEI flowchart planner that balances itself, with a shared library of plans.",
 		"version": "${modVersion}",
 		"mcversion": "${minecraftVersion}",
-		"url": "https://gtnhplanner.com",
 		"updateUrl": "",
 		"authorList": ["Arodoid", "Sbancuz"],
 		"credits": "Built on PlanNH by Sbancuz (github.com/sbancuz/PlanNH).",

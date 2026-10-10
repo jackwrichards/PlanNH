@@ -102,6 +102,21 @@ public final class LibraryFeed {
         fetch(1);
     }
 
+    /** A setup changed from here (an edit of the player's own): the list shows it as it is now. */
+    public void replace(final CommunityApi.Setup s) {
+        for (int i = 0; i < setups.size(); i++) if (setups.get(i)
+            .id()
+            .equals(s.id())) setups.set(i, s);
+    }
+
+    /** A setup taken down from here: gone from the list. */
+    public void remove(final String id) {
+        if (setups.removeIf(
+            s -> s.id()
+                .equals(id))
+            && total > 0) total--;
+    }
+
     /** The next page, when there is one and nothing is on its way. */
     public void more() {
         if (loading || error != null || total < 0 || setups.size() >= total) return;
@@ -123,7 +138,7 @@ public final class LibraryFeed {
         final CommunityApi.Query q = query;
         NET.execute(() -> {
             try {
-                final CommunityApi.Page p = CommunityApi.list(q, page, PAGE_SIZE);
+                final CommunityApi.Page p = CommunityApi.list(q, page, PAGE_SIZE, Account.token());
                 arrived.add(() -> {
                     if (gen != generation) return;
                     loading = false;

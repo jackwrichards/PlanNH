@@ -76,7 +76,7 @@ class FfPlanCodeTest {
         final FfImportException notACode = assertThrows(FfImportException.class, () -> FfPlanCode.decode("hello"));
         assertTrue(
             notACode.getMessage()
-                .contains("not a Factory Flow plan"));
+                .contains("not a plan link or code"));
         final String code = encode(FakeGame.fixture("high-amperage-reactor.json"));
         final FfImportException cut = assertThrows(
             FfImportException.class,

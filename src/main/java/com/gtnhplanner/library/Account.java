@@ -52,9 +52,15 @@ public final class Account {
         save();
     }
 
+    /** Who signed in last, signed in now or not: the sign-in form starts from it. */
+    @Nullable
+    public static String lastUsername() {
+        return load().getProperty(USERNAME);
+    }
+
+    /** Signs out; the name stays, for the next sign-in. */
     public static void signOut() {
         load().remove(SESSION);
-        load().remove(USERNAME);
         save();
     }
 
@@ -92,9 +98,8 @@ public final class Account {
         final File f = file(), dir = f.getParentFile();
         if (!dir.isDirectory() && !dir.mkdirs()) return;
         try (Writer out = new OutputStreamWriter(new FileOutputStream(f), StandardCharsets.UTF_8)) {
-            props.store(
-                out,
-                "GTNH Planner: your gtnhplanner.com sign-in (a session, never your password). Delete to sign out.");
+            props
+                .store(out, "GTNH Planner: your library sign-in (a session, never your password). Delete to sign out.");
         } catch (final IOException e) {
             GtnhPlanner.LOG.warn("Could not write the account file", e);
         }

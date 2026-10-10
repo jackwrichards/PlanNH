@@ -91,6 +91,16 @@ public final class PlanExport {
 
     private PlanExport() {}
 
+    /** An item or fluid as the face of a plan or a post: the site's {@code EntryIcon}, without its picture. */
+    public static JsonObject icon(final Res r) {
+        final JsonObject o = new JsonObject();
+        o.addProperty("kind", r.kind());
+        o.addProperty("resourceId", r.id());
+        if (!r.name()
+            .isEmpty()) o.addProperty("displayName", r.name());
+        return o;
+    }
+
     public static JsonObject project(final Graph g, final String name, final World world) {
         final JsonArray recipes = new JsonArray(), nodes = new JsonArray(), storages = new JsonArray(),
             edges = new JsonArray();
@@ -142,6 +152,11 @@ public final class PlanExport {
             UUID.randomUUID()
                 .toString());
         p.addProperty("name", name);
+        // The plan's face, which the website's plan card shows: its description and icon.
+        if (!g.getDescription()
+            .isEmpty()) p.addProperty("description", g.getDescription());
+        final Res face = g.getIcon() == null ? null : world.resource(g.getIcon());
+        if (face != null) p.add("icon", icon(face));
         p.addProperty("solveMode", true);
         p.add("recipes", recipes);
         p.add("nodes", nodes);
