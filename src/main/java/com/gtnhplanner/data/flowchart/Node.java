@@ -143,7 +143,14 @@ public class Node {
 
         deduplicate(inputs);
         deduplicate(outputs);
+        afterRefresh.accept(this);
     }
+
+    /**
+     * Set by the game side (GTProvider): adjusts a recipe node once its ports are read, as the modelled machines do
+     * (machines/game/MachineModels). Does nothing without the game, as in the headless tests.
+     */
+    public static java.util.function.Consumer<Node> afterRefresh = node -> {};
 
     private static void deduplicate(final List<Port<?>> ports) {
         final List<Port<?>> aggregate = new ArrayList<>(ports);

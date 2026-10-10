@@ -97,5 +97,7 @@ public final class GameNodeMaker implements NodeMaker {
         for (final Map.Entry<String, Object> e : settings.entrySet()) {
             if (known.contains(e.getKey())) cfg.settings.put(e.getKey(), e.getValue());
         }
+        // What the settings decide at refresh (a modelled machine's multipliers, machines/game/MachineModels).
+        node.refresh();
     }
 }

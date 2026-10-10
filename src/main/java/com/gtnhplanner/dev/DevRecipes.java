@@ -33,7 +33,8 @@ final class DevRecipes {
      * Adds the first recipe that makes {@code output}, from a handler whose name contains {@code handlerFilter},
      * with an ingredient whose display name contains {@code inputFilter} (both case-insensitive, empty = any).
      *
-     * @param output ore dictionary name ("dustRutile") or registry name ("minecraft:iron_ingot[:meta]")
+     * @param output ore dictionary name ("dustRutile"), registry name ("minecraft:iron_ingot[:meta]") or a fluid
+     *               ("fluid:mutagen")
      */
     static Map<String, Object> addRecipe(final String output, final String handlerFilter, final String inputFilter,
         final int x, final int y) {
@@ -221,6 +222,12 @@ final class DevRecipes {
     }
 
     private static ItemStack resolveStack(final String key) {
+        // A fluid ("fluid:mutagen"): NEI's GregTech pages find it as GregTech's fluid display item.
+        if (key.startsWith("fluid:")) {
+            final net.minecraftforge.fluids.Fluid fluid = net.minecraftforge.fluids.FluidRegistry
+                .getFluid(key.substring(6));
+            return fluid == null ? null : gregtech.api.util.GTUtility.getFluidDisplayStack(fluid);
+        }
         if (key.contains(":")) {
             final String[] parts = key.split(":");
             final Item item = GameRegistry.findItem(parts[0], parts[1]);

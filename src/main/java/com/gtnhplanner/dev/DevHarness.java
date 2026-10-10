@@ -485,6 +485,17 @@ public final class DevHarness {
                         return error("GregTech is not loaded (start with PLANNH_GTNH=1)");
                     }
                 });
+            case "/machinedata":
+                // The website's side files for the TGS and the Bacterial Vat, read from this game (the full pack).
+                return onClient(() -> {
+                    try {
+                        return DevMachineData.export(new File(q.getOrDefault("dir", "machine-data")));
+                    } catch (final LinkageError e) {
+                        return error("GregTech is not loaded (start with PLANNH_GTNH=1)");
+                    } catch (final java.io.IOException e) {
+                        return error("Could not write: " + e.getMessage());
+                    }
+                });
             case "/perf":
                 // Frame times: perf?start=1 begins sampling, perf ends it and reports (fps, percentiles, sections).
                 if (q.containsKey("start")) {
@@ -708,6 +719,7 @@ public final class DevHarness {
                 "/sound[?volume=0..1] - the master volume, set or read",
                 "/library[?url=<base>] - the site the library uses (tools/dev/mock-library.mjs is a local stand-in)",
                 "/gtmachines?q=turbine[&all=1][&art=1] - GregTech multiblocks (all=1: every machine) as the game names them; art=1 adds the bundled picture each resolves to",
+                "/machinedata?dir=<path> - writes the website's TGS, Bacterial Vat and radio hatch side files from this game (run in the full pack)",
                 "/slots[?add=name | switch=i | delete=i] - list, open, switch or delete plan slots",
                 "/clearplan - empty the active board (one undoable edit)",
                 "/board - open board as data: view, and per card its state and every control's GUI rect (cx, cy)",

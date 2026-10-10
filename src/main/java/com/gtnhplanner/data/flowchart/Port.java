@@ -22,6 +22,11 @@ public class Port<T> {
      * NaN when unset, and {@link #amount()} reads the type's own.
      */
     private double exactAmount = Double.NaN;
+    /**
+     * Added by a machine's model rather than read from its recipe (the Bacterial Vat's radio hatch material): the
+     * website adds its own, so a posted plan leaves it out of the recipe.
+     */
+    public boolean fromModel;
 
     public Port(final ResourceProperty<T> type, final T value, final float chance) {
         this.type = type;

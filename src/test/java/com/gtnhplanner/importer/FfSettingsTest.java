@@ -82,6 +82,43 @@ class FfSettingsTest {
     }
 
     @Test
+    void theModelledMachinesSettingsComeAcrossUnderTheWebsitesKeys() {
+        // The Tree Growth Simulator's tools and the Bacterial Vat's fill are kept; any other machine option is not.
+        final FfSettings.Mapped m = FfSettings.map(
+            card(
+                "LV",
+                null,
+                null,
+                null,
+                null,
+                1,
+                null,
+                null,
+                1,
+                Map.of("tgsLogTool", "log:chainsaw", "bioVatFill", "49.5", "eecLooting", "2"),
+                1,
+                null),
+            MULTI,
+            30,
+            false,
+            true);
+        assertEquals(
+            "log:chainsaw",
+            m.settings()
+                .get("tgsLogTool"));
+        assertEquals(
+            "49.5",
+            m.settings()
+                .get("bioVatFill"));
+        assertNull(
+            m.settings()
+                .get("eecLooting"));
+        assertTrue(
+            m.notes()
+                .contains("machine options eecLooting not carried over"));
+    }
+
+    @Test
     void aMultiblockRunsOnItsHatches() {
         final FfSettings.Mapped m = FfSettings
             .map(card("LV", "UV", 16.0, "amps", 8388608.0, 0, null), MULTI, 30, false, true);

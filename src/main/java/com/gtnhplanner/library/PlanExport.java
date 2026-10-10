@@ -280,6 +280,7 @@ public final class PlanExport {
         final Map<Port<?>, Res> res) {
         final JsonArray out = new JsonArray();
         for (final Port<?> p : ports) {
+            if (p.fromModel) continue;
             final Res r = p.getValue() instanceof Energy ? EU : world.port(p);
             if (r == null) continue;
             res.put(p, r);
@@ -322,6 +323,16 @@ public final class PlanExport {
             for (final Map.Entry<String, String> s : n.powerSettings.entrySet())
                 settings.addProperty(s.getKey(), s.getValue());
             o.add("machineConfigTiers", settings);
+        } else if (n.machineConfig != null) {
+            // A modelled machine's settings (machines/), under the website's own keys.
+            final JsonObject settings = new JsonObject();
+            for (final Map.Entry<String, Object> s : n.machineConfig.settings.entrySet()) {
+                final boolean modelled = com.gtnhplanner.machines.TreeGrowthSimulator.SETTING_KEYS.contains(s.getKey())
+                    || com.gtnhplanner.machines.BacterialVat.SETTING_KEYS.contains(s.getKey());
+                if (modelled && s.getValue() instanceof final String v && !v.isEmpty()) settings.addProperty(s.getKey(), v);
+            }
+            if (!settings.entrySet()
+                .isEmpty()) o.add("machineConfigTiers", settings);
         }
         if (n.isMachineCountFixed()) o.addProperty("solvePin", Math.max(0, world.machines(n)));
         o.add("position", position(n.x, n.y));

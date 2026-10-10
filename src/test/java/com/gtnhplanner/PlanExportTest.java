@@ -67,6 +67,35 @@ class PlanExportTest {
     };
 
     @Test
+    void aModelledMachinesSettingsGoOutUnderTheWebsitesKeys() throws IOException {
+        final Graph g = GtnhFlowLoader.load("mk1")
+            .graph();
+        final Node first = g.getNodes()
+            .iterator()
+            .next();
+        first.machineConfig.settings.put("tgsLogTool", "log:chainsaw");
+        first.machineConfig.settings.put("bioVatFill", "49.5");
+        first.machineConfig.settings.put("tgsHeight", "");
+        final JsonObject p = PlanExport.project(g, "Test plan", WORLD);
+        JsonObject tiers = null;
+        for (final JsonElement n : p.getAsJsonArray("nodes")) if (n.getAsJsonObject()
+            .get("id")
+            .getAsString()
+            .equals(first.id.toString()))
+            tiers = n.getAsJsonObject()
+                .getAsJsonObject("machineConfigTiers");
+        assertEquals(
+            "log:chainsaw",
+            tiers.get("tgsLogTool")
+                .getAsString());
+        assertEquals(
+            "49.5",
+            tiers.get("bioVatFill")
+                .getAsString());
+        assertFalse(tiers.has("tgsHeight"), "a default (empty) setting stays out");
+    }
+
+    @Test
     void aPlanBecomesAFactoryFlowProject() throws IOException {
         final Graph g = GtnhFlowLoader.load("mk1")
             .graph();

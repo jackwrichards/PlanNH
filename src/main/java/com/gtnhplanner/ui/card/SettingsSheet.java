@@ -32,7 +32,7 @@ public final class SettingsSheet extends Popup {
     static void open(final RecipeCard card, final int x, final int y) {
         final CardModel m = card.model();
         if (m == null) return;
-        Popup.open(card.getPanel(), new SettingsSheet(card, Sheet.of(SettingControls.of(m))), x, y);
+        Popup.open(card.getPanel(), new SettingsSheet(card, Sheet.of(m)), x, y);
     }
 
     @Override
@@ -45,10 +45,22 @@ public final class SettingsSheet extends Popup {
     /** A line of the sheet, where it is: a section's heading ({@code control} null) or a setting. */
     private record Line(String heading, SettingControls.Control control, int x, int y) {}
 
-    /** The sheet laid out: its lines, its size, and how many columns. */
-    private record Sheet(List<Line> lines, int w, int h, int columns) {
+    /** A formula line's height, and the widest a sheet with formulas is. */
+    private static final int FORMULA = 10, FORMULAS_W = 300;
 
-        static Sheet of(final List<SettingControls.Control> controls) {
+    /**
+     * The sheet laid out: its lines, its size, how many columns, and a modelled machine's worked formulas under the
+     * settings (from {@code formulasY}), read-only: they show here and never on the card.
+     */
+    private record Sheet(List<Line> lines, int w, int h, int columns,
+        List<com.gtnhplanner.machines.FormulaLine> formulas, int formulasY) {
+
+        static Sheet of(final CardModel m) {
+            return of(SettingControls.of(m), com.gtnhplanner.machines.game.MachineModels.formulas(m.node));
+        }
+
+        static Sheet of(final List<SettingControls.Control> controls,
+            final List<com.gtnhplanner.machines.FormulaLine> formulas) {
             final List<List<SettingControls.Control>> sections = new ArrayList<>();
             String group = null;
             for (final SettingControls.Control c : controls) {
@@ -85,7 +97,10 @@ public final class SettingsSheet extends Popup {
             }
             int tallest = ROW;
             for (final int h : height) tallest = Math.max(tallest, h);
-            return new Sheet(lines, columns * COL + (columns - 1), HEAD + tallest + foot(columns) + 4, columns);
+            final int formulasY = HEAD + tallest;
+            final int formulasH = formulas.isEmpty() ? 0 : HEADING + formulas.size() * FORMULA + 6;
+            final int w = Math.max(columns * COL + (columns - 1), formulas.isEmpty() ? 0 : FORMULAS_W);
+            return new Sheet(lines, w, formulasY + formulasH + foot(columns) + 4, columns, formulas, formulasY);
         }
 
         /** The line on how it works: two short lines in one column, one long line across two. */
@@ -113,7 +128,7 @@ public final class SettingsSheet extends Popup {
             super.onUpdate();
             final CardModel m = card.model();
             if (m == null) return;
-            final Sheet next = Sheet.of(SettingControls.of(m));
+            final Sheet next = Sheet.of(m);
             if (next.w != sheet.w || next.h != sheet.h) {
                 size(next.w, next.h);
                 popup.size(next.w, next.h);
@@ -155,13 +170,15 @@ public final class SettingsSheet extends Popup {
             final Line hot = lineAtMouse();
             final int mx = mouseX();
             final int fy = sheet.h - Sheet.foot(sheet.columns) - 2;
-            if (sheet.columns > 1) Hyb.rect(COL, HEAD + 2, 1, fy - HEAD - 4, CardPaint.HAIR);
+            if (sheet.columns > 1) Hyb
+                .rect(COL, HEAD + 2, 1, (sheet.formulas.isEmpty() ? fy : sheet.formulasY) - HEAD - 4, CardPaint.HAIR);
             for (final Line l : sheet.lines) {
                 if (l.control() == null) {
                     Hyb.rect(l.x() + 8, l.y() + 1, COL - 16, 1, CardPaint.HAIR);
                     Hyb.text(l.heading(), l.x() + 8, l.y() + 5, 0xFF6E7179);
                 } else row(m, l, l == hot, mx - l.x());
             }
+            if (!sheet.formulas.isEmpty()) formulas(sheet.formulas, sheet.formulasY, sheet.w);
             Hyb.rect(1, fy, sheet.w - 2, 1, CardPaint.HAIR);
             if (sheet.columns == 1) {
                 Hyb.text("Pinned settings show on the card.", 8, fy + 5, 0xFF6E7179);
@@ -172,6 +189,91 @@ public final class SettingsSheet extends Popup {
                 fy + 5,
                 0xFF6E7179);
         }
+
+        // region Formulas
+
+        /** Each setting's number in a colour of its own, as on the website's cards. */
+        private static final java.util.Map<String, Integer> KNOB_COLORS = java.util.Map.ofEntries(
+            java.util.Map.entry("tier", 0xFF5AA7D9),
+            java.util.Map.entry("amps", 0xFF5AA7D9),
+            java.util.Map.entry("tgsLogTool", 0xFFC9A24A),
+            java.util.Map.entry("tgsSaplingTool", 0xFF6FBF50),
+            java.util.Map.entry("tgsLeavesTool", 0xFF3FB08A),
+            java.util.Map.entry("tgsFruitTool", 0xFFE06060),
+            java.util.Map.entry("tgsHeight", 0xFFB06FD9),
+            java.util.Map.entry("tgsSaplings", 0xFFB06FD9),
+            java.util.Map.entry("tgsYield", 0xFFB06FD9),
+            java.util.Map.entry("bioVatFill", 0xFF5AA7D9),
+            java.util.Map.entry("bioVatOutputHatch", 0xFFC9A24A),
+            java.util.Map.entry("bioVatGlass", 0xFF9FD3E6),
+            java.util.Map.entry("bioVatRadio", 0xFF7FD94A),
+            java.util.Map.entry("bioVatShutter", 0xFFE0A060));
+        private static final int FORMULA_TEXT = 0xFF8A8D96, LABEL_W = 52;
+
+        /**
+         * The worked formulas: a heading, then each line's label, its working right-aligned into one column, and its
+         * answer bright beside it (green or red for a requirement). The game's font has no ceiling or floor brackets
+         * and no minus sign: those are written out.
+         */
+        private void formulas(final List<com.gtnhplanner.machines.FormulaLine> lines, final int y, final int w) {
+            Hyb.rect(8, y + 1, w - 16, 1, CardPaint.HAIR);
+            Hyb.text("FORMULAS", 8, y + 5, 0xFF6E7179);
+            int answers = 0;
+            for (final com.gtnhplanner.machines.FormulaLine l : lines)
+                answers = Math.max(answers, Hyb.width("= " + l.result()));
+            final int answerX = w - 8 - answers;
+            for (int i = 0; i < lines.size(); i++) {
+                final com.gtnhplanner.machines.FormulaLine l = lines.get(i);
+                final int ly = y + HEADING + i * FORMULA;
+                Hyb.text(Hyb.fit(l.label(), LABEL_W - 4), 8, ly, 0xFF6E7179);
+                int mathW = 0;
+                for (final com.gtnhplanner.machines.FormulaLine.Term term : l.math()) mathW += termWidth(term);
+                int x = Math.max(8 + LABEL_W, answerX - 4 - mathW);
+                for (final com.gtnhplanner.machines.FormulaLine.Term term : l.math()) {
+                    if (x > answerX - 6) break;
+                    x += term(term, x, ly);
+                }
+                final int answer = switch (l.tone()) {
+                    case GOOD -> 0xFF7FD94A;
+                    case BAD -> 0xFFE06060;
+                    default -> Hyb.INK;
+                };
+                Hyb.text("=", answerX, ly, FORMULA_TEXT);
+                Hyb.text(l.result(), answerX + Hyb.width("= "), ly, answer);
+            }
+        }
+
+        private static String glyphs(final String s) {
+            return s.replace("−", "-")
+                .replace("⌈", "ceil(")
+                .replace("⌉", ")")
+                .replace("⌊", "floor(")
+                .replace("⌋", ")");
+        }
+
+        private static int termWidth(final com.gtnhplanner.machines.FormulaLine.Term term) {
+            if (term.sup())
+                return "2".equals(term.text()) ? Hyb.width("²") : (int) Math.ceil(Hyb.width(term.text()) * 0.6f);
+            return Hyb.width(glyphs(term.text()));
+        }
+
+        /** Draws a term at x; returns its width. A squared is the font's own superscript two; others are small. */
+        private static int term(final com.gtnhplanner.machines.FormulaLine.Term term, final int x, final int y) {
+            final int color = term.knob() != null ? KNOB_COLORS.getOrDefault(term.knob(), Hyb.INK) : FORMULA_TEXT;
+            if (term.sup() && !"2".equals(term.text())) {
+                org.lwjgl.opengl.GL11.glPushMatrix();
+                org.lwjgl.opengl.GL11.glTranslatef(x, y - 1, 0);
+                org.lwjgl.opengl.GL11.glScalef(0.6f, 0.6f, 1);
+                Hyb.text(term.text(), 0, 0, color);
+                org.lwjgl.opengl.GL11.glPopMatrix();
+                return termWidth(term);
+            }
+            final String text = term.sup() ? "²" : glyphs(term.text());
+            Hyb.text(text, x, y, color);
+            return Hyb.width(text);
+        }
+
+        // endregion
 
         private void row(final CardModel m, final Line l, final boolean hot, final int mx) {
             final SettingControls.Control c = l.control();

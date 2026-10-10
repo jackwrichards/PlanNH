@@ -1069,6 +1069,15 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             pressPower(c.key(), sx, sy);
             return;
         }
+        if (c.key()
+            .startsWith(SettingControls.MACHINE_PREFIX)) {
+            pressMachine(
+                c.key()
+                    .substring(SettingControls.MACHINE_PREFIX.length()),
+                sx,
+                sy);
+            return;
+        }
         final SettingDef<?> def = SettingControls.def(model, c.key());
         if (def == null) return;
         final Node node = model.node;
@@ -1124,6 +1133,14 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             if (setting != null) stepPower(setting, step);
             return;
         }
+        if (c.key()
+            .startsWith(SettingControls.MACHINE_PREFIX)) {
+            stepMachine(
+                c.key()
+                    .substring(SettingControls.MACHINE_PREFIX.length()),
+                step);
+            return;
+        }
         final SettingDef<?> def = SettingControls.def(model, c.key());
         if (def == null) return;
         final Node node = model.node;
@@ -1143,6 +1160,99 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
             default -> {}
         }
     }
+
+    // region Modelled machines (machines/game/MachineModels)
+
+    @javax.annotation.Nullable
+    private com.gtnhplanner.machines.game.MachineModels.Setting machineSetting(final String key) {
+        for (final com.gtnhplanner.machines.game.MachineModels.Setting s : com.gtnhplanner.machines.game.MachineModels
+            .settings(model.node))
+            if (s.key()
+                .equals(key)) return s;
+        return null;
+    }
+
+    /** A modelled machine's setting pressed: a number to type, two choices to switch, or a list (with icons). */
+    private void pressMachine(final String key, final int sx, final int sy) {
+        final com.gtnhplanner.machines.game.MachineModels.Setting s = machineSetting(key);
+        if (s == null) return;
+        if (s.number()) {
+            Popup.open(
+                getPanel(),
+                NumberPopup.create(
+                    s.label(),
+                    s.min() + " to " + s.max(),
+                    Double.parseDouble(s.value()),
+                    s.min(),
+                    s.max(),
+                    v -> changeMachine(key, plainNumber(Math.max(s.min(), Math.min(s.max(), v))))),
+                sx,
+                sy);
+            return;
+        }
+        final String now = currentOption(s);
+        if (s.options()
+            .size() <= 2) {
+            for (final com.gtnhplanner.machines.game.MachineModels.Option o : s.options()) if (!o.key()
+                .equals(now)) changeMachine(key, o.key());
+            return;
+        }
+        final List<PickList.Entry> rows = new ArrayList<>();
+        for (final com.gtnhplanner.machines.game.MachineModels.Option o : s.options()) rows.add(
+            new PickList.Entry(
+                o.icon(),
+                o.label(),
+                "",
+                Hyb.INK,
+                o.key()
+                    .equals(now),
+                () -> changeMachine(key, o.key())));
+        Popup
+            .open(getPanel(), PickList.popup("gtnhplanner_machine_setting", null, rows, rows.size() > 10, 190), sx, sy);
+    }
+
+    /** One step along a modelled machine's setting: the next choice, or one more or less. */
+    private void stepMachine(final String key, final int step) {
+        final com.gtnhplanner.machines.game.MachineModels.Setting s = machineSetting(key);
+        if (s == null) return;
+        if (s.number()) {
+            final double next = Math.max(s.min(), Math.min(s.max(), Math.floor(Double.parseDouble(s.value())) + step));
+            changeMachine(key, plainNumber(next));
+            return;
+        }
+        final List<com.gtnhplanner.machines.game.MachineModels.Option> options = s.options();
+        int i = 0;
+        final String now = currentOption(s);
+        for (int k = 0; k < options.size(); k++) if (options.get(k)
+            .key()
+            .equals(now)) i = k;
+        final int n = options.size();
+        changeMachine(
+            key,
+            options.get(((i + step) % n + n) % n)
+                .key());
+    }
+
+    /** The key of the option a setting shows (its value is the option's label). */
+    private static String currentOption(final com.gtnhplanner.machines.game.MachineModels.Setting s) {
+        for (final com.gtnhplanner.machines.game.MachineModels.Option o : s.options()) if (o.label()
+            .equals(s.value())) return o.key();
+        return "";
+    }
+
+    private static String plainNumber(final double v) {
+        final double rounded = Math.round(v * 10) / 10.0;
+        return rounded == Math.rint(rounded) ? Long.toString((long) rounded) : Double.toString(rounded);
+    }
+
+    /** Changes a modelled machine's setting; a tree's tools are remembered for its next card, as other settings. */
+    private void changeMachine(final String key, final String value) {
+        final Node node = model.node;
+        if (key.startsWith("tgs")) changeSetting(node, key, value);
+        else session.setSetting(node, key, value);
+    }
+
+    // endregion
 
     /** Changes a machine setting, and remembers it for the machine's next card. */
     private void changeSetting(final Node node, final String key, final Object value) {

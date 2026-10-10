@@ -163,6 +163,17 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   to the vanilla click, times the gear's Sounds setting. Anything pressed clicks unless the action has a sound of its
   own; wires and drawers sound of what they carry (item clack, fluid bubbles, power sparks). `call sfx` lists what
   played (the dev game is muted).
+- The Tree Growth Simulator and the Bacterial Vat are modelled from the game's code, as on the website
+  (`docs/design/bio-vat-and-tgs.md`): pure models in `machines/` (`TreeGrowthSimulator`, `BacterialVat`,
+  `FormulaLine`), tested on the website's golden values; the game side is `machines/game/MachineModels` (each TGS
+  output's mode and a Forestry sapling's genes from the NEI recipe, the vat's glass and sieverts, the radio hatch's
+  materials) and `MachineModelStep` (the TGS's fixed 100 ticks at VP[t]). They set the solver's per-port multipliers
+  (`MachineConfig.inputConsumption`/`outputProductivity`) after every refresh (`Node.afterRefresh`) and add the
+  radio hatch's burned material as an input (`Port.fromModel`: never posted). Their settings sit in the card's gear
+  sheet under the website's own keys (`machine:<key>` controls, plain strings, "" = the recipe's default), so plans
+  carry them both ways (`FfSettings`, `PlanExport`); the sheet ends in their worked formulas, as the website's cards
+  show them (read-only, never pinned). `call 'machinedata?dir=...'` in the full pack writes the website's side files
+  (its `tools/audits/import-machine-side-data.mjs` reads them).
 - Multiblock pictures in `assets/gtnhplanner/textures/structures/` are Factory Flow's renders (`public/power-art`: the
   owner's processing multiblocks and the Power Planner workbook's power plants), scaled to 320 px palette PNGs with
   transparency. `ui/card/StructureArt` maps in-game machine names to them; `call 'gtmachines?art=1'` checks coverage.
@@ -171,7 +182,7 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 
 - Gradle provisions the JDKs (25 for the build, JetBrains Runtime 25 for `runClient25`). Keep the checkout at a
   short path: deep Windows paths break the clone and the Minecraft dev setup (MAX_PATH).
-- `./gradlew test`: 456 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
+- `./gradlew test`: 468 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
   many over gtnh-flow YAML charts in `src/test/resources/gtnh-flow/`. About 40s, no Minecraft. `addon.gradle`
   opts `test` out of the configuration cache; without that a clean build reports `:test NO-SOURCE` and silently
   runs nothing, so if you ever see NO-SOURCE, check the count in `build/test-results/test/*.xml`.

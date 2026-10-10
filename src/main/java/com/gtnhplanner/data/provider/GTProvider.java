@@ -54,7 +54,8 @@ public class GTProvider implements PropertyProvider {
 
     public static final RecipeProperty<Integer> SPECIAL_VALUE = RecipeProperty.<Integer>builder("gt.special_value", 0)
         .build();
-    static final RecipeProperty<Integer> GLASS_TIER = RecipeProperty.<Integer>builder("gt.bartworks.glass_tier", 3)
+    public static final RecipeProperty<Integer> GLASS_TIER = RecipeProperty
+        .<Integer>builder("gt.bartworks.glass_tier", 3)
         .build();
     public static final RecipeProperty<Integer> SIEVERT = RecipeProperty.<Integer>builder("gt.bartworks.sievert", 0)
         .build();
@@ -86,17 +87,18 @@ public class GTProvider implements PropertyProvider {
 
         MachineProfileRegistry.register(PROFILE);
         new GTSteamProvider().register();
+        // The modelled machines (machines/): their multipliers and the radio hatch's burn, after every refresh.
+        Node.afterRefresh = com.gtnhplanner.machines.game.MachineModels::afterRefresh;
     }
 
     static BiPredicate<RecipeContext, Map<String, Object>> multiblockOnly() {
         return (ctx, s) -> MachineProfile.getBool(s, Settings.GT_MULTIBLOCK.key(), false);
     }
 
+    /** A recipe that names coil heat. (A Bacterial Vat's glass tier is no heat: it gates, MachineModels.) */
     private static boolean hasHeat(final RecipeContext ctx) {
         return ctx.properties()
-            .containsKey(GLASS_TIER)
-            || ctx.properties()
-                .containsKey(COIL_HEAT);
+            .containsKey(COIL_HEAT);
     }
 
     private static boolean isEoH(final RecipeContext ctx) {
@@ -104,97 +106,107 @@ public class GTProvider implements PropertyProvider {
         return map != null && "gt.recipe.eyeofharmony".equals(map.unlocalizedName);
     }
 
-    private static final MachineProfile PROFILE = MachineProfile.builder("gregtech:unified", "GT Unified")
-        .setting(Settings.VOLTAGE.def())
-        .setting(Settings.AMP.def())
-        .setting(Settings.SPEED.def())
-        .setting(
-            Settings.PARALLELS.def()
-                .withVisibility((ctx, s) -> !isEoH(ctx)))
-        .setting(Settings.MACHINES.def())
-        .setting(Settings.PERFECT_OC.def())
-        .setting(Settings.GT_MULTIBLOCK.def())
-        .setting(
-            Settings.LASER_OC.def()
-                .withVisibility(multiblockOnly()))
-        .setting(
-            Settings.EUT_DISCOUNT.def()
-                .withVisibility(multiblockOnly()))
-        .setting(
-            Settings.EUT_INCREASE_PER_OC.def()
-                .withVisibility(multiblockOnly()))
-        .setting(
-            Settings.DURATION_DECREASE_PER_OC.def()
-                .withVisibility(multiblockOnly()))
-        .setting(
-            Settings.MAX_OVERCLOCKS.def()
-                .withVisibility(multiblockOnly()))
-        .setting(
-            Settings.MAX_REGULAR_OC.def()
-                .withVisibility(multiblockOnly()))
-        .setting(
-            Settings.MAX_TIER_SKIPS.def()
-                .withVisibility(multiblockOnly()))
-        .setting(
-            Settings.UNLIMITED_SKIPS.def()
-                .withVisibility(multiblockOnly()))
-        .setting(
-            Settings.NO_OVERCLOCK.def()
-                .withVisibility(multiblockOnly()))
-        .setting(
-            Settings.HEAT_OC.def()
-                .withVisibility((ctx, s) -> hasHeat(ctx)))
-        .setting(
-            Settings.MACHINE_HEAT.def()
-                .withVisibility(multiblockOnly().and((ctx, s) -> hasHeat(ctx))))
-        .setting(
-            Settings.RECIPE_HEAT.def()
-                .withVisibility(multiblockOnly().and((ctx, s) -> hasHeat(ctx))))
-        .setting(
-            Settings.HEAT_DISCOUNT.def()
-                .withVisibility(multiblockOnly().and((ctx, s) -> hasHeat(ctx))))
-        .setting(
-            Settings.HEAT_DISCOUNT_MULT.def()
-                .withVisibility(multiblockOnly().and((ctx, s) -> hasHeat(ctx))))
-        .setting(
-            Settings.CATALYST_ASTRAL_ARRAYS.def()
-                .withVisibility((ctx, s) -> isEoH(ctx)))
+    private static final MachineProfile PROFILE = withModelledMachines(
+        MachineProfile.builder("gregtech:unified", "GT Unified")).setting(Settings.VOLTAGE.def())
+            .setting(Settings.AMP.def())
+            .setting(Settings.SPEED.def())
+            .setting(
+                Settings.PARALLELS.def()
+                    .withVisibility((ctx, s) -> !isEoH(ctx)))
+            .setting(Settings.MACHINES.def())
+            .setting(Settings.PERFECT_OC.def())
+            .setting(Settings.GT_MULTIBLOCK.def())
+            .setting(
+                Settings.LASER_OC.def()
+                    .withVisibility(multiblockOnly()))
+            .setting(
+                Settings.EUT_DISCOUNT.def()
+                    .withVisibility(multiblockOnly()))
+            .setting(
+                Settings.EUT_INCREASE_PER_OC.def()
+                    .withVisibility(multiblockOnly()))
+            .setting(
+                Settings.DURATION_DECREASE_PER_OC.def()
+                    .withVisibility(multiblockOnly()))
+            .setting(
+                Settings.MAX_OVERCLOCKS.def()
+                    .withVisibility(multiblockOnly()))
+            .setting(
+                Settings.MAX_REGULAR_OC.def()
+                    .withVisibility(multiblockOnly()))
+            .setting(
+                Settings.MAX_TIER_SKIPS.def()
+                    .withVisibility(multiblockOnly()))
+            .setting(
+                Settings.UNLIMITED_SKIPS.def()
+                    .withVisibility(multiblockOnly()))
+            .setting(
+                Settings.NO_OVERCLOCK.def()
+                    .withVisibility(multiblockOnly()))
+            .setting(
+                Settings.HEAT_OC.def()
+                    .withVisibility((ctx, s) -> hasHeat(ctx)))
+            .setting(
+                Settings.MACHINE_HEAT.def()
+                    .withVisibility(multiblockOnly().and((ctx, s) -> hasHeat(ctx))))
+            .setting(
+                Settings.RECIPE_HEAT.def()
+                    .withVisibility(multiblockOnly().and((ctx, s) -> hasHeat(ctx))))
+            .setting(
+                Settings.HEAT_DISCOUNT.def()
+                    .withVisibility(multiblockOnly().and((ctx, s) -> hasHeat(ctx))))
+            .setting(
+                Settings.HEAT_DISCOUNT_MULT.def()
+                    .withVisibility(multiblockOnly().and((ctx, s) -> hasHeat(ctx))))
+            .setting(
+                Settings.CATALYST_ASTRAL_ARRAYS.def()
+                    .withVisibility((ctx, s) -> isEoH(ctx)))
 
-        .effect(
-            Effects.durationFromHandler()
-                .andThen(
-                    GTOverclockStep.create()
-                        .applyIf(GTProvider::hasHeat, GTOverclockStep::withHeat)
-                        .applyIf(
-                            ctx -> ctx.properties()
-                                .containsKey(FUSION_THRESHOLD),
-                            GTOverclockStep::withPerfectOC)
-                        .route(
-                            "gt.recipe.eyeofharmony",
-                            step -> step.withCatalyst(
-                                (SettingDef<Integer>) Settings.CATALYST_ASTRAL_ARRAYS.def(),
-                                v -> (int) Math
-                                    .pow(2, (int) Math.floor(Math.log(8.0 * Math.min(v, 8637)) / Math.log(1.7)))))
-                        // Perfect OC defaults
-                        .withDefault("gt.recipe.largechemicalreactor", Settings.PERFECT_OC.key(), true)
-                        .withDefault("gtpp.recipe.flotationcell", Settings.PERFECT_OC.key(), true)
-                        .withDefault("gg.recipe.naquadah_fuel_refine_factory", Settings.PERFECT_OC.key(), true)
-                        .withDefault("gtpp.recipe.matterfab2", Settings.PERFECT_OC.key(), true)
-                        .withDefault("gtpp.recipe.oremill", Settings.PERFECT_OC.key(), true)
-                        .withDefault("bw.recipe.cal", Settings.PERFECT_OC.key(), true)
-                        .withDefault("gtnhlanth.recipe.digester", Settings.PERFECT_OC.key(), true)
-                        .withDefault("gt.recipe.nanoforge", Settings.PERFECT_OC.key(), true)
-                        .withDefault("gt.recipe.plasmaforge", Settings.PERFECT_OC.key(), true)
-                        // Unlimited tier skip defaults
-                        .withDefault("gg.recipe.naquadah_fuel_refine_factory", Settings.UNLIMITED_SKIPS.key(), true)
-                        .withDefault("gt.recipe.nanoforge", Settings.UNLIMITED_SKIPS.key(), true)
-                        .withDefault("gt.recipe.plasmaforge", Settings.UNLIMITED_SKIPS.key(), true)
-                        .withDefault("gtpp.recipe.alloyblastsmelter", Settings.UNLIMITED_SKIPS.key(), true)
-                        .withDefault("gt.recipe.transcendentplasmamixerrecipes", Settings.UNLIMITED_SKIPS.key(), true)
-                        // No-overclock defaults
-                        .withDefault("gt.recipe.transcendentplasmamixerrecipes", Settings.NO_OVERCLOCK.key(), true)
-                        .withDefault("gtpp.recipe.algae_pond", Settings.NO_OVERCLOCK.key(), true)))
-        .build();
+            .effect(
+                Effects.durationFromHandler()
+                    .andThen(
+                        GTOverclockStep.create()
+                            .applyIf(GTProvider::hasHeat, GTOverclockStep::withHeat)
+                            .applyIf(
+                                ctx -> ctx.properties()
+                                    .containsKey(FUSION_THRESHOLD),
+                                GTOverclockStep::withPerfectOC)
+                            .route(
+                                "gt.recipe.eyeofharmony",
+                                step -> step.withCatalyst(
+                                    (SettingDef<Integer>) Settings.CATALYST_ASTRAL_ARRAYS.def(),
+                                    v -> (int) Math
+                                        .pow(2, (int) Math.floor(Math.log(8.0 * Math.min(v, 8637)) / Math.log(1.7)))))
+                            // Perfect OC defaults
+                            .withDefault("gt.recipe.largechemicalreactor", Settings.PERFECT_OC.key(), true)
+                            .withDefault("gtpp.recipe.flotationcell", Settings.PERFECT_OC.key(), true)
+                            .withDefault("gg.recipe.naquadah_fuel_refine_factory", Settings.PERFECT_OC.key(), true)
+                            .withDefault("gtpp.recipe.matterfab2", Settings.PERFECT_OC.key(), true)
+                            .withDefault("gtpp.recipe.oremill", Settings.PERFECT_OC.key(), true)
+                            .withDefault("bw.recipe.cal", Settings.PERFECT_OC.key(), true)
+                            .withDefault("gtnhlanth.recipe.digester", Settings.PERFECT_OC.key(), true)
+                            .withDefault("gt.recipe.nanoforge", Settings.PERFECT_OC.key(), true)
+                            .withDefault("gt.recipe.plasmaforge", Settings.PERFECT_OC.key(), true)
+                            // Unlimited tier skip defaults
+                            .withDefault("gg.recipe.naquadah_fuel_refine_factory", Settings.UNLIMITED_SKIPS.key(), true)
+                            .withDefault("gt.recipe.nanoforge", Settings.UNLIMITED_SKIPS.key(), true)
+                            .withDefault("gt.recipe.plasmaforge", Settings.UNLIMITED_SKIPS.key(), true)
+                            .withDefault("gtpp.recipe.alloyblastsmelter", Settings.UNLIMITED_SKIPS.key(), true)
+                            .withDefault(
+                                "gt.recipe.transcendentplasmamixerrecipes",
+                                Settings.UNLIMITED_SKIPS.key(),
+                                true)
+                            // No-overclock defaults
+                            .withDefault("gt.recipe.transcendentplasmamixerrecipes", Settings.NO_OVERCLOCK.key(), true)
+                            .withDefault("gtpp.recipe.algae_pond", Settings.NO_OVERCLOCK.key(), true))
+                    .andThen(new com.gtnhplanner.machines.game.MachineModelStep()))
+            .build();
+
+    /** The modelled machines' settings, kept under the website's keys (MachineModels). */
+    private static MachineProfile.Builder withModelledMachines(final MachineProfile.Builder builder) {
+        for (final SettingDef<String> def : com.gtnhplanner.machines.game.MachineModels.SETTINGS) builder.setting(def);
+        return builder;
+    }
 
     @Override
     public boolean canCraft(final IRecipeHandler handler, final int recipeIndex) {
@@ -355,6 +367,10 @@ public class GTProvider implements PropertyProvider {
 
         node.inputs.removeIf(p -> p.getValue() instanceof ItemStack stack && stack.getItem() instanceof ItemFluidDisplay);
         node.outputs.removeIf(p -> p.getValue() instanceof ItemStack stack && stack.getItem() instanceof ItemFluidDisplay);
+
+        // The Tree Growth Simulator: NEI's outputs by mode (a mode the tree lacks is null) and the sapling's genes.
+        if (com.gtnhplanner.machines.game.MachineModels.isTgs(props))
+            com.gtnhplanner.machines.game.MachineModels.readTgs(node, r, props);
 
         return props;
     }

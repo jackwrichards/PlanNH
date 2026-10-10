@@ -40,6 +40,9 @@ public final class SettingControls {
     public record Control(String key, String group, String label, String value, @Nullable ItemStack icon, boolean warn,
         boolean enabled, Type type, boolean pinDefault) {}
 
+    /** A modelled machine's setting (MachineModels): {@code machine:<the website's key>}. */
+    public static final String MACHINE_PREFIX = "machine:";
+
     /** The card's own controls: never listed. */
     private static final Set<String> OWN = Set.of("voltage", "amp", "machines");
     private static final Set<String> OVERCLOCKING = Set.of(
@@ -93,6 +96,23 @@ public final class SettingControls {
         if (cfg == null || cfg.getProfile() == null) return out;
         final List<SettingDef<?>> defs = cfg.getProfile()
             .visibleSettings(new RecipeContext(m.node.properties), cfg.settings);
+        // A modelled machine's own setup first (the TGS's tools and genes, the vat's glass, hatch and radiation),
+        // under the website's keys: "machine:<key>", changed through MachineModels.
+        for (final com.gtnhplanner.machines.game.MachineModels.Setting s : com.gtnhplanner.machines.game.MachineModels
+            .settings(m.node))
+            out.add(
+                new Control(
+                    MACHINE_PREFIX + s.key(),
+                    "SETUP",
+                    s.label(),
+                    s.value(),
+                    s.icon(),
+                    s.warn(),
+                    true,
+                    s.number() ? Type.NUMBER : Type.CHOICE,
+                    false));
+        // The Tree Growth Simulator runs 100 ticks at VP[t] whatever the settings: no speed, parallels or overclocks.
+        if (com.gtnhplanner.machines.game.MachineModels.isTgs(m.node.properties)) return out;
         for (final String group : GROUPS) {
             // The coil first, at the top of the machine's settings.
             if ("MACHINE".equals(group) && m.usesHeat) {

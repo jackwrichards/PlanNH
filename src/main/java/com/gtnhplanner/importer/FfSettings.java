@@ -117,14 +117,17 @@ public final class FfSettings {
             s.put(Settings.PARALLELS.key(), Math.min(MAX_PARALLELS, node.parallel()));
             if (node.parallel() > MAX_PARALLELS) notes.add(node.parallel() + " parallels capped at " + MAX_PARALLELS);
         }
-        if (!node.machineConfigTiers()
-            .isEmpty())
-            notes.add(
-                "machine options " + String.join(
-                    ", ",
-                    node.machineConfigTiers()
-                        .keySet())
-                    + " not carried over");
+        // The modelled machines' settings (the Tree Growth Simulator's tools and genes, the Bacterial Vat's glass,
+        // hatch, fill and radiation) are kept under the website's own keys; any other machine option is not.
+        final List<String> dropped = new java.util.ArrayList<>();
+        for (final Map.Entry<String, String> option : node.machineConfigTiers()
+            .entrySet()) {
+            if (com.gtnhplanner.machines.TreeGrowthSimulator.SETTING_KEYS.contains(option.getKey())
+                || com.gtnhplanner.machines.BacterialVat.SETTING_KEYS.contains(option.getKey()))
+                s.put(option.getKey(), option.getValue());
+            else dropped.add(option.getKey());
+        }
+        if (!dropped.isEmpty()) notes.add("machine options " + String.join(", ", dropped) + " not carried over");
 
         int machines = 1;
         boolean pinned = false;

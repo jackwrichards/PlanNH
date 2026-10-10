@@ -436,6 +436,9 @@ public final class Serializer {
                 jsonToMachineConfig(obj.getAsJsonObject("machineConfig"), node.machineConfig);
             }
             node.machineConfig.seedRouteDefaults();
+            // The node was refreshed before its settings were read: what they decide comes now (a modelled
+            // machine's multipliers and radio hatch input, machines/game/MachineModels).
+            if (!node.isPower()) Node.afterRefresh.accept(node);
 
             graph.addNode(node);
         }
