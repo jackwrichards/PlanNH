@@ -27,6 +27,7 @@ import com.gtnhplanner.ui.canvas.PlanPicture;
 import com.gtnhplanner.ui.card.CardPaint;
 import com.gtnhplanner.ui.sound.Sfx;
 import com.gtnhplanner.ui.theme.Hyb;
+import com.gtnhplanner.ui.theme.Icons;
 
 /**
  * The top bar's Feedback, small and friendly: three big faces (how it's going, if you like), what it is (a bug, an
@@ -296,23 +297,13 @@ public final class FeedbackPanel extends ParentWidget<FeedbackPanel> implements 
         pill(r[0] + 1, r[1] + 1, r[2] - 2, r[3] - 2, fill);
     }
 
-    /** The Bug chip's bug, 8 by 8, in one colour (the top bar's Feedback key draws it red). */
-    public static void bug(final int x, final int y, final int c) {
-        kindIcon(0, x - 1, y - 1, c);
-    }
-
-    /** A kind's little picture, 8 by 8: a bug, a light bulb, a question mark. */
+    /** A kind's picture, the top bar's own: a bug, a light bulb, a question mark. */
     private static void kindIcon(final int kind, final int x, final int y, final int c) {
-        final String[] rows = switch (kind) {
-            case 0 -> new String[] { "#......#", ".#.##.#.", "..####..", "########", "..####..", "########", "..####..",
-                ".#.##.#." };
-            case 1 -> new String[] { "..####..", ".#....#.", "#......#", "#......#", ".#....#.", "..#..#..", "..####..",
-                "...##..." };
-            default -> new String[] { "..####..", ".##..##.", ".....##.", "....##..", "...##...", "...##...",
-                "........", "...##..." };
-        };
-        for (int row = 0; row < rows.length; row++) for (int col = 0; col < rows[row].length(); col++)
-            if (rows[row].charAt(col) == '#') Hyb.rect(x + 1 + col, y + 1 + row, 1, 1, c);
+        switch (kind) {
+            case 0 -> Icons.bug(x, y, c);
+            case 1 -> Icons.bulb(x, y, c);
+            default -> Icons.help(x, y, c);
+        }
     }
 
     /**

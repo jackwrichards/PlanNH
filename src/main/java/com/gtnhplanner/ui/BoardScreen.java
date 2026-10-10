@@ -28,6 +28,7 @@ import com.gtnhplanner.ui.popup.Tip;
 import com.gtnhplanner.ui.power.PowerPicker;
 import com.gtnhplanner.ui.theme.Fmt;
 import com.gtnhplanner.ui.theme.Hyb;
+import com.gtnhplanner.ui.theme.Icons;
 
 import codechicken.nei.LayoutManager;
 import codechicken.nei.NEIClientConfig;
@@ -138,12 +139,12 @@ public final class BoardScreen extends ModularScreen {
             named(
                 parts,
                 "undo",
-                iconKey(Arrow.UNDO, session::canUndo, "Undo (Ctrl+Z)", session::undo).marginLeft(GROUP_GAP)));
+                iconKey(Picture.UNDO, session::canUndo, "Undo (Ctrl+Z)", session::undo).marginLeft(GROUP_GAP)));
         topBar.child(
             named(
                 parts,
                 "redo",
-                iconKey(Arrow.REDO, session::canRedo, "Redo (Ctrl+Shift+Z or Ctrl+Y)", session::redo)));
+                iconKey(Picture.REDO, session::canRedo, "Redo (Ctrl+Shift+Z or Ctrl+Y)", session::redo)));
         topBar.child(
             named(
                 parts,
@@ -221,7 +222,7 @@ public final class BoardScreen extends ModularScreen {
                 parts,
                 "feedback",
                 iconKey(
-                    Arrow.FEEDBACK,
+                    Picture.FEEDBACK,
                     () -> true,
                     "Feedback: report a bug, share an idea, or ask for help",
                     () -> com.gtnhplanner.ui.popup.FeedbackPanel.open(panel, session, canvas, null))
@@ -230,12 +231,16 @@ public final class BoardScreen extends ModularScreen {
             named(
                 parts,
                 "settings",
-                iconKey(Arrow.GEAR, () -> true, "Settings", () -> com.gtnhplanner.ui.popup.SettingsPanel.open(panel))));
+                iconKey(
+                    Picture.GEAR,
+                    () -> true,
+                    "Settings",
+                    () -> com.gtnhplanner.ui.popup.SettingsPanel.open(panel))));
         topBar.child(
             named(
                 parts,
                 "help",
-                key(() -> "?", () -> true, "Help: the tour, and every control", 16, () -> openHelp(panel))));
+                iconKey(Picture.HELP, () -> true, "Help: the tour, and every control", () -> openHelp(panel))));
 
         final Flow column = Flow.column()
             .widthRel(1f)
@@ -513,7 +518,7 @@ public final class BoardScreen extends ModularScreen {
         final String label = "Non-recipe";
         final ButtonWidget<?> button = key(() -> "", () -> true, tooltip, Hyb.width(label) + 22, action);
         button.overlay((IDrawable) (ctx, x, y, w, h, theme) -> {
-            PowerPicker.bolt(x + 6, y + (h - 11) / 2f, 0xFFFCD34D);
+            PowerPicker.bolt(x + 6, y + (h - 12) / 2, 0xFFFCD34D);
             Hyb.text(label, x + 16, y + (h - 8) / 2f, Hyb.INK);
         });
         return button;
@@ -529,52 +534,32 @@ public final class BoardScreen extends ModularScreen {
         return w + 12;
     }
 
-    /** The pictures drawn on the small keys. */
-    private enum Arrow {
+    /** The pictures drawn on the small keys, from {@link Icons}. */
+    private enum Picture {
         UNDO,
         REDO,
         FEEDBACK,
-        GEAR
+        GEAR,
+        HELP
     }
 
-    /** A small key with an arrow drawn on it (the game's font has none), for undo and redo. */
-    private static ButtonWidget<?> iconKey(final Arrow arrow, final BooleanSupplier enabled, final String tooltip,
+    /** A small key with a picture on it (the game's font has none): undo, redo, feedback, settings, help. */
+    private static ButtonWidget<?> iconKey(final Picture picture, final BooleanSupplier enabled, final String tooltip,
         final Runnable action) {
         final ButtonWidget<?> button = key(() -> "", enabled, tooltip, 18, action);
-        button.overlay(
-            (IDrawable) (ctx, x, y, w, h, theme) -> drawArrow(
-                arrow,
-                x + (w - 9) / 2,
-                y + (h - 7) / 2,
-                enabled.getAsBoolean() ? Hyb.INK : 0xFF5A5C65));
+        button.overlay((IDrawable) (ctx, x, y, w, h, theme) -> {
+            final int[] at = Icons.centred(x, y, w, h);
+            final int c = enabled.getAsBoolean() ? Hyb.INK : 0xFF5A5C65;
+            switch (picture) {
+                case UNDO -> Icons.undo(at[0], at[1], c);
+                case REDO -> Icons.redo(at[0], at[1], c);
+                // The one picture in a colour of its own.
+                case FEEDBACK -> Icons.bug(at[0], at[1], 0xFFE5484D);
+                case GEAR -> Icons.gear(at[0], at[1], c);
+                case HELP -> Icons.help(at[0], at[1], c);
+            }
+        });
         return button;
-    }
-
-    /**
-     * 9 by 7: a hooked arrow, its head pointing left for undo and right for redo, its tail curling under; for feedback,
-     * a red bug.
-     */
-    private static void drawArrow(final Arrow arrow, final int x, final int y, final int c) {
-        if (arrow == Arrow.FEEDBACK) {
-            com.gtnhplanner.ui.popup.FeedbackPanel.bug(x, y - 1, 0xFFE5484D);
-            return;
-        }
-        if (arrow == Arrow.GEAR) {
-            // A gear, 9 by 9: eight teeth round a hollow hub.
-            final String[] rows = { "...###...", ".#.###.#.", ".#######.", "###...###", "###...###", "###...###",
-                ".#######.", ".#.###.#.", "...###..." };
-            for (int row = 0; row < rows.length; row++) for (int col = 0; col < rows[row].length(); col++)
-                if (rows[row].charAt(col) == '#') Hyb.rect(x + col, y - 1 + row, 1, 1, c);
-            return;
-        }
-        final boolean undo = arrow == Arrow.UNDO;
-        // Pixel runs {dx, dy, length} for undo; redo is the mirror.
-        final int[][] runs = { { 2, 0, 1 }, { 1, 1, 2 }, { 0, 2, 7 }, { 1, 3, 2 }, { 7, 3, 1 }, { 2, 4, 1 },
-            { 8, 4, 1 }, { 8, 5, 1 }, { 4, 6, 4 } };
-        for (final int[] r : runs) {
-            final int dx = undo ? r[0] : 9 - r[0] - r[2];
-            Hyb.rect(x + dx, y + r[1], r[2], 1, c);
-        }
     }
 
     public BoardSession session() {
