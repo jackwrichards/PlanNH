@@ -111,8 +111,9 @@ public final class SettingControls {
                     true,
                     s.number() ? Type.NUMBER : Type.CHOICE,
                     false));
-        // The Tree Growth Simulator runs 100 ticks at VP[t] whatever the settings: no speed, parallels or overclocks.
-        if (com.gtnhplanner.machines.game.MachineModels.isTgs(m.node.properties)) return out;
+        // A modelled machine runs by the game's own rules (machines/): the TGS 100 ticks at VP[t], the vat GT's normal
+        // overclocks. The generic speed, parallel and overclock knobs could only make numbers the game never does.
+        if (com.gtnhplanner.machines.game.MachineModels.isModelled(m.node)) return out;
         for (final String group : GROUPS) {
             // The coil first, at the top of the machine's settings.
             if ("MACHINE".equals(group) && m.usesHeat) {
