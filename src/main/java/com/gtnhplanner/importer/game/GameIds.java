@@ -14,14 +14,14 @@ import net.minecraftforge.oredict.OreDictionary;
 import com.gtnhplanner.importer.FfIds;
 
 /** Game stacks as Factory Flow ids, and back. */
-final class GameIds {
+public final class GameIds {
 
     private static final String OREDICT = "oredict:";
 
     private GameIds() {}
 
     /** The stack's FF id ({@code gregtech:gt.metaitem.01@2377}). */
-    static String itemId(final ItemStack stack) {
+    public static String itemId(final ItemStack stack) {
         return FfIds.itemId(String.valueOf(Item.itemRegistry.getNameForObject(stack.getItem())), stack.getItemDamage());
     }
 
@@ -41,7 +41,7 @@ final class GameIds {
         return ids;
     }
 
-    static String fluidId(final FluidStack fluid) {
+    public static String fluidId(final FluidStack fluid) {
         return fluid.getFluid()
             .getName()
             .toLowerCase(Locale.ROOT);
