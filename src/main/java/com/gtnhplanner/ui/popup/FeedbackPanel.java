@@ -199,8 +199,10 @@ public final class FeedbackPanel extends ParentWidget<FeedbackPanel> implements 
         for (int i = 0; i < KINDS.length; i++) {
             final int[] r = kindRect(i);
             final boolean picked = kind.ordinal() == i, hot = !sending && in(r, mx, my);
-            chip(r, picked, hot);
-            kindIcon(i, r[0] + 7, r[1] + 4, picked ? CYAN : hot ? Hyb.INK : Hyb.MUTED);
+            // Each kind in its own colour, a little softer until it is picked or hovered.
+            final int colour = kindColour(i);
+            chip(r, colour, picked, hot);
+            kindIcon(i, r[0] + 7, r[1] + 4, picked || hot ? colour : Hyb.mix(colour, CONTROL, 0.75f));
             Hyb.text(KINDS[i], r[0] + 7 + 10 + 5, r[1] + 5, picked || hot ? Hyb.INK : Hyb.MUTED);
         }
         // What to write, and for help, the Discord first.
@@ -289,10 +291,10 @@ public final class FeedbackPanel extends ParentWidget<FeedbackPanel> implements 
         return new int[] { x0 + i * (w + gap), H - PAD - KEY_H - 4, w, KEY_H };
     }
 
-    /** A rounded chip: picked, a cyan edge on a tinted face. */
-    private static void chip(final int[] r, final boolean picked, final boolean hot) {
-        final int edge = picked ? CYAN : hot ? 0xFF5A5D66 : 0xFF3A3C42;
-        final int fill = picked ? 0xFF173540 : hot ? CONTROL_HOVER : CONTROL;
+    /** A rounded chip: picked, an edge in its kind's colour on a face tinted with it. */
+    private static void chip(final int[] r, final int colour, final boolean picked, final boolean hot) {
+        final int edge = picked ? colour : hot ? 0xFF5A5D66 : 0xFF3A3C42;
+        final int fill = picked ? Hyb.mix(colour, CardPaint.SURFACE, 0.16f) : hot ? CONTROL_HOVER : CONTROL;
         pill(r[0], r[1], r[2], r[3], edge);
         pill(r[0] + 1, r[1] + 1, r[2] - 2, r[3] - 2, fill);
     }
@@ -306,15 +308,27 @@ public final class FeedbackPanel extends ParentWidget<FeedbackPanel> implements 
         }
     }
 
+    /** A kind's own colour: a red bug, an amber bulb, a blue question. */
+    private static int kindColour(final int kind) {
+        return switch (kind) {
+            case 0 -> 0xFFE5484D;
+            case 1 -> 0xFFFCD34D;
+            default -> 0xFF60A5FA;
+        };
+    }
+
     /**
-     * A face for a mood (happy, okay, sad), {@code scale} times 14 pixels, always in its colour: soft until it is
-     * hovered or picked, a white ring once picked.
+     * A face for a mood (happy, okay, sad), {@code scale} times 14 pixels, always in its colour: a shine at its top
+     * left, and a touch of its own (a happy face's pink cheeks, a sad one's tear). Softer until it is hovered or
+     * picked,
+     * a white ring once picked.
      */
     private static void face(final int mood, final int x, final int y, final boolean picked, final boolean hot,
         final int scale) {
-        final int ink = MOOD_INK[mood];
-        final int fill = picked || hot ? ink : Hyb.mix(ink, 0xFF26282D, 0.45f);
-        final int feature = 0xFF15171A;
+        final int ink = MOOD_INK[mood], dark = 0xFF15171A;
+        final boolean soft = !picked && !hot;
+        final int fill = soft ? Hyb.mix(ink, CardPaint.SURFACE, 0.7f) : ink;
+        final int feature = soft ? Hyb.mix(dark, fill, 0.85f) : dark;
         GL11.glPushMatrix();
         GL11.glTranslatef(x, y, 0);
         GL11.glScalef(scale, scale, 1);
@@ -328,6 +342,9 @@ public final class FeedbackPanel extends ParentWidget<FeedbackPanel> implements 
         Hyb.rect(3, 0, FACE - 6, FACE, fill);
         Hyb.rect(1, 1, FACE - 2, FACE - 2, fill);
         Hyb.rect(0, 3, FACE, FACE - 6, fill);
+        final int shine = Hyb.mix(0xFFFFFFFF, fill, 0.45f);
+        Hyb.rect(3, 2, 1, 1, shine);
+        Hyb.rect(2, 3, 1, 1, shine);
         Hyb.rect(4, 4, 2, 2, feature);
         Hyb.rect(8, 4, 2, 2, feature);
         switch (mood) {
@@ -335,12 +352,16 @@ public final class FeedbackPanel extends ParentWidget<FeedbackPanel> implements 
                 Hyb.rect(3, 8, 1, 1, feature);
                 Hyb.rect(4, 9, 6, 1, feature);
                 Hyb.rect(10, 8, 1, 1, feature);
+                final int cheek = Hyb.mix(0xFFFF6F9C, fill, soft ? 0.55f : 0.8f);
+                Hyb.rect(2, 7, 1, 1, cheek);
+                Hyb.rect(11, 7, 1, 1, cheek);
             }
             case 1 -> Hyb.rect(4, 9, 6, 1, feature);
             default -> {
                 Hyb.rect(3, 10, 1, 1, feature);
                 Hyb.rect(4, 9, 6, 1, feature);
                 Hyb.rect(10, 10, 1, 1, feature);
+                Hyb.rect(4, 6, 1, 2, soft ? Hyb.mix(0xFF7CC4FF, fill, 0.7f) : 0xFF7CC4FF);
             }
         }
         GL11.glPopMatrix();
