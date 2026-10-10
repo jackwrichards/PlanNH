@@ -15,12 +15,15 @@ import { fileURLToPath } from "node:url";
 const port = Number(process.argv[2] ?? 8789);
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const postsDir = join(root, "build", "dev-client", "mock-posts");
+const feedbackDir = join(root, "build", "dev-client", "mock-feedback");
 mkdirSync(postsDir, { recursive: true });
+mkdirSync(feedbackDir, { recursive: true });
 
 const users = new Map(); // name -> password
 const sessions = new Map(); // token -> name
 const posts = []; // summaries, newest first
 const plans = new Map(); // id -> { name, plan }
+let reports = 0;
 
 const json = (res, status, body, headers = {}) => {
   res.writeHead(status, { "Content-Type": "application/json", ...headers });
@@ -138,6 +141,19 @@ createServer(async (req, res) => {
     if (plans.has(post.id)) plans.get(post.id).name = post.name;
     console.log(`  updated '${post.name}': ${Object.keys(b).join(", ")}${b.icon ? ` (icon ${b.icon.resourceId}${b.icon.iconPath ? ", with picture" : ""})` : ""}`);
     return json(res, 200, { id: post.id });
+  }
+  // A report from the Feedback box: kept in build/dev-client/mock-feedback/ (its picture beside it), answered with a
+  // made-up issue as the site answers a real one.
+  if (req.method === "POST" && path === "/api/feedback") {
+    const b = await body(req);
+    if (!b.title?.trim()) return json(res, 400, { error: "Give it a title." });
+    if (!["bug", "idea", "help"].includes(b.kind)) return json(res, 400, { error: "That report could not be read." });
+    const number = ++reports;
+    const { picture, ...rest } = b;
+    writeFileSync(join(feedbackDir, `${number}.json`), JSON.stringify(rest, null, 2));
+    if (picture) writeFileSync(join(feedbackDir, `${number}.png`), Buffer.from(picture, "base64"));
+    console.log(`  report #${number}: ${b.kind} '${b.title}', ${b.plans?.length ?? 0} plans${picture ? ", a picture" : ""}${b.log ? ", the log" : ""}${b.crash ? ", a crash report" : ""}`);
+    return json(res, 201, { number, url: `https://github.com/jackwrichards/gtnh-planner-mod/issues/${number}` });
   }
   if (req.method === "GET" && path === "/api/community/plans") {
     const mine = url.searchParams.get("mine") === "1";

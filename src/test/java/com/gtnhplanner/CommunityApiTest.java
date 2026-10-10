@@ -177,6 +177,30 @@ class CommunityApiTest {
     }
 
     @Test
+    void aReportGoesWithoutAnAccountAndComesBackAsAnIssue() throws IOException {
+        answers.put(
+            "/api/feedback",
+            new String[] { "201", "{\"number\":12,\"url\":\"https://github.com/o/r/issues/12\"}" });
+        final JsonObject body = new JsonObject();
+        body.addProperty("kind", "bug");
+        body.addProperty("title", "Wires vanish");
+        final CommunityApi.Sent sent = CommunityApi.report(body);
+        assertEquals(12, sent.number());
+        assertEquals("https://github.com/o/r/issues/12", sent.url());
+        assertEquals("POST", last().method());
+        assertEquals(null, last().cookie(), "no sign-in needed");
+        assertEquals(
+            "Wires vanish",
+            new JsonParser().parse(last().body())
+                .getAsJsonObject()
+                .get("title")
+                .getAsString());
+        answers.put("/api/feedback", new String[] { "503", "{\"error\":\"Reports can't be sent yet.\"}" });
+        final CommunityApi.Refused closed = assertThrows(CommunityApi.Refused.class, () -> CommunityApi.report(body));
+        assertEquals("Reports can't be sent yet.", closed.getMessage(), "the site's own words reach the box");
+    }
+
+    @Test
     void anIconComesWithTheWebsitesPictureOfIt() {
         answers.put(
             "/datasets/gtnh/datasets.manifest.json",

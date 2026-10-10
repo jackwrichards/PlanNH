@@ -238,6 +238,17 @@ public final class CommunityApi {
         request("DELETE", site + "/api/community/plans/" + enc(id), null, token);
     }
 
+    /** A report as the site opened it: its issue's number and page. */
+    public record Sent(int number, String url) {}
+
+    /** Sends a report from the Feedback box; the site opens it as an issue on the planner's repo. No account needed. */
+    public static Sent report(final JsonObject body) throws IOException {
+        final JsonObject r = json(request("POST", site + "/api/feedback", body.toString(), null));
+        final String url = string(r, "url");
+        if (url.isEmpty()) throw new IOException("the library sent no link to the report");
+        return new Sent(integer(r, "number"), url);
+    }
+
     /** Thrown when the site says no; {@link #status} says how, so a gone post (404) can be told from the rest. */
     public static final class Refused extends IOException {
 

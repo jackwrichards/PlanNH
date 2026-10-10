@@ -223,8 +223,9 @@ public final class BoardScreen extends ModularScreen {
                 iconKey(
                     Arrow.FEEDBACK,
                     () -> true,
-                    "Feedback and bug reports: a thread on the GT New Horizons Discord (join the server to see it)",
-                    BoardScreen::openFeedback).marginLeft(GROUP_GAP)));
+                    "Feedback: report a bug, share an idea, or ask for help",
+                    () -> com.gtnhplanner.ui.popup.FeedbackPanel.open(panel, session, canvas, null))
+                        .marginLeft(GROUP_GAP)));
         topBar.child(
             named(
                 parts,
@@ -439,19 +440,6 @@ public final class BoardScreen extends ModularScreen {
     /** The top-bar keys' tooltips, drawn as board tips (ModularUI's own would be the game's purple ones). */
     private static final java.util.Map<IWidget, String> KEY_TIPS = new java.util.WeakHashMap<>();
 
-    /** Where bugs and development talk go: GTNH Planner's thread on the GT New Horizons Discord. */
-    private static final String FEEDBACK_URL = "https://discord.com/channels/181078474394566657/1531402304530682036";
-
-    /** Opens the feedback thread in the browser, as vanilla opens chat links. */
-    private static void openFeedback() {
-        try {
-            java.awt.Desktop.getDesktop()
-                .browse(java.net.URI.create(FEEDBACK_URL));
-        } catch (final Exception | LinkageError e) {
-            org.lwjgl.Sys.openURL(FEEDBACK_URL);
-        }
-    }
-
     /** A top-bar key the wheel steps too: +1 up, -1 down, with a tick. */
     private static final class WheelKey extends ButtonWidget<WheelKey> {
 
@@ -549,16 +537,22 @@ public final class BoardScreen extends ModularScreen {
         GEAR
     }
 
-    /** Discord's blurple. */
-    private static final int DISCORD = 0xFF5865F2;
-
-    /** Discord's face, 11 by 8 in pixels: ears, two eyes, two feet. */
-    private static void discord(final int x, final int y) {
-        // {dx, dy, length} runs of the face; the eyes are left out of rows 3 and 4.
-        final int[][] runs = { { 2, 0, 2 }, { 7, 0, 2 }, { 1, 1, 9 }, { 0, 2, 11 }, { 0, 3, 3 }, { 5, 3, 1 },
-            { 8, 3, 3 }, { 0, 4, 3 }, { 5, 4, 1 }, { 8, 4, 3 }, { 0, 5, 11 }, { 1, 6, 3 }, { 7, 6, 3 }, { 2, 7, 2 },
-            { 7, 7, 2 } };
-        for (final int[] r : runs) Hyb.rect(x + r[0], y + r[1], r[2], 1, DISCORD);
+    /**
+     * A red bug, 11 by 9 in pixels, for Feedback: antennae and legs in grey, a dark head, a red back split down the
+     * middle.
+     */
+    private static void bug(final int x, final int y) {
+        final String[] rows = { "..g.....g..", "...g...g...", "....ddd....", "g.rrrdrrr.g", ".grrrdrrrg.",
+            "..rrrdrrr..", "g.rrrdrrr.g", ".grrrdrrrg.", "...rrdrr..." };
+        for (int row = 0; row < rows.length; row++) for (int col = 0; col < rows[row].length(); col++) {
+            final int c = switch (rows[row].charAt(col)) {
+                case 'r' -> 0xFFE5484D;
+                case 'd' -> 0xFF7A1F22;
+                case 'g' -> 0xFFB0B3BA;
+                default -> 0;
+            };
+            if (c != 0) Hyb.rect(x + col, y + row, 1, 1, c);
+        }
     }
 
     /** A small key with an arrow drawn on it (the game's font has none), for undo and redo. */
@@ -580,7 +574,7 @@ public final class BoardScreen extends ModularScreen {
      */
     private static void drawArrow(final Arrow arrow, final int x, final int y, final int c) {
         if (arrow == Arrow.FEEDBACK) {
-            discord(x - 1, y - 1);
+            bug(x - 1, y - 1);
             return;
         }
         if (arrow == Arrow.GEAR) {
@@ -774,6 +768,9 @@ public final class BoardScreen extends ModularScreen {
         super.onOpen();
         session.reopen();
         session.disarmPending();
+        // After a crash the planner had a hand in: whether to send the report (not over the tour's first offer).
+        if (PlannerSettings.tourOffered() && !com.gtnhplanner.ui.tutorial.Tutorial.active())
+            com.gtnhplanner.ui.popup.CrashOffer.offer(getMainPanel(), session, canvas);
     }
 
     @Override

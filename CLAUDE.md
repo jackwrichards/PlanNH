@@ -135,6 +135,17 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 - Players never see the website (the owner, 2026-10-09): no links or keys to it, and no text naming gtnhplanner.com or
   Factory Flow in the UI, its messages, the config files it writes or `mcmod.info`. The library is "the library";
   pasted plans are "a plan link or code". Code comments and docs may still name the website as the design's source.
+- Feedback (the top bar's red bug key, `ui/popup/FeedbackPanel`): three mood faces, Bug / Idea / Help chips, one text
+  box (`ui/popup/TextArea`, our own: MUI2's multi-line editor crashed the game), a line naming what goes with it (the
+  open plan by name, the game log, a crash report if there is one) and Send. `library/Reports` sends it, with a Simple
+  picture of the plan and the log's tail with names, the home folder, addresses and tokens taken out, to the website's
+  `POST /api/feedback`, which opens it as a public issue on this repo (labels "from game" and bug, enhancement or
+  question) with the site's own token, so players need no GitHub account; the box then links the issue. The endpoint
+  answers 503 until `GITHUB_FEEDBACK_TOKEN` (a fine-grained token, Issues read and write on this repo) is in the
+  droplet's `/opt/shared/env.local`. `client/CrashReports` puts the planner's state in every crash report and, on the
+  next open, offers to send the newest report the planner was part of (`ui/popup/CrashOffer`: a planner frame in the
+  error's stack, or a ModularUI frame with the planner open); asked once per crash. The mock answers
+  `/api/feedback` too, writing each report to `build/dev-client/mock-feedback/`.
 - While playing (`ui/world/`, `docs/design/minimap-and-world-links.md`): the minimap of the plan last open
   (`Minimap`, from the board's `PlanSnapshot`), and the plan over the world: a card's place key (or L on a block)
   places it on a spot, the imaginary block in front of the face looked at (`LinkPicker`, `LinkTarget`,
@@ -160,7 +171,7 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
 
 - Gradle provisions the JDKs (25 for the build, JetBrains Runtime 25 for `runClient25`). Keep the checkout at a
   short path: deep Windows paths break the clone and the Minecraft dev setup (MAX_PATH).
-- `./gradlew test`: 449 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
+- `./gradlew test`: 456 headless JUnit tests (power sources against the website, drawers, solve service, routing, layout, serialization),
   many over gtnh-flow YAML charts in `src/test/resources/gtnh-flow/`. About 40s, no Minecraft. `addon.gradle`
   opts `test` out of the configuration cache; without that a clean build reports `:test NO-SOURCE` and silently
   runs nothing, so if you ever see NO-SOURCE, check the count in `build/test-results/test/*.xml`.

@@ -71,6 +71,9 @@ public class ClientProxy extends CommonProxy {
             .bus()
             .register(this);
 
+        // Crashes the planner had a hand in: offered for sending; and its section in every crash report.
+        com.gtnhplanner.client.CrashReports.init();
+
         DevHarness.initIfDev();
     }
 

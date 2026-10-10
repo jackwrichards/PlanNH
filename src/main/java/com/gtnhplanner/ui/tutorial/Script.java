@@ -721,13 +721,13 @@ final class Script {
             .pause(200)
             .run(Minimap.INSTANCE::recentre);
 
-        // Back on the board, at the Discord key.
+        // Back on the board, at the Feedback key.
         beat(out).run(com.gtnhplanner.ui.Planner::open)
             .until(() -> Targets.board() != null, 3000)
             .rest()
             .note(
                 Targets.topKey("feedback"),
-                "That's everything! Issues, feedback or ideas go in GTNH Planner's thread on the *GT New Horizons Discord*. Join the server first, then this button takes you there.");
+                "That's everything! Found a bug, or have an idea? *Feedback* sends it from the game. Questions about your own setup do well in GTNH Planner's thread on the *GT New Horizons Discord*.");
     }
 
     // endregion
