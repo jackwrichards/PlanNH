@@ -10,7 +10,7 @@ public enum Settings {
 
     // ── int settings ──
     DURATION_TICKS("duration_ticks", 0, 0, 1000000, (v, c) -> v > 0 ? v + "t" : null),
-    AMP("amp", 1, 1, 64, (v, c) -> "A" + v),
+    AMP("amp", 1, 1, 16_777_216, (v, c) -> "A" + v),
     SPEED("speed", 100, 10, 10000, (v, c) -> "\u23F1" + v + "%"),
     TICK_MODIFIER("tick_modifier", 100, 10, 10000, (v, c) -> "\u23E9" + v + "%"),
     PARALLELS("parallels", 1, 1, 4096, (v, c) -> "\u2225" + v),

@@ -54,6 +54,53 @@ public final class CardDefaults {
         }
     }
 
+    /**
+     * A new GregTech card's hatches as the website seeds them (machines/web HatchInput): a multiblock at its recipe's
+     * tier with whole amps enough for every structural parallel. Nothing for a singleblock or a card the website's
+     * maths do not cover.
+     */
+    public static void seedHatches(final Node node) {
+        final com.gtnhplanner.machines.web.Web.Recipe recipe = com.gtnhplanner.machines.game.WebEffect.recipe(node);
+        if (recipe == null) return;
+        final com.gtnhplanner.machines.web.Web.Node fresh = fresh(node, recipe);
+        if (!com.gtnhplanner.machines.web.NodeMath.covers(recipe, fresh)) return;
+        final com.gtnhplanner.machines.web.HatchInput.Hatches h = com.gtnhplanner.machines.web.HatchInput
+            .seed(recipe, fresh);
+        if (h == null) return;
+        node.machineConfig.setString("voltage", h.tier());
+        node.machineConfig.setInt("amp", (int) Math.max(1, Math.min(PowerPanel.MAX_AMPS, h.amps())));
+    }
+
+    /**
+     * Runs the recipe on another machine, carrying the voltage as the website does: a multiblock becoming a single
+     * block takes its hatch tier, a single block becoming a multiblock one hatch of its tier.
+     */
+    public static void switchMachine(final Node node, final ItemStack machine, final boolean gregtech) {
+        final com.gtnhplanner.machines.web.Web.Recipe recipe = gregtech
+            ? com.gtnhplanner.machines.game.WebEffect.recipe(node)
+            : null;
+        final com.gtnhplanner.machines.web.Web.Node before = recipe == null ? null
+            : com.gtnhplanner.machines.game.WebCards.node(node, node.machineConfig, recipe);
+        useMachine(node, machine, gregtech);
+        if (before == null) return;
+        final com.gtnhplanner.machines.web.HatchInput.Hatches h = com.gtnhplanner.machines.web.HatchInput
+            .carry(recipe, before, com.gtnhplanner.machines.game.WebCards.handlerId(node, recipe));
+        if (h == null) return;
+        node.machineConfig.setString("voltage", h.tier());
+        if (h.amps() > 0) node.machineConfig.setInt("amp", 1);
+    }
+
+    /** The card's machine and settings as the website reads them, without the hatches a new card has yet to get. */
+    private static com.gtnhplanner.machines.web.Web.Node fresh(final Node node,
+        final com.gtnhplanner.machines.web.Web.Recipe recipe) {
+        final com.gtnhplanner.machines.web.Web.Node web = com.gtnhplanner.machines.game.WebCards
+            .node(node, node.machineConfig, recipe);
+        web.hatchVoltageTier = null;
+        web.hatchAmps = null;
+        web.powerInputMode = null;
+        return web;
+    }
+
     /** Smallest tier whose voltage (8 * 4^tier) covers the recipe's EU/t. */
     public static int recipeTier(final long euPerTick) {
         int tier = 0;

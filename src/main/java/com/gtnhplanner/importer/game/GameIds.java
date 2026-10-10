@@ -53,7 +53,7 @@ public final class GameIds {
      * none.
      */
     @Nullable
-    static ItemStack stackOf(final String ffId) {
+    public static ItemStack stackOf(final String ffId) {
         if (ffId.startsWith(OREDICT)) {
             final String name = ffId.substring(OREDICT.length());
             for (final String ore : OreDictionary.getOreNames()) {

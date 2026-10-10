@@ -564,6 +564,13 @@ public final class Serializer {
             else if (val instanceof final Integer i) settingsObj.addProperty(def.key, i);
             else if (val instanceof final String s) settingsObj.addProperty(def.key, s);
         }
+        // A GregTech machine's own settings from the website's machine maths: its casings, pipes, modes and counts,
+        // under the website's ids (machines/game/WebCards).
+        for (final Map.Entry<String, Object> e : cfg.settings.entrySet()) if (e.getKey()
+            .startsWith(MACHINE_SETTING) && e.getValue() != null)
+            settingsObj.addProperty(
+                e.getKey(),
+                String.valueOf(e.getValue()));
         if (!settingsObj.entrySet()
             .isEmpty()) obj.add("settings", settingsObj);
 
@@ -596,12 +603,31 @@ public final class Serializer {
             }
         }
 
+        migrateCoil(cfg);
+
         if (obj.has("inMul")) {
             jsonToMultiplierArray(obj.getAsJsonArray("inMul"), cfg.inputConsumption);
         }
         if (obj.has("outMul")) {
             jsonToMultiplierArray(obj.getAsJsonArray("outMul"), cfg.outputProductivity);
         }
+    }
+
+    /** A GregTech machine's own setting from the website's machine maths: {@code machine:<id>}. */
+    private static final String MACHINE_SETTING = "machine:";
+
+    /**
+     * Plans from before the website's machine maths kept a coil as its heat ({@code machine_heat}): it becomes the
+     * hottest coil at or under that heat, by the website's key ({@code coil}).
+     */
+    private static void migrateCoil(final MachineConfig cfg) {
+        if (cfg.settings.containsKey("coil") || !(cfg.settings.get("machine_heat") instanceof final Number heat)
+            || heat.intValue() <= 0) return;
+        String key = null;
+        for (final com.gtnhplanner.machines.web.HandlerData.Coil coil : com.gtnhplanner.machines.web.HandlerData
+            .coils()) if (coil.heat() <= heat.intValue()) key = coil.key();
+        if (key != null) cfg.settings.put("coil", key);
+        cfg.settings.remove("machine_heat");
     }
 
     // ── Multiplier helpers ──

@@ -110,12 +110,11 @@ class FfSettingsTest {
             "49.5",
             m.settings()
                 .get("bioVatFill"));
-        assertNull(
+        assertEquals(
+            "2",
             m.settings()
-                .get("eecLooting"));
-        assertTrue(
-            m.notes()
-                .contains("machine options eecLooting not carried over"));
+                .get("machine:eecLooting"),
+            "every other machine's option, under the website's id");
     }
 
     @Test
@@ -134,11 +133,6 @@ class FfSettingsTest {
             true,
             m.settings()
                 .get("gt_multiblock"));
-        assertEquals(
-            true,
-            m.settings()
-                .get("perfect_oc"),
-            "the Large Chemical Reactor overclocks perfectly");
         assertEquals("Large Chemical Reactor", m.machineLabel());
         assertTrue(
             m.notes()
@@ -148,30 +142,23 @@ class FfSettingsTest {
     }
 
     @Test
-    void moreThan64AmpsBecomeHigherTiersAtTheSamePower() {
+    void manyAmpsStayAmpsAtTheirTier() {
         final FfSettings.Mapped m = FfSettings
             .map(card("LV", "LuV", 256.0, "amps", null, 0, "mega"), MULTI, 30, false, true);
         assertEquals(
-            "ZPM",
+            "LuV",
             m.settings()
                 .get("voltage"));
         assertEquals(
-            64,
+            256,
             m.settings()
                 .get("amp"));
-        assertFalse(
-            m.settings()
-                .containsKey("perfect_oc"),
-            "the Mega reactor's handler does not say perfect");
         assertEquals("Mega Chemical Reactor", m.machineLabel());
-        assertEquals(
-            1,
-            m.notes()
-                .size());
         assertTrue(
             m.notes()
-                .getFirst()
-                .contains("256 A LuV"));
+                .isEmpty(),
+            m.notes()
+                .toString());
     }
 
     @Test
@@ -254,17 +241,16 @@ class FfSettingsTest {
             false,
             true);
         assertEquals(
-            2701,
+            "kanthal",
             m.settings()
-                .get("machine_heat"));
+                .get("coil"));
         assertEquals(
-            4,
+            "quantium",
             m.settings()
-                .get("parallels"));
+                .get("machine:itemPipeCasing"));
         assertTrue(
             m.notes()
-                .stream()
-                .anyMatch(n -> n.contains("itemPipeCasing")));
+                .contains("4 parallels on the card not carried over"));
         final FfSettings.Mapped odd = FfSettings.map(
             card("HV", null, null, null, null, 0, null, "unobtainium", 1, Map.of(), 1, null),
             SINGLE,
@@ -273,7 +259,7 @@ class FfSettingsTest {
             true);
         assertFalse(
             odd.settings()
-                .containsKey("machine_heat"));
+                .containsKey("coil"));
         assertTrue(
             odd.notes()
                 .getFirst()

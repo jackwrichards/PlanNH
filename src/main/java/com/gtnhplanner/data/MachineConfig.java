@@ -103,8 +103,19 @@ public class MachineConfig {
         }
     }
 
+    /**
+     * Set by the game side (GTProvider): a GregTech card's numbers from the website's machine maths (machines/web),
+     * or null for a card they do not cover, which the profile's own effect then computes. It reads the settings of the
+     * config it is given (a what-if copy's, too). Nothing without the game, as in the headless tests.
+     */
+    public static java.util.function.BiFunction<Node, MachineConfig, EffectResult> nodeEffect = (node, cfg) -> null;
+
     @Nonnull
     public EffectResult computeEffect(final Map<RecipeProperty<?>, Object> properties) {
+        if (parentRef != null) {
+            final EffectResult web = nodeEffect.apply(parentRef, this);
+            if (web != null) return web;
+        }
         final MachineProfile profile = getProfile();
         EffectResult result = profile.effectComputer()
             .compute(settings, new RecipeContext(properties));

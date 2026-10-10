@@ -19,6 +19,7 @@ import com.gtnhplanner.data.flowchart.Node;
 import com.gtnhplanner.data.flowchart.Note;
 import com.gtnhplanner.data.flowchart.Port;
 import com.gtnhplanner.data.properties.RecipeProperty;
+import com.gtnhplanner.importer.FfSettings;
 import com.gtnhplanner.power.CustomRate;
 import com.gtnhplanner.power.Energy;
 import com.gtnhplanner.power.PowerModel;
@@ -58,6 +59,17 @@ public final class PlanExport {
 
         /** The card's tier name ("LV", "HV"...). */
         String tier(Node node);
+
+        /** Whether the card's machine is a multiblock (its tier is then its hatches'). */
+        default boolean multiblock(final Node node) {
+            return node.machineConfig != null && Boolean.TRUE.equals(node.machineConfig.settings.get("gt_multiblock"));
+        }
+
+        /** The website's id for the card's machine among the recipe's handlers, or null for the recipe's first. */
+        @Nullable
+        default String handlerId(final Node node) {
+            return null;
+        }
     }
 
     /** Factory Flow's cards are 380 wide to our 320, and taller (as the importer scales them the other way). */
@@ -324,12 +336,35 @@ public final class PlanExport {
                 settings.addProperty(s.getKey(), s.getValue());
             o.add("machineConfigTiers", settings);
         } else if (n.machineConfig != null) {
-            // A modelled machine's settings (machines/), under the website's own keys.
+            final Map<String, Object> cfg = n.machineConfig.settings;
+            if (world.multiblock(n)) {
+                // The hatches, as the website keeps a multiblock's power: tier and amps.
+                final String tier = world.tier(n);
+                final double amps = cfg.get("amp") instanceof final Number a ? Math.max(1, a.doubleValue()) : 1;
+                o.addProperty("hatchVoltageTier", tier);
+                o.addProperty("hatchAmps", amps);
+                o.addProperty("powerInputMode", "amps");
+                o.addProperty("powerEuT", com.gtnhplanner.machines.web.Tiers.maxEuT(tier) * amps);
+            }
+            if (cfg.get(FfSettings.COIL) instanceof final String coil && !coil.isEmpty()) o.addProperty("coilTier", coil);
+            if (cfg.get(FfSettings.HATCH_TYPE) instanceof final String type && !type.isEmpty())
+                o.addProperty("energyHatchType", type);
+            final String handler = world.handlerId(n);
+            if (handler != null) o.addProperty("machineHandlerId", handler);
+            // The machine's options under the website's own ids: the modelled machines' (machines/) as they are kept,
+            // every other machine's from machine:<id>.
             final JsonObject settings = new JsonObject();
-            for (final Map.Entry<String, Object> s : n.machineConfig.settings.entrySet()) {
+            for (final Map.Entry<String, Object> s : cfg.entrySet()) {
+                if (!(s.getValue() instanceof final String v) || v.isEmpty()) continue;
                 final boolean modelled = com.gtnhplanner.machines.TreeGrowthSimulator.SETTING_KEYS.contains(s.getKey())
                     || com.gtnhplanner.machines.BacterialVat.SETTING_KEYS.contains(s.getKey());
-                if (modelled && s.getValue() instanceof final String v && !v.isEmpty()) settings.addProperty(s.getKey(), v);
+                if (modelled) settings.addProperty(s.getKey(), v);
+                else if (s.getKey()
+                    .startsWith(FfSettings.MACHINE))
+                    settings.addProperty(
+                        s.getKey()
+                            .substring(FfSettings.MACHINE.length()),
+                        v);
             }
             if (!settings.entrySet()
                 .isEmpty()) o.add("machineConfigTiers", settings);

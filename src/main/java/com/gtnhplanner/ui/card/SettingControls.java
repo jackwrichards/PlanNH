@@ -110,10 +110,10 @@ public final class SettingControls {
                     s.warn(),
                     true,
                     s.number() ? Type.NUMBER : Type.CHOICE,
-                    false));
+                    com.gtnhplanner.machines.game.WebSettings.COIL.equals(s.key())));
         // A modelled machine runs by the game's own rules (machines/): the TGS 100 ticks at VP[t], the vat GT's normal
         // overclocks. The generic speed, parallel and overclock knobs could only make numbers the game never does.
-        if (com.gtnhplanner.machines.game.MachineModels.isModelled(m.node)) return out;
+        if (com.gtnhplanner.machines.game.MachineModels.isModelled(m.node) || m.web != null) return out;
         for (final String group : GROUPS) {
             // The coil first, at the top of the machine's settings.
             if ("MACHINE".equals(group) && m.usesHeat) {

@@ -13,14 +13,14 @@ import com.gtnhplanner.importer.FfPlan.FfNode;
 import com.gtnhplanner.importer.FfPlan.FfRecipe;
 
 /**
- * An FF card's machine settings as GTNH Planner machine settings ({@link Settings} keys): the tier and amps it runs at,
- * the
- * multiblock flag, the coil, perfect overclocks, parallels, and the machine count.
+ * An FF card's machine settings as GTNH Planner machine settings: the tier and amps it runs at, the multiblock flag,
+ * the coil, the energy hatch type, every machine option (the website's machineConfigTiers, as {@code machine:<id>};
+ * the Tree Growth Simulator's and Bacterial Vat's under their own keys), and the machine count.
  *
  * <p>
  * FF reads a single block's tier off the card, floored at the recipe's own tier; a multiblock's off its energy
- * hatches (tier and amps), or off a raw EU/t budget, as FF's power.ts does. GTNH Planner's amps stop at 64, so more is
- * carried as higher tiers at the same total EU/t (4 A of a tier is 1 A of the next).
+ * hatches (tier and amps), or off a raw EU/t budget, as FF's power.ts does. Amps are whole, up to the website's
+ * 16,777,216.
  */
 public final class FfSettings {
 
@@ -37,9 +37,11 @@ public final class FfSettings {
         for (int i = 0; i < coils.length; i++) COIL_HEAT.put(coils[i], 1801 + 900 * i);
     }
 
-    private static final int MAX_AMPS = 64;
-    private static final int MAX_PARALLELS = 4096;
+    private static final int MAX_AMPS = 16_777_216;
     private static final int MAX_MACHINES = 4096;
+
+    /** The card settings for the website's coil, hatch type and machine options (machines/game/WebCards). */
+    public static final String COIL = "coil", HATCH_TYPE = "energy_hatch_type", MACHINE = "machine:";
 
     /**
      * @param settings     to put on the node
@@ -108,26 +110,19 @@ public final class FfSettings {
         }
 
         if (node.coilTier() != null) {
-            final Integer heat = COIL_HEAT.get(node.coilTier());
-            if (heat != null) s.put(Settings.MACHINE_HEAT.key(), heat);
+            if (COIL_HEAT.containsKey(node.coilTier())) s.put(COIL, node.coilTier());
             else notes.add("unknown coil '" + node.coilTier() + "' left at the default");
         }
-        if (handler != null && handler.perfectOverclock()) s.put(Settings.PERFECT_OC.key(), true);
-        if (node.parallel() > 1) {
-            s.put(Settings.PARALLELS.key(), Math.min(MAX_PARALLELS, node.parallel()));
-            if (node.parallel() > MAX_PARALLELS) notes.add(node.parallel() + " parallels capped at " + MAX_PARALLELS);
-        }
-        // The modelled machines' settings (the Tree Growth Simulator's tools and genes, the Bacterial Vat's glass,
-        // hatch, fill and radiation) are kept under the website's own keys; any other machine option is not.
-        final List<String> dropped = new java.util.ArrayList<>();
+        if (node.energyHatchType() != null) s.put(HATCH_TYPE, node.energyHatchType());
+        if (node.parallel() > 1) notes.add(node.parallel() + " parallels on the card not carried over");
+        // Every machine option, under the website's ids: the modelled machines' under their own keys, the rest as
+        // machine:<id> (machines/game/WebCards).
         for (final Map.Entry<String, String> option : node.machineConfigTiers()
             .entrySet()) {
-            if (com.gtnhplanner.machines.TreeGrowthSimulator.SETTING_KEYS.contains(option.getKey())
-                || com.gtnhplanner.machines.BacterialVat.SETTING_KEYS.contains(option.getKey()))
-                s.put(option.getKey(), option.getValue());
-            else dropped.add(option.getKey());
+            final boolean modelled = com.gtnhplanner.machines.TreeGrowthSimulator.SETTING_KEYS.contains(option.getKey())
+                || com.gtnhplanner.machines.BacterialVat.SETTING_KEYS.contains(option.getKey());
+            s.put(modelled ? option.getKey() : MACHINE + option.getKey(), option.getValue());
         }
-        if (!dropped.isEmpty()) notes.add("machine options " + String.join(", ", dropped) + " not carried over");
 
         int machines = 1;
         boolean pinned = false;

@@ -90,7 +90,6 @@ class FfConverterTest {
         assertEquals("UV", lcr.machineConfig.settings.get("voltage"));
         assertEquals(16, lcr.machineConfig.settings.get("amp"));
         assertEquals(true, lcr.machineConfig.settings.get("gt_multiblock"));
-        assertEquals(true, lcr.machineConfig.settings.get("perfect_oc"));
         assertEquals(1, lcr.machineConfig.getMachineCount());
         assertTrue(lcr.isMachineCountFixed(), "a Build plan runs its counts: they come over pinned");
         assertEquals("Large Chemical Reactor", game.machines.get(lcr.id));
@@ -160,7 +159,7 @@ class FfConverterTest {
         assertTrue(has(r.report(), Kind.CONVERTED, "1 direct wire"));
 
         final Node ebf = node(g, "Blast Furnace");
-        assertEquals(2701, ebf.machineConfig.settings.get("machine_heat"), "kanthal coils");
+        assertEquals("kanthal", ebf.machineConfig.settings.get("coil"));
         assertEquals("HV", ebf.machineConfig.settings.get("voltage"));
         assertEquals(4, ebf.machineConfig.settings.get("amp"), "two hatches at 2 A");
 
@@ -233,7 +232,11 @@ class FfConverterTest {
             }
         }
         assertTrue(has(r.report(), Kind.CONVERTED, "water hatch"));
-        assertTrue(has(r.report(), Kind.CONVERTED, "itemPipeCasing"));
+        assertTrue(
+            g.nodes.values()
+                .stream()
+                .anyMatch(n -> n.machineConfig.settings.containsKey("machine:itemPipeCasing")),
+            "the reactors' pipe casings come across under the website's id");
 
         final FakeGame game = new FakeGame();
         final List<Node> reactors = nodes(g, "Large Chemical Reactor");
@@ -256,7 +259,7 @@ class FfConverterTest {
             "both recipes on the shared reactor");
 
         final Node ebf = node(g, "Blast Furnace");
-        assertEquals(8101, ebf.machineConfig.settings.get("machine_heat"), "naquadah alloy coils");
+        assertEquals("naquadah_alloy", ebf.machineConfig.settings.get("coil"));
         assertEquals(2, ebf.machineConfig.getMachineCount(), "Build count kept as the starting count");
 
         final List<Drawer> waterHatches = g.getDrawers()

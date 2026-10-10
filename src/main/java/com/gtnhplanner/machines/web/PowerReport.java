@@ -49,7 +49,9 @@ public final class PowerReport {
         final double singleDrawEuT = Math.ceil(rawEuT * eutMultiplier * heatDiscount);
 
         final Overclock.Stats stats = Overclock.stats(recipe, node);
-        final double parallels = MachineEffects.parallelMultiplier(effective, node);
+        final Web.RuntimeVariant runtime = RuntimeCalculation.select(effective, node);
+        final double parallels = runtime != null && runtime.parallel != null ? runtime.parallel
+            : MachineEffects.parallelMultiplier(effective, node);
         final double drawEuT = Math.abs(stats.eut()) * parallels;
         final MachineTable.Behaviour behaviour = MachineTable.behaviour(effective.machineType);
         final Integer voltageLimit = behaviour != null && behaviour.inputVoltageTierLimit != null

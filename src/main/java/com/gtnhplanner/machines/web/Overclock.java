@@ -5,10 +5,10 @@ import javax.annotation.Nullable;
 /**
  * A recipe overclocked as the website computes it (src/lib/solver/overclock.ts, getOverclockedRecipeStats): the run
  * tier, the steps (perfect first, then normal), the duration in ticks as the game runs it and the EU/t. Branches in the
- * website's order: power cards as written, the picked machine's handler, fusion, the Extreme Entity Crusher, then the
- * generic path (table or scraped coefficients, heat discount, parallels paid before overclocks, a singleblock's voltage
- * cap, quantising). The website's runtime variants agree with the generic path for every singleblock recipe; its
- * crops and bees, and the Tree Growth Simulator (the mod's own model), are not here.
+ * website's order: power cards as written, the picked machine's handler, fusion, the Extreme Entity Crusher, the
+ * game's own ladder where the website prefers it ({@link RuntimeCalculation}), then the generic path (table or scraped
+ * coefficients, heat discount, parallels paid before overclocks, a singleblock's voltage cap, quantising). Its crops
+ * and bees, and the Tree Growth Simulator (the mod's own model), are not here.
  */
 public final class Overclock {
 
@@ -47,6 +47,20 @@ public final class Overclock {
                 ExtremeEntityCrusher.settings(node.machineConfigTiers),
                 Tiers.maxEuT(tier) * Power.amps(effective, node));
             return new Stats(tier, minimumTier, s.steps(), s.steps(), 4, 4, s.durationTicks(), s.eut());
+        }
+
+        final Web.RuntimeVariant runtime = RuntimeCalculation.select(effective, node);
+        if (runtime != null) {
+            final String runtimeTier = RuntimeCalculation.tier(runtime, tier);
+            return new Stats(
+                runtimeTier,
+                minimumTier,
+                RuntimeCalculation.overclockSteps(runtimeTier, minimumTier),
+                0,
+                4,
+                4,
+                runtime.durationTicks,
+                runtime.eut);
         }
 
         final double durationMultiplier = effective.machineType != null

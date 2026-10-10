@@ -67,20 +67,20 @@ public record SolveInput(BalanceMode mode, @Nullable ChoiceKey choice, List<Mach
      * @param name       the ingredient's display name, resolved when the snapshot was taken.
      * @param free       whether the pack gives this ingredient away ({@link Config#isFreeIngredient}).
      */
-    public record PortIn(double amount, float chance, float multiplier, int resource, String name, boolean free) {}
+    public record PortIn(double amount, float chance, double multiplier, int resource, String name, boolean free) {}
 
     /**
      * One machine (node) with its effect already computed.
      *
-     * @param durationTicks     ticks per craft after overclocking and tick modifiers.
-     * @param energyPerTick     energy per tick of one craft.
+     * @param durationTicks     ticks per craft after overclocking and tick modifiers, exactly.
+     * @param energyPerTick     energy per tick of one craft, exactly.
      * @param throughputFactor  how many crafts one machine runs at once (parallels).
      * @param countFixed        whether the machine count is pinned.
      * @param machineCount      the configured machine count (the pin when {@code countFixed}).
      * @param targetOutputRates the node's target output rates, units/s by output index.
      * @param properties        the node's numeric recipe properties, for the per-run totals.
      */
-    public record Machine(UUID id, String name, int durationTicks, long energyPerTick, int throughputFactor,
+    public record Machine(UUID id, String name, double durationTicks, double energyPerTick, int throughputFactor,
         List<PortIn> inputs, List<PortIn> outputs, boolean countFixed, int machineCount,
         Map<Integer, Double> targetOutputRates, Map<RecipeProperty<?>, Number> properties) {
 
@@ -187,11 +187,17 @@ public record SolveInput(BalanceMode mode, @Nullable ChoiceKey choice, List<Mach
         final EffectResult effect = node.isPower() ? null : cfg.computeEffect(node.properties);
         final List<PortIn> inputs = new ArrayList<>(node.inputs.size());
         for (int i = 0; i < node.inputs.size(); i++) {
-            inputs.add(ingredients.portOf(node.inputs.get(i), cfg.inputMultiplier(i)));
+            inputs.add(
+                ingredients.portOf(
+                    node.inputs.get(i),
+                    cfg.inputMultiplier(i) * (effect == null ? 1 : effect.inputMultiplier(i))));
         }
         final List<PortIn> outputs = new ArrayList<>(node.outputs.size());
         for (int i = 0; i < node.outputs.size(); i++) {
-            outputs.add(ingredients.portOf(node.outputs.get(i), cfg.outputMultiplier(i)));
+            outputs.add(
+                ingredients.portOf(
+                    node.outputs.get(i),
+                    cfg.outputMultiplier(i) * (effect == null ? 1 : effect.outputMultiplier(i))));
         }
         final Map<RecipeProperty<?>, Number> properties = new LinkedHashMap<>();
         for (final Map.Entry<RecipeProperty<?>, Object> e : node.properties.entrySet()) {
@@ -207,8 +213,8 @@ public record SolveInput(BalanceMode mode, @Nullable ChoiceKey choice, List<Mach
         return new Machine(
             node.id,
             node.machineName == null ? "" : node.machineName,
-            power ? 20 : effect.durationTicks(),
-            power ? 0 : effect.energyPerT(),
+            power ? 20 : effect.duration(),
+            power ? 0 : effect.energy(),
             power ? 1 : effect.throughputFactor(),
             inputs,
             outputs,
@@ -223,7 +229,7 @@ public record SolveInput(BalanceMode mode, @Nullable ChoiceKey choice, List<Mach
 
         private final List<Port<?>> representatives = new ArrayList<>();
 
-        PortIn portOf(final Port<?> port, final float multiplier) {
+        PortIn portOf(final Port<?> port, final double multiplier) {
             final String name = port.getDisplayName();
             return new PortIn(
                 port.amount(),

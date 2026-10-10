@@ -360,8 +360,8 @@ public final class Summary extends GraphData {
             if (nb == null) continue;
 
             final float scale = mode == Mode.THROUGHPUT
-                ? (float) GuiHelper.TICKS_PER_SECOND / Math.max(1, nb.durationPerOp())
-                : (float) cycleTicks / Math.max(1, nb.durationPerOp());
+                ? (float) (GuiHelper.TICKS_PER_SECOND / Math.max(1e-9, nb.durationPerOp()))
+                : (float) (cycleTicks / Math.max(1e-9, nb.durationPerOp()));
             accumulate(node.outputs, nb.effectiveOutputs(), scale, outputs);
             accumulate(node.inputs, nb.effectiveInputs(), scale, inputs);
         }
@@ -394,7 +394,7 @@ public final class Summary extends GraphData {
         for (final Node node : graph.getNodes()) {
             final var nb = balance.nodeBalances()
                 .get(node.id);
-            if (nb != null) maxTicks = Math.max(maxTicks, nb.durationPerOp());
+            if (nb != null) maxTicks = Math.max(maxTicks, (int) Math.ceil(nb.durationPerOp()));
         }
         return Math.max(maxTicks, 20);
     }

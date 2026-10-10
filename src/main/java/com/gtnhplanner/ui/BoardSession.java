@@ -1561,7 +1561,7 @@ public final class BoardSession {
     /** Picks which machine runs the recipe; GregTech single blocks bring their tier, multiblocks their options. */
     public void chooseMachine(final Node node, final ItemStack machine, final boolean gregtech) {
         edit(() -> {
-            CardDefaults.useMachine(node, machine, gregtech);
+            CardDefaults.switchMachine(node, machine, gregtech);
             syncShared(node);
         });
     }

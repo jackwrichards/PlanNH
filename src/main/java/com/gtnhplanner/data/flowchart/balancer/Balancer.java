@@ -355,14 +355,14 @@ public final class Balancer {
         final Map<UUID, NodeBalance> nodeBalances = new HashMap<>();
         final Map<RecipeProperty<?>, Long> propertyTotals = new HashMap<>();
         double totalOps = 0;
-        int totalDuration = 0;
+        double totalDuration = 0;
 
         for (final SolveInput.Machine machine : input.machines()) {
             final double count = machineCounts.getOrDefault(machine.id(), 0.0);
             totalOps += count;
 
-            final long eutPerOp = machine.energyPerTick();
-            final int durPerOp = machine.durationTicks();
+            final double eutPerOp = machine.energyPerTick();
+            final double durPerOp = machine.durationTicks();
             final int throughputFactor = machine.throughputFactor();
 
             final long totalEnergy = Math.round(eutPerOp * durPerOp * count);
@@ -410,13 +410,19 @@ public final class Balancer {
         }
 
         if (auto == null) {
-            return new BalanceResult.Fallback(nodeBalances, propertyTotals, totalOps, totalDuration, notes, drawers);
+            return new BalanceResult.Fallback(
+                nodeBalances,
+                propertyTotals,
+                totalOps,
+                (int) Math.ceil(totalDuration),
+                notes,
+                drawers);
         }
         return new BalanceResult.Solved(
             nodeBalances,
             propertyTotals,
             totalOps,
-            totalDuration,
+            (int) Math.ceil(totalDuration),
             notes,
             auto,
             alternatives,
@@ -431,7 +437,7 @@ public final class Balancer {
      *                         all {@code operations} machines; see {@link #outputPerSecond}.
      * @param effectiveInputs  the same for inputs.
      */
-    public record NodeBalance(double operations, int totalDurationTicks, long totalEnergy, int durationPerOp,
+    public record NodeBalance(double operations, double totalDurationTicks, long totalEnergy, double durationPerOp,
         Map<Integer, Float> effectiveOutputs, Map<Integer, Float> effectiveInputs) {
 
         /** Units per second through output {@code index} (0 when it carries nothing). */
@@ -446,7 +452,7 @@ public final class Balancer {
 
         private double perSecond(@Nullable final Float perCycle) {
             if (perCycle == null) return 0;
-            return perCycle * (double) Numerics.TICKS_PER_SECOND / Math.max(1, durationPerOp);
+            return perCycle * (double) Numerics.TICKS_PER_SECOND / (durationPerOp > 0 ? durationPerOp : 1);
         }
     }
 

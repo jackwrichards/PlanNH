@@ -68,6 +68,9 @@ public final class HandlerData {
         public Double eut;
         @Nullable
         public List<String> controls;
+        /** The machines this handler stands for, by their website ids ({@code gregtech:gt.blockmachines@1193}). */
+        @Nullable
+        public List<String> items;
     }
 
     /** What the website's getRecipeMachineHandlers gives the map's first recipe. */
@@ -85,6 +88,8 @@ public final class HandlerData {
         @Nullable
         public String table;
         public boolean multiblock;
+        @Nullable
+        public List<String> items;
     }
 
     /** A control in the file's compact form: options carry an icon id and a name in place of a resource. */
@@ -110,6 +115,22 @@ public final class HandlerData {
     private static Map<String, Web.Control> controls;
     private static List<Coil> coils;
     private static List<String> tierNames;
+    /** The dataset's tier names for a recipe's draw and their voltages (it has no UMV: such draws read UXV). */
+    private static List<String> recipeTierNames;
+    private static List<Double> recipeTierVoltages;
+
+    /**
+     * A recipe's minimumTier as the website's dataset writes it (normalize-oracle-export.mjs voltageTierForEu): the
+     * first of its tiers whose voltage carries |EU/t|, else MAX. Its table skips UMV, so a UMV draw is marked UXV and a
+     * UXV draw OpV (read as UXV): the website's own numbers, kept.
+     */
+    public static String recipeMinimumTier(final double eut) {
+        load();
+        final double abs = Math.abs(eut);
+        for (int i = 0; i < recipeTierNames.size(); i++)
+            if (abs <= recipeTierVoltages.get(i)) return recipeTierNames.get(i);
+        return "MAX";
+    }
 
     /** The entry for a game recipe map id ({@code RecipeMap.unlocalizedName}, or "smelting"), or null. */
     @Nullable
@@ -209,12 +230,24 @@ public final class HandlerData {
         final Map<String, Web.Control> byRef = new HashMap<>();
         final List<Coil> coilList = new ArrayList<>();
         final List<String> names = new ArrayList<>();
+        final List<String> recipeNames = new ArrayList<>();
+        final List<Double> recipeVoltages = new ArrayList<>();
         try (InputStream in = HandlerData.class.getResourceAsStream("/assets/gtnhplanner/machines/handlers.json")) {
             if (in != null) {
                 final Gson gson = new Gson();
                 final JsonObject root = new JsonParser().parse(new InputStreamReader(in, StandardCharsets.UTF_8))
                     .getAsJsonObject();
                 for (final JsonElement e : root.getAsJsonArray("tiers")) names.add(e.getAsString());
+                if (root.has("recipeTiers")) for (final JsonElement e : root.getAsJsonArray("recipeTiers")) {
+                    recipeNames.add(
+                        e.getAsJsonArray()
+                            .get(0)
+                            .getAsString());
+                    recipeVoltages.add(
+                        e.getAsJsonArray()
+                            .get(1)
+                            .getAsDouble());
+                }
                 for (final JsonElement e : root.getAsJsonArray("coils")) {
                     final JsonObject c = e.getAsJsonObject();
                     coilList.add(
@@ -238,6 +271,12 @@ public final class HandlerData {
             // Without the file every recipe falls back to a machine named for its map, as the website's would.
         }
         tierNames = names.isEmpty() ? List.of(Tiers.NAMES) : names;
+        if (recipeNames.isEmpty()) for (int i = 0; i < Tiers.NAMES.length - 1; i++) {
+            recipeNames.add(Tiers.NAMES[i]);
+            recipeVoltages.add(Tiers.MAX_EUT[i]);
+        }
+        recipeTierNames = recipeNames;
+        recipeTierVoltages = recipeVoltages;
         coils = coilList;
         controls = byRef;
         maps = byId;

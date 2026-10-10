@@ -1181,11 +1181,11 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
                 getPanel(),
                 NumberPopup.create(
                     s.label(),
-                    s.min() + " to " + s.max(),
+                    plainNumber(s.min()) + (s.max() < Double.MAX_VALUE ? " to " + plainNumber(s.max()) : " or more"),
                     Double.parseDouble(s.value()),
                     s.min(),
                     s.max(),
-                    v -> changeMachine(key, plainNumber(Math.max(s.min(), Math.min(s.max(), v))))),
+                    v -> changeMachine(key, plainNumber(snap(s, v)))),
                 sx,
                 sy);
             return;
@@ -1216,8 +1216,7 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         final com.gtnhplanner.machines.game.MachineModels.Setting s = machineSetting(key);
         if (s == null) return;
         if (s.number()) {
-            final double next = Math.max(s.min(), Math.min(s.max(), Math.floor(Double.parseDouble(s.value())) + step));
-            changeMachine(key, plainNumber(next));
+            changeMachine(key, plainNumber(snap(s, Double.parseDouble(s.value()) + step * s.step())));
             return;
         }
         final List<com.gtnhplanner.machines.game.MachineModels.Option> options = s.options();
@@ -1240,15 +1239,23 @@ public final class RecipeCard extends ParentWidget<RecipeCard> implements Intera
         return "";
     }
 
+    /** A typed or stepped number on the setting's steps, within its range. */
+    private static double snap(final com.gtnhplanner.machines.game.MachineModels.Setting s, final double v) {
+        final double stepped = s.step() > 0 ? Math.round(v / s.step()) * s.step() : v;
+        return Math.max(s.min(), Math.min(s.max(), stepped));
+    }
+
     private static String plainNumber(final double v) {
-        final double rounded = Math.round(v * 10) / 10.0;
-        return rounded == Math.rint(rounded) ? Long.toString((long) rounded) : Double.toString(rounded);
+        return java.math.BigDecimal.valueOf(Math.round(v * 1e6) / 1e6)
+            .stripTrailingZeros()
+            .toPlainString();
     }
 
     /** Changes a modelled machine's setting; a tree's tools are remembered for its next card, as other settings. */
     private void changeMachine(final String key, final String value) {
         final Node node = model.node;
-        if (key.startsWith("tgs")) changeSetting(node, key, value);
+        if (key.startsWith("tgs") || com.gtnhplanner.machines.game.WebSettings.isKey(key))
+            changeSetting(node, key, value);
         else session.setSetting(node, key, value);
     }
 

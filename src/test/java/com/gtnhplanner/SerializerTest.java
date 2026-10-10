@@ -304,9 +304,8 @@ class SerializerTest {
         cfg.profileId = GT_PROFILE;
         cfg.settings.put(Settings.VOLTAGE.key(), "HV");
         cfg.settings.put(Settings.AMP.key(), 4);
-        cfg.settings.put(Settings.MACHINE_HEAT.key(), 4500); // the coil
-        cfg.settings.put(Settings.PARALLELS.key(), 16);
-        cfg.settings.put(Settings.PERFECT_OC.key(), true);
+        cfg.settings.put("coil", "tpv");
+        cfg.settings.put("machine:itemPipeCasing", "steel"); // a machine's own setting, under the website's id
         cfg.setMachineCount(7);
         reactor.setMachineCountFixed(true);
 
@@ -317,9 +316,8 @@ class SerializerTest {
         assertEquals(GT_PROFILE, back.profileId);
         assertEquals("HV", back.getString(Settings.VOLTAGE.key()));
         assertEquals(4, back.getInt(Settings.AMP.key()));
-        assertEquals(4500, back.getInt(Settings.MACHINE_HEAT.key()));
-        assertEquals(16, back.getInt(Settings.PARALLELS.key()));
-        assertTrue(back.getBoolean(Settings.PERFECT_OC.key()));
+        assertEquals("tpv", back.getString("coil"));
+        assertEquals("steel", back.getString("machine:itemPipeCasing"));
         assertEquals(7, back.getMachineCount());
         assertTrue(restored.isMachineCountFixed(), "the pinned count stays pinned");
         // The distillery's number pin from the chart survives too, and the electrolyzer stays free.
@@ -389,6 +387,31 @@ class SerializerTest {
     // ── helpers ──
 
     /** A profile carrying GregTech's settings, built directly: the real one needs a running client. */
+    @Test
+    void anOldCoilHeatBecomesTheHottestCoilUnderIt() {
+        registerGtProfile();
+        final LoadedChart chart = GtnhFlowLoader.load("light_fuel");
+        final Node reactor = chart.machine(0);
+        reactor.machineConfig.profileId = GT_PROFILE;
+        final JsonObject saved = new com.google.gson.JsonParser().parse(gunzip(Serializer.encode(chart.graph())))
+            .getAsJsonObject();
+        // A plan saved before the website's machine maths: the coil kept as its heat.
+        for (final com.google.gson.JsonElement n : saved.getAsJsonArray("nodes")) {
+            final JsonObject node = n.getAsJsonObject();
+            if (!node.get("id")
+                .getAsString()
+                .equals(reactor.id.toString())) continue;
+            if (!node.has("machineConfig")) node.add("machineConfig", new JsonObject());
+            final JsonObject mc = node.getAsJsonObject("machineConfig");
+            final JsonObject settings = mc.has("settings") ? mc.getAsJsonObject("settings") : new JsonObject();
+            settings.addProperty("machine_heat", 4500);
+            mc.add("settings", settings);
+        }
+        final MachineConfig back = Serializer.decode(gzipped(saved.toString())).nodes.get(reactor.id).machineConfig;
+        assertEquals("nichrome", back.getString("coil"), "3601 K is the hottest coil at or under 4500 K");
+        assertFalse(back.settings.containsKey("machine_heat"));
+    }
+
     private static void registerGtProfile() {
         GtnhFlowLoader.ensureDefaultMachineProfile();
         if (MachineProfileRegistry.get(GT_PROFILE) != null) return;
@@ -399,10 +422,8 @@ class SerializerTest {
                 List.of(
                     Settings.VOLTAGE.def(),
                     Settings.AMP.def(),
-                    Settings.PARALLELS.def(),
                     Settings.MACHINES.def(),
-                    Settings.PERFECT_OC.def(),
-                    Settings.MACHINE_HEAT.def()),
+                    com.gtnhplanner.data.SettingDef.enumDef("coil", "", List.of(), (v, c) -> null)),
                 (s, ctx) -> new EffectResult(ctx.getOrDefault(GtnhFlowLoader.DURATION_TICKS, 1), 0, 1)));
     }
 

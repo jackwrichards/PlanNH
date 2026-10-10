@@ -169,6 +169,8 @@ public final class RecipeRules {
             : isSteamHandler(handler) ? 0 : handlerEut != null ? handlerEut : recipe.eut;
 
         final Web.Recipe out = recipe.copy();
+        // The game's ladder was run for the map's own machine: another machine falls back to the port's maths.
+        out.runtimeCalculation = handler.id.equals(handlers.get(0).id) ? recipe.runtimeCalculation : null;
         out.machineType = handler.machineType;
         out.minimumTier = tgs ? "LV" : minimumTier;
         out.maximumTier = handler.maximumTier;

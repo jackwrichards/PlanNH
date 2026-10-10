@@ -59,6 +59,7 @@ final class DevRecipes {
                 } else {
                     node = new Node(handler, i, x, y);
                     com.gtnhplanner.ui.card.CardDefaults.apply(node);
+                    com.gtnhplanner.ui.card.CardDefaults.seedHatches(node);
                     final Graph graph = Plan.getActiveGraph();
                     PlanAPI.recordEdit(graph, () -> graph.addNode(node));
                     PlanAPI.save();

@@ -324,5 +324,20 @@ public final class Posting {
             final String t = v == null ? "" : v.toString();
             return t.isEmpty() || "OFF".equals(t) ? "LV" : t;
         }
+
+        @Override
+        public boolean multiblock(final Node node) {
+            final com.gtnhplanner.machines.web.NodeMath.Result r = com.gtnhplanner.machines.game.WebEffect
+                .result(node, node.machineConfig);
+            return r != null ? com.gtnhplanner.machines.web.Power.isMultiblock(r.effectiveRecipe())
+                : PlanExport.World.super.multiblock(node);
+        }
+
+        @Override
+        @Nullable
+        public String handlerId(final Node node) {
+            final com.gtnhplanner.machines.web.Web.Recipe recipe = com.gtnhplanner.machines.game.WebEffect.recipe(node);
+            return recipe == null ? null : com.gtnhplanner.machines.game.WebCards.handlerId(node, recipe);
+        }
     }
 }

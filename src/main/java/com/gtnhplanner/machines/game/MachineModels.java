@@ -380,14 +380,24 @@ public final class MachineModels {
     /** A choice of a card's setting: its stored value, name and icon. */
     public record Option(String key, String label, @Nullable ItemStack icon) {}
 
-    /** A setting the card offers: a list to pick from, or a number in a range. */
+    /** A setting the card offers: a list to pick from, or a number in a range, in steps of {@code step}. */
     public record Setting(String key, String label, String value, @Nullable ItemStack icon, List<Option> options,
-        boolean number, int min, int max, boolean warn) {}
+        boolean number, double min, double max, double step, boolean warn) {
 
-    /** The node's settings as its card offers them, in the website's order; empty for any other machine. */
+        public Setting(final String key, final String label, final String value, @Nullable final ItemStack icon,
+            final List<Option> options, final boolean number, final double min, final double max, final boolean warn) {
+            this(key, label, value, icon, options, number, min, max, 1, warn);
+        }
+    }
+
+    /**
+     * The node's settings as its card offers them, in the website's order: the modelled machines' own, any other
+     * GregTech card's from the website's machine maths (WebSettings); empty for any other machine.
+     */
     public static List<Setting> settings(final Node node) {
         final List<Setting> out = new ArrayList<>();
         if (node.isPower() || node.machineConfig == null) return out;
+        if (!isTgs(node.properties) && !isVat(node.properties)) return WebSettings.settings(node);
         final MachineConfig cfg = node.machineConfig;
         if (isTgs(node.properties)) {
             final TreeGrowthSimulator.Tree tree = tree(node);

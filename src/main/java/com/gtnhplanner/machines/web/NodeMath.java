@@ -44,7 +44,10 @@ public final class NodeMath {
         final double parallel) {
         final Web.Recipe effective = RecipeRules.applyHandler(recipe, node);
         final Overclock.Stats stats = Overclock.stats(recipe, node);
-        final double machineParallels = MachineEffects.parallelMultiplier(effective, node);
+        final Web.RuntimeVariant runtime = RuntimeCalculation.select(effective, node);
+        final double machineParallels = runtime != null && runtime.parallel != null ? runtime.parallel
+            : MachineEffects.parallelMultiplier(effective, node);
+        final List<Web.Resource> runtimeOutputs = RuntimeCalculation.outputs(effective, node);
         final PowerReport.Report power = PowerReport.has(recipe) ? PowerReport.report(recipe, node) : null;
         final String stall = power != null && power.stalled() ? PowerReport.describeStall(power) : null;
         final double rate = machineCount * parallel * machineParallels * 20 / stats.durationTicks();
@@ -53,8 +56,9 @@ public final class NodeMath {
         for (final Web.Resource input : recipe.inputs) inputs.add(input.isConsumed() ? input.amount * rate : 0);
         final List<Double> multipliers = new ArrayList<>();
         final List<Double> outputs = new ArrayList<>();
-        for (final Web.Resource output : effective.outputs) {
-            final double multiplier = MachineEffects.outputMultiplier(effective, node, output, stats.tier());
+        for (final Web.Resource output : runtimeOutputs != null ? runtimeOutputs : effective.outputs) {
+            final double multiplier = runtimeOutputs != null ? 1
+                : MachineEffects.outputMultiplier(effective, node, output, stats.tier());
             multipliers.add(multiplier);
             outputs.add(output.amount * (output.chance != null ? output.chance : 1) * multiplier * rate);
         }

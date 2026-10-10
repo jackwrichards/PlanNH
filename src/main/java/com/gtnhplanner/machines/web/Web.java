@@ -212,6 +212,41 @@ public final class Web {
         public List<String> additionalInfo;
     }
 
+    /** One run of GT's own OverclockCalculator at a tier (RuntimeCalculationVariant), as the dataset exports it. */
+    public static class RuntimeVariant {
+
+        public String id;
+        @Nullable
+        public String label;
+        @Nullable
+        public String machineHandlerId;
+        @Nullable
+        public String overclockTier;
+        @Nullable
+        public String coilTier;
+        @Nullable
+        public Map<String, String> machineConfigTiers;
+        public double durationTicks;
+        public double eut;
+        @Nullable
+        public Double parallel;
+        @Nullable
+        public List<Resource> outputs;
+    }
+
+    /** The game's own overclock ladder for a recipe (RuntimeCalculation). */
+    public static class RuntimeCalculation {
+
+        @Nullable
+        public String status;
+        @Nullable
+        public Boolean oracleEligible;
+        @Nullable
+        public Boolean strict;
+        @Nullable
+        public List<RuntimeVariant> variants;
+    }
+
     /** A recipe as the website's solver reads it (Recipe). */
     public static class Recipe {
 
@@ -250,6 +285,8 @@ public final class Web {
         public JsonObject metadata;
         @Nullable
         public Nei nei;
+        @Nullable
+        public RuntimeCalculation runtimeCalculation;
 
         /** A shallow copy, as the website's {@code {...recipe}}. */
         public Recipe copy() {
@@ -275,6 +312,7 @@ public final class Web {
             r.source = source;
             r.metadata = metadata;
             r.nei = nei;
+            r.runtimeCalculation = runtimeCalculation;
             return r;
         }
     }

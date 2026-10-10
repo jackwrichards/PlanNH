@@ -74,6 +74,11 @@ public final class CardModel {
     public final int recipeHeat;
     /** A non-recipe machine's source, model and readings; null on a recipe card. */
     public final PowerView power;
+    /**
+     * The website's machine maths for a GregTech card (machines/web): the run, its parallels and why it would not
+     * start; null on any other card, and on the Tree Growth Simulator and Bacterial Vat (their own models).
+     */
+    public final com.gtnhplanner.machines.web.NodeMath.Result web;
 
     /**
      * A power card's source and its model at the card's settings, with the stat lines to show: the model's own, then
@@ -92,7 +97,7 @@ public final class CardModel {
         final boolean multiblock, final int coilHeat, final boolean usesHeat, final int parallels,
         final List<PortView> inputs, final List<PortView> outputs, final int durationTicks, final long euPerTick,
         final double machines, final boolean pinned, final ItemStack circuit, final int recipeHeat,
-        final PowerView power) {
+        final PowerView power, final com.gtnhplanner.machines.web.NodeMath.Result web) {
         this.node = node;
         this.machineName = machineName;
         this.catalysts = catalysts;
@@ -113,6 +118,7 @@ public final class CardModel {
         this.circuit = circuit;
         this.recipeHeat = recipeHeat;
         this.power = power;
+        this.web = web;
     }
 
     public boolean isPower() {
@@ -147,8 +153,12 @@ public final class CardModel {
         return euPerTick * machines;
     }
 
-    /** A GregTech recipe set below its own tier cannot run: its EU/t is more than the tier's voltage and amps. */
+    /**
+     * A GregTech recipe the game would not start: the website's power report says why (too few amps, hatches more
+     * than a tier below the recipe, a structural gate). Without it, its EU/t over the tier's voltage and amps.
+     */
     public boolean tierTooLow() {
+        if (web != null) return web.stalled();
         if (!gregtech || !(node.properties.get(com.gtnhplanner.data.provider.GTKeys.EU_PER_TICK) instanceof final Number eut))
             return false;
         final int t = CardDefaults.tierIndex(tier);
@@ -167,6 +177,11 @@ public final class CardModel {
         final boolean gregtech = GT_PROFILE.equals(cfg.profileId);
         final EffectResult effect = cfg.computeEffect(node.properties);
         final int duration = Math.max(1, effect.durationTicks());
+        final com.gtnhplanner.machines.web.NodeMath.Result web = gregtech
+            ? com.gtnhplanner.machines.game.WebEffect.result(node, cfg)
+            : null;
+        final com.gtnhplanner.machines.game.WebSettings.Coil coil = web == null ? null
+            : com.gtnhplanner.machines.game.WebSettings.coil(node, cfg, web);
 
         final RecipeHandlerRef ref = RecipeHandlerRef.of(node.recipeId);
         final List<ItemStack> catalysts = catalysts(ref);
@@ -192,10 +207,13 @@ public final class CardModel {
             gregtech,
             gregtech ? CardDefaults.stringSetting(cfg, "voltage") : "",
             gregtech ? Math.max(1, CardDefaults.intSetting(cfg, "amp")) : 1,
-            gregtech && CardDefaults.boolSetting(cfg, "gt_multiblock"),
-            gregtech ? CardDefaults.intSetting(cfg, "machine_heat") : 0,
-            gregtech && (node.properties.containsKey(com.gtnhplanner.data.provider.GTKeys.COIL_HEAT)),
-            gregtech ? Math.max(1, CardDefaults.intSetting(cfg, "parallels")) : 1,
+            web != null ? com.gtnhplanner.machines.web.Power.isMultiblock(web.effectiveRecipe())
+                : gregtech && CardDefaults.boolSetting(cfg, "gt_multiblock"),
+            web != null ? coil == null ? 0 : coil.heat() : gregtech ? CardDefaults.intSetting(cfg, "machine_heat") : 0,
+            web != null ? coil != null
+                : gregtech && (node.properties.containsKey(com.gtnhplanner.data.provider.GTKeys.COIL_HEAT)),
+            web != null ? (int) Math.min(Integer.MAX_VALUE, web.machineParallels())
+                : gregtech ? Math.max(1, CardDefaults.intSetting(cfg, "parallels")) : 1,
             inputs,
             outputs,
             duration,
@@ -203,8 +221,12 @@ public final class CardModel {
             machines,
             node.isMachineCountFixed(),
             circuit(ref),
-            node.properties.get(com.gtnhplanner.data.provider.GTKeys.COIL_HEAT) instanceof final Number h ? h.intValue() : 0,
-            null);
+            web != null ? coil == null ? 0 : coil.recipeHeat()
+                : node.properties.get(com.gtnhplanner.data.provider.GTKeys.COIL_HEAT) instanceof final Number h
+                    ? h.intValue()
+                    : 0,
+            null,
+            web);
     }
 
     /**
@@ -239,7 +261,8 @@ public final class CardModel {
             node.isMachineCountFixed(),
             null,
             0,
-            new PowerView(source, model, stats));
+            new PowerView(source, model, stats),
+            null);
     }
 
     private static List<PortView> ports(final List<Port<?>> ports, final boolean output,

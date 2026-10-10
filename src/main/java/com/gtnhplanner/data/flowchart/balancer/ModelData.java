@@ -25,7 +25,7 @@ public final class ModelData {
     public static final class Machine {
 
         final SolveInput.Machine spec;
-        public final int durTicks;
+        public final double durTicks;
 
         /** The machine as the snapshot took it: id, name, ports and effect. */
         public SolveInput.Machine spec() {
@@ -41,7 +41,7 @@ public final class ModelData {
 
         private Machine(final SolveInput.Machine spec) {
             this.spec = spec;
-            this.durTicks = Math.max(1, spec.durationTicks());
+            this.durTicks = spec.durationTicks() > 0 ? spec.durationTicks() : 1;
             final int tf = spec.throughputFactor();
             this.inQty = new double[spec.inputs()
                 .size()];

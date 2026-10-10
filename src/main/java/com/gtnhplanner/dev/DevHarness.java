@@ -485,6 +485,9 @@ public final class DevHarness {
                         return error("GregTech is not loaded (start with PLANNH_GTNH=1)");
                     }
                 });
+            case "/machinemath":
+                // Every card of the active plan as the website's machine maths see it (machines/web).
+                return onClient(() -> q.containsKey("maps") ? DevMachineMath.maps() : DevMachineMath.report());
             case "/machinedata":
                 // The website's side files for the TGS and the Bacterial Vat, read from this game (the full pack).
                 return onClient(() -> {
@@ -720,6 +723,7 @@ public final class DevHarness {
                 "/library[?url=<base>] - the site the library uses (tools/dev/mock-library.mjs is a local stand-in)",
                 "/gtmachines?q=turbine[&all=1][&art=1] - GregTech multiblocks (all=1: every machine) as the game names them; art=1 adds the bundled picture each resolves to",
                 "/machinedata?dir=<path> - writes the website's TGS, Bacterial Vat and radio hatch side files from this game (run in the full pack)",
+                "/machinemath - every card of the active plan as the website's machine maths see it: machine, handler, settings, ticks, EU/t, parallels",
                 "/slots[?add=name | switch=i | delete=i] - list, open, switch or delete plan slots",
                 "/clearplan - empty the active board (one undoable edit)",
                 "/board - open board as data: view, and per card its state and every control's GUI rect (cx, cy)",

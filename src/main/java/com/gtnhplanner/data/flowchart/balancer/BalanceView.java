@@ -110,17 +110,18 @@ public final class BalanceView {
         final double count = cfg.getMachineCount();
         if (count <= 0) return;
         final var eff = cfg.computeEffect(node.properties);
-        final int durTicks = Math.max(1, eff.durationTicks());
+        final double durTicks = eff.duration() > 0 ? eff.duration() : 1;
         final int tf = eff.throughputFactor();
         final List<Port<?>> ports = input ? node.inputs : node.outputs;
         for (int i = 0; i < ports.size(); i++) {
             final Port<?> port = ports.get(i);
             if (wired.contains(new PortRef(node.id, i, input))) continue;
             final double qty = Math.max(0, port.amount()) * port.getChance()
-                * (input ? cfg.inputMultiplier(i) : cfg.outputMultiplier(i))
+                * (input ? cfg.inputMultiplier(i) * eff.inputMultiplier(i)
+                    : cfg.outputMultiplier(i) * eff.outputMultiplier(i))
                 * tf;
             if (qty <= 0) continue;
-            final double rate = count * qty * GuiHelper.TICKS_PER_SECOND / (double) durTicks;
+            final double rate = count * qty * GuiHelper.TICKS_PER_SECOND / durTicks;
             out.add(
                 new Boundary(
                     new PortRef(node.id, i, input),

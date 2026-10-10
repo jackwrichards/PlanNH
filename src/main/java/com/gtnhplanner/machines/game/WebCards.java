@@ -59,7 +59,7 @@ public final class WebCards {
     @Nullable
     public static Web.Recipe recipe(final Node node) {
         final String mapId = mapId(node);
-        final HandlerData.MapEntry entry = HandlerData.map(mapId);
+        final HandlerData.MapEntry entry = entry(mapId);
         if (entry == null) return null;
         final boolean smelting = SMELTING.equals(mapId);
         final Web.Recipe r = new Web.Recipe();
@@ -70,7 +70,7 @@ public final class WebCards {
         r.machineType = entry.name;
         r.durationTicks = smelting ? 200 : number(node.properties.get(RecipePropertyAPI.DURATION_TICKS));
         r.eut = smelting ? 0 : number(node.properties.get(GTKeys.EU_PER_TICK));
-        r.minimumTier = smelting ? "NONE" : Tiers.forEuT(r.eut);
+        r.minimumTier = smelting ? "NONE" : HandlerData.recipeMinimumTier(r.eut);
         final double special = number(node.properties.get(GTProvider.SPECIAL_VALUE));
         r.specialValue = special;
         r.nei = new Web.Nei();
@@ -78,15 +78,30 @@ public final class WebCards {
         r.source = new Web.Source();
         r.source.recipeMap = entry.name;
         r.metadata = new JsonObject();
-        r.metadata.addProperty("recipeMapId", mapId);
+        r.metadata.addProperty("recipeMapId", entry.id);
         r.metadata.addProperty("specialValue", special);
         if (node.properties.get(GTProvider.FUSION_THRESHOLD) instanceof final Number startup)
             r.metadata.addProperty("fusionStartupEu", startup.doubleValue());
         r.inputs = resources(node.inputs);
         r.outputs = resources(node.outputs);
+        // The game's own ladder, as the website's oracle runs it for every GregTech map recipe.
+        if (!smelting) r.runtimeCalculation = RuntimeVariants.of(r.durationTicks, r.eut, r.outputs);
         r.machineConfigControls = HandlerData.recipeControls(entry, special);
         r.machineHandlers = HandlerData.handlers(entry, r.minimumTier, r.durationTicks, r.eut, r.machineConfigControls);
         return r;
+    }
+
+    /**
+     * The website's entry for a game map id. Its dataset came from a pack where GT++'s maps were named gtpp.recipe.*;
+     * this game names them gt.recipe.*, and the Industrial Coke Oven's map changed its name.
+     */
+    @Nullable
+    public static HandlerData.MapEntry entry(@Nullable final String mapId) {
+        if (mapId == null) return null;
+        final HandlerData.MapEntry entry = HandlerData.map(mapId);
+        if (entry != null) return entry;
+        if (mapId.equals("gt.recipe.industrialcokeoven")) return HandlerData.map("gtpp.recipe.cokeoven");
+        return mapId.startsWith("gt.recipe.") ? HandlerData.map("gtpp.recipe." + mapId.substring(10)) : null;
     }
 
     private static double number(@Nullable final Object value) {
@@ -113,9 +128,11 @@ public final class WebCards {
         return out;
     }
 
-    /** The card's settings as the website's node fields, its machine matched to one of the recipe's handlers. */
-    public static Web.Node node(final Node node, final Web.Recipe recipe) {
-        final MachineConfig cfg = node.machineConfig;
+    /**
+     * The card's settings ({@code cfg}: its own, or a what-if copy's) as the website's node fields, its machine matched
+     * to one of the recipe's handlers.
+     */
+    public static Web.Node node(final Node node, final MachineConfig cfg, final Web.Recipe recipe) {
         final Web.Node n = new Web.Node();
         final String voltage = string(cfg.settings.get(VOLTAGE));
         if (Tiers.isName(voltage)) {
@@ -147,21 +164,34 @@ public final class WebCards {
     }
 
     /**
-     * Which of the recipe's handlers the card's machine is: a multiblock by its display name (or a table alias of
-     * it), a singleblock by its family; null (the map's primary machine) when none matches.
+     * Which of the recipe's handlers the card's machine is: by its item among the handlers' machines, else a multiblock
+     * by its display name (or a table alias of it), a singleblock by its family; null (the map's primary machine) when
+     * none matches. Names drift between packs ("Fusion Control Computer Mk-I" here, "Mark I" in the website's data).
      */
     @Nullable
     public static String handlerId(final Node node, final Web.Recipe recipe) {
         final ItemStack machine = machineStack(node);
         if (machine == null) return null;
-        final String name = machine.getDisplayName();
         final List<Web.Handler> handlers = RecipeRules.machineHandlers(recipe);
+        // By the machine itself: the template that lists it, or the family it folded into.
+        final HandlerData.MapEntry entry = entry(mapId(node));
+        if (entry != null && entry.handlers != null) {
+            final String item = GameIds.itemId(machine);
+            for (final HandlerData.Template t : entry.handlers) {
+                if (t.items == null || !t.items.contains(item)) continue;
+                for (final Web.Handler h : handlers) if (h.id.equals(t.id)) return h.id;
+                final String family = RecipeRules.familyLabel(t.label);
+                for (final Web.Handler h : handlers) if (h.label.equals(family)) return h.id;
+            }
+        }
+        // By name, where the data has no ids: its display name or a table alias, else its family.
+        final String name = machine.getDisplayName();
         final String wanted = MachineTable.normalizeMachineName(name);
         for (final Web.Handler h : handlers) if (MachineTable.normalizeMachineName(h.label)
             .equals(wanted)) return h.id;
-        final MachineTable.Behaviour entry = MachineTable.behaviour(name);
-        if (entry != null)
-            for (final Web.Handler h : handlers) if (MachineTable.behaviour(h.machineType) == entry) return h.id;
+        final MachineTable.Behaviour table = MachineTable.behaviour(name);
+        if (table != null)
+            for (final Web.Handler h : handlers) if (MachineTable.behaviour(h.machineType) == table) return h.id;
         final String family = RecipeRules.familyLabel(name);
         for (final Web.Handler h : handlers) if (h.label.equalsIgnoreCase(family)) return h.id;
         return null;
