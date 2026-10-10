@@ -165,6 +165,11 @@ solved in the background (`data/flowchart/balancer/`, `SolveService`), auto-layo
   opts `test` out of the configuration cache; without that a clean build reports `:test NO-SOURCE` and silently
   runs nothing, so if you ever see NO-SOURCE, check the count in `build/test-results/test/*.xml`.
 - `./gradlew spotlessApply` before committing; CI checks formatting.
+- Releases are pre-releases tagged `0.2.0-alpha.N` on main (annotated, "GTNH Planner <tag>"), notes in
+  `.changelogs/<tag>.md`. The fork's Actions have never run, so the tag builds nothing: smoke-test the jar in the full
+  pack, then build at the tag with a clean tree (`./gradlew build -x test`, so the jar takes the tag's version) and
+  `gh release create <tag> --prerelease --title "GTNH Planner <tag>" -F .changelogs/<tag>.md
+  build/libs/gtnhplanner-<tag>.jar`.
 - The layout benchmark (`./gradlew test -Pbench=<label> --tests '*LayoutBenchmark*'`, tagged `bench`, left out of the
   normal run) routes and arranges every plan in the corpus, measures it (`layout/RouteMetrics`) and draws it to
   `build/bench/<label>/`; `DragBench`, `RouterTrace` and `RouterProfile` look at dragging, single searches and
