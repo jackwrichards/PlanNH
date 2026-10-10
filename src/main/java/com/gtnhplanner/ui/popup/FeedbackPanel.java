@@ -296,6 +296,11 @@ public final class FeedbackPanel extends ParentWidget<FeedbackPanel> implements 
         pill(r[0] + 1, r[1] + 1, r[2] - 2, r[3] - 2, fill);
     }
 
+    /** The Bug chip's bug, 8 by 8, in one colour (the top bar's Feedback key draws it red). */
+    public static void bug(final int x, final int y, final int c) {
+        kindIcon(0, x - 1, y - 1, c);
+    }
+
     /** A kind's little picture, 8 by 8: a bug, a light bulb, a question mark. */
     private static void kindIcon(final int kind, final int x, final int y, final int c) {
         final String[] rows = switch (kind) {

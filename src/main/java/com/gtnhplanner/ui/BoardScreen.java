@@ -537,24 +537,6 @@ public final class BoardScreen extends ModularScreen {
         GEAR
     }
 
-    /**
-     * A red bug, 11 by 9 in pixels, for Feedback: antennae and legs in grey, a dark head, a red back split down the
-     * middle.
-     */
-    private static void bug(final int x, final int y) {
-        final String[] rows = { "..g.....g..", "...g...g...", "....ddd....", "g.rrrdrrr.g", ".grrrdrrrg.",
-            "..rrrdrrr..", "g.rrrdrrr.g", ".grrrdrrrg.", "...rrdrr..." };
-        for (int row = 0; row < rows.length; row++) for (int col = 0; col < rows[row].length(); col++) {
-            final int c = switch (rows[row].charAt(col)) {
-                case 'r' -> 0xFFE5484D;
-                case 'd' -> 0xFF7A1F22;
-                case 'g' -> 0xFFB0B3BA;
-                default -> 0;
-            };
-            if (c != 0) Hyb.rect(x + col, y + row, 1, 1, c);
-        }
-    }
-
     /** A small key with an arrow drawn on it (the game's font has none), for undo and redo. */
     private static ButtonWidget<?> iconKey(final Arrow arrow, final BooleanSupplier enabled, final String tooltip,
         final Runnable action) {
@@ -570,11 +552,11 @@ public final class BoardScreen extends ModularScreen {
 
     /**
      * 9 by 7: a hooked arrow, its head pointing left for undo and right for redo, its tail curling under; for feedback,
-     * a speech bubble.
+     * a red bug.
      */
     private static void drawArrow(final Arrow arrow, final int x, final int y, final int c) {
         if (arrow == Arrow.FEEDBACK) {
-            bug(x - 1, y - 1);
+            com.gtnhplanner.ui.popup.FeedbackPanel.bug(x, y - 1, 0xFFE5484D);
             return;
         }
         if (arrow == Arrow.GEAR) {
